@@ -91,7 +91,7 @@ final class AppStore: NeighborRegistry {
             phase = .main
             Task { await loadMap(home: (d.object(forKey: "homeBuilding") as? NSNumber)?.int64Value, animated: true) }
         }
-        listener.requestAuth()
+        runOnboardingScriptIfNeeded()
     }
 
     // MARK: - 首次使用
@@ -117,7 +117,7 @@ final class AppStore: NeighborRegistry {
         scene.setHomeBuilding(homeID)
         scene.homeTarget = homeID.flatMap { m.building(id: $0)?.centroid } ?? .zero
         scene.load(map: m, landmarks: landmarks, animated: animated)
-        scene.setCamera(target: scene.homeTarget, distance: scene.homeDistance, animated: false)
+        scene.setCamera(target: DioramaController.overviewTarget, distance: DioramaController.overviewDistance, animated: false)
         updateSun(animated: false)
         loadingMap = false
         if case .onboarding = phase { phase = .onboarding(.pickHome); highlightResidential(true) }
@@ -186,11 +186,12 @@ final class AppStore: NeighborRegistry {
         var meR = Resident(id: "me", name: "你", floor: floorChoice, blockName: scene.homeBuildingID.flatMap { m.building(id: $0)?.name },
                            colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true)
         meR.homeLandmarkID = nearestLandmark(to: scene.homeTarget)?.id
-        meR.todayLine = ai.dailyLine(for: meR, passed: [])
+        meR.todayLine = ai.dailyLine(for: meR, passed: [landmark(meR.homeLandmarkID)].compactMap { $0 })
         list.append(meR)
         residents = list
         if LaunchArgs.has("-withNeighbor") { residents[0].isNeighbor = true }
         syncScene()
+        runScriptIfNeeded()
     }
 
     func nearestLandmark(to p: Vec2) -> Landmark? { landmarks.min { $0.pos.distance(to: p) < $1.pos.distance(to: p) } }
@@ -262,7 +263,7 @@ final class AppStore: NeighborRegistry {
         speaker.speak("偵測到你出咗門，開始記錄，唔使撳任何掣。")
         Haptics.light()
         scene.followID = "me"
-        scene.setCamera(target: start, distance: 1.0, animated: true)
+        scene.setCamera(target: start, distance: 1.35, animated: true)
         syncScene()
         startTicker()
     }
@@ -748,8 +749,15 @@ final class AppStore: NeighborRegistry {
 
     // MARK: - 语音
 
+    @ObservationIgnored private var askedSpeechAuth = false
+
     func micTapped() {
         if listening { stopListening(); return }
+        if !askedSpeechAuth {
+            // 第一次按咪才请求麦克风和语音识别权限。
+            askedSpeechAuth = true
+            listener.requestAuth()
+        }
         voiceCard = nil
         do {
             try listener.start()
@@ -777,6 +785,7 @@ final class AppStore: NeighborRegistry {
 
     func handle(_ text: String) {
         phrasePicker = false
+        if listening { _ = listener.stop() }
         listening = false
         let ctx = AIContext(residents: residents, landmarks: landmarks, now: now, walking: walk != nil, finding: find != nil)
         let intent = ai.parseVoice(text, context: ctx)

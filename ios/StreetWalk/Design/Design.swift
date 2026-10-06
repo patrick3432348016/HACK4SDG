@@ -114,6 +114,14 @@ struct AvatarBadge: View {
             Image(systemName: symbol)
                 .font(.system(size: size * 0.5, weight: .semibold))
                 .foregroundStyle(color)
+            if mobility == .cane {
+                // 系统没有拐杖图标：在走路的人旁边画一根拐杖。
+                Capsule()
+                    .fill(color)
+                    .frame(width: max(2, size * 0.055), height: size * 0.4)
+                    .rotationEffect(.degrees(-10))
+                    .offset(x: size * 0.2, y: size * 0.07)
+            }
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
@@ -122,7 +130,7 @@ struct AvatarBadge: View {
     var symbol: String {
         switch mobility {
         case .walk: return "figure.walk"
-        case .cane: return "figure.walk.motion"
+        case .cane: return "figure.walk"
         case .wheelchair: return "figure.roll"
         case .stroller: return "stroller.fill"
         }

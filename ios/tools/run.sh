@@ -10,6 +10,7 @@ UDID=$(xcrun simctl list devices available | grep -A20 -- "-- iOS 26.5 --" | gre
 xcrun simctl boot "$UDID" 2>/dev/null || true
 xcrun simctl location "$UDID" set 22.5044,114.1563 >/dev/null 2>&1 || true
 xcrun simctl install "$UDID" "$APP"
+xcrun simctl privacy "$UDID" grant location hk.hack4sdg.streetwalk >/dev/null 2>&1 || true
 xcrun simctl terminate "$UDID" hk.hack4sdg.streetwalk >/dev/null 2>&1 || true
 xcrun simctl launch "$UDID" hk.hack4sdg.streetwalk "$@"
 echo "UDID=$UDID"

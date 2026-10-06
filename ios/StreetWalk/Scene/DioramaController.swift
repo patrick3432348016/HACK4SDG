@@ -62,11 +62,11 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     private let pitch: Float = 58 * .pi / 180
     private let azimuth: Float = 45 * .pi / 180      // 从东南方看
     private(set) var target = Vec2.zero
-    private(set) var distance: Float = Float(LaunchArgs.value("-dist").flatMap(Double.init) ?? 2.05)
+    private(set) var distance: Float = Float(LaunchArgs.value("-dist").flatMap(Double.init) ?? 2.45)
     let minDistance: Float = 0.32
-    let maxDistance: Float = 2.5
+    let maxDistance: Float = 2.8
     var homeTarget = Vec2.zero
-    var homeDistance: Float = 2.05
+    var homeDistance: Float = 2.45
 
     // 平移惯性
     private var velocity = Vec2.zero
@@ -177,6 +177,8 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
             node.name = "bld:\(b.id)"
             node.castsShadow = true
             if b.isTower || b.kind == .residential {
+                // 可选中的楼各用一份材质，高亮时不会连累其他楼。
+                geo.materials = geo.materials.map { $0.copy() as! SCNMaterial }
                 buildingsNode.addChildNode(node)
                 pickableNodes[b.id] = node
                 if b.isTower { towerNodes[b.id] = node }
@@ -350,7 +352,12 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         cameraNode.runAction(action, forKey: "fly")
     }
 
-    func resetCamera() { setCamera(target: homeTarget, distance: homeDistance, animated: true) }
+    /// 总览：看到整个底座（中心稍往北移，给上方的状态栏和按钮留位置）。
+    static let overviewTarget = Vec2(x: 0, y: 28)
+    static let overviewDistance: Float = 2.45
+    func resetCamera() { setCamera(target: Self.overviewTarget, distance: Self.overviewDistance, animated: true) }
+    /// 回到我屋企：推近到自己住的楼。
+    func flyHome() { setCamera(target: homeTarget, distance: 1.1, animated: true) }
 
     /// 屏幕点对应的地面（y=0）米坐标。
     func groundPoint(at p: CGPoint) -> Vec2? {

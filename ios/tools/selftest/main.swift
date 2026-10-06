@@ -62,5 +62,15 @@ for c in picked {
 }
 print("     遮荫计算耗时 \(Int(Date().timeIntervalSince(t1) * 1000)) ms")
 
+print("PathGrid")
+let grid = PathGrid(map: map)
+let t2 = Date()
+let a = grid.nearestWalkable(picked[0].pos), b = grid.nearestWalkable(picked[picked.count - 1].pos)
+let path = grid.path(from: a, to: b)
+print("     寻路耗时 \(Int(Date().timeIntervalSince(t2) * 1000)) ms，\(path.count) 点，长 \(Int(grid.length(of: path))) m，直线 \(Int(a.distance(to: b))) m")
+check(path.count >= 2 && grid.length(of: path) >= a.distance(to: b) - 1, "路线不短于直线")
+let insideCount = path.filter { map.isInsideBuilding($0) }.count
+check(insideCount <= 1, "路线不穿楼（落在楼里的点 \(insideCount) 个）")
+
 print(failures == 0 ? "ALL PASSED" : "\(failures) FAILED")
 exit(failures == 0 ? 0 : 1)
