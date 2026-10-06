@@ -81,6 +81,9 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     private let lock = NSLock()
 
     var onOverlay: (([OverlayItem]) -> Void)?
+    /// 跟随某个人（散步时跟着"我"）。用户拖动后暂停 3 秒。
+    var followID: String?
+    private var lastUserInteraction: CFTimeInterval = 0
     var debugInfo: [String: Int] = [:]
 
     override init() {
@@ -367,12 +370,14 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     private var pinchStart: Float = 1
 
     func panBegan(at p: CGPoint) {
+        lastUserInteraction = CACurrentMediaTime()
         stopMomentum()
         cameraNode.removeAction(forKey: "fly")
         panAnchor = groundPoint(at: p)
     }
 
     func panChanged(at p: CGPoint) {
+        lastUserInteraction = CACurrentMediaTime()
         guard let anchor = panAnchor, let g = groundPoint(at: p) else { return }
         moveTarget(by: anchor - g)
     }
@@ -413,7 +418,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         SCNTransaction.commit()
     }
 
-    func pinchBegan() { pinchStart = distance; cameraNode.removeAction(forKey: "fly") }
+    func pinchBegan() { lastUserInteraction = CACurrentMediaTime(); pinchStart = distance; cameraNode.removeAction(forKey: "fly") }
     func pinchChanged(scale: CGFloat) {
         distance = max(minDistance, min(maxDistance, pinchStart / Float(max(scale, 0.05))))
         SCNTransaction.begin()
@@ -607,9 +612,22 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         routesNode.addChildNode(n)
     }
 
+    private func followStep() {
+        guard let fid = followID, panAnchor == nil, displayLink == nil,
+              CACurrentMediaTime() - lastUserInteraction > 3, cameraNode.action(forKey: "fly") == nil else { return }
+        lock.lock(); let node = personNodes[fid]; lock.unlock()
+        guard let n = node else { return }
+        let p = n.presentation.worldPosition
+        let s = Double(SceneStyle.scale)
+        let goal = Vec2(x: Double(p.x) / s, y: -Double(p.z) / s)
+        target = target + (goal - target) * 0.06
+        applyCamera()
+    }
+
     // MARK: - 标签投影（渲染线程 → 主线程）
 
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+        followStep()
         guard time - lastOverlayPush > 1.0 / 30 else { return }
         lastOverlayPush = time
         var items: [OverlayItem] = []
