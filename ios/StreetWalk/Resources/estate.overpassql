@@ -1,0 +1,19 @@
+[out:json][timeout:60];
+(
+  way["building"]({{bbox}});
+  relation["building"]({{bbox}});
+  way["highway"]({{bbox}});
+  way["leisure"]({{bbox}});
+  way["landuse"]({{bbox}});
+  way["natural"]({{bbox}});
+  way["amenity"]({{bbox}});
+  way["waterway"]({{bbox}});
+  way["shop"]({{bbox}});
+  node["highway"="bus_stop"]({{bbox}});
+  node["amenity"]({{bbox}});
+  node["leisure"]({{bbox}});
+  node["shop"]({{bbox}});
+  node["natural"="tree"]({{bbox}});
+  node["entrance"]({{bbox}});
+);
+out geom;

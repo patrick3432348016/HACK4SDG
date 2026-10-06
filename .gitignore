@@ -1,0 +1,8 @@
+.DS_Store
+xcuserdata/
+DerivedData/
+build/
+*.xcuserstate
+ios/build/
+Secrets.*
+Local.xcconfig
