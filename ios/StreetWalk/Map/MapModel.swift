@@ -66,6 +66,13 @@ struct MapModel: Codable {
     var trees: [Vec2]
     var fetchedAt: Date
     var source: String
+    /// 地图被逆时针转了多少弧度（转正后楼边与底座边平行）。太阳方位要减去它。
+    var rotation: Double = 0
+
+    /// 真实太阳位置 → 这张（转过的）地图里的太阳位置。
+    func localSun(_ s: SolarPosition) -> SolarPosition {
+        SolarPosition(elevation: s.elevation, azimuth: s.azimuth - rotation * 180 / .pi)
+    }
 
     var half: Double { size / 2 }
 
@@ -82,22 +89,29 @@ struct MapModel: Codable {
     func building(id: Int64) -> Building? { buildings.first { $0.id == id } }
 
     /// 场景用的底座边长：做减法，只留我屋企周围 300 米。
-    static let dioramaSize = 300.0
+    static let dioramaSize = 200.0
 
     /// 以 c 为中心裁出 size 见方的一块（坐标重新以 c 为原点），并做减法：
     /// 去掉小屋和遮蓬、太小的面、楼梯和单车径；地面只留铺地 / 绿 / 球场 / 水。
     func simplified(around c: Vec2, size: Double = MapModel.dioramaSize) -> MapModel {
         let h = size / 2
-        func shift(_ v: Vec2) -> Vec2 { v - c }
+        // 转正：取附近楼宇的主方向，整块地图绕中心旋转，让楼边和底座边平行。
+        let nearby = buildings.filter { $0.kind != .small && $0.centroid.distance(to: c) < size }.map(\.outline)
+        let theta = Polygon.dominantAngle(nearby)
+        let phi = -theta
+        let cs = cos(phi), sn = sin(phi)
+        func shift(_ v: Vec2) -> Vec2 { let d = v - c; return Vec2(x: d.x * cs - d.y * sn, y: d.x * sn + d.y * cs) }
         var out = self
         out.size = size
         out.center = LocalProjection(origin: center).toGeo(c)
+        out.rotation = rotation + phi
 
         out.buildings = buildings.compactMap { b in
             guard b.kind != .small, b.kind != .canopy, Polygon.area(b.outline) >= 60 else { return nil }
             let cen = shift(b.centroid)
             guard abs(cen.x) <= h, abs(cen.y) <= h else { return nil }
-            let ring = Polygon.normalized(Polygon.clip(b.outline.map(shift), half: h))
+            let simple = Polygon.simplify(b.outline, tolerance: 1.2)
+            let ring = Polygon.normalized(Polygon.clip(simple.map(shift), half: h))
             guard ring.count >= 3, Polygon.area(ring) >= 40 else { return nil }
             var nb = b
             nb.outline = ring

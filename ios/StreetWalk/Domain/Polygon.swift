@@ -147,6 +147,40 @@ enum Polygon {
         return tris
     }
 
+    /// Douglas–Peucker 简化闭合多边形（去掉小锯齿）。
+    static func simplify(_ ring: [Vec2], tolerance: Double) -> [Vec2] {
+        guard ring.count > 4 else { return ring }
+        func dp(_ pts: ArraySlice<Vec2>) -> [Vec2] {
+            guard pts.count > 2, let a = pts.first, let b = pts.last else { return Array(pts) }
+            var maxD = 0.0, idx = pts.startIndex
+            for i in pts.indices.dropFirst().dropLast() {
+                let d = LandmarkDeriver.closestPoint(on: a, b, to: pts[i]).distance(to: pts[i])
+                if d > maxD { maxD = d; idx = i }
+            }
+            if maxD <= tolerance { return [a, b] }
+            return Array(dp(pts[pts.startIndex...idx]).dropLast()) + dp(pts[idx...pts.endIndex - 1])
+        }
+        let closed = ring + [ring[0]]
+        var out = dp(closed[...])
+        out.removeLast()
+        return out.count >= 3 ? out : ring
+    }
+
+    /// 这一组楼的主方向（弧度，0…π/2）：按边长加权，4θ 平均消掉 90° 的对称。
+    static func dominantAngle(_ rings: [[Vec2]]) -> Double {
+        var c = 0.0, s = 0.0
+        for r in rings {
+            for i in 0..<r.count {
+                let e = r[(i + 1) % r.count] - r[i]
+                let len = e.length
+                guard len > 1 else { continue }
+                let th = atan2(e.y, e.x)
+                c += len * cos(4 * th); s += len * sin(4 * th)
+            }
+        }
+        return atan2(s, c) / 4
+    }
+
     private static func pointInTriangle(_ p: Vec2, _ a: Vec2, _ b: Vec2, _ c: Vec2) -> Bool {
         let d1 = (b - a).cross(p - a), d2 = (c - b).cross(p - b), d3 = (a - c).cross(p - c)
         return d1 >= 0 && d2 >= 0 && d3 >= 0

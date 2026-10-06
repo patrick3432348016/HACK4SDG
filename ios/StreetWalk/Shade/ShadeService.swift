@@ -4,12 +4,14 @@ import Foundation
 final class ShadeService: ShadeProviding {
     private let calc: ShadeCalculator
     private let center: GeoPoint
+    private let map: MapModel
     private var landmarks: [String: Vec2]
     private var cache: [String: Double] = [:]
 
     init(map: MapModel, landmarks: [Landmark]) {
         calc = ShadeCalculator(map: map)
         center = map.center
+        self.map = map
         self.landmarks = Dictionary(uniqueKeysWithValues: landmarks.map { ($0.id, $0.pos) })
     }
 
@@ -22,7 +24,7 @@ final class ShadeService: ShadeProviding {
         let key = "\(landmarkID)|\(c.year ?? 0)-\(c.month ?? 0)-\(c.day ?? 0)|\(slot)"
         if let v = cache[key] { return v }
         let slotDate = cal.date(from: DateComponents(year: c.year, month: c.month, day: c.day, hour: slot / 4, minute: (slot % 4) * 15)) ?? date
-        let v = calc.shade(at: pos, sun: SolarPosition.at(slotDate, lat: center.lat, lon: center.lon))
+        let v = calc.shade(at: pos, sun: map.localSun(SolarPosition.at(slotDate, lat: center.lat, lon: center.lon)))
         cache[key] = v
         return v
     }

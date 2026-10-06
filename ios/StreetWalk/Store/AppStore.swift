@@ -114,7 +114,8 @@ final class AppStore: NeighborRegistry {
         var homeID = home.flatMap { id in m.building(id: id) != nil ? id : nil }
         if homeID == nil, case .main = phase { homeID = defaultHome(in: m) }
         if case .onboarding = phase {
-            install(m, home: nil, animated: animated)
+            // 选楼时看完整一格（同样转正、去掉小屋），选定后再收窄。
+            install(m.simplified(around: .zero, size: m.size), home: nil, animated: animated)
             loadingMap = false
             phase = .onboarding(.pickHome)
             highlightResidential(true)
@@ -128,6 +129,7 @@ final class AppStore: NeighborRegistry {
     /// 以我屋企为中心裁出 300 m 底座并装进场景。
     private func installDiorama(home: Int64?, animated: Bool) {
         guard let full = fullMap else { return }
+        // 底座中心放在我屋企稍南一点（楼下大堂那边），高楼不会顶住画面上沿。
         let c = home.flatMap { full.building(id: $0)?.centroid } ?? .zero
         install(full.simplified(around: c), home: home, animated: animated)
     }
@@ -252,7 +254,7 @@ final class AppStore: NeighborRegistry {
 
     func updateSun(animated: Bool) {
         guard let m = map else { return }
-        scene.setSun(SolarPosition.at(now, lat: m.center.lat, lon: m.center.lon), animated: animated)
+        scene.setSun(m.localSun(SolarPosition.at(now, lat: m.center.lat, lon: m.center.lon)), animated: animated)
     }
 
     func setDemoHour(_ h: Double?) {
@@ -284,7 +286,7 @@ final class AppStore: NeighborRegistry {
         speaker.speak("偵測到你出咗門，開始記錄，唔使撳任何掣。")
         Haptics.light()
         scene.followID = "me"
-        scene.setCamera(target: start, distance: 1.35, animated: true)
+        scene.setCamera(target: start, distance: scene.overviewDistance * 0.85, animated: true)
         syncScene()
         startTicker()
     }
@@ -378,7 +380,7 @@ final class AppStore: NeighborRegistry {
             self.bumpStage = .found(r.id)
             self.speaker.speak("你同\(r.floorLabel)\(r.name)而家係街坊。")
             self.syncScene()
-            self.scene.setCamera(target: self.scene.homeTarget + Vec2(x: 0, y: -18), distance: 0.55, animated: true, duration: 1.0)
+            self.scene.setCamera(target: self.scene.homeTarget + Vec2(x: 0, y: -18), distance: self.scene.overviewDistance * 0.7, animated: true, duration: 1.0)
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(2.6))
                 self.remindPromptFor = r.id
@@ -610,7 +612,7 @@ final class AppStore: NeighborRegistry {
         scene.followID = nil
         startTicker()
         syncScene()
-        if let lm = landmark(f.landmarkID) { scene.setCamera(target: lm.pos + Vec2(x: -20, y: -20), distance: 0.75, animated: true, duration: 1.0) }
+        if let lm = landmark(f.landmarkID) { scene.setCamera(target: lm.pos + Vec2(x: -10, y: -10), distance: scene.overviewDistance * 0.8, animated: true, duration: 1.0) }
     }
 
     func departForAppointment(_ a: Appointment) {
@@ -628,7 +630,7 @@ final class AppStore: NeighborRegistry {
         scene.highlightLandmark(lm.id)
         syncScene()
         startTicker()
-        scene.setCamera(target: lm.pos + Vec2(x: -20, y: -20), distance: 0.8, animated: true, duration: 1.0)
+        scene.setCamera(target: lm.pos + Vec2(x: -10, y: -10), distance: scene.overviewDistance * 0.8, animated: true, duration: 1.0)
         speaker.speak("今日約咗\(p.name)喺\(lm.name)。\(p.name)出咗門，大約 \(max(1, Int(pathLength(partnerRoute ?? []) / 70))) 分鐘到。")
     }
 
@@ -717,7 +719,7 @@ final class AppStore: NeighborRegistry {
 
     func focus(onLandmark id: String) {
         guard let lm = landmark(id) else { return }
-        scene.setCamera(target: lm.pos, distance: min(scene.distance, 1.2), animated: true)
+        scene.setCamera(target: lm.pos, distance: min(scene.distance, scene.overviewDistance), animated: true)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.scene.fadeOccluders(toward: lm.pos) }
     }
 

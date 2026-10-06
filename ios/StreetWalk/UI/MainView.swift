@@ -229,35 +229,26 @@ struct MainView: View {
         VStack(alignment: .leading, spacing: 0) {
             // 标题行：左对齐，右边让出咪的位置。
             HStack(spacing: 0) {
-                ZStack(alignment: .leading) {
-                    ForEach(AppStore.Tab.ordered, id: \.self) { t in
-                        let active = t == store.tab
-                        Text(t.title)
-                            .ds(.title)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .opacity(active ? 1 : 0)
-                            .offset(x: slideOffset(t, distance: 12))
-                            .accessibilityHidden(!active)
-                            .accessibilityAddTraits(.isHeader)
-                    }
-                }
+                Text(store.tab.title)
+                    .ds(.title)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .id(store.tab)
+                    .transition(.opacity)
+                    .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: DS.micSize + DS.side + DS.gap)
             }
             .padding(.leading, DS.side)
             .padding(.top, 12)
             .padding(.bottom, DS.gap)
 
-            // 三页同时保留（像系统标签栏一样记住各自的位置），切换时淡入 + 轻微横移。
+            // 只渲染当前页（三页同时靠透明度叠放时，动画叠在一起偶尔会卡在全透明）。切换时淡入 + 轻微横移。
             ZStack(alignment: .top) {
-                ForEach(AppStore.Tab.ordered, id: \.self) { t in
-                    let active = t == store.tab
-                    page(for: t, tabH: tabH)
-                        .opacity(active ? 1 : 0)
-                        .offset(x: slideOffset(t, distance: 28))
-                        .allowsHitTesting(active)
-                        .accessibilityHidden(!active)
-                }
+                page(for: store.tab, tabH: tabH)
+                    .id(store.tab)
+                    .transition(DS.reduceMotion ? .opacity : .asymmetric(
+                        insertion: .opacity.combined(with: .offset(x: 24)),
+                        removal: .opacity))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }

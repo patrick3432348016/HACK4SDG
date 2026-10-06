@@ -63,7 +63,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     private let azimuth: Float = 45 * .pi / 180      // 从东南方看
     private(set) var target = Vec2(x: -72, y: 72)
     private(set) var distance: Float = 2.35
-    let minDistance: Float = 0.32
+    let minDistance: Float = 0.25
     let maxDistance: Float = 2.8
     var homeTarget = Vec2.zero
     var homeDistance: Float = 2.45
@@ -358,12 +358,12 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     var overviewTarget: Vec2 {
         let size = map?.size ?? 560
         // 300 m 小底座上高楼相对更高：取景中心再往下压一点，楼顶不碰顶部状态栏。
-        let k = LaunchArgs.value("-ovy").flatMap(Double.init) ?? (size < 400 ? 90 : 72 * size / 560)
+        let k = LaunchArgs.value("-ovy").flatMap(Double.init) ?? (size < 400 ? 46 * size / 200 : 72 * size / 560)
         return Vec2(x: -k, y: k)
     }
     var overviewDistance: Float {
         let size = map?.size ?? 560
-        return Float(LaunchArgs.value("-ovd").flatMap(Double.init) ?? (size < 400 ? 1.42 : 2.35 * size / 560))
+        return Float(LaunchArgs.value("-ovd").flatMap(Double.init) ?? (size < 400 ? 1.06 * size / 200 : 2.35 * size / 560))
     }
     func resetCamera() { setCamera(target: overviewTarget, distance: overviewDistance, animated: true) }
     /// 回到我屋企：推近到自己住的楼。
@@ -467,11 +467,17 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
 
     // MARK: - 高亮与遮挡
 
+    /// 给楼染色（白色楼体上用自发光看不出来，所以改用正片叠底）：只有一座时用深一点的橙，表示"选中"。
     func highlightBuildings(_ ids: Set<Int64>, color: UIColor?) {
+        let tint = color ?? (ids.count == 1 ? UIColor(red: 0.93, green: 0.58, blue: 0.43, alpha: 1)
+                                            : UIColor(red: 0.98, green: 0.83, blue: 0.74, alpha: 1))
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = 0.35
         for (id, node) in pickableNodes {
             let on = ids.contains(id)
-            node.geometry?.materials.forEach { $0.emission.contents = on ? (color ?? SceneStyle.accent).withAlphaComponent(0.35) : UIColor.black }
+            node.geometry?.materials.forEach { $0.multiply.contents = on ? tint : UIColor.white }
         }
+        SCNTransaction.commit()
     }
 
     func setHomeBuilding(_ id: Int64?) {
