@@ -112,7 +112,7 @@ enum MeshBuilder {
         }
         let geo = SCNGeometry(sources: [SCNGeometrySource(vertices: pts)], elements: [SCNGeometryElement(indices: idx, primitiveType: .line)])
         let m = SCNMaterial()
-        m.diffuse.contents = UIColor(red: 0.42, green: 0.38, blue: 0.33, alpha: 0.55)
+        m.diffuse.contents = SceneStyle.outline
         m.lightingModel = .constant
         geo.firstMaterial = m
         return geo

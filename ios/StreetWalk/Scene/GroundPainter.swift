@@ -23,19 +23,9 @@ enum GroundPainter {
                 path.close()
                 SceneStyle.area(a.kind).setFill()
                 path.fill()
-                if a.kind == .farmland {
-                    UIColor(white: 1, alpha: 0.25).setStroke()
-                    path.lineWidth = 1.2 * k
-                    path.stroke()
-                }
-                if a.kind == .pitch {
-                    UIColor(white: 1, alpha: 0.85).setStroke()
-                    path.lineWidth = 0.5 * k
-                    path.stroke()
-                    let c = pt(Polygon.centroid(a.outline))
-                    let r = 4 * k
-                    UIBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)).stroke()
-                }
+                SceneStyle.outline.withAlphaComponent(0.35).setStroke()
+                path.lineWidth = 0.6 * k
+                path.stroke()
             }
 
             // 道路：先画边，再画路面；大路在下，行人路在上。
@@ -64,18 +54,7 @@ enum GroundPainter {
                 }
             }
 
-            // 楼宇底下一圈浅色散水，让楼像"放"在地上。
-            UIColor(white: 0.97, alpha: 1).setFill()
-            for b in map.buildings where b.kind != .canopy {
-                let path = UIBezierPath()
-                path.move(to: pt(b.outline[0]))
-                b.outline.dropFirst().forEach { path.addLine(to: pt($0)) }
-                path.close()
-                UIColor(white: 0.82, alpha: 1).setStroke()
-                path.lineWidth = 2.0 * k
-                path.stroke()
-                path.fill()
-            }
+
         }
     }
 

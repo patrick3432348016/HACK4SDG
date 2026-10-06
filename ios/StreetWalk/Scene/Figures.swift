@@ -74,15 +74,14 @@ enum Figures {
         return root
     }
 
-    /// 橙色地标：参考图里的小凉亭（四根柱 + 橙色四角顶）+ 一圈贴地光晕。
+    /// 地标：参考图 ③ 的小凉亭——白色顶、橙色描边、细灰柱，下面一圈橙色光晕（20%）。
     static func landmark(hasSeat: Bool) -> SCNNode {
         let root = SCNNode()
         let s = CGFloat(SceneStyle.scale)
         let k = SceneStyle.scale
-        let orange = MeshBuilder.material(SceneStyle.accent)
-        let post = MeshBuilder.material(UIColor(red: 0.45, green: 0.30, blue: 0.22, alpha: 1))
+        let grey = MeshBuilder.material(UIColor(red: 0.62, green: 0.62, blue: 0.66, alpha: 1))
 
-        let halo = SCNCylinder(radius: 13 * s, height: 0.05 * s)
+        let halo = SCNCylinder(radius: 12 * s, height: 0.05 * s)
         halo.radialSegmentCount = 48
         let hm = MeshBuilder.material(SceneStyle.accent.withAlphaComponent(0.20), lit: false)
         hm.writesToDepthBuffer = false
@@ -93,38 +92,36 @@ enum Figures {
         hn.castsShadow = false
         root.addChildNode(hn)
 
-        let base = SCNBox(width: 10 * s, height: 0.8 * s, length: 10 * s, chamferRadius: 0.4 * s)
-        base.firstMaterial = MeshBuilder.material(UIColor(red: 0.93, green: 0.90, blue: 0.85, alpha: 1))
-        let bn = SCNNode(geometry: base)
-        bn.position = SCNVector3(0, 0.4 * k, 0)
-        root.addChildNode(bn)
-
-        for (x, z) in [(-3.6, -3.6), (3.6, -3.6), (3.6, 3.6), (-3.6, 3.6)] as [(Float, Float)] {
-            let p = SCNCylinder(radius: 0.55 * s, height: 6 * s)
-            p.radialSegmentCount = 8
-            p.firstMaterial = post
+        for (x, z) in [(-3.4, -3.4), (3.4, -3.4), (3.4, 3.4), (-3.4, 3.4)] as [(Float, Float)] {
+            let p = SCNCylinder(radius: 0.35 * s, height: 7 * s)
+            p.radialSegmentCount = 6
+            p.firstMaterial = grey
             let pn = SCNNode(geometry: p)
-            pn.position = SCNVector3(x * k, 3.8 * k, z * k)
+            pn.position = SCNVector3(x * k, 3.5 * k, z * k)
             root.addChildNode(pn)
         }
 
-        let roof = SCNPyramid(width: 11.5 * s, height: 4.2 * s, length: 11.5 * s)
-        roof.firstMaterial = orange
+        let w: CGFloat = 9.5
+        let roof = SCNBox(width: w * s, height: 1.0 * s, length: w * s, chamferRadius: 0)
+        roof.firstMaterial = MeshBuilder.material(.white)
         let rn = SCNNode(geometry: roof)
-        rn.position = SCNVector3(0, 6.6 * k, 0)
+        rn.position = SCNVector3(0, 7.4 * k, 0)
         root.addChildNode(rn)
-        let eave = SCNBox(width: 11.5 * s, height: 0.6 * s, length: 11.5 * s, chamferRadius: 0)
-        eave.firstMaterial = MeshBuilder.material(UIColor(red: 0.70, green: 0.28, blue: 0.14, alpha: 1))
-        let en = SCNNode(geometry: eave)
-        en.position = SCNVector3(0, 6.5 * k, 0)
-        root.addChildNode(en)
+
+        // 橙色描边：屋顶一圈。
+        let hw = Float(w) / 2, top: Float = 7.95
+        let corners = [(-hw, -hw), (hw, -hw), (hw, hw), (-hw, hw)].map { SCNVector3($0.0 * k, top * k, $0.1 * k) }
+        let idx: [UInt32] = [0, 1, 1, 2, 2, 3, 3, 0]
+        let edge = SCNGeometry(sources: [SCNGeometrySource(vertices: corners)], elements: [SCNGeometryElement(indices: idx, primitiveType: .line)])
+        edge.firstMaterial = MeshBuilder.material(SceneStyle.accent, lit: false)
+        root.addChildNode(SCNNode(geometry: edge))
 
         if hasSeat {
-            let bench = SCNBox(width: 6 * s, height: 1.2 * s, length: 1.8 * s, chamferRadius: 0.3 * s)
-            bench.firstMaterial = post
-            let bnn = SCNNode(geometry: bench)
-            bnn.position = SCNVector3(0, 1.6 * k, 0)
-            root.addChildNode(bnn)
+            let bench = SCNBox(width: 5 * s, height: 0.8 * s, length: 1.6 * s, chamferRadius: 0.2 * s)
+            bench.firstMaterial = grey
+            let bn = SCNNode(geometry: bench)
+            bn.position = SCNVector3(0, 1.4 * k, 0)
+            root.addChildNode(bn)
         }
         return root
     }

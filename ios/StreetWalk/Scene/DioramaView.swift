@@ -1,7 +1,7 @@
 import SceneKit
 import SwiftUI
 
-/// SwiftUI 里的 3D 微缩模型。手势：单指平移（带惯性）、双指缩放、双击复位、单击选中。
+/// SwiftUI 里的 3D 微缩模型。只看不操作：镜头由流程自动移动；单击只用于首次使用时选楼。
 struct DioramaView: UIViewRepresentable {
     let controller: DioramaController
     var onTap: ((DioramaController.Hit?) -> Void)?
@@ -19,18 +19,14 @@ struct DioramaView: UIViewRepresentable {
         v.allowsCameraControl = false
         v.showsStatistics = showStats
         v.pointOfView = controller.scene.rootNode.childNodes.first { $0.camera != nil }
-        if !LaunchArgs.has("-notilt") { v.technique = TiltShift.technique() }
+        if LaunchArgs.has("-tilt") { v.technique = TiltShift.technique() }
         controller.view = v
 
+        // 场景只看不操作：没有拖动、缩放、双击；只保留单击（首次使用时点选自己住的楼）。
         let c = context.coordinator
-        let pan = UIPanGestureRecognizer(target: c, action: #selector(Coordinator.pan(_:)))
-        pan.maximumNumberOfTouches = 1
-        let pinch = UIPinchGestureRecognizer(target: c, action: #selector(Coordinator.pinch(_:)))
-        let double = UITapGestureRecognizer(target: c, action: #selector(Coordinator.doubleTap(_:)))
-        double.numberOfTapsRequired = 2
         let single = UITapGestureRecognizer(target: c, action: #selector(Coordinator.tap(_:)))
-        single.require(toFail: double)
-        [pan, pinch, double, single].forEach { $0.delegate = c; v.addGestureRecognizer($0) }
+        single.delegate = c
+        v.addGestureRecognizer(single)
         return v
     }
 
@@ -45,32 +41,9 @@ struct DioramaView: UIViewRepresentable {
         var parent: DioramaView
         init(parent: DioramaView) { self.parent = parent }
 
-        @objc func pan(_ g: UIPanGestureRecognizer) {
-            let p = g.location(in: g.view)
-            switch g.state {
-            case .began: parent.controller.panBegan(at: p)
-            case .changed: parent.controller.panChanged(at: p)
-            case .ended, .cancelled: parent.controller.panEnded(at: p, velocity: g.velocity(in: g.view))
-            default: break
-            }
-        }
-
-        @objc func pinch(_ g: UIPinchGestureRecognizer) {
-            switch g.state {
-            case .began: parent.controller.pinchBegan()
-            case .changed: parent.controller.pinchChanged(scale: g.scale)
-            default: break
-            }
-        }
-
-        @objc func doubleTap(_ g: UITapGestureRecognizer) { parent.controller.resetCamera() }
-
         @objc func tap(_ g: UITapGestureRecognizer) {
             parent.onTap?(parent.controller.hit(at: g.location(in: g.view)))
         }
 
-        func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-            (g is UIPinchGestureRecognizer && other is UIPanGestureRecognizer) || (g is UIPanGestureRecognizer && other is UIPinchGestureRecognizer)
-        }
     }
 }

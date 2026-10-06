@@ -82,8 +82,8 @@ enum LandmarkDeriver {
     }
 
     /// 贪心挑选：间隔至少 minSpacing 米，每类最多 2 个，最多 maxCount 个；不够 5 个就放宽间隔再挑。
-    static func pick(_ cands: [LandmarkCandidate], maxCount: Int = 7) -> [LandmarkCandidate] {
-        for spacing in [60.0, 45.0, 30.0] {
+    static func pick(_ cands: [LandmarkCandidate], maxCount: Int = 5) -> [LandmarkCandidate] {
+        for spacing in [55.0, 40.0, 30.0] {
             var chosen: [LandmarkCandidate] = []
             var perKind: [LandmarkKind: Int] = [:]
             for c in cands {
@@ -93,7 +93,7 @@ enum LandmarkDeriver {
                 chosen.append(c)
                 perKind[c.kind, default: 0] += 1
             }
-            if chosen.count >= 5 || spacing == 30 { return chosen }
+            if chosen.count >= 4 || spacing == 30 { return chosen }
         }
         return []
     }

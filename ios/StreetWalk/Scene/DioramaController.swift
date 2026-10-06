@@ -103,6 +103,8 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         [plinthNode, buildingsNode, treesNode, landmarksNode, routesNode, peopleNode].forEach { $0.childNodes.forEach { $0.removeFromParentNode() } }
         lock.lock(); towerNodes = [:]; pickableNodes = [:]; landmarkNodes = [:]; personNodes = [:]; personState = [:]; lock.unlock()
 
+        // 阴影范围跟着底座大小走，小底座的影子更清楚。
+        sunNode.light?.orthographicScale = map.size * Double(SceneStyle.scale) * 0.75
         buildPlinth(map)
         buildBuildings(map, animated: animated)
         buildTrees(map)
@@ -150,16 +152,8 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     }
 
     private func buildBuildings(_ map: MapModel, animated: Bool) {
-        let wallMats = SceneStyle.facadeTints.map { tint -> SCNMaterial in
-            let m = SCNMaterial()
-            m.diffuse.contents = GroundPainter.facadeTile(wall: tint)
-            m.diffuse.wrapS = .repeat
-            m.diffuse.wrapT = .repeat
-            m.diffuse.mipFilter = .linear
-            m.lightingModel = .lambert
-            return m
-        }
-        let plainWall = MeshBuilder.material(SceneStyle.facadeTints[1])
+        let wallMats = SceneStyle.facadeTints.map { MeshBuilder.material($0) }
+        let plainWall = MeshBuilder.material(SceneStyle.facadeTints[0])
         let roof = MeshBuilder.material(SceneStyle.roof)
         let constructionMat = MeshBuilder.material(SceneStyle.construction)
         let canopyMat = MeshBuilder.material(SceneStyle.canopy)
@@ -220,20 +214,22 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     private func buildTrees(_ map: MapModel) {
         var rng = SeededRandom(seed: UInt64(bitPattern: Int64(map.tile.ix * 7919 + map.tile.iy * 104_729 + 17)))
         var spots: [(Vec2, Double)] = map.trees.map { ($0, 1.0) }
-        for a in map.areas where a.kind == .wood || a.kind == .park {
-            let spacing = a.kind == .wood ? 15.0 : 20.0
+        for a in map.areas where a.kind == .park {
             let xs = a.outline.map(\.x), ys = a.outline.map(\.y)
             var y = ys.min()!
             while y < ys.max()! {
                 var x = xs.min()!
                 while x < xs.max()! {
-                    let p = Vec2(x: x + rng.next(-3, 3), y: y + rng.next(-3, 3))
-                    if Polygon.contains(a.outline, p), !map.isInsideBuilding(p) { spots.append((p, rng.next(0.8, 1.25))) }
-                    x += spacing
+                    let p = Vec2(x: x + rng.next(-4, 4), y: y + rng.next(-4, 4))
+                    if Polygon.contains(a.outline, p), !map.isInsideBuilding(p),
+                       !spots.contains(where: { $0.0.distance(to: p) < 30 }) { spots.append((p, rng.next(0.9, 1.2))) }
+                    x += 18
                 }
-                y += spacing
+                y += 18
             }
         }
+        // 做减法：最多 12 棵。
+        spots = Array(spots.prefix(12))
         debugInfo["trees"] = min(spots.count, 1200)
         guard let geo = MeshBuilder.trees(Array(spots.prefix(1200)), greens: SceneStyle.treeGreens, trunk: SceneStyle.trunk) else { return }
         let node = SCNNode(geometry: geo)
@@ -269,7 +265,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         sun.shadowSampleCount = 16
         sun.shadowRadius = 4
         sun.shadowMapSize = CGSize(width: 2048, height: 2048)
-        sun.shadowColor = UIColor(red: 0.25, green: 0.22, blue: 0.18, alpha: 0.30)
+        sun.shadowColor = UIColor(red: 0.45, green: 0.45, blue: 0.52, alpha: 0.12)
         sun.automaticallyAdjustsShadowProjection = false
         sun.orthographicScale = 0.42
         sun.zNear = 0.05
@@ -279,8 +275,8 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
 
         let amb = SCNLight()
         amb.type = .ambient
-        amb.intensity = 420
-        amb.color = UIColor(red: 0.93, green: 0.93, blue: 0.96, alpha: 1)
+        amb.intensity = 820
+        amb.color = UIColor(red: 0.95, green: 0.95, blue: 0.97, alpha: 1)
         ambientNode.light = amb
         scene.rootNode.addChildNode(ambientNode)
         setSun(SolarPosition(elevation: 45, azimuth: 135), animated: false)
@@ -297,10 +293,10 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         sunNode.look(at: SCNVector3(0, 0, 0))
         let day = sun.elevation > 0
         let warm = max(0, min(1, (sun.elevation - 5) / 35))
-        sunNode.light?.intensity = day ? CGFloat(560 + 300 * warm) : 0
-        sunNode.light?.temperature = CGFloat(3600 + 2900 * warm)
-        ambientNode.light?.intensity = day ? 420 : 240
-        ambientNode.light?.color = day ? UIColor(red: 0.93, green: 0.93, blue: 0.96, alpha: 1) : UIColor(red: 0.62, green: 0.68, blue: 0.86, alpha: 1)
+        sunNode.light?.intensity = day ? CGFloat(230 + 60 * warm) : 0
+        sunNode.light?.temperature = CGFloat(5200 + 1300 * warm)
+        ambientNode.light?.intensity = day ? 820 : 520
+        ambientNode.light?.color = day ? UIColor(red: 0.95, green: 0.95, blue: 0.97, alpha: 1) : UIColor(red: 0.62, green: 0.68, blue: 0.86, alpha: 1)
         SCNTransaction.commit()
     }
 
@@ -357,10 +353,19 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         cameraNode.runAction(action, forKey: "fly")
     }
 
-    /// 总览：看到整个底座（中心稍往北移，给上方的状态栏和按钮留位置）。
-    static let overviewTarget: Vec2 = { let k = LaunchArgs.value("-ovy").flatMap(Double.init) ?? 72; return Vec2(x: -k, y: k) }()   // 沿视线（西北）方向移，底座只上下移不左右偏
-    static let overviewDistance: Float = Float(LaunchArgs.value("-ovd").flatMap(Double.init) ?? 2.35)
-    func resetCamera() { setCamera(target: Self.overviewTarget, distance: Self.overviewDistance, animated: true) }
+    /// 总览：看到整个底座，沿视线（西北）方向偏移，底座只上下移、不左右偏，给顶部按钮留位置。
+    /// 数值按 560 m 底座调好，再按当前底座边长等比缩放。
+    var overviewTarget: Vec2 {
+        let size = map?.size ?? 560
+        // 300 m 小底座上高楼相对更高：取景中心再往下压一点，楼顶不碰顶部状态栏。
+        let k = LaunchArgs.value("-ovy").flatMap(Double.init) ?? (size < 400 ? 90 : 72 * size / 560)
+        return Vec2(x: -k, y: k)
+    }
+    var overviewDistance: Float {
+        let size = map?.size ?? 560
+        return Float(LaunchArgs.value("-ovd").flatMap(Double.init) ?? (size < 400 ? 1.42 : 2.35 * size / 560))
+    }
+    func resetCamera() { setCamera(target: overviewTarget, distance: overviewDistance, animated: true) }
     /// 回到我屋企：推近到自己住的楼。
     func flyHome() { setCamera(target: homeTarget, distance: 1.1, animated: true) }
 

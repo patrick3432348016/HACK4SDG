@@ -101,27 +101,47 @@ final class AppStore: NeighborRegistry {
         Task { await loadMap(home: nil, animated: true) }
     }
 
+    /// 完整格子（560 m，首次使用选楼时用）。选好楼后场景只用以我屋企为中心的 300 m。
+    @ObservationIgnored private var fullMap: MapModel?
+
     func loadMap(home: Int64?, animated: Bool) async {
         loadingMap = true
         let loc = await mapService.currentLocation()
         let tile = loc.map(TileKey.snap) ?? TileKey(ix: 0, iy: 0)
         let (m, source) = await mapService.load(tile: tile)
-        map = m
+        fullMap = m
         mapSource = source
+        var homeID = home.flatMap { id in m.building(id: id) != nil ? id : nil }
+        if homeID == nil, case .main = phase { homeID = defaultHome(in: m) }
+        if case .onboarding = phase {
+            install(m, home: nil, animated: animated)
+            loadingMap = false
+            phase = .onboarding(.pickHome)
+            highlightResidential(true)
+        } else {
+            installDiorama(home: homeID, animated: animated)
+            loadingMap = false
+            populate()
+        }
+    }
+
+    /// 以我屋企为中心裁出 300 m 底座并装进场景。
+    private func installDiorama(home: Int64?, animated: Bool) {
+        guard let full = fullMap else { return }
+        let c = home.flatMap { full.building(id: $0)?.centroid } ?? .zero
+        install(full.simplified(around: c), home: home, animated: animated)
+    }
+
+    private func install(_ m: MapModel, home: Int64?, animated: Bool) {
+        map = m
         let picked = LandmarkDeriver.pick(LandmarkDeriver.candidates(in: m))
         landmarks = picked.map { Landmark(id: $0.id, name: ai.nameLandmark($0), kind: $0.kind, pos: $0.pos, hasSeat: $0.hasSeat) }
         shade = ShadeService(map: m, landmarks: landmarks)
-
-        var homeID = home.flatMap { id in m.building(id: id) != nil ? id : nil }
-        if homeID == nil, case .main = phase { homeID = defaultHome(in: m) }
-        scene.setHomeBuilding(homeID)
-        scene.homeTarget = homeID.flatMap { m.building(id: $0)?.centroid } ?? .zero
+        scene.setHomeBuilding(home)
+        scene.homeTarget = home.flatMap { m.building(id: $0)?.centroid } ?? .zero
         scene.load(map: m, landmarks: landmarks, animated: animated)
-        scene.setCamera(target: DioramaController.overviewTarget, distance: DioramaController.overviewDistance, animated: false)
+        scene.setCamera(target: scene.overviewTarget, distance: scene.overviewDistance, animated: false)
         updateSun(animated: false)
-        loadingMap = false
-        if case .onboarding = phase { phase = .onboarding(.pickHome); highlightResidential(true) }
-        else { populate() }
     }
 
     private func defaultHome(in m: MapModel) -> Int64? {
@@ -144,9 +164,10 @@ final class AppStore: NeighborRegistry {
 
     func confirmHome() {
         guard let id = pendingHome else { return }
-        scene.setHomeBuilding(id)
-        scene.homeTarget = map?.building(id: id)?.centroid ?? .zero
         floorChoice = min(floorChoice, max(1, map?.building(id: id)?.levels ?? 30))
+        highlightResidential(false)
+        // 选好楼：底座收窄到我屋企周围 300 m，楼宇重新"升起"。
+        installDiorama(home: id, animated: true)
         phase = .onboarding(.floor)
     }
 

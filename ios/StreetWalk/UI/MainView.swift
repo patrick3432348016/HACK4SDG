@@ -295,9 +295,8 @@ struct MainView: View {
         }
     }
 
-    /// 再点当前标签：场景回到我屋企、内容回到顶部（iOS 惯例）。
+    /// 再点当前标签：内容回到顶部（iOS 惯例）。场景不可操作，镜头不用复位。
     private func reselect(_ t: AppStore.Tab) {
-        store.scene.resetCamera()
         withAnimation(DS.motion(DS.spring)) {
             switch t {
             case .today: todayScroll.scrollTo(edge: .top)
@@ -310,39 +309,29 @@ struct MainView: View {
 
 // MARK: - 左上胶囊
 
-/// 在家：「回到我屋企」；散步中：「行緊 N 分鐘」（数字滚动）。
+/// 场景不可操作，所以只在散步中显示状态：「行緊 N 分鐘」（数字滚动）；在家时不显示。
 private struct HomeChip: View {
     @Environment(AppStore.self) private var store
 
     var body: some View {
-        let minutes = store.walk?.minutes
-        SceneChip(action: tap) {
+        if let m = store.walk?.minutes {
             HStack(spacing: 6) {
-                if let m = minutes {
-                    Image(systemName: "figure.walk")
-                        .foregroundStyle(DS.accent)
-                    Text("行緊 \(m) 分鐘")
-                        .monospacedDigit()
-                        .contentTransition(.numericText(value: Double(m)))
-                } else {
-                    Image(systemName: "house.fill")
-                        .foregroundStyle(DS.accent)
-                    Text("回到我屋企")
-                }
+                Image(systemName: "figure.walk")
+                    .foregroundStyle(DS.accent)
+                Text("行緊 \(m) 分鐘")
+                    .monospacedDigit()
+                    .contentTransition(.numericText(value: Double(m)))
             }
             .lineLimit(1)
-        }
-        .animation(DS.motion(DS.snappy), value: minutes)
-        .accessibilityLabel(minutes.map { "行緊 \($0) 分鐘" } ?? "回到我屋企")
-        .accessibilityHint(minutes == nil ? "鏡頭返去你屋企" : "鏡頭返去你而家嘅位置")
-    }
-
-    private func tap() {
-        if store.walk != nil {
-            store.scene.followID = "me"
-            store.scene.setCamera(target: store.myPosition(), distance: 1.35, animated: !DS.reduceMotion)
-        } else {
-            store.scene.flyHome()
+            .ds(.caption)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 40)
+            .background(.regularMaterial, in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.12)))
+            .animation(DS.motion(DS.snappy), value: m)
+            .transition(.scale(scale: 0.8, anchor: .leading).combined(with: .opacity))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("行緊 \(m) 分鐘")
         }
     }
 }
