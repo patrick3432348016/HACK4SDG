@@ -135,20 +135,6 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         ground.castsShadow = false
         plinthNode.addChildNode(ground)
 
-        // 前沿铭牌：屋邨名 · 比例 · 地图署名。
-        let text = SCNText(string: "\(map.placeName)  ·  1:1000  ·  © OpenStreetMap contributors", extrusionDepth: 0.2)
-        text.font = UIFont.systemFont(ofSize: 6, weight: .medium)
-        text.flatness = 0.2
-        text.firstMaterial = MeshBuilder.material(UIColor(red: 0.35, green: 0.27, blue: 0.18, alpha: 1))
-        let tn = SCNNode(geometry: text)
-        let (minB, maxB) = tn.boundingBox
-        let k: Float = 0.00085
-        tn.scale = SCNVector3(k, k, k)
-        tn.pivot = SCNMatrix4MakeTranslation((maxB.x + minB.x) / 2, (maxB.y + minB.y) / 2, 0)
-        // 贴在南侧（面向相机的一侧）的侧面。
-        tn.position = SCNVector3(0, -Float(t) / 2, Float(L) / 2 + 0.0003)
-        tn.castsShadow = false
-        plinthNode.addChildNode(tn)
     }
 
     private func buildBuildings(_ map: MapModel, animated: Bool) {
@@ -222,14 +208,14 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
                 while x < xs.max()! {
                     let p = Vec2(x: x + rng.next(-4, 4), y: y + rng.next(-4, 4))
                     if Polygon.contains(a.outline, p), !map.isInsideBuilding(p),
-                       !spots.contains(where: { $0.0.distance(to: p) < 30 }) { spots.append((p, rng.next(0.9, 1.2))) }
+                       !spots.contains(where: { $0.0.distance(to: p) < 22 }) { spots.append((p, rng.next(0.9, 1.2))) }
                     x += 18
                 }
                 y += 18
             }
         }
         // 做减法：最多 12 棵。
-        spots = Array(spots.prefix(12))
+        spots = Array(spots.prefix(5))
         debugInfo["trees"] = min(spots.count, 1200)
         guard let geo = MeshBuilder.trees(Array(spots.prefix(1200)), greens: SceneStyle.treeGreens, trunk: SceneStyle.trunk) else { return }
         let node = SCNNode(geometry: geo)
@@ -358,12 +344,12 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     var overviewTarget: Vec2 {
         let size = map?.size ?? 560
         // 300 m 小底座上高楼相对更高：取景中心再往下压一点，楼顶不碰顶部状态栏。
-        let k = LaunchArgs.value("-ovy").flatMap(Double.init) ?? (size < 400 ? 46 * size / 200 : 72 * size / 560)
+        let k = LaunchArgs.value("-ovy").flatMap(Double.init) ?? (size < 400 ? 60 * size / 200 : 72 * size / 560)
         return Vec2(x: -k, y: k)
     }
     var overviewDistance: Float {
         let size = map?.size ?? 560
-        return Float(LaunchArgs.value("-ovd").flatMap(Double.init) ?? (size < 400 ? 1.06 * size / 200 : 2.35 * size / 560))
+        return Float(LaunchArgs.value("-ovd").flatMap(Double.init) ?? (size < 400 ? 0.88 * size / 200 : 2.35 * size / 560))
     }
     func resetCamera() { setCamera(target: overviewTarget, distance: overviewDistance, animated: true) }
     /// 回到我屋企：推近到自己住的楼。

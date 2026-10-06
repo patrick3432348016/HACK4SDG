@@ -115,7 +115,7 @@ final class AppStore: NeighborRegistry {
         if homeID == nil, case .main = phase { homeID = defaultHome(in: m) }
         if case .onboarding = phase {
             // 选楼时看完整一格（同样转正、去掉小屋），选定后再收窄。
-            install(m.simplified(around: .zero, size: m.size), home: nil, animated: animated)
+            install(m.simplified(around: .zero, size: m.size, maxBuildings: nil), home: nil, animated: animated)
             loadingMap = false
             phase = .onboarding(.pickHome)
             highlightResidential(true)
@@ -131,7 +131,7 @@ final class AppStore: NeighborRegistry {
         guard let full = fullMap else { return }
         // 底座中心放在我屋企稍南一点（楼下大堂那边），高楼不会顶住画面上沿。
         let c = home.flatMap { full.building(id: $0)?.centroid } ?? .zero
-        install(full.simplified(around: c), home: home, animated: animated)
+        install(full.simplified(around: c, home: home), home: home, animated: animated)
     }
 
     private func install(_ m: MapModel, home: Int64?, animated: Bool) {

@@ -93,7 +93,7 @@ struct MapModel: Codable {
 
     /// 以 c 为中心裁出 size 见方的一块（坐标重新以 c 为原点），并做减法：
     /// 去掉小屋和遮蓬、太小的面、楼梯和单车径；地面只留铺地 / 绿 / 球场 / 水。
-    func simplified(around c: Vec2, size: Double = MapModel.dioramaSize) -> MapModel {
+    func simplified(around c: Vec2, size: Double = MapModel.dioramaSize, home: Int64? = nil, maxBuildings: Int? = 6) -> MapModel {
         let h = size / 2
         // 转正：取附近楼宇的主方向，整块地图绕中心旋转，让楼边和底座边平行。
         let nearby = buildings.filter { $0.kind != .small && $0.centroid.distance(to: c) < size }.map(\.outline)
@@ -106,32 +106,69 @@ struct MapModel: Codable {
         out.center = LocalProjection(origin: center).toGeo(c)
         out.rotation = rotation + phi
 
-        out.buildings = buildings.compactMap { b in
+        // 画风优先：楼改成规整长方体（转正后的外接矩形，四边内缩留缝），高度按美学比例压缩。
+        var blocks: [Building] = buildings.compactMap { b in
             guard b.kind != .small, b.kind != .canopy, Polygon.area(b.outline) >= 60 else { return nil }
-            let cen = shift(b.centroid)
-            guard abs(cen.x) <= h, abs(cen.y) <= h else { return nil }
-            let simple = Polygon.simplify(b.outline, tolerance: 1.2)
-            let ring = Polygon.normalized(Polygon.clip(simple.map(shift), half: h))
-            guard ring.count >= 3, Polygon.area(ring) >= 40 else { return nil }
+            let pts = b.outline.map(shift)
+            let xs = pts.map(\.x), ys = pts.map(\.y)
+            let inset = 2.5
+            var x0 = xs.min()! + inset, x1 = xs.max()! - inset, y0 = ys.min()! + inset, y1 = ys.max()! - inset
+            let cx = (x0 + x1) / 2, cy = (y0 + y1) / 2
+            guard abs(cx) <= h - 6, abs(cy) <= h - 6, x1 - x0 > 4, y1 - y0 > 4 else { return nil }
+            x0 = max(x0, -h + 4); x1 = min(x1, h - 4); y0 = max(y0, -h + 4); y1 = min(y1, h - 4)
+            // 接近正方形的（十字形塔楼）改成板楼：长边不变，短边收到长边的 45%，看起来像参考图里的薄板。
+            let w = x1 - x0, d = y1 - y0
+            if max(w, d) / min(w, d) < 1.8 {
+                if (b.id % 2 == 0) == (w >= d) {
+                    let nd = w * 0.45; y0 = cy - nd / 2; y1 = cy + nd / 2
+                } else {
+                    let nw = d * 0.45; x0 = cx - nw / 2; x1 = cx + nw / 2
+                }
+            }
             var nb = b
-            nb.outline = ring
+            nb.outline = [Vec2(x: x0, y: y0), Vec2(x: x1, y: y0), Vec2(x: x1, y: y1), Vec2(x: x0, y: y1)]
+            nb.minHeight = 0
+            nb.height = b.height <= 20 ? max(b.height, 9) : 20 + (b.height - 20) * 0.38
             return nb
         }
-        out.areas = areas.compactMap { a in
+        if let maxBuildings {
+            let keep = blocks.sorted { a, b in
+                if a.id == home { return true }
+                if b.id == home { return false }
+                return a.centroid.length < b.centroid.length
+            }.prefix(maxBuildings)
+            let ids = Set(keep.map(\.id))
+            blocks = blocks.filter { ids.contains($0.id) }
+        }
+        // 去掉和别的楼重叠的（矩形化后可能相交），先到先得。
+        var placed: [Building] = []
+        for b in blocks.sorted(by: { ($0.id == home ? 0 : 1, $0.centroid.length) < ($1.id == home ? 0 : 1, $1.centroid.length) }) {
+            let r = b.outline
+            let overlaps = placed.contains { p in
+                let q = p.outline
+                return !(r[1].x + 2 < q[0].x || q[1].x + 2 < r[0].x || r[2].y + 2 < q[0].y || q[2].y + 2 < r[0].y)
+            }
+            if !overlaps { placed.append(b) }
+        }
+        out.buildings = placed
+        // 地面：绿地 / 水改成规整矩形色块，最多 3 块（取面积大的）。
+        out.areas = Array(areas.compactMap { a -> Area? in
             let kind: AreaKind
             switch a.kind {
-            case .grass, .wood, .park, .farmland: kind = a.kind == .park || a.kind == .wood ? .park : .grass
-            case .pitch, .playground: kind = .pitch
+            case .grass, .wood, .park, .farmland, .pitch, .playground: kind = .park
             case .water: kind = .water
-            default: return nil          // 铺地类不单独上色，统一用底色
+            default: return nil
             }
-            let ring = Polygon.normalized(Polygon.clip(a.outline.map(shift), half: h))
-            guard ring.count >= 3, Polygon.area(ring) >= 150 else { return nil }
-            return Area(kind: kind, outline: ring, name: a.name)
-        }.sorted { $0.kind.drawOrder < $1.kind.drawOrder }
+            let ring = Polygon.clip(a.outline.map(shift), half: h - 4)
+            guard ring.count >= 3, Polygon.area(ring) >= 400 else { return nil }
+            let xs = ring.map(\.x), ys = ring.map(\.y)
+            let rect = [Vec2(x: xs.min()!, y: ys.min()!), Vec2(x: xs.max()!, y: ys.min()!), Vec2(x: xs.max()!, y: ys.max()!), Vec2(x: xs.min()!, y: ys.max()!)]
+            return Area(kind: kind, outline: rect, name: a.name)
+        }.sorted { Polygon.area($0.outline) > Polygon.area($1.outline) }.prefix(3)).sorted { $0.kind.drawOrder < $1.kind.drawOrder }
         out.roads = roads.flatMap { r -> [Road] in
-            guard r.kind != .steps else { return [] }
-            let kind: RoadKind = r.kind == .cycleway ? .footway : r.kind
+            // 只留车路（淡色宽带）；行人路、单车径、楼梯都不画。
+            guard r.kind == .major || r.kind == .minor || r.kind == .residential else { return [] }
+            let kind = r.kind
             return Polygon.clipPolyline(r.points.map(shift), half: h).map { Road(kind: kind, points: $0, width: r.width, name: r.name) }
         }
         out.pois = pois.compactMap { p in

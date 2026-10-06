@@ -13,9 +13,11 @@ struct SceneLabelsLayer: View {
     @ScaledMetric(relativeTo: .callout) private var fontSize: CGFloat = 20
 
     var body: some View {
+        // 在 GeometryReader 闭包外读取状态，保证 Observation 能追踪到。
+        let focus = focusIDs
+        let items = store.scene.overlay.items
         GeometryReader { geo in
-            let focus = focusIDs
-            let shown = placed(in: CGRect(origin: .zero, size: geo.size), focus: focus)
+            let shown = placed(items, in: CGRect(origin: .zero, size: geo.size), focus: focus)
             ZStack(alignment: .topLeading) {
                 ForEach(shown) { item in
                     SceneLabel(item: item,
@@ -40,8 +42,8 @@ struct SceneLabelsLayer: View {
         return s
     }
 
-    private func placed(in bounds: CGRect, focus: Set<String>) -> [OverlayItem] {
-        let candidates = store.scene.overlay.items
+    private func placed(_ items: [OverlayItem], in bounds: CGRect, focus: Set<String>) -> [OverlayItem] {
+        let candidates = items
             .filter { $0.kind != .landmark || $0.highlighted || focus.contains($0.id) }
             .sorted { a, b in
                 // 高亮的人（约的对象、找的人）最重要，其次是焦点地标。

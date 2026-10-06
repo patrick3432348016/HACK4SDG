@@ -4,7 +4,7 @@ import UIKit
 enum SceneStyle {
     /// 1 个场景单位 = 1:1000 模型里的 1 米，所以地图上 1 米 = 0.001 单位。
     static let scale: Float = 0.001
-    static let plinthThickness: Float = 0.022
+    static let plinthThickness: Float = 0.006
 
     static let accent = UIColor(red: 0.847, green: 0.353, blue: 0.188, alpha: 1)       // #D85A30
     // ③ 纸雕留白：白色块面 + 细灰描边，颜色只留给小人和地标（强调色点睛）。

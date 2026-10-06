@@ -84,11 +84,14 @@ struct MainView: View {
 
     var body: some View {
         @Bindable var store = store
+        // 在 GeometryReader 闭包外读取会变的状态：闭包里的读取不会被 Observation 追踪，
+        // 之前切标签时内容区偶尔不刷新（停在旧页或整页空白）就是这个原因。
+        let tab = store.tab
+        let full = store.findFullScreen
         GeometryReader { geo in
             let safe = geo.safeAreaInsets
             let size = CGSize(width: geo.size.width + safe.leading + safe.trailing,
                               height: geo.size.height + safe.top + safe.bottom)
-            let full = store.findFullScreen
             let sceneH = full ? size.height : (size.height * DS.sceneFraction).rounded()
             let tabH = max(DS.tabBarHeight, safe.bottom + 49)
             let micCenter = CGPoint(x: size.width - DS.side - DS.micSize / 2, y: sceneH)
@@ -97,7 +100,7 @@ struct MainView: View {
                 Color(.systemGroupedBackground)
 
                 // 内容区（在场景之下；找人全屏时被场景盖住，保留状态不销毁）
-                contentArea(width: size.width, height: max(0, size.height - sceneH), tabH: tabH)
+                contentArea(tab: tab, width: size.width, height: max(0, size.height - sceneH), tabH: tabH)
                     .offset(y: sceneH)
                     .opacity(full ? 0 : 1)
                     .allowsHitTesting(!full)
@@ -197,6 +200,14 @@ struct MainView: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
             SceneLabelsLayer(reserved: reserved)
+            // 地图署名（OpenStreetMap 协议要求可见）：左下角一行小字。
+            Text("© OpenStreetMap")
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+                .padding(.leading, DS.side)
+                .padding(.bottom, 6)
+                .frame(width: width, height: height, alignment: .bottomLeading)
+                .allowsHitTesting(false)
         }
         .frame(width: width, height: height)
         .clipped()
@@ -225,15 +236,15 @@ struct MainView: View {
 
     // MARK: 内容
 
-    private func contentArea(width: CGFloat, height: CGFloat, tabH: CGFloat) -> some View {
+    private func contentArea(tab: AppStore.Tab, width: CGFloat, height: CGFloat, tabH: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             // 标题行：左对齐，右边让出咪的位置。
             HStack(spacing: 0) {
-                Text(store.tab.title)
+                Text(tab.title)
                     .ds(.title)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                    .id(store.tab)
+                    .id(tab)
                     .transition(.opacity)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: DS.micSize + DS.side + DS.gap)
@@ -244,8 +255,8 @@ struct MainView: View {
 
             // 只渲染当前页（三页同时靠透明度叠放时，动画叠在一起偶尔会卡在全透明）。切换时淡入 + 轻微横移。
             ZStack(alignment: .top) {
-                page(for: store.tab, tabH: tabH)
-                    .id(store.tab)
+                page(for: tab, tabH: tabH)
+                    .id(tab)
                     .transition(DS.reduceMotion ? .opacity : .asymmetric(
                         insertion: .opacity.combined(with: .offset(x: 24)),
                         removal: .opacity))
@@ -253,7 +264,7 @@ struct MainView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: width, height: height, alignment: .top)
-        .animation(DS.motion(DS.spring), value: store.tab)
+        .animation(DS.motion(DS.spring), value: tab)
     }
 
     private func slideOffset(_ t: AppStore.Tab, distance: CGFloat) -> CGFloat {
