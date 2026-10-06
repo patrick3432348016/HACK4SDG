@@ -91,7 +91,7 @@ enum MeshBuilder {
     }
 
     /// 楼宇轮廓线：屋顶一圈 + 外角竖线，像插画里的描边。
-    static func outline(_ b: Building) -> SCNGeometry? {
+    static func outline(_ b: Building, color: UIColor = SceneStyle.outline) -> SCNGeometry? {
         let ring = b.outline
         guard ring.count >= 3 else { return nil }
         var pts: [SCNVector3] = []
@@ -112,7 +112,7 @@ enum MeshBuilder {
         }
         let geo = SCNGeometry(sources: [SCNGeometrySource(vertices: pts)], elements: [SCNGeometryElement(indices: idx, primitiveType: .line)])
         let m = SCNMaterial()
-        m.diffuse.contents = SceneStyle.outline
+        m.diffuse.contents = color
         m.lightingModel = .constant
         geo.firstMaterial = m
         return geo

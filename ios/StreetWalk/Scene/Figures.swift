@@ -83,7 +83,7 @@ enum Figures {
 
         let halo = SCNCylinder(radius: 12 * s, height: 0.05 * s)
         halo.radialSegmentCount = 48
-        let hm = MeshBuilder.material(SceneStyle.accent.withAlphaComponent(0.20), lit: false)
+        let hm = MeshBuilder.material(SceneStyle.accent.withAlphaComponent(0.30), lit: false)
         hm.writesToDepthBuffer = false
         halo.firstMaterial = hm
         let hn = SCNNode(geometry: halo)

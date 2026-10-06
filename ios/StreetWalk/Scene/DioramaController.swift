@@ -143,20 +143,27 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         let roof = MeshBuilder.material(SceneStyle.roof)
         let constructionMat = MeshBuilder.material(SceneStyle.construction)
         let canopyMat = MeshBuilder.material(SceneStyle.canopy)
+        let schoolMat = MeshBuilder.material(SceneStyle.school)
+        let commercialMat = MeshBuilder.material(SceneStyle.commercial)
+        let homeMat = MeshBuilder.material(SceneStyle.home)
 
         let lowGroup = SCNNode()
         for b in map.buildings {
             let geo = MeshBuilder.building(b)
+            // 按用途区分颜色；我屋企淡橙 + 橙色描边，是画面主角。
             switch b.kind {
+            case _ where b.id == homeBuildingID: geo.materials = [homeMat, homeMat]
             case .construction: geo.materials = [constructionMat, constructionMat]
             case .canopy: geo.materials = [canopyMat, canopyMat]
             case .small: geo.materials = [plainWall, roof]
+            case .school: geo.materials = [schoolMat, schoolMat]
+            case .commercial: geo.materials = [commercialMat, commercialMat]
             default: geo.materials = [wallMats[Int(abs(b.id) % Int64(wallMats.count))], roof]
             }
             let node = SCNNode(geometry: geo)
             node.name = "bld:\(b.id)"
             node.castsShadow = true
-            if b.kind != .canopy, let edges = MeshBuilder.outline(b) {
+            if b.kind != .canopy, let edges = MeshBuilder.outline(b, color: b.id == homeBuildingID ? SceneStyle.accent : SceneStyle.outline) {
                 let en = SCNNode(geometry: edges)
                 en.castsShadow = false
                 node.addChildNode(en)

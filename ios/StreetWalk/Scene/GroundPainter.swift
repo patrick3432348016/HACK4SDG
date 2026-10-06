@@ -23,8 +23,8 @@ enum GroundPainter {
                 path.close()
                 SceneStyle.area(a.kind).setFill()
                 path.fill()
-                SceneStyle.outline.withAlphaComponent(0.35).setStroke()
-                path.lineWidth = 0.6 * k
+                (a.kind == .water ? UIColor(red: 0.62, green: 0.74, blue: 0.84, alpha: 1) : UIColor(red: 0.66, green: 0.78, blue: 0.60, alpha: 1)).setStroke()
+                path.lineWidth = 0.8 * k
                 path.stroke()
             }
 

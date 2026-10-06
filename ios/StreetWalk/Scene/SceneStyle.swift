@@ -16,16 +16,16 @@ enum SceneStyle {
     static let paving = UIColor(red: 0.969, green: 0.969, blue: 0.976, alpha: 1)        // #F7F7F9
     static func area(_ k: AreaKind) -> UIColor {
         switch k {
-        case .water: return UIColor(red: 0.894, green: 0.922, blue: 0.941, alpha: 1)    // #E4EBF0
+        case .water: return UIColor(red: 0.835, green: 0.894, blue: 0.937, alpha: 1)    // #D5E4EF 淡蓝
         case .grass, .park, .wood, .farmland, .pitch, .playground:
-            return UIColor(red: 0.933, green: 0.945, blue: 0.925, alpha: 1)             // #EEF1EC
+            return UIColor(red: 0.862, green: 0.918, blue: 0.827, alpha: 1)             // #DCEAD3 淡绿
         default: return paving
         }
     }
     static func road(_ k: RoadKind) -> (fill: UIColor, edge: UIColor?) {
         switch k {
         case .major, .minor, .residential:
-            return (UIColor(red: 0.925, green: 0.925, blue: 0.937, alpha: 1), nil)      // #ECECEF
+            return (UIColor(red: 0.890, green: 0.890, blue: 0.910, alpha: 1), UIColor(white: 1, alpha: 1))   // 车路：浅灰带白边
         case .service:
             return (UIColor(red: 0.945, green: 0.945, blue: 0.953, alpha: 1), nil)
         case .footway, .cycleway, .steps:
@@ -37,7 +37,10 @@ enum SceneStyle {
     static let facadeTints: [UIColor] = [.white]
     static let glass = UIColor(white: 0.9, alpha: 1)
     static let roof = UIColor.white
-    static let construction = UIColor(red: 0.97, green: 0.96, blue: 0.95, alpha: 1)
+    static let construction = UIColor(red: 0.965, green: 0.925, blue: 0.850, alpha: 1)   // 施工：淡沙
+    static let school = UIColor(red: 0.905, green: 0.930, blue: 0.960, alpha: 1)         // 学校：淡蓝灰
+    static let commercial = UIColor(red: 0.970, green: 0.940, blue: 0.895, alpha: 1)     // 商场：淡暖米
+    static let home = UIColor(red: 0.995, green: 0.905, blue: 0.860, alpha: 1)           // 我屋企：淡橙
     static let canopy = UIColor(white: 0.97, alpha: 1)
     static let outline = UIColor(red: 0.788, green: 0.788, blue: 0.808, alpha: 1)
 
@@ -45,7 +48,7 @@ enum SceneStyle {
     static let plinthSide = UIColor(red: 0.902, green: 0.902, blue: 0.918, alpha: 1)
 
     // 树：白色圆球 + 灰干。
-    static let treeGreens: [UIColor] = [.white, UIColor(white: 0.985, alpha: 1)]
-    static let trunk = UIColor(red: 0.70, green: 0.70, blue: 0.72, alpha: 1)
+    static let treeGreens: [UIColor] = [UIColor(red: 0.780, green: 0.875, blue: 0.735, alpha: 1), UIColor(red: 0.735, green: 0.850, blue: 0.690, alpha: 1)]
+    static let trunk = UIColor(red: 0.700, green: 0.640, blue: 0.580, alpha: 1)
     static let skin = UIColor(red: 0.961, green: 0.769, blue: 0.702, alpha: 1)
 }
