@@ -90,6 +90,34 @@ enum MeshBuilder {
                            elements: [walls.element(), SCNGeometryElement(indices: roofIdx, primitiveType: .triangles)])
     }
 
+    /// 楼宇轮廓线：屋顶一圈 + 外角竖线，像插画里的描边。
+    static func outline(_ b: Building) -> SCNGeometry? {
+        let ring = b.outline
+        guard ring.count >= 3 else { return nil }
+        var pts: [SCNVector3] = []
+        var idx: [UInt32] = []
+        let top = b.height + 0.15
+        for i in 0..<ring.count {
+            let a = ring[i], c = ring[(i + 1) % ring.count]
+            let base = UInt32(pts.count)
+            pts += [scenePoint(a, height: top), scenePoint(c, height: top)]
+            idx += [base, base + 1]
+            // 只画凸角的竖线（凹角会被墙挡住，画了反而乱）。
+            let prev = ring[(i + ring.count - 1) % ring.count]
+            if (a - prev).cross(c - a) > 0 {
+                let v = UInt32(pts.count)
+                pts += [scenePoint(a, height: b.minHeight), scenePoint(a, height: top)]
+                idx += [v, v + 1]
+            }
+        }
+        let geo = SCNGeometry(sources: [SCNGeometrySource(vertices: pts)], elements: [SCNGeometryElement(indices: idx, primitiveType: .line)])
+        let m = SCNMaterial()
+        m.diffuse.contents = UIColor(red: 0.42, green: 0.38, blue: 0.33, alpha: 0.55)
+        m.lightingModel = .constant
+        geo.firstMaterial = m
+        return geo
+    }
+
     /// 贴地的带子（走过的路、约会路线）。dash > 0 时画成虚线。
     static func ribbon(_ points: [Vec2], width: Double, height: Double, dash: Double = 0) -> SCNGeometry? {
         guard points.count >= 2 else { return nil }

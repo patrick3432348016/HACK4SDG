@@ -20,10 +20,10 @@ enum TiltShift {
 
     static half4 tilt_blur(TiltVertexOut in, texture2d<half, access::sample> tex, float2 axis) {
         constexpr sampler s(filter::linear, address::clamp_to_edge);
-        const float focus = 0.56;
-        const float band = 0.16;
+        const float focus = 0.58;
+        const float band = 0.26;
         float d = max(0.0, abs(in.uv.y - focus) - band);
-        float radius = min(d * 26.0, 5.0);
+        float radius = min(d * 18.0, 3.0);
         if (radius < 0.25) { return tex.sample(s, in.uv); }
         float2 texel = axis / float2(tex.get_width(), tex.get_height());
         half4 acc = half4(0.0);

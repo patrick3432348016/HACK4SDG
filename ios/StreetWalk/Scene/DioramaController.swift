@@ -59,10 +59,10 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     private let cameraNode = SCNNode()
     private let sunNode = SCNNode()
     private let ambientNode = SCNNode()
-    private let pitch: Float = 58 * .pi / 180
+    private let pitch: Float = Float(LaunchArgs.value("-pitch").flatMap(Double.init) ?? 33) * .pi / 180
     private let azimuth: Float = 45 * .pi / 180      // 从东南方看
-    private(set) var target = Vec2.zero
-    private(set) var distance: Float = Float(LaunchArgs.value("-dist").flatMap(Double.init) ?? 2.45)
+    private(set) var target = Vec2(x: -72, y: 72)
+    private(set) var distance: Float = 2.35
     let minDistance: Float = 0.32
     let maxDistance: Float = 2.8
     var homeTarget = Vec2.zero
@@ -176,6 +176,11 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
             let node = SCNNode(geometry: geo)
             node.name = "bld:\(b.id)"
             node.castsShadow = true
+            if b.kind != .canopy, let edges = MeshBuilder.outline(b) {
+                let en = SCNNode(geometry: edges)
+                en.castsShadow = false
+                node.addChildNode(en)
+            }
             if b.isTower || b.kind == .residential {
                 // 可选中的楼各用一份材质，高亮时不会连累其他楼。
                 geo.materials = geo.materials.map { $0.copy() as! SCNMaterial }
@@ -216,7 +221,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         var rng = SeededRandom(seed: UInt64(bitPattern: Int64(map.tile.ix * 7919 + map.tile.iy * 104_729 + 17)))
         var spots: [(Vec2, Double)] = map.trees.map { ($0, 1.0) }
         for a in map.areas where a.kind == .wood || a.kind == .park {
-            let spacing = a.kind == .wood ? 10.0 : 16.0
+            let spacing = a.kind == .wood ? 15.0 : 20.0
             let xs = a.outline.map(\.x), ys = a.outline.map(\.y)
             var y = ys.min()!
             while y < ys.max()! {
@@ -262,9 +267,9 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         sun.shadowMode = .forward
         sun.shadowBias = 3
         sun.shadowSampleCount = 16
-        sun.shadowRadius = 2.5
+        sun.shadowRadius = 4
         sun.shadowMapSize = CGSize(width: 2048, height: 2048)
-        sun.shadowColor = UIColor(white: 0, alpha: 0.34)
+        sun.shadowColor = UIColor(red: 0.25, green: 0.22, blue: 0.18, alpha: 0.30)
         sun.automaticallyAdjustsShadowProjection = false
         sun.orthographicScale = 0.42
         sun.zNear = 0.05
@@ -274,8 +279,8 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
 
         let amb = SCNLight()
         amb.type = .ambient
-        amb.intensity = 360
-        amb.color = UIColor(red: 0.86, green: 0.89, blue: 0.96, alpha: 1)
+        amb.intensity = 420
+        amb.color = UIColor(red: 0.93, green: 0.93, blue: 0.96, alpha: 1)
         ambientNode.light = amb
         scene.rootNode.addChildNode(ambientNode)
         setSun(SolarPosition(elevation: 45, azimuth: 135), animated: false)
@@ -292,10 +297,10 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         sunNode.look(at: SCNVector3(0, 0, 0))
         let day = sun.elevation > 0
         let warm = max(0, min(1, (sun.elevation - 5) / 35))
-        sunNode.light?.intensity = day ? CGFloat(520 + 330 * warm) : 0
+        sunNode.light?.intensity = day ? CGFloat(560 + 300 * warm) : 0
         sunNode.light?.temperature = CGFloat(3600 + 2900 * warm)
-        ambientNode.light?.intensity = day ? 360 : 240
-        ambientNode.light?.color = day ? UIColor(red: 0.86, green: 0.89, blue: 0.96, alpha: 1) : UIColor(red: 0.62, green: 0.68, blue: 0.86, alpha: 1)
+        ambientNode.light?.intensity = day ? 420 : 240
+        ambientNode.light?.color = day ? UIColor(red: 0.93, green: 0.93, blue: 0.96, alpha: 1) : UIColor(red: 0.62, green: 0.68, blue: 0.86, alpha: 1)
         SCNTransaction.commit()
     }
 
@@ -304,9 +309,10 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
 
     private func setupCamera() {
         let cam = SCNCamera()
-        cam.fieldOfView = 20
-        cam.zNear = 0.01
-        cam.zFar = 10
+        // 等距（正交）投影：和参考图一样平行线不汇聚。distance 只用来换算放大倍数。
+        cam.usesOrthographicProjection = true
+        cam.zNear = 0.05
+        cam.zFar = 12
         cam.wantsHDR = LaunchArgs.has("-hdr")
         cam.wantsExposureAdaptation = false
         cam.exposureOffset = 0.15
@@ -324,13 +330,12 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
 
     private func applyCamera() {
         let t = scenePoint(target)
-        let horiz = cos(pitch) * distance
-        cameraNode.position = SCNVector3(t.x + horiz * sin(azimuth), sin(pitch) * distance, t.z + horiz * cos(azimuth))
+        let far: Float = 4
+        let horiz = cos(pitch) * far
+        cameraNode.position = SCNVector3(t.x + horiz * sin(azimuth), sin(pitch) * far, t.z + horiz * cos(azimuth))
         cameraNode.look(at: t, up: SCNVector3(0, 1, 0), localFront: SCNVector3(0, 0, -1))
-        if let cam = cameraNode.camera {
-            cam.focusDistance = CGFloat(distance)
-            cam.fStop = CGFloat(LaunchArgs.value("-fstop").flatMap(Double.init) ?? Double(max(0.9, 2.4 / distance)))
-        }
+        // 与之前 20° 透视在同等 distance 下的取景高度一致：半高 = distance · tan(10°)。
+        cameraNode.camera?.orthographicScale = Double(distance) * 0.1763
     }
 
     func setCamera(target t: Vec2, distance d: Float, animated: Bool, duration: Double = 0.75) {
@@ -353,8 +358,8 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     }
 
     /// 总览：看到整个底座（中心稍往北移，给上方的状态栏和按钮留位置）。
-    static let overviewTarget = Vec2(x: 0, y: 28)
-    static let overviewDistance: Float = 2.45
+    static let overviewTarget: Vec2 = { let k = LaunchArgs.value("-ovy").flatMap(Double.init) ?? 72; return Vec2(x: -k, y: k) }()   // 沿视线（西北）方向移，底座只上下移不左右偏
+    static let overviewDistance: Float = Float(LaunchArgs.value("-ovd").flatMap(Double.init) ?? 2.35)
     func resetCamera() { setCamera(target: Self.overviewTarget, distance: Self.overviewDistance, animated: true) }
     /// 回到我屋企：推近到自己住的楼。
     func flyHome() { setCamera(target: homeTarget, distance: 1.1, animated: true) }

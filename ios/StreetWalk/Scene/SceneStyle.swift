@@ -12,20 +12,20 @@ enum SceneStyle {
         : UIColor(red: 0.957, green: 0.953, blue: 0.937, alpha: 1) }
 
     // 地面
-    static let paving = UIColor(red: 0.925, green: 0.918, blue: 0.890, alpha: 1)
+    static let paving = UIColor(red: 0.925, green: 0.912, blue: 0.880, alpha: 1)
     static func area(_ k: AreaKind) -> UIColor {
         switch k {
-        case .urban: return UIColor(red: 0.905, green: 0.898, blue: 0.875, alpha: 1)
-        case .residential: return UIColor(red: 0.935, green: 0.928, blue: 0.902, alpha: 1)
+        case .urban: return UIColor(red: 0.915, green: 0.902, blue: 0.872, alpha: 1)
+        case .residential: return UIColor(red: 0.935, green: 0.922, blue: 0.892, alpha: 1)
         case .school: return UIColor(red: 0.925, green: 0.910, blue: 0.870, alpha: 1)
         case .military: return UIColor(red: 0.890, green: 0.900, blue: 0.865, alpha: 1)
-        case .farmland: return UIColor(red: 0.855, green: 0.890, blue: 0.760, alpha: 1)
-        case .grass: return UIColor(red: 0.800, green: 0.870, blue: 0.680, alpha: 1)
-        case .wood: return UIColor(red: 0.730, green: 0.815, blue: 0.600, alpha: 1)
-        case .park: return UIColor(red: 0.760, green: 0.860, blue: 0.620, alpha: 1)
+        case .farmland: return UIColor(red: 0.835, green: 0.875, blue: 0.720, alpha: 1)
+        case .grass: return UIColor(red: 0.700, green: 0.810, blue: 0.540, alpha: 1)
+        case .wood: return UIColor(red: 0.620, green: 0.760, blue: 0.450, alpha: 1)
+        case .park: return UIColor(red: 0.580, green: 0.740, blue: 0.380, alpha: 1)
         case .playground: return UIColor(red: 0.910, green: 0.860, blue: 0.770, alpha: 1)
-        case .pitch: return UIColor(red: 0.640, green: 0.790, blue: 0.540, alpha: 1)
-        case .water: return UIColor(red: 0.730, green: 0.840, blue: 0.900, alpha: 1)
+        case .pitch: return UIColor(red: 0.560, green: 0.730, blue: 0.420, alpha: 1)
+        case .water: return UIColor(red: 0.500, green: 0.700, blue: 0.790, alpha: 1)
         case .parking: return UIColor(red: 0.880, green: 0.875, blue: 0.855, alpha: 1)
         case .plaza: return UIColor(red: 0.950, green: 0.943, blue: 0.920, alpha: 1)
         }
@@ -43,12 +43,12 @@ enum SceneStyle {
 
     // 楼
     static let facadeTints: [UIColor] = [
-        UIColor(red: 0.955, green: 0.948, blue: 0.930, alpha: 1),
-        UIColor(red: 0.925, green: 0.918, blue: 0.900, alpha: 1),
-        UIColor(red: 0.935, green: 0.925, blue: 0.895, alpha: 1),
+        UIColor(red: 0.890, green: 0.865, blue: 0.825, alpha: 1),   // 暖石
+        UIColor(red: 0.860, green: 0.835, blue: 0.795, alpha: 1),
+        UIColor(red: 0.915, green: 0.895, blue: 0.860, alpha: 1),
     ]
     static let glass = UIColor(red: 0.700, green: 0.750, blue: 0.785, alpha: 1)
-    static let roof = UIColor(red: 0.965, green: 0.960, blue: 0.945, alpha: 1)
+    static let roof = UIColor(red: 0.955, green: 0.945, blue: 0.925, alpha: 1)
     static let construction = UIColor(red: 0.910, green: 0.860, blue: 0.760, alpha: 1)
     static let canopy = UIColor(red: 0.880, green: 0.875, blue: 0.860, alpha: 1)
 
@@ -57,9 +57,9 @@ enum SceneStyle {
 
     // 树
     static let treeGreens: [UIColor] = [
-        UIColor(red: 0.490, green: 0.640, blue: 0.350, alpha: 1),
-        UIColor(red: 0.420, green: 0.590, blue: 0.320, alpha: 1),
-        UIColor(red: 0.560, green: 0.690, blue: 0.390, alpha: 1),
+        UIColor(red: 0.420, green: 0.620, blue: 0.300, alpha: 1),
+        UIColor(red: 0.360, green: 0.560, blue: 0.270, alpha: 1),
+        UIColor(red: 0.500, green: 0.680, blue: 0.340, alpha: 1),
     ]
     static let trunk = UIColor(red: 0.520, green: 0.420, blue: 0.330, alpha: 1)
     static let skin = UIColor(red: 0.961, green: 0.769, blue: 0.702, alpha: 1)

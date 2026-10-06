@@ -74,42 +74,57 @@ enum Figures {
         return root
     }
 
-    /// 橙色地标：细杆 + 圆牌，再加一圈贴地光圈。
+    /// 橙色地标：参考图里的小凉亭（四根柱 + 橙色四角顶）+ 一圈贴地光晕。
     static func landmark(hasSeat: Bool) -> SCNNode {
         let root = SCNNode()
         let s = CGFloat(SceneStyle.scale)
+        let k = SceneStyle.scale
         let orange = MeshBuilder.material(SceneStyle.accent)
+        let post = MeshBuilder.material(UIColor(red: 0.45, green: 0.30, blue: 0.22, alpha: 1))
 
-        let pole = SCNCylinder(radius: 0.7 * s, height: 10 * s)
-        pole.firstMaterial = orange
-        let pn = SCNNode(geometry: pole)
-        pn.position = SCNVector3(0, 5 * SceneStyle.scale, 0)
-        root.addChildNode(pn)
-
-        let disc = SCNCylinder(radius: 3.6 * s, height: 1.2 * s)
-        disc.radialSegmentCount = 24
-        disc.materials = [orange, MeshBuilder.material(.white), orange]
-        let dn = SCNNode(geometry: disc)
-        dn.position = SCNVector3(0, 10.6 * SceneStyle.scale, 0)
-        root.addChildNode(dn)
-
-        let halo = SCNCylinder(radius: 11 * s, height: 0.05 * s)
-        halo.radialSegmentCount = 40
-        let hm = MeshBuilder.material(SceneStyle.accent.withAlphaComponent(0.18), lit: false)
+        let halo = SCNCylinder(radius: 13 * s, height: 0.05 * s)
+        halo.radialSegmentCount = 48
+        let hm = MeshBuilder.material(SceneStyle.accent.withAlphaComponent(0.20), lit: false)
         hm.writesToDepthBuffer = false
         halo.firstMaterial = hm
         let hn = SCNNode(geometry: halo)
         hn.name = "halo"
-        hn.position = SCNVector3(0, 0.15 * SceneStyle.scale, 0)
+        hn.position = SCNVector3(0, 0.15 * k, 0)
         hn.castsShadow = false
         root.addChildNode(hn)
 
+        let base = SCNBox(width: 10 * s, height: 0.8 * s, length: 10 * s, chamferRadius: 0.4 * s)
+        base.firstMaterial = MeshBuilder.material(UIColor(red: 0.93, green: 0.90, blue: 0.85, alpha: 1))
+        let bn = SCNNode(geometry: base)
+        bn.position = SCNVector3(0, 0.4 * k, 0)
+        root.addChildNode(bn)
+
+        for (x, z) in [(-3.6, -3.6), (3.6, -3.6), (3.6, 3.6), (-3.6, 3.6)] as [(Float, Float)] {
+            let p = SCNCylinder(radius: 0.55 * s, height: 6 * s)
+            p.radialSegmentCount = 8
+            p.firstMaterial = post
+            let pn = SCNNode(geometry: p)
+            pn.position = SCNVector3(x * k, 3.8 * k, z * k)
+            root.addChildNode(pn)
+        }
+
+        let roof = SCNPyramid(width: 11.5 * s, height: 4.2 * s, length: 11.5 * s)
+        roof.firstMaterial = orange
+        let rn = SCNNode(geometry: roof)
+        rn.position = SCNVector3(0, 6.6 * k, 0)
+        root.addChildNode(rn)
+        let eave = SCNBox(width: 11.5 * s, height: 0.6 * s, length: 11.5 * s, chamferRadius: 0)
+        eave.firstMaterial = MeshBuilder.material(UIColor(red: 0.70, green: 0.28, blue: 0.14, alpha: 1))
+        let en = SCNNode(geometry: eave)
+        en.position = SCNVector3(0, 6.5 * k, 0)
+        root.addChildNode(en)
+
         if hasSeat {
-            let bench = SCNBox(width: 7 * s, height: 1.2 * s, length: 2.4 * s, chamferRadius: 0.3 * s)
-            bench.firstMaterial = MeshBuilder.material(UIColor(red: 0.62, green: 0.48, blue: 0.36, alpha: 1))
-            let bn = SCNNode(geometry: bench)
-            bn.position = SCNVector3(6 * SceneStyle.scale, 2 * SceneStyle.scale, 4 * SceneStyle.scale)
-            root.addChildNode(bn)
+            let bench = SCNBox(width: 6 * s, height: 1.2 * s, length: 1.8 * s, chamferRadius: 0.3 * s)
+            bench.firstMaterial = post
+            let bnn = SCNNode(geometry: bench)
+            bnn.position = SCNVector3(0, 1.6 * k, 0)
+            root.addChildNode(bnn)
         }
         return root
     }
