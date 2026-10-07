@@ -85,3 +85,23 @@ extension AppStore {
         }
     }
 }
+
+extension AppStore {
+    // MARK: - 演示
+
+    func regenerateHere() {
+        walk = nil; find = nil; findFullScreen = false
+        TileCache.clear()
+        Task { await loadMap(home: nil, animated: true) }
+    }
+
+    func resetDemo() {
+        ticker?.cancel()
+        walk = nil; find = nil; findFullScreen = false; proposal = nil; voiceCard = nil; banner = nil
+        appointments = []; reports = []; weather = .normal; weatherTip = nil; demoHour = LaunchArgs.hour
+        scene.setRoute(nil); scene.setTrail([]); scene.highlightLandmark(nil); scene.followID = nil
+        populate()
+        updateSun(animated: true)
+        scene.resetCamera()
+    }
+}

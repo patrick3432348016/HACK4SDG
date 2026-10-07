@@ -1,0 +1,96 @@
+import SwiftUI
+
+// 语音
+extension AppStore {
+    // MARK: - 语音
+
+    func micTapped() {
+        if listening { stopListening(); return }
+        if !askedSpeechAuth {
+            // 第一次按咪才请求麦克风和语音识别权限。
+            askedSpeechAuth = true
+            listener.requestAuth()
+        }
+        voiceCard = nil
+        do {
+            try listener.start()
+            listening = true
+            Haptics.light()
+        } catch {
+            listening = false
+            phrasePicker = true
+        }
+    }
+
+    func stopListening() {
+        let text = listener.stop()
+        listening = false
+        if text.isEmpty { phrasePicker = true } else { handle(text) }
+    }
+
+    var suggestedPhrases: [String] {
+        let p = neighbors.first ?? residents.first { !$0.isMe }
+        let name = p?.name ?? "陳太"
+        if find != nil { return ["我喺\(landmark(find?.landmarkID)?.name ?? "涼亭")"] }
+        if walk != nil { return ["呢度好曬", "呢度冇櫈", "過去搵\(name)", "約\(name)聽日朝早一齊行"] }
+        return ["約\(name)聽日下晝三點一齊行", "今日請假", "\(landmarks.first?.name ?? "涼亭")改名做大樹底", "呢度好曬"]
+    }
+
+    func handle(_ text: String) {
+        phrasePicker = false
+        if listening { _ = listener.stop() }
+        listening = false
+        let ctx = AIContext(residents: residents, landmarks: landmarks, now: now, walking: walk != nil, finding: find != nil)
+        let intent = ai.parseVoice(text, context: ctx)
+        switch intent {
+        case .invite(let id, let day, let hour):
+            guard let p = resident(id) else { return }
+            guard p.isNeighbor else { toast("你同\(p.floorLabel)仲未係街坊。見到面碰一碰，先可以約。"); return }
+            proposeMeetup(with: id, day: day, hour: hour)
+            if let prop = proposal?.options.first {
+                voiceCard = VoiceCard(heard: text, title: "約\(p.name)\(dayTimeLabel(prop.date))一齊行",
+                                      detail: "地點：\(landmark(prop.landmarkID)?.name ?? "")\n\(prop.reason)", needsConfirm: true, intent: intent)
+            }
+        case .goFind(let id):
+            guard let p = resident(id), p.isNeighbor, p.isOut else { toast("而家冇街坊喺外面。"); return }
+            voiceCard = VoiceCard(heard: text, title: "過去搵\(p.name)", detail: "會先問\(p.name)方唔方便", needsConfirm: true, intent: intent)
+        case .leave:
+            voiceCard = VoiceCard(heard: text, title: "今日請假", detail: "連續日數會保留", needsConfirm: false, intent: intent)
+            if !me.onLeave { toggleLeave() }
+        case .rename(let id, let name):
+            let old = landmark(id)?.name ?? ""
+            voiceCard = VoiceCard(heard: text, title: "\(old)改名做\(name)", detail: "同圈街坊都會見到", needsConfirm: false, intent: intent)
+            rename(id, to: name)
+        case .report(let kind):
+            voiceCard = VoiceCard(heard: text, title: "記低：呢度\(kind.rawValue)", detail: "月尾匿名交俾屋邨管理", needsConfirm: false, intent: intent)
+            report(kind)
+        case .broadcast:
+            voiceCard = VoiceCard(heard: text, title: "播俾對方聽", detail: text, needsConfirm: true, intent: intent)
+        case .unknown:
+            speaker.speak("唔好意思，我未聽明白。可以揀一句。")
+            phrasePicker = true
+        }
+    }
+
+    func confirmVoice() {
+        guard let card = voiceCard else { return }
+        voiceCard = nil
+        switch card.intent {
+        case .invite: confirmProposal()
+        case .goFind(let id): goFind(id)
+        case .broadcast: broadcastHere()
+        default: break
+        }
+    }
+
+    func rejectVoice() {
+        guard let card = voiceCard else { return }
+        voiceCard = nil
+        switch card.intent {
+        case .invite: cancelProposal()
+        case .leave: if me.onLeave { toggleLeave() }
+        case .report: undoLastReport()
+        default: break
+        }
+    }
+}
