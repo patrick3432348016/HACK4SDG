@@ -32,7 +32,7 @@ print("Landmarks")
 let cands = LandmarkDeriver.candidates(in: map)
 let picked = LandmarkDeriver.pick(cands)
 for c in picked { print("     \(c.kind) \(c.osmName ?? "-") (\(Int(c.pos.x)), \(Int(c.pos.y))) 座位:\(c.hasSeat)") }
-check((5...8).contains(picked.count), "选出 \(picked.count) 个地标")
+check((3...4).contains(picked.count), "选出 \(picked.count) 个地标（做减法后最多 4 个）")
 var minGap = Double.infinity
 for i in 0..<picked.count { for j in (i + 1)..<picked.count { minGap = min(minGap, picked[i].pos.distance(to: picked[j].pos)) } }
 check(minGap >= 30, "最小间隔 \(Int(minGap)) m")
