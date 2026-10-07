@@ -172,6 +172,9 @@ struct MainView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $store.showSettings) {
+            SettingsView().environment(store)
+        }
         .sheet(isPresented: $store.showTimeSlider) {
             TimeSliderSheet()
                 .environment(store)
@@ -334,6 +337,20 @@ private struct HomeChip: View {
             .transition(.scale(scale: 0.8, anchor: .leading).combined(with: .opacity))
             .accessibilityElement(children: .combine)
             .accessibilityLabel("行緊 \(m) 分鐘")
+        } else {
+            // 在家时：设置（改楼、楼层、小人、提醒时段、演示模式）。
+            Button { store.showSettings = true } label: {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
+                    .background(.regularMaterial, in: Circle())
+                    .overlay(Circle().strokeBorder(Color.primary.opacity(0.12)))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("設定")
+            .transition(.opacity)
         }
     }
 }
@@ -455,25 +472,27 @@ private struct MainTabBar: View {
 // MARK: - 底部卡片容器
 
 /// 卡片后面的暗层。点暗层 = 关掉（可以关的卡才关）。
+/// 暗层一直在，只渐变透明度：以前用插入 / 移除做淡出，偶尔会卡住，留下一层没有卡片的暗色。
 private struct BottomCardDim: View {
     @Environment(AppStore.self) private var store
     let size: CGSize
     let sceneHeight: CGFloat
+    /// 淡出时保持上一张卡的范围（整屏 / 只盖场景以下）。
+    @State private var covers = false
 
     var body: some View {
         let card = store.uiActiveCard
-        ZStack(alignment: .bottom) {
-            if let card {
-                Color.black.opacity(0.25)
-                    .frame(width: size.width, height: card.coversScene ? size.height : max(0, size.height - sceneHeight))
-                    .contentShape(Rectangle())
-                    .onTapGesture { store.uiDismiss(card) }
-                    .accessibilityHidden(true)
-                    .transition(.opacity)
-            }
-        }
-        .frame(width: size.width, height: size.height, alignment: .bottom)
-        .animation(DS.motion(DS.spring), value: card)
+        let full = card?.coversScene ?? covers
+        Color.black
+            .opacity(card == nil ? 0 : 0.25)
+            .frame(width: size.width, height: full ? size.height : max(0, size.height - sceneHeight))
+            .contentShape(Rectangle())
+            .onTapGesture { if let card { store.uiDismiss(card) } }
+            .allowsHitTesting(card != nil)
+            .accessibilityHidden(true)
+            .frame(width: size.width, height: size.height, alignment: .bottom)
+            .animation(DS.motion(DS.spring), value: card)
+            .onChange(of: card) { _, new in if let new { covers = new.coversScene } }
     }
 }
 

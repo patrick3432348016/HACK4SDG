@@ -10,13 +10,17 @@ struct TodayTab: View {
     @State private var reported: ReportKind?
     @State private var reportToken = 0
     @State private var taps = 0
+    @State private var cancelling: Appointment?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             outNowSection
-            myCard
             ForEach(store.todaysAppointments) { a in
                 appointmentCard(a).transition(.tabsInsert)
+            }
+            myCard
+            ForEach(store.answeredReports) { r in
+                followUpCard(r).transition(.tabsInsert)
             }
             if let tip = store.weatherTip {
                 weatherCard(tip).transition(.tabsInsert)
@@ -30,7 +34,9 @@ struct TodayTab: View {
         .animation(DS.motion(DS.spring), value: store.walk == nil)
         .animation(DS.motion(DS.spring), value: store.todaysAppointments)
         .animation(DS.motion(DS.spring), value: store.weatherTip)
+        .animation(DS.motion(DS.spring), value: store.answeredReports)
         .sensoryFeedback(.impact(weight: .medium), trigger: taps)
+        .cancelMeetupDialog($cancelling)
     }
 
     // ① 而家喺外面嘅街坊
@@ -45,9 +51,10 @@ struct TodayTab: View {
     }
 
     /// 没有街坊在外面：只给匿名的人数，不出名字、不出按钮。
+    /// 没有街坊在外面：只给匿名的人数（全邨汇总，单机演示时是示範数据），不出名字、不出按钮。
     private var quietCard: some View {
-        let place = store.landmarks.first?.name ?? "樓下"
-        let count = 9 + place.unicodeScalars.reduce(0) { $0 + Int($1.value) } % 9
+        let lm = store.landmarks.first
+        let passers = lm.flatMap { store.community.passersToday(at: $0) }
         return HStack(spacing: 12) {
             Image(systemName: "figure.walk")
                 .ds(.body)
@@ -57,9 +64,15 @@ struct TodayTab: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text("而家冇街坊喺外面").ds(.caption).foregroundStyle(.secondary)
-                Text("今朝 \(count) 人經過\(place)").ds(.body)
+                if let lm, let passers {
+                    Text("今朝 \(passers.count) 人經過\(lm.name)").ds(.body)
+                } else {
+                    Text("出門行吓，見到面碰一碰就係街坊").ds(.body)
+                }
             }
             .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            if passers?.isDemo == true { DemoBadge() }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .dsCard()
@@ -100,10 +113,14 @@ struct TodayTab: View {
             if let w = store.walk {
                 walkingStats(w)
             } else {
-                Text("今日行咗 \(store.todayMinutes) 分鐘 · 連續 \(me.streakDays) 日")
-                    .ds(.bodyBold)
-                    .contentTransition(.numericText(value: Double(store.todayMinutes * 1000 + me.streakDays)))
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("今日行咗 \(store.todayMinutes) 分鐘 · 連續 \(me.streakDays) 日")
+                        .ds(.bodyBold)
+                        .contentTransition(.numericText(value: Double(store.todayMinutes * 1000 + me.streakDays)))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    if store.streakHasDemo { DemoBadge(text: "含示範紀錄") }
+                }
                 if !me.todayLine.isEmpty {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         TabAITag()
@@ -202,9 +219,10 @@ struct TodayTab: View {
                     } label: {
                         Label("出發", systemImage: "figure.walk").frame(maxWidth: stacked ? .infinity : nil)
                     }
-                    .buttonStyle(.dsSecondary)
+                    .buttonStyle(.dsPrimary)
                 }
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                changeRow(a)
             } else {
                 HStack(spacing: 8) {
                     ProgressView()
@@ -212,10 +230,49 @@ struct TodayTab: View {
                 }
                 .accessibilityElement(children: .combine)
                 .transition(.opacity)
+                changeRow(a)
             }
         }
         .dsCard()
         .animation(DS.motion(DS.spring), value: a.status)
+    }
+
+    /// 约好之后都可以改时间 / 地点或者取消（改了要对方再确认，取消会通知对方）。
+    private func changeRow(_ a: Appointment) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) { changeButtons(a) }
+            VStack(spacing: 12) { changeButtons(a) }
+        }
+    }
+
+    @ViewBuilder private func changeButtons(_ a: Appointment) -> some View {
+        Button { store.startEditing(a.id) } label: {
+            Text("改時間地點").lineLimit(1).frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.dsSecondary)
+        Button { cancelling = a } label: {
+            Text("取消約會").lineLimit(1).frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.dsSecondary)
+    }
+
+    // ④ 反映有回覆（F10 落实后告诉居民）
+
+    private func followUpCard(_ r: Report) -> some View {
+        let place = store.landmark(r.landmarkID)?.name ?? "呢度"
+        return HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "checkmark.seal.fill")
+                .foregroundStyle(DS.accent)
+                .ds(.body)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("你反映過「\(place)\(r.kind.rawValue)」").ds(.caption).foregroundStyle(.secondary)
+                Text(r.followUp ?? "").ds(.body).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .dsCard()
+        .accessibilityElement(children: .combine)
     }
 
     // ④ 天气遮荫
@@ -311,6 +368,11 @@ struct BoardTab: View {
         let rows = others.enumerated().map { i, e in Row(rank: e.offset + 1, resident: e.element, first: i == 0) }
 
         LazyVStack(alignment: .leading, spacing: 16, pinnedViews: [.sectionFooters]) {
+            if store.community.isSimulated {
+                DemoNote(text: "單機演示：圈入面其他人係示範街坊，連續日數係模擬嘅。")
+            } else if rows.isEmpty {
+                DemoNote(text: "圈入面暫時只有你。接咗伺服器之後，同區常行嘅街坊會喺呢度出現。")
+            }
             circleCard
             Section {
                 VStack(spacing: 0) {
@@ -328,26 +390,35 @@ struct BoardTab: View {
         .animation(DS.motion(DS.spring), value: rows.map(\.id))
     }
 
+    /// 圈对圈：本月圈内总步数（我的由散步分钟估算，其他人和对面圈是示範数据）。
     private var circleCard: some View {
-        let place = store.map?.placeName ?? "我哋"
+        let race = store.community.circleRace(placeName: store.map?.placeName ?? "我哋", myMonthSteps: store.myMonthSteps)
+        let total = max(1, race.ourSteps + race.rivalSteps)
+        let share = CGFloat(race.ourSteps) / CGFloat(total)
+        let diff = race.ourSteps - race.rivalSteps
         return VStack(alignment: .leading, spacing: 12) {
-            Text("本月 \(place)圈 領先對面圈 3 萬步")
-                .ds(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(race.rivalSteps == 0 ? "本月 \(race.ourName) 行咗 \(Self.steps(race.ourSteps))"
+                     : "本月 \(race.ourName) \(diff >= 0 ? "領先" : "落後")\(race.rivalName) \(Self.steps(abs(diff)))")
+                    .ds(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                if race.isDemo { DemoBadge() }
+            }
             GeometryReader { g in
                 let w = max(0, g.size.width - 4)
                 HStack(spacing: 4) {
-                    Capsule().fill(DS.accent).frame(width: w * 41 / 79 * barProgress)
+                    Capsule().fill(DS.accent).frame(width: w * share * barProgress)
                     Capsule().fill(Color.secondary.opacity(0.3))
                 }
             }
             .frame(height: 16)
             .accessibilityHidden(true)
             HStack {
-                Text("\(place)圈").foregroundStyle(DS.accent)
+                Text(race.ourName).foregroundStyle(DS.accent)
                 Spacer(minLength: 8)
-                Text("對面圈").foregroundStyle(.secondary)
+                Text(race.rivalName).foregroundStyle(.secondary)
             }
             .ds(.captionBold)
             .accessibilityHidden(true)
@@ -358,6 +429,11 @@ struct BoardTab: View {
             barProgress = 0
             withAnimation(DS.motion(DS.bouncy).delay(0.15)) { barProgress = 1 }
         }
+    }
+
+    /// 例如「3.2 萬步」「8,400 步」。
+    static func steps(_ n: Int) -> String {
+        n >= 10_000 ? String(format: "%.1f 萬步", Double(n) / 10_000).replacingOccurrences(of: ".0 萬", with: " 萬") : "\(n) 步"
     }
 
     @ViewBuilder private func rankRow(_ rank: Int, _ r: Resident) -> some View {
@@ -445,6 +521,7 @@ struct NeighborsTab: View {
     @Environment(AppStore.self) private var store
     @State private var taps = 0
     @State private var toggles = 0
+    @State private var unlinking: Resident?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -462,6 +539,10 @@ struct NeighborsTab: View {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.dsPrimary)
+
+            if store.community.isSimulated {
+                DemoNote(text: "單機演示：碰一碰係模擬嘅，會碰到示範街坊。真機用超寬頻（兩部 iPhone 11 或之後）。")
+            }
 
             if !store.invitations.isEmpty {
                 TabSectionHeader(text: "約你嘅")
@@ -499,6 +580,14 @@ struct NeighborsTab: View {
         .animation(DS.motion(DS.spring), value: store.neighbors)
         .sensoryFeedback(.impact(weight: .light), trigger: taps)
         .sensoryFeedback(.selection, trigger: toggles)
+        .confirmationDialog(unlinking.map { "唔再同\($0.name)做街坊？" } ?? "", isPresented: Binding(get: { unlinking != nil }, set: { if !$0 { unlinking = nil } }), titleVisibility: .visible) {
+            if let r = unlinking {
+                Button("唔再做街坊", role: .destructive) { store.unlinkNeighbor(r.id); unlinking = nil }
+            }
+            Button("保留", role: .cancel) { unlinking = nil }
+        } message: {
+            Text("佢唔會收到通知。之後佢出門你唔會知，佢亦見唔到你。想再做街坊，要見面再碰一碰。")
+        }
     }
 
     private func invitationCard(_ a: Appointment) -> some View {
@@ -538,6 +627,10 @@ struct NeighborsTab: View {
             Text("換個時間").frame(maxWidth: .infinity)
         }
         .buttonStyle(.dsSecondary)
+        Button { store.declineInvitation(a.id) } label: {
+            Text("唔去").frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.dsSecondary)
     }
 
     private func upcomingRow(_ a: Appointment) -> some View {
@@ -548,9 +641,11 @@ struct NeighborsTab: View {
             case .waiting: return "等緊\(name)確認"
             case .accepted: return "約好咗"
             case .done: return "行咗"
+            case .cancelled: return "取消咗"
+            case .expired: return "過咗期"
             }
         }()
-        return HStack(alignment: .top, spacing: 12) {
+        return Button { store.startEditing(a.id) } label: { HStack(alignment: .top, spacing: 12) {
             Image(systemName: a.status == .accepted ? "calendar.badge.checkmark" : "calendar")
                 .ds(.body)
                 .foregroundStyle(DS.accent)
@@ -564,9 +659,13 @@ struct NeighborsTab: View {
             }
             .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
+            Image(systemName: "chevron.right").ds(.caption).foregroundStyle(.tertiary).accessibilityHidden(true)
         }
         .padding(.vertical, 8)
+        .contentShape(Rectangle()) }
+        .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
+        .accessibilityHint("改時間、地點或者取消")
     }
 
     private func neighborCard(_ n: Resident) -> some View {
@@ -574,12 +673,14 @@ struct NeighborsTab: View {
             if n.isOut, let lm = store.landmark(n.atLandmarkID) { return "出咗門 · \(lm.name)附近" }
             return "喺屋企"
         }()
-        let remind = Binding<Bool>(
+        // F6：接收、发送分开开关。
+        let receive = Binding<Bool>(
             get: { store.resident(n.id)?.receiveRemind ?? false },
-            set: { on in
-                toggles += 1
-                store.setRemind(n.id, on)
-            }
+            set: { on in toggles += 1; store.setRemind(n.id, receive: on) }
+        )
+        let send = Binding<Bool>(
+            get: { store.resident(n.id)?.sendRemind ?? false },
+            set: { on in toggles += 1; store.setRemind(n.id, send: on) }
         )
         return VStack(alignment: .leading, spacing: 12) {
             TabActionRow {
@@ -609,10 +710,23 @@ struct NeighborsTab: View {
                 .buttonStyle(.dsSecondary)
             }
             Divider()
-            Toggle(isOn: remind) {
-                Label("出門提醒", systemImage: "bell.fill").ds(.caption)
+            Toggle(isOn: receive) {
+                Label("佢出門話我知", systemImage: "bell.fill").ds(.caption)
             }
             .tint(DS.accent)
+            Toggle(isOn: send) {
+                Label("我出門話佢知", systemImage: "figure.walk").ds(.caption)
+            }
+            .tint(DS.accent)
+            Button { unlinking = n } label: {
+                Text("唔再做街坊")
+                    .ds(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("佢唔會收到通知")
         }
         .dsCard()
     }
@@ -727,4 +841,27 @@ private struct TypeInRenderer: TextRenderer {
             c.draw(slice)
         }
     }
+}
+
+/// 取消约会前确认一次（会通知对方）。
+private struct CancelMeetupDialog: ViewModifier {
+    @Environment(AppStore.self) private var store
+    @Binding var target: Appointment?
+
+    func body(content: Content) -> some View {
+        let name = target.flatMap { store.resident($0.partnerID)?.name } ?? "街坊"
+        content.confirmationDialog(target.map { "取消同\(name)\(store.dayTimeLabel($0.date))嘅約？" } ?? "",
+                                   isPresented: Binding(get: { target != nil }, set: { if !$0 { target = nil } }), titleVisibility: .visible) {
+            if let a = target {
+                Button("取消約會", role: .destructive) { store.cancelMeetup(a.id); target = nil }
+            }
+            Button("唔取消", role: .cancel) { target = nil }
+        } message: {
+            Text("會話俾\(name)知。")
+        }
+    }
+}
+
+extension View {
+    func cancelMeetupDialog(_ target: Binding<Appointment?>) -> some View { modifier(CancelMeetupDialog(target: target)) }
 }

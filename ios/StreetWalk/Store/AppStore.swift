@@ -18,10 +18,10 @@ final class AppStore: NeighborRegistry {
     @ObservationIgnored let listener = Listener()
     @ObservationIgnored let mapService = MapService()
     @ObservationIgnored let scene = DioramaController()
+    @ObservationIgnored let community: CommunityService
     @ObservationIgnored var shade: ShadeService?
     @ObservationIgnored var ticker: Task<Void, Never>?
     @ObservationIgnored private var bannerTask: Task<Void, Never>?
-    @ObservationIgnored var forceDecline = false
 
     // 流程内部状态（不触发界面刷新）
     /// 完整格子（560 m，首次使用选楼时用）。选好楼后场景只用以我屋企为中心的 300 m。
@@ -32,6 +32,11 @@ final class AppStore: NeighborRegistry {
     @ObservationIgnored var partnerTravelled = 0.0
     @ObservationIgnored var findAppointment: UUID?
     @ObservationIgnored var askedSpeechAuth = false
+    @ObservationIgnored var restoring = false
+    @ObservationIgnored var saveTask: Task<Void, Never>?
+    @ObservationIgnored var savedMapKey: String?
+    @ObservationIgnored var savedNeighbors: [String: NeighborLink] = [:]
+    @ObservationIgnored var clockTask: Task<Void, Never>?
 
     // 状态
     var phase: Phase = .onboarding(.consent)
@@ -43,9 +48,8 @@ final class AppStore: NeighborRegistry {
     var residents: [Resident] = []
     var walk: WalkSession?
     var partnerAgreed = false
-    var todayMinutes = 24
-    var appointments: [Appointment] = []
-    var proposal: (partnerID: String, options: [MeetProposal], index: Int)?
+    var appointments: [Appointment] = [] { didSet { scheduleSave() } }
+    var proposal: Proposal?
     var find: FindSession?
     var findFullScreen = false
     var banner: BannerItem?
@@ -56,7 +60,13 @@ final class AppStore: NeighborRegistry {
     var remindPromptFor: String?
     var selection: Selection?
     var renaming: String?
-    var reports: [Report] = []
+    var reports: [Report] = [] { didSet { scheduleSave() } }
+    /// 每日散步记录（键是香港日期）。今日分钟、连续天数都由它推算。
+    var walkLog: [String: DayLog] = [:] { didSet { scheduleSave() } }
+    var leaveDays: Set<String> = [] { didSet { scheduleSave() } }
+    /// 改过的地标名（地标 id → 名），重新装载地图后要套回去。
+    var landmarkNames: [String: String] = [:] { didSet { scheduleSave() } }
+    var showSettings = false
     var weather: Weather = .normal
     var weatherTip: String?
     var paceTip: String?
@@ -69,11 +79,17 @@ final class AppStore: NeighborRegistry {
     var mobilityChoice: Mobility = .walk
     var colorChoice = Palette.meIndex
 
-    let demoMode = LaunchArgs.has("-demo") || UserDefaults.standard.object(forKey: "demoMode") as? Bool ?? true
+    /// 演示模式：圈里有示範街坊、右上有演示菜单。设置里可以关；启动参数 -demo 强制开。
+    var demoMode = LaunchArgs.has("-demo") || UserDefaults.standard.object(forKey: "demoMode") as? Bool ?? true
+    // 出门提醒：总开关 + 只在这个时段接收（F6）。
+    var remindAll = UserDefaults.standard.object(forKey: "remindAll") as? Bool ?? true { didSet { UserDefaults.standard.set(remindAll, forKey: "remindAll") } }
+    var remindFrom = UserDefaults.standard.object(forKey: "remindFrom") as? Int ?? 7 { didSet { UserDefaults.standard.set(remindFrom, forKey: "remindFrom") } }
+    var remindTo = UserDefaults.standard.object(forKey: "remindTo") as? Int ?? 21 { didSet { UserDefaults.standard.set(remindTo, forKey: "remindTo") } }
 
     var me: Resident { residents.first { $0.isMe } ?? Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true) }
     var neighbors: [Resident] { residents.filter { $0.isNeighbor && !$0.isMe } }
     var outNeighbors: [Resident] { neighbors.filter(\.isOut) }
+    var todayMinutes: Int { log(for: now).minutes }
     var ranking: [Resident] { residents.sorted { $0.streakDays != $1.streakDays ? $0.streakDays > $1.streakDays : $0.floor < $1.floor } }
     func resident(_ id: String) -> Resident? { residents.first { $0.id == id } }
     func landmark(_ id: String?) -> Landmark? { landmarks.first { $0.id == id } }
@@ -94,6 +110,10 @@ final class AppStore: NeighborRegistry {
     init() {
         demoHour = LaunchArgs.hour
         let d = UserDefaults.standard
+        community = LocalCommunityService(demoEnabled: LaunchArgs.has("-demo") || d.object(forKey: "demoMode") as? Bool ?? true)
+        restoreSaved()
+        community.onEvent = { [weak self] e in self?.receive(e) }
+        startClock()
         if LaunchArgs.has("-resetOnboarding") { ["onboarded", "homeBuilding", "floor", "mobility", "color"].forEach { d.removeObject(forKey: $0) } }
         if d.bool(forKey: "onboarded") || LaunchArgs.has("-skipOnboarding") {
             floorChoice = d.object(forKey: "floor") as? Int ?? 12
@@ -124,6 +144,7 @@ final class AppStore: NeighborRegistry {
         case .invite(let id): proposeMeetup(with: id)
         case .goFind(let id): goFind(id)
         case .openNeighbors: tab = .neighbors
+        case .depart(let id): if let a = appointments.first(where: { $0.id == id }) { departForAppointment(a) }
         case .none: break
         }
     }

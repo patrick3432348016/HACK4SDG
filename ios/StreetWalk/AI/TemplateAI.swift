@@ -12,6 +12,22 @@ struct TemplateAI: AIService {
 
         if text.contains("請假") || text.contains("告假") || text.contains("请假") { return .leave }
 
+        // 改约 / 取消约：要讲到时间或地标，免得同改地标名撞。
+        let partnerHit = context.residents.first { !$0.isMe && (text.contains($0.name) || text.contains("\($0.floor)樓")) }
+        if text.contains("唔約") || (text.contains("取消") && (text.contains("約") || partnerHit != nil)) {
+            return .cancelMeetup(partnerID: partnerHit?.id)
+        }
+        if !text.contains("改名"), let r = ["改去", "改喺", "改到", "改做", "改成", "改返"].compactMap({ text.range(of: $0) }).first {
+            let before = String(text[..<r.lowerBound]), after = String(text[r.upperBound...])
+            let lm = context.landmarks.first { after.contains($0.name) }
+            let hour = parseHour(after)
+            let day: Int? = after.contains("後日") ? 2 : (after.contains("聽日") || after.contains("明天")) ? 1 : after.contains("今日") ? 0 : nil
+            let aboutMeetup = before.isEmpty || before.contains("約") || partnerHit != nil
+            if aboutMeetup, lm != nil || hour != nil || day != nil {
+                return .changeMeetup(partnerID: partnerHit?.id, day: day, hour: hour, landmarkID: lm?.id)
+            }
+        }
+
         if let r = ["改名做", "改名叫", "改做", "改名为"].compactMap({ text.range(of: $0) }).first {
             let before = String(text[..<r.lowerBound]), after = String(text[r.upperBound...])
             let newName = after.trimmingCharacters(in: .punctuationCharacters)
@@ -134,20 +150,12 @@ struct TemplateAI: AIService {
         }
     }
 
-    func monthlyReport(placeName: String, reports: [Report], landmarks: [Landmark]) -> MonthlyReport {
+    func monthlyReport(placeName: String, reports: [Report], landmarks: [Landmark], stats: MonthlyStats) -> MonthlyReport {
         var counts: [String: (ReportKind, Int)] = [:]
         for r in reports {
             let place = landmarks.first { $0.id == r.landmarkID }?.name ?? "附近"
             let key = place + r.kind.rawValue
             counts[key] = (r.kind, (counts[key]?.1 ?? 0) + 1)
-        }
-        // 演示用的基线：一個月內其他居民的匿名反映。
-        if landmarks.count >= 3 {
-            let base: [(Int, ReportKind, Int)] = [(0, .sunny, 23), (1, .noSeat, 14), (2, .rough, 9)]
-            for (i, k, n) in base {
-                let key = landmarks[i].name + k.rawValue
-                counts[key] = (k, (counts[key]?.1 ?? 0) + n)
-            }
         }
         let items = counts.map { key, v -> MonthlyReport.Item in
             let place = String(key.dropLast(v.0.rawValue.count))
@@ -158,12 +166,15 @@ struct TemplateAI: AIService {
             case .rough: suggestion = "整平路面、加扶手"
             }
             return MonthlyReport.Item(place: place, kind: v.0, count: v.1, suggestion: suggestion)
-        }.filter { $0.count >= 3 }.sorted { $0.count > $1.count }
+        }.filter { $0.count >= Self.minReporters }.sorted { $0.count > $1.count }
         let top = items.first.map { "最多人反映：\($0.place)\($0.kind.rawValue)（\($0.count) 人）。" } ?? ""
         return MonthlyReport(title: "\(placeName) · 本月散步報告",
-                             summary: "本月 312 人次散步，街坊約咗 41 次一齊行。\(top)只計 3 人以上嘅反映，冇任何個人路線。",
-                             items: items, walkers: 312, meetups: 41)
+                             summary: "本月 \(stats.walks) 人次散步，街坊約咗 \(stats.meetups) 次一齊行。\(top)只計 \(Self.minReporters) 人以上嘅反映，冇任何個人路線。",
+                             items: items, walkers: stats.walks, meetups: stats.meetups)
     }
+
+    /// 规格 F10：只输出人数 ≥ 10 的汇总。
+    static let minReporters = 10
 
     static func hourLabel(_ h: Int) -> String {
         if h < 12 { return "朝早 \(h) 點" }

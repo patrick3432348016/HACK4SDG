@@ -18,6 +18,9 @@ struct Resident: Identifiable, Equatable {
     var sendRemind = true
     var receiveRemind = true
     var onLeave = false
+    var neighborSince: Date?
+    /// 示範街坊：单机演示时由 LocalCommunityService 模拟的居民（界面要标明）。
+    var isDemo = false
 
     var floorLabel: String { "\(floor) 樓" }
     var listName: String { isMe ? "\(floor) 樓 · 你" : (isNeighbor ? "\(floor) 樓 \(name)" : "\(floor) 樓") }
@@ -40,15 +43,29 @@ enum Palette {
     static func person(_ i: Int) -> Color { Color(personUI(i)) }
 }
 
-struct Appointment: Identifiable, Equatable {
-    enum Status: Equatable { case waiting, accepted, done }
-    let id = UUID()
+struct Appointment: Identifiable, Equatable, Codable {
+    /// 规格 §7：待确认 / 已接受 / 已完成 / 已取消；另加「過咗期」（约定时间过了一个钟都冇碰头）。
+    enum Status: String, Equatable, Codable { case waiting, accepted, done, cancelled, expired }
+    var id = UUID()
     var partnerID: String
     var date: Date
     var landmarkID: String
     var reason: String
     var status: Status
     var fromPartner = false
+    /// 已经提醒过"半個鐘後出發"。
+    var reminded = false
+
+    /// 仲有效（未完成、未取消、未過期）。
+    var isOpen: Bool { status == .waiting || status == .accepted }
+}
+
+/// 约人卡：几个候选（时间 + 地点 + 理由），editing 有值时是在改已有的约会。
+struct Proposal: Equatable {
+    var partnerID: String
+    var options: [MeetProposal]
+    var index: Int
+    var editing: UUID? = nil
 }
 
 /// 约会提议（AI 给的时间 + 地点 + 理由）。
@@ -80,7 +97,7 @@ struct WalkSession: Equatable {
     var travelled = 0.0
 }
 
-enum ReportKind: String, CaseIterable, Identifiable {
+enum ReportKind: String, CaseIterable, Identifiable, Codable {
     case sunny = "好曬", noSeat = "冇櫈", rough = "難行"
     var id: String { rawValue }
     var symbol: String {
@@ -92,16 +109,18 @@ enum ReportKind: String, CaseIterable, Identifiable {
     }
 }
 
-struct Report: Identifiable, Equatable {
-    let id = UUID()
+struct Report: Identifiable, Equatable, Codable {
+    var id = UUID()
     var kind: ReportKind
     var pos: Vec2
     var landmarkID: String?
     var date: Date
+    /// F10：屋邨管理 / 社工落实后的回覆，会告诉反映的居民。
+    var followUp: String?
 }
 
 struct BannerItem: Identifiable, Equatable {
-    enum Action: Equatable { case invite(String), goFind(String), openNeighbors, none }
+    enum Action: Equatable { case invite(String), goFind(String), openNeighbors, depart(UUID), none }
     let id = UUID()
     var symbol: String
     var text: String
@@ -136,4 +155,12 @@ struct MonthlyReport: Equatable {
     var items: [Item]
     var walkers: Int
     var meetups: Int
+}
+
+/// 月报用的匿名汇总（后端按全邨数据算；单机演示时由示範数据推算）。
+struct MonthlyStats: Equatable {
+    var walks: Int          // 散步人次
+    var walkers: Int        // 有散步嘅人数
+    var meetups: Int        // 街坊一齊行嘅次数
+    var isDemo: Bool
 }

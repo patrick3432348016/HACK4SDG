@@ -5,9 +5,16 @@ set -e
 cd "$(dirname "$0")/.."
 SIM=${SIM:-iPhone 17}
 DEST="platform=iOS Simulator,name=$SIM,OS=26.5"
-xcodebuild -project StreetWalk.xcodeproj -scheme StreetWalk -destination "$DEST" -derivedDataPath build/DD build -quiet 2>&1 | grep -E "error:|warning: .*StreetWalk/" || true
+LOG=build/last-build.log
+mkdir -p build
+# 编译失败就停下（以前会装上一次的旧包，截图看到的是旧版本）。
+if ! xcodebuild -project StreetWalk.xcodeproj -scheme StreetWalk -destination "$DEST" -derivedDataPath build/DD build -quiet > "$LOG" 2>&1; then
+  grep -E "error:" "$LOG" | head -20
+  echo "build failed（完整日志：ios/$LOG）"
+  exit 1
+fi
+grep -E "warning: .*StreetWalk/" "$LOG" | sort -u || true
 APP=build/DD/Build/Products/Debug-iphonesimulator/StreetWalk.app
-[ -d "$APP" ] || { echo "build failed"; exit 1; }
 UDID=$(xcrun simctl list devices available | grep -A20 -- "-- iOS 26.5 --" | grep "    $SIM (" | head -1 | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
 xcrun simctl boot "$UDID" 2>/dev/null || true
 xcrun simctl location "$UDID" set 22.5044,114.1563 >/dev/null 2>&1 || true

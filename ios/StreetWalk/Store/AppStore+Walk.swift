@@ -20,6 +20,7 @@ extension AppStore {
             prev = route.last!
         }
         walk = WalkSession(start: Date(), route: route)
+        community.publishOuting(landmarkID: nearestLandmark(to: start)?.id)
         paceTip = nil
         tab = .today
         speaker.speak("偵測到你出咗門，開始記錄，唔使撳任何掣。")
@@ -68,6 +69,7 @@ extension AppStore {
         let (pos, _) = point(along: w.route, at: w.travelled)
         for l in landmarks where !w.passed.contains(l.id) && l.pos.distance(to: pos) < 26 {
             w.passed.append(l.id)
+            community.publishOuting(landmarkID: l.id)
             if var meR = residents.first(where: \.isMe), let i = residents.firstIndex(where: \.isMe) {
                 meR.todayLine = ai.dailyLine(for: meR, passed: w.passed.compactMap(landmark))
                 residents[i] = meR
@@ -87,11 +89,8 @@ extension AppStore {
         walk = nil
         scene.followID = nil
         scene.setTrail([])
-        todayMinutes += max(w.minutes, 1)
-        if let i = residents.firstIndex(where: \.isMe) {
-            residents[i].streakDays += 1
-            residents[i].todayLine = ai.dailyLine(for: residents[i], passed: w.passed.compactMap(landmark))
-        }
+        recordWalk(minutes: max(w.minutes, 1), landmarks: w.passed)
+        community.publishOuting(landmarkID: nil)
         paceTip = nil
         syncScene()
         scene.resetCamera()
@@ -101,11 +100,12 @@ extension AppStore {
 
     // MARK: - F4 请假
 
+    /// 请假：今日算进连续天数（保留不断），排行榜上显示「今日請咗假」。
     func toggleLeave() {
-        guard let i = residents.firstIndex(where: \.isMe) else { return }
-        residents[i].onLeave.toggle()
-        residents[i].todayLine = ai.dailyLine(for: residents[i], passed: [])
-        speaker.speak(residents[i].onLeave ? "收到，今日請假。連續 \(residents[i].streakDays) 日會保留。" : "撤回咗請假。")
+        let key = LocalStore.dayKey(now)
+        if leaveDays.contains(key) { leaveDays.remove(key) } else { leaveDays.insert(key) }
+        refreshMe()
+        speaker.speak(me.onLeave ? "收到，今日請假。連續 \(me.streakDays) 日會保留。" : "撤回咗請假。")
         Haptics.light()
     }
 }

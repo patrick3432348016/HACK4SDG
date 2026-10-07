@@ -8,6 +8,7 @@ import SwiftUI
 struct ProposalCard: View {
     @Environment(AppStore.self) private var store
     @State private var taps = 0
+    @State private var cancelling: Appointment?
 
     var body: some View {
         if let p = store.proposal, p.options.indices.contains(p.index) {
@@ -17,7 +18,7 @@ struct ProposalCard: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 12) {
                     if let partner { AvatarBadge(color: partner.color, mobility: partner.mobility) }
-                    Text("約\(partner?.name ?? "街坊")一齊行")
+                    Text(p.editing == nil ? "約\(partner?.name ?? "街坊")一齊行" : "改約\(partner?.name ?? "街坊")")
                         .ds(.body)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -48,7 +49,7 @@ struct ProposalCard: View {
                 .accessibilityElement(children: .combine)
 
                 Button { store.confirmProposal() } label: {
-                    Text("好").frame(maxWidth: .infinity)
+                    Text(p.editing == nil ? "好" : "就咁改").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsPrimary)
 
@@ -57,11 +58,18 @@ struct ProposalCard: View {
                     VStack(spacing: 12) { changeButtons }
                 }
 
+                if let id = p.editing, let a = store.appointments.first(where: { $0.id == id }) {
+                    Button { cancelling = a } label: {
+                        Text("取消約會").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.dsSecondary)
+                }
+
                 Button {
                     taps += 1
                     store.cancelProposal()
                 } label: {
-                    Text("取消")
+                    Text(p.editing == nil ? "取消" : "唔改喇")
                         .ds(.button)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, minHeight: 44)
@@ -70,6 +78,7 @@ struct ProposalCard: View {
                 .buttonStyle(.plain)
             }
             .sensoryFeedback(.impact(weight: .light), trigger: taps)
+            .cancelMeetupDialog($cancelling)
         }
     }
 

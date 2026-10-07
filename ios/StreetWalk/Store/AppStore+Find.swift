@@ -17,8 +17,8 @@ extension AppStore {
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(2.4))
             guard var f = self.find, f.stage == .asking else { return }
-            if self.forceDecline {
-                self.forceDecline = false
+            if self.localCommunity?.declineNext == true {
+                self.localCommunity?.declineNext = false
                 f.stage = .declined
                 self.find = f
                 self.speaker.speak("\(p.name)而家唔方便。")
@@ -138,5 +138,6 @@ extension AppStore {
         syncScene()
     }
 
-    func declineNextAsk() { forceDecline = true }
+    /// 演示：下一次问陈太（过去搵佢 / 约佢）会被拒绝。
+    func declineNextAsk() { localCommunity?.declineNext = true }
 }

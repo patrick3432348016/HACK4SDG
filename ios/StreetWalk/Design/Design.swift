@@ -154,3 +154,34 @@ struct SceneChip<Label: View>: View {
         .buttonStyle(.plain)
     }
 }
+
+/// 「示範」小标签：标明这块数据是单机演示模拟的（圈里其他人、全邨汇总、示範纪录）。
+struct DemoBadge: View {
+    var text = "示範"
+    @ScaledMetric(relativeTo: .caption) private var size: CGFloat = 15
+    var body: some View {
+        Label(text, systemImage: "sparkles")
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color(.tertiarySystemFill), in: Capsule())
+            .fixedSize()
+            .accessibilityLabel("示範數據，係模擬嘅")
+    }
+}
+
+/// 一行说明：这一页的人 / 数字是示範（单机演示，未接后端）。
+struct DemoNote: View {
+    var text: String
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "sparkles").foregroundStyle(.secondary).accessibilityHidden(true)
+            Text(text).fixedSize(horizontal: false, vertical: true)
+        }
+        .ds(.caption)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+}

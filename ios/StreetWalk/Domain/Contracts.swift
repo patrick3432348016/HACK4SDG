@@ -10,6 +10,9 @@ enum VoiceIntent: Equatable {
     case rename(landmarkID: String, newName: String)         // 改地标名
     case report(ReportKind)                                  // 反映问题
     case broadcast(String)                                   // 找人时播"我喺涼亭"
+    // 2026-10-07 新增（A 提出，待 B 确认）：改约、取消约。partnerID 为空 = 最近的约会。
+    case changeMeetup(partnerID: String?, day: Int?, hour: Int?, landmarkID: String?)   // "改做下晝 4 點""改去涼亭"
+    case cancelMeetup(partnerID: String?)                                                 // "取消同陳太嘅約"
     case unknown
 }
 
@@ -30,7 +33,8 @@ protocol AIService {
     func alternativeNames(for l: Landmark) -> [String]
     func pickMeetupSpot(me: Resident, partner: Resident, date: Date, landmarks: [Landmark], shade: ShadeProviding) -> MeetProposal?
     func walkAdvice(weather: Weather, now: Date, shadeTip: (landmark: Landmark, shadedFrom: Int?)?) -> String?
-    func monthlyReport(placeName: String, reports: [Report], landmarks: [Landmark]) -> MonthlyReport
+    /// reports 已包括全邨其他居民的匿名反映；stats 是 A 侧（后端）算好的匿名汇总。2026-10-07 加 stats（待 B 确认）。
+    func monthlyReport(placeName: String, reports: [Report], landmarks: [Landmark], stats: MonthlyStats) -> MonthlyReport
 }
 
 /// 成员 A 提供：某地标某时段的遮荫比例（0–1）。
@@ -44,7 +48,8 @@ protocol BumpService {
     func cancel()
 }
 
-/// 成员 A 提供：碰一碰成功后建立街坊关系。
+/// 成员 A 提供：碰一碰成功后建立街坊关系。（主线程调用）
+@MainActor
 protocol NeighborRegistry: AnyObject {
     func createNeighbor(_ residentID: String, remind: Bool)
 }

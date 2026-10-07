@@ -17,6 +17,7 @@ struct DemoMenu: View {
             Section("陳太") {
                 Button { store.neighborGoesOut() } label: { Label("陳太出門", systemImage: "door.left.hand.open") }
                 Button { store.partnerInvites() } label: { Label("陳太約你", systemImage: "envelope.fill") }
+                Button { store.neighborGoesHome() } label: { Label("陳太返屋企", systemImage: "house.fill") }
                 Button { store.declineNextAsk() } label: { Label("陳太唔方便（下一次）", systemImage: "hand.raised.fill") }
                 if store.find != nil {
                     Button { store.lateDemo() } label: { Label("遲到", systemImage: "clock.badge.exclamationmark") }
@@ -36,6 +37,7 @@ struct DemoMenu: View {
             }
             Section {
                 Button { store.showReport = true } label: { Label("月尾報告", systemImage: "doc.text.fill") }
+                Button { store.simulateFollowUp() } label: { Label("屋邨管理回覆反映", systemImage: "checkmark.seal.fill") }
                 Button { store.regenerateHere() } label: { Label("喺而家位置重新生成", systemImage: "location.fill") }
                 Button(role: .destructive) { store.resetDemo() } label: {
                     Label("重置演示", systemImage: "arrow.counterclockwise")
@@ -259,6 +261,10 @@ struct ReportView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
+                if store.monthlyStats.isDemo {
+                    DemoNote(text: "單機演示：全邨人次同其他居民嘅反映係示範數據；你自己嘅散步同反映係真嘅。")
+                }
+
                 HStack(spacing: 8) {
                     metric("散步人次", shown ? r.walkers : 0, symbol: "figure.walk")
                     metric("一齊行", shown ? r.meetups : 0, symbol: "person.2.fill")
@@ -269,7 +275,7 @@ struct ReportView: View {
                     .padding(.top, 8)
 
                 if r.items.isEmpty {
-                    Text("今個月未有 3 人以上嘅反映")
+                    Text("今個月未有 \(TemplateAI.minReporters) 人以上嘅反映")
                         .ds(.caption)
                         .foregroundStyle(.secondary)
                         .dsCard()
@@ -283,7 +289,7 @@ struct ReportView: View {
                 }
 
                 Label {
-                    Text("只計 3 人以上嘅反映 · 冇任何個人路線 · 交俾：社工、屋邨管理、新發展區團隊")
+                    Text("只計 \(TemplateAI.minReporters) 人以上嘅反映 · 冇任何個人路線 · 交俾：社工、屋邨管理、新發展區團隊")
                         .fixedSize(horizontal: false, vertical: true)
                 } icon: {
                     Image(systemName: "lock.shield.fill")

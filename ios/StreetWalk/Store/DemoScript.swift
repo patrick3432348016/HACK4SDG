@@ -8,6 +8,7 @@ extension AppStore {
     func runScriptIfNeeded() {
         guard !Self.scriptStarted else { return }
         if LaunchArgs.has("-script2") { Self.scriptStarted = true; runScript2(); return }
+        if LaunchArgs.has("-script3") { Self.scriptStarted = true; runScript3(); return }
         guard LaunchArgs.has("-script") else { return }
         Self.scriptStarted = true
         Task { @MainActor in
@@ -98,10 +99,43 @@ extension AppStore {
     func resetDemo() {
         ticker?.cancel()
         walk = nil; find = nil; findFullScreen = false; proposal = nil; voiceCard = nil; banner = nil
-        appointments = []; reports = []; weather = .normal; weatherTip = nil; demoHour = LaunchArgs.hour
+        weather = .normal; weatherTip = nil; demoHour = LaunchArgs.hour
+        clearAllData()
         scene.setRoute(nil); scene.setTrail([]); scene.highlightLandmark(nil); scene.followID = nil
         populate()
         updateSun(animated: true)
         scene.resetCamera()
+    }
+}
+
+extension AppStore {
+    /// 第三段（-script3）：约会生命周期、语音改约、反映回覆、出发前提醒、过期、解除街坊。
+    /// 跑完数据会存盘；之后不带脚本再开一次，可以检查重启后有没有保留。
+    func runScript3() {
+        Task { @MainActor in
+            while map == nil || residents.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+            let t0 = Date()
+            @MainActor func step(_ at: Double, _ name: String, _ action: () -> Void) async {
+                let wait = at - Date().timeIntervalSince(t0)
+                if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+                print("[script3] t=\(Int(at)) \(name)")
+                action()
+            }
+            await step(1, "做街坊 + 約陳太") { createNeighbor("chan", remind: true); proposeMeetup(with: "chan") }
+            await step(4, "好") { confirmProposal() }
+            await step(10, "應承咗 · 今日頁") { banner = nil; tab = .today }
+            await step(13, "語音：改做下晝五點") { handle("改做下晝五點") }
+            await step(17, "好") { confirmVoice() }
+            await step(23, "改地標名 + 反映") { banner = nil; if let id = landmarks.first?.id { rename(id, to: "大樹底") }; report(.noSeat) }
+            await step(26, "屋邨管理回覆") { simulateFollowUp() }
+            await step(33, "陳太約你（街坊頁）") { banner = nil; tab = .neighbors; partnerInvites("chan") }
+            await step(38, "改約卡") { banner = nil; if let a = todaysAppointments.first { startEditing(a.id) } }
+            await step(42, "排行榜") { cancelProposal(); tab = .board }
+            await step(46, "下晝 4:36 · 出發提醒") { tab = .today; setDemoHour(16.6) }
+            await step(52, "夜晚 6:12 · 過期") { banner = nil; setDemoHour(18.2) }
+            await step(57, "解除街坊") { tab = .neighbors; unlinkNeighbor("chan") }
+            await step(62, "設定") { saveNow(); showSettings = true }
+            await step(68, "完") { showSettings = false }
+        }
     }
 }

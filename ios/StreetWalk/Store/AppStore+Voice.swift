@@ -33,6 +33,9 @@ extension AppStore {
         let name = p?.name ?? "陳太"
         if find != nil { return ["我喺\(landmark(find?.landmarkID)?.name ?? "涼亭")"] }
         if walk != nil { return ["呢度好曬", "呢度冇櫈", "過去搵\(name)", "約\(name)聽日朝早一齊行"] }
+        if let a = targetAppointment(partnerID: nil), let other = landmarks.first(where: { $0.id != a.landmarkID }) {
+            return ["改做下晝四點", "改去\(other.name)", "取消同\(resident(a.partnerID)?.name ?? name)嘅約", "今日請假"]
+        }
         return ["約\(name)聽日下晝三點一齊行", "今日請假", "\(landmarks.first?.name ?? "涼亭")改名做大樹底", "呢度好曬"]
     }
 
@@ -66,6 +69,17 @@ extension AppStore {
             report(kind)
         case .broadcast:
             voiceCard = VoiceCard(heard: text, title: "播俾對方聽", detail: text, needsConfirm: true, intent: intent)
+        case .changeMeetup(let pid, let day, let hour, let lmID):
+            guard let a = targetAppointment(partnerID: pid) else { toast("而家冇約會可以改。"); return }
+            let c = changed(a, day: day, hour: hour, landmarkID: lmID)
+            let name = resident(a.partnerID)?.name ?? "街坊"
+            voiceCard = VoiceCard(heard: text, title: "改約\(name)：\(dayTimeLabel(c.date)) · \(landmark(c.landmarkID)?.name ?? "")",
+                                  detail: "會再問\(name)確認\n\(c.reason)", needsConfirm: true, intent: intent)
+            scene.highlightLandmark(c.landmarkID)
+        case .cancelMeetup(let pid):
+            guard let a = targetAppointment(partnerID: pid) else { toast("而家冇約會可以取消。"); return }
+            let name = resident(a.partnerID)?.name ?? "街坊"
+            voiceCard = VoiceCard(heard: text, title: "取消同\(name)\(dayTimeLabel(a.date))嘅約", detail: "會話俾\(name)知", needsConfirm: true, intent: intent)
         case .unknown:
             speaker.speak("唔好意思，我未聽明白。可以揀一句。")
             phrasePicker = true
@@ -79,6 +93,11 @@ extension AppStore {
         case .invite: confirmProposal()
         case .goFind(let id): goFind(id)
         case .broadcast: broadcastHere()
+        case .changeMeetup(let pid, let day, let hour, let lmID):
+            scene.highlightLandmark(nil)
+            if let a = targetAppointment(partnerID: pid) { changeMeetup(a.id, day: day, hour: hour, landmarkID: lmID) }
+        case .cancelMeetup(let pid):
+            if let a = targetAppointment(partnerID: pid) { cancelMeetup(a.id) }
         default: break
         }
     }
@@ -90,6 +109,7 @@ extension AppStore {
         case .invite: cancelProposal()
         case .leave: if me.onLeave { toggleLeave() }
         case .report: undoLastReport()
+        case .changeMeetup: scene.highlightLandmark(nil)
         default: break
         }
     }

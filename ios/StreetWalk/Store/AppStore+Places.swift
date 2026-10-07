@@ -22,6 +22,8 @@ extension AppStore {
         guard let i = landmarks.firstIndex(where: { $0.id == id }) else { return }
         let old = landmarks[i].name
         landmarks[i].name = name
+        landmarkNames[id] = name
+        community.renameLandmark(id, to: name)
         scene.renameLandmark(id, to: name)
         renaming = nil
         speaker.speak("改咗。\(old)而家叫\(name)，同圈嘅街坊都會見到。")
@@ -33,7 +35,9 @@ extension AppStore {
     func report(_ kind: ReportKind) {
         let pos = myPosition()
         let lm = nearestLandmark(to: pos)
-        reports.append(Report(kind: kind, pos: pos, landmarkID: lm?.id, date: now))
+        let r = Report(kind: kind, pos: pos, landmarkID: lm?.id, date: now)
+        reports.append(r)
+        community.submitReport(r)
         syncScene()
         speaker.speak("記低咗：\(lm?.name ?? "呢度")\(kind.rawValue)。月尾會同其他街坊嘅反映一齊交俾屋邨管理。")
         Haptics.light()
@@ -44,7 +48,37 @@ extension AppStore {
         syncScene()
     }
 
-    var monthly: MonthlyReport { ai.monthlyReport(placeName: map?.placeName ?? "屋邨", reports: reports, landmarks: landmarks) }
+    /// 月报：我的反映 + 全邨其他居民的匿名反映 + 匿名汇总（单机演示时是示範数据）。
+    var monthly: MonthlyReport {
+        ai.monthlyReport(placeName: map?.placeName ?? "屋邨", reports: reports + community.othersReports(landmarks: landmarks),
+                         landmarks: landmarks, stats: monthlyStats)
+    }
+
+    var monthlyStats: MonthlyStats {
+        let homes = (fullMap ?? map)?.buildings.filter { $0.kind == .residential }.reduce(0) { $0 + $1.levels * 8 } ?? 0
+        let meetups = appointments.filter { $0.status == .done }.count
+        return community.monthlyStats(myWalks: myMonthWalks, myMeetups: meetups, estateHomes: homes)
+    }
+
+    /// F10：反映落实后告诉居民。
+    func reportFollowedUp(_ id: UUID, text: String) {
+        guard let i = reports.firstIndex(where: { $0.id == id }) else { return }
+        reports[i].followUp = text
+        let r = reports[i]
+        let place = landmark(r.landmarkID)?.name ?? "呢度"
+        let line = "你反映過「\(place)\(r.kind.rawValue)」。\(text)"
+        showBanner(BannerItem(symbol: "checkmark.seal.fill", text: line))
+        speaker.speak(line)
+    }
+
+    /// 演示：屋邨管理回覆最早一条未回覆的反映。
+    func simulateFollowUp() {
+        guard let r = reports.first(where: { $0.followUp == nil }) else { toast("你仲未反映過嘢。散步時撳「好曬」「冇櫈」就得。"); return }
+        localCommunity?.simulateFollowUp(r, place: landmark(r.landmarkID)?.name ?? "呢度")
+    }
+
+    /// 有回覆的反映（今日页显示）。
+    var answeredReports: [Report] { reports.filter { $0.followUp != nil } }
 
     // MARK: - F9 天气遮荫
 

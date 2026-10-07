@@ -93,32 +93,32 @@ extension AppStore {
         speaker.speak("搞掂。你行街嘅時候我會自動記錄，唔使撳任何掣。")
     }
 
-    /// 演示用的圈成员：同一格子每次一样。住在附近的住宅楼，常去的地标各不相同。
+    /// 圈成员（F2）：由 CommunityService 给（单机演示时是示範街坊），再套回已保存的街坊关系、地标名、我的记录。
     func populate() {
         guard let m = map else { return }
-        let blocks = m.buildings.filter { $0.kind == .residential && $0.name != nil }
-        let roster: [(String, String, Int, Int, Mobility, Int)] = [
-            ("chan", "陳太", 8, 0, .walk, 21), ("wong", "黃太", 3, 1, .walk, 30), ("lee", "李伯", 15, 2, .wheelchair, 14),
-            ("leung", "梁太", 6, 3, .stroller, 12), ("ho", "何生", 21, 4, .walk, 5), ("cheung", "張伯", 9, 5, .cane, 2),
-        ]
-        var list: [Resident] = []
-        let seatFirst = landmarks.sorted { ($0.hasSeat ? 0 : 1, $0.pos.length) < ($1.hasSeat ? 0 : 1, $1.pos.length) }
-        for (i, r) in roster.enumerated() {
-            var res = Resident(id: r.0, name: r.1, floor: r.2, blockName: blocks.isEmpty ? nil : blocks[i % blocks.count].name,
-                               colorIndex: r.3, mobility: r.4, streakDays: r.5, todayLine: "")
-            res.homeLandmarkID = seatFirst.isEmpty ? nil : seatFirst[i % seatFirst.count].id
-            let passed = [landmark(res.homeLandmarkID)].compactMap { $0 }
-            res.todayLine = ai.dailyLine(for: res, passed: i == 5 ? [] : passed)
-            list.append(res)
+        adoptMapKey()
+        applyLandmarkNames()
+        let blocks = m.buildings.filter { $0.kind == .residential && $0.name != nil }.compactMap(\.name)
+        var list = community.circleMembers(blocks: blocks, landmarks: landmarks)
+        for i in list.indices {
+            let passed = [landmark(list[i].homeLandmarkID)].compactMap { $0 }
+            list[i].todayLine = ai.dailyLine(for: list[i], passed: list[i].id == "cheung" ? [] : passed)
+            if let link = savedNeighbors[list[i].id] {
+                list[i].isNeighbor = true
+                list[i].neighborSince = link.since
+                list[i].sendRemind = link.send
+                list[i].receiveRemind = link.receive
+            }
         }
         var meR = Resident(id: "me", name: "你", floor: floorChoice, blockName: scene.homeBuildingID.flatMap { m.building(id: $0)?.name },
-                           colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true)
+                           colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 0, todayLine: "", isMe: true)
         meR.homeLandmarkID = nearestLandmark(to: scene.homeTarget)?.id
-        meR.todayLine = ai.dailyLine(for: meR, passed: [landmark(meR.homeLandmarkID)].compactMap { $0 })
         list.append(meR)
         residents = list
-        if LaunchArgs.has("-withNeighbor") { residents[0].isNeighbor = true }
+        if LaunchArgs.has("-withNeighbor"), !list.isEmpty, !list[0].isMe { residents[0].isNeighbor = true; residents[0].neighborSince = Date() }
+        refreshMe()
         syncScene()
+        checkAppointments()
         runScriptIfNeeded()
     }
 
@@ -166,5 +166,6 @@ extension AppStore {
         demoHour = h
         updateSun(animated: true)
         refreshWeatherTip()
+        checkAppointments()
     }
 }
