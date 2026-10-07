@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 /// 自动演示：启动参数 `-script` 时按顺序跑一遍主要流程，用于检查和录演示视频。
 /// 每一步打印 "[script] t=秒 步骤"，方便对照截图。
@@ -20,20 +20,23 @@ extension AppStore {
                 print("[script] t=\(Int(at)) \(name)")
                 action()
             }
-            await step(3, "排行榜") { tab = .board }
-            await step(7, "街坊 · 碰一碰") { tab = .neighbors; startBump() }
-            await step(17, "開出門提醒") { createNeighbor("chan", remind: true) }
-            await step(20, "今日 · 陳太出門") { tab = .today; neighborGoesOut("chan") }
-            await step(26, "出門散步") { startWalk() }
-            await step(34, "過去搵陳太") { goFind("chan") }
-            await step(39, "去") { startGoing() }
-            await step(62, "約陳太") { proposeMeetup(with: "chan") }
-            await step(66, "換個時間") { nextProposalTime() }
-            await step(69, "好") { confirmProposal() }
-            await step(76, "酷熱 + 下晝三點") { setDemoHour(15); setWeather(.hot) }
-            await step(83, "反映：呢度好曬") { report(.sunny) }
-            await step(88, "月尾報告") { showReport = true }
-            await step(94, "完") { showReport = false }
+            // 字幕（-captions）：中文一句 + 英文一句，配合录屏。
+            @MainActor func cap(_ zh: String, _ en: String) { if LaunchArgs.has("-captions") { withAnimation(DS.motion(DS.snappy)) { caption = (zh, en) } } }
+            await step(1, "開場") { cap("北都新屋邨：每日行嘅路，就係認識街坊嘅地方", "New estates in the Northern Metropolis: your daily walk is where neighbours meet") }
+            await step(4, "排行榜") { tab = .board; cap("排行榜：同區常行嘅人；未係街坊只見樓層", "Circle board: regular walkers nearby — strangers show only their floor") }
+            await step(9, "街坊 · 碰一碰") { tab = .neighbors; startBump(); cap("碰一碰：兩部手機貼近，就成為街坊", "Bump phones to become neighbours — the only way to connect") }
+            await step(19, "開出門提醒") { createNeighbor("chan", remind: true); cap("成為街坊時問一次：開唔開出門提醒", "Opt in to going-out alerts, once") }
+            await step(22, "今日 · 陳太出門") { tab = .today; neighborGoesOut("chan"); cap("街坊出門：只講地標，唔顯示地圖坐標", "A neighbour heads out — shown by landmark, never coordinates") }
+            await step(28, "出門散步") { banner = nil; startWalk(); cap("出門自動記錄散步，唔使撳任何掣", "Walks are recorded automatically — no buttons") }
+            await step(36, "過去搵陳太") { goFind("chan"); cap("散步中一撳：先問對方方唔方便", "Drop by: the app asks your neighbour first") }
+            await step(41, "去") { startGoing(); cap("50 米內震動，大箭咀指住對方，唔用地圖", "Within 50 m: haptics and a big arrow, no map") }
+            await step(62, "語音約陳太") { cap("講一句就約好：AI 揀有樓遮、有櫈、兩個都近嘅地方", "Say one sentence — AI picks a shaded spot with seats, near you both") ; handle("約陳太聽日下晝三點一齊行") }
+            await step(68, "好") { confirmVoice() }
+            await step(73, "應承") { cap("影響別人嘅動作，一定先複述再按「好」", "Anything that affects others is read back for confirmation first") }
+            await step(79, "天氣 + 遮蔭") { banner = nil; setDemoHour(15); setWeather(.hot); cap("天文台天氣 + 樓影遮蔭：建議幾點出門", "HK Observatory weather + building shade: when to head out") }
+            await step(87, "反映：呢度好曬") { banner = nil; report(.sunny); cap("講一句「呢度好曬」，記低喺最近嘅地標", "Say \"too sunny here\" — it's pinned to the nearest landmark") }
+            await step(92, "月尾報告") { showReport = true; cap("月報：只出 10 人以上嘅匿名匯總，交社工同屋邨管理", "Monthly report: anonymous, 10+ residents only, for social workers & estate management") }
+            await step(101, "完") { showReport = false; caption = nil }
         }
     }
 }

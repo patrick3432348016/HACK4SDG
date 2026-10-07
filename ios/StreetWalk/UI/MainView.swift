@@ -133,23 +133,21 @@ struct MainView: View {
                         .transition(.opacity)
                 }
 
-                // 底部卡片：暗层 → 咪 → 卡片（咪在暗层之上、卡片之下）
-                BottomCardDim(size: size, sceneHeight: sceneH)
-
-                MicButton()
-                    .scaleEffect(full ? 0.4 : 1)
-                    .opacity(full ? 0 : 1)
-                    .allowsHitTesting(!full)
-                    .accessibilityHidden(full)
-                    .position(micCenter)
-
-                BottomCardSlot(size: size, bottomInset: safe.bottom)
+                // 底部卡片：暗层 → 咪 → 卡片（咪在暗层之上、卡片之下）。三者由同一个视图按同一个状态画，
+                // 以前分开三个视图，偶尔卡片已经走咗、暗层仲留喺度。
+                BottomLayer(size: size, sceneHeight: sceneH, micCenter: micCenter, bottomInset: safe.bottom, full: full)
 
                 // 提示：在标签栏之上；找人全屏时放到顶部
                 ToastView()
                     .padding(.top, full ? safe.top + 64 : 0)
                     .padding(.bottom, full ? 0 : tabH + 12)
                     .frame(width: size.width, height: size.height, alignment: full ? .top : .bottom)
+                    .allowsHitTesting(false)
+
+                // 录视频字幕（-captions）：顶部胶囊行之下（找人全屏时在顶卡之下）；横幅出现时让开
+                CaptionView()
+                    .padding(.top, safe.top + (full ? 104 : 56))
+                    .frame(width: size.width, height: size.height, alignment: .top)
                     .allowsHitTesting(false)
 
                 // 灵动岛式横幅（最上层）
@@ -471,17 +469,42 @@ private struct MainTabBar: View {
 
 // MARK: - 底部卡片容器
 
+/// 底部一层：暗层、咪、卡片。只读一次 uiActiveCard，三者一定一致。
+private struct BottomLayer: View {
+    @Environment(AppStore.self) private var store
+    let size: CGSize
+    let sceneHeight: CGFloat
+    let micCenter: CGPoint
+    let bottomInset: CGFloat
+    let full: Bool
+
+    var body: some View {
+        let card = store.uiActiveCard
+        ZStack(alignment: .topLeading) {
+            BottomCardDim(card: card, size: size, sceneHeight: sceneHeight)
+            MicButton()
+                .scaleEffect(full ? 0.4 : 1)
+                .opacity(full ? 0 : 1)
+                .allowsHitTesting(!full)
+                .accessibilityHidden(full)
+                .position(micCenter)
+            BottomCardSlot(card: card, size: size, bottomInset: bottomInset)
+        }
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+    }
+}
+
 /// 卡片后面的暗层。点暗层 = 关掉（可以关的卡才关）。
 /// 暗层一直在，只渐变透明度：以前用插入 / 移除做淡出，偶尔会卡住，留下一层没有卡片的暗色。
 private struct BottomCardDim: View {
     @Environment(AppStore.self) private var store
+    let card: MainBottomCard?
     let size: CGSize
     let sceneHeight: CGFloat
     /// 淡出时保持上一张卡的范围（整屏 / 只盖场景以下）。
     @State private var covers = false
 
     var body: some View {
-        let card = store.uiActiveCard
         let full = card?.coversScene ?? covers
         Color.black
             .opacity(card == nil ? 0 : 0.25)
@@ -499,23 +522,37 @@ private struct BottomCardDim: View {
 /// 卡片本身：顶部圆角 24、系统底色、拉手；从底部弹上来，一次一张。
 private struct BottomCardSlot: View {
     @Environment(AppStore.self) private var store
+    let card: MainBottomCard?
     let size: CGSize
     let bottomInset: CGFloat
     @State private var drag: CGFloat = 0
     /// 每种卡各自量高度（换卡时新旧两张同时在，共用一个值会互相覆盖）。
     @State private var heights: [MainBottomCard: CGFloat] = [:]
 
+    /// 正在显示（或正在滑走）的卡。卡片常驻、只做位移 / 透明度动画：
+    /// 以前用插入 / 移除做转场，偶尔会卡住，卡已经关咗仍然留喺屏幕上。
+    @State private var shown: MainBottomCard?
+
     var body: some View {
-        let card = store.uiActiveCard
+        let visible = card ?? shown
         ZStack(alignment: .bottom) {
-            if let card {
-                container(card)
-                    .id(card)
-                    .transition(DS.reduceMotion ? .opacity : .move(edge: .bottom))
+            if let visible {
+                container(visible).id(visible)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .bottom)
+        .offset(y: card == nil && !DS.reduceMotion ? size.height : 0)
+        .opacity(card == nil && DS.reduceMotion ? 0 : 1)
+        .allowsHitTesting(card != nil)
         .animation(DS.motion(DS.spring), value: card)
+        .onChange(of: card) { _, new in
+            if let new { shown = new; return }
+            // 滑走之后先清走内容。
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                if store.uiActiveCard == nil { shown = nil }
+            }
+        }
     }
 
     private func container(_ card: MainBottomCard) -> some View {
@@ -585,5 +622,34 @@ private struct BottomCardSlot: View {
         case .findAsk: FindAskCard()
         case .info: InfoCard()
         }
+    }
+}
+
+// MARK: - 演示字幕
+
+/// 录演示视频时的字幕（中文一句 + 英文一句）。只在启动参数 -captions 时出现。
+private struct CaptionView: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        ZStack {
+            if let c = store.caption {
+                VStack(spacing: 2) {
+                    Text(c.zh).font(.system(size: 19, weight: .semibold))
+                    Text(c.en).font(.system(size: 13)).opacity(0.8)
+                }
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .padding(.horizontal, DS.side)
+                .id(c.zh)
+                .transition(.opacity.combined(with: .offset(y: 8)))
+                .accessibilityHidden(true)
+            }
+        }
+        .opacity(store.banner == nil ? 1 : 0)
+        .animation(DS.motion(DS.snappy), value: store.caption?.zh)
     }
 }

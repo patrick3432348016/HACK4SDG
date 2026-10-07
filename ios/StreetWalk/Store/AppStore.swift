@@ -71,6 +71,8 @@ final class AppStore: NeighborRegistry {
     /// 改过的地标名（地标 id → 名），重新装载地图后要套回去。
     var landmarkNames: [String: String] = [:] { didSet { scheduleSave() } }
     var showSettings = false
+    /// 录演示视频用的字幕（启动参数 -captions）：模拟器录屏录唔到声，用字幕讲清楚每一步。
+    var caption: (zh: String, en: String)?
     var weather: Weather = .normal
     var weatherTip: String?
     var paceTip: String?
