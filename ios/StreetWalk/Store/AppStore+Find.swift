@@ -125,7 +125,12 @@ extension AppStore {
         scene.setRoute(nil)
         scene.highlightLandmark(nil)
         scene.fadeOccluders(toward: nil)
-        if walk != nil {
+        if walk != nil, walkDetector.recording {
+            // 真机散步：继续跟定位，唔好自己行返屋企
+            walk?.route = walkDetector.trail.isEmpty ? [myPosition()] : walkDetector.trail
+            walk?.travelled = pathLength(walk?.route ?? [])
+            scene.followID = "me"
+        } else if walk != nil {
             // 找完人继续散步：从当前位置回屋企。
             let here = myPosition()
             walk?.route = scene.route(from: here, to: scene.nearestWalkable(scene.homeTarget + Vec2(x: 0, y: -18)))

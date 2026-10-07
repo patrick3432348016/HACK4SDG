@@ -105,6 +105,7 @@ extension AppStore {
         populate()
         updateSun(animated: true)
         scene.resetCamera()
+        useLiveWeather()
     }
 }
 

@@ -4,4 +4,4 @@ set -e
 cd "$(dirname "$0")/.."
 SIM=${SIM:-iPhone 17}
 xcodebuild test -project StreetWalk.xcodeproj -scheme StreetWalk -destination "platform=iOS Simulator,name=$SIM,OS=26.5" -derivedDataPath build/DD 2>&1 \
-  | grep -E "error:|✘|Test run with|passed after|failed after" | grep -vE "^✔ Test " || true
+  | grep -E "error:|✘|Test run with|passed after|failed after" | grep -vE "^✔ Test [^r]" || true

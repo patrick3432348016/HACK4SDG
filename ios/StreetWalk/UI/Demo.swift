@@ -124,7 +124,7 @@ struct TimeSliderSheet: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            Text("地標遮蔭 · 用 3D 模型計樓同樹嘅影")
+            Text("地標遮蔭 · 按畫面入面啲樓大約計（唔計樹）")
                 .ds(.captionBold)
                 .foregroundStyle(.secondary)
 

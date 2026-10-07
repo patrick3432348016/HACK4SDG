@@ -6,8 +6,11 @@ struct DioramaView: UIViewRepresentable {
     let controller: DioramaController
     var onTap: ((DioramaController.Hit?) -> Void)?
     var showStats = false
+    /// 跟随系统深浅色，切换时场景重建材质。
+    @Environment(\.colorScheme) private var colorScheme
 
     func makeUIView(context: Context) -> SCNView {
+        controller.setDark(colorScheme == .dark)
         let v = SCNView(frame: .zero)
         v.scene = controller.scene
         v.delegate = controller
@@ -33,6 +36,7 @@ struct DioramaView: UIViewRepresentable {
     func updateUIView(_ v: SCNView, context: Context) {
         context.coordinator.parent = self
         v.showsStatistics = showStats
+        controller.setDark(colorScheme == .dark)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }

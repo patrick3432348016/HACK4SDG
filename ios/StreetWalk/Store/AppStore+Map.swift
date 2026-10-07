@@ -19,8 +19,13 @@ extension AppStore {
         var homeID = home.flatMap { id in m.building(id: id) != nil ? id : nil }
         if homeID == nil, case .main = phase { homeID = defaultHome(in: m) }
         if case .onboarding = phase {
-            // 选楼时看完整一格（同样转正、去掉小屋），选定后再收窄。
-            install(m.simplified(around: .zero, size: m.size, maxBuildings: nil), home: nil, animated: animated)
+            // 选楼时也做减法（见 pickView）；选定后再收窄。
+            let me = loc.flatMap { TileKey.snap($0) == m.tile ? LocalProjection(origin: m.center).toLocal($0) : nil }
+            let v = m.pickView(near: me)
+            install(v, home: nil, animated: animated)
+            // 全屏看整个底座（主界面的总览按上半屏调的，这里另算；数值按 300 m 调，再按边长缩放）。
+            let k = v.size / 300
+            scene.setCamera(target: Vec2(x: -65 * k, y: 65 * k), distance: Float(2.85 * k), animated: false)
             loadingMap = false
             phase = .onboarding(.pickHome)
             highlightResidential(true)
@@ -41,7 +46,7 @@ extension AppStore {
 
     func install(_ m: MapModel, home: Int64?, animated: Bool) {
         map = m
-        let picked = LandmarkDeriver.pick(LandmarkDeriver.candidates(in: m))
+        let picked = LandmarkDeriver.settle(LandmarkDeriver.pick(LandmarkDeriver.candidates(in: m)), in: m)
         landmarks = picked.map { Landmark(id: $0.id, name: ai.nameLandmark($0), kind: $0.kind, pos: $0.pos, hasSeat: $0.hasSeat) }
         shade = ShadeService(map: m, landmarks: landmarks)
         scene.setHomeBuilding(home)
@@ -91,6 +96,7 @@ extension AppStore {
         populate()
         scene.resetCamera()
         speaker.speak("搞掂。你行街嘅時候我會自動記錄，唔使撳任何掣。")
+        startWalkDetection()   // 同意之后先问动作 / 定位权限
     }
 
     /// 圈成员（F2）：由 CommunityService 给（单机演示时是示範街坊），再套回已保存的街坊关系、地标名、我的记录。

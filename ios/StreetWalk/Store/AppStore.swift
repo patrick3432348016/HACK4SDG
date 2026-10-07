@@ -19,6 +19,8 @@ final class AppStore: NeighborRegistry {
     @ObservationIgnored let mapService = MapService()
     @ObservationIgnored let scene = DioramaController()
     @ObservationIgnored let community: CommunityService
+    @ObservationIgnored let hko = HKOWeatherService()
+    @ObservationIgnored let walkDetector = WalkDetector()
     @ObservationIgnored var shade: ShadeService?
     @ObservationIgnored var ticker: Task<Void, Never>?
     @ObservationIgnored private var bannerTask: Task<Void, Never>?

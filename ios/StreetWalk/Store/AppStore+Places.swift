@@ -80,9 +80,11 @@ extension AppStore {
     /// 有回覆的反映（今日页显示）。
     var answeredReports: [Report] { reports.filter { $0.followUp != nil } }
 
-    // MARK: - F9 天气遮荫
+    // MARK: - F9 天气遮荫（香港天文台实时数据；演示菜单手动选的优先）
 
+    /// 演示菜单 / 脚本手动选天气：覆盖实时数据，直到重置演示。
     func setWeather(_ w: Weather) {
+        hko.demoOverride = true
         weather = w
         refreshWeatherTip()
         if let tip = weatherTip {
@@ -91,11 +93,48 @@ extension AppStore {
         }
     }
 
+    /// 启动和回到前台时调用。拉不到就不显示天气（不编）。
+    func refreshLiveWeather(force: Bool = false) {
+        Task {
+            // 等地图装好再挑最近测站（最多 10 秒），否则用皇后山邨附近。
+            for _ in 0..<50 where map == nil { try? await Task.sleep(for: .milliseconds(200)) }
+            _ = await hko.refresh(near: map?.center ?? TileKey.gridOrigin, force: force)
+            applyLiveWeather()
+        }
+    }
+
+    func applyLiveWeather() {
+        guard !hko.demoOverride else { return }
+        weather = hko.report.map { $0.isRain ? .rain : $0.isHot ? .hot : .normal } ?? .normal
+        refreshWeatherTip()
+    }
+
+    /// 重置演示：回到实时天气。
+    func useLiveWeather() {
+        hko.demoOverride = false
+        applyLiveWeather()
+    }
+
     func refreshWeatherTip() {
-        guard let shade else { weatherTip = nil; return }
-        let hour = Calendar.current.component(.hour, from: now)
-        let seat = landmarks.first(where: \.hasSeat)
-        let tip = seat.map { ($0, shade.shadedFromHour(landmarkID: $0.id, day: now, after: max(hour, 14))) }
-        weatherTip = ai.walkAdvice(weather: weather, now: now, shadeTip: tip.map { (landmark: $0.0, shadedFrom: $0.1) })
+        var advice: String?
+        if let shade {
+            let hour = Calendar.current.component(.hour, from: now)
+            let seat = landmarks.first(where: \.hasSeat)
+            let tip = seat.map { ($0, shade.shadedFromHour(landmarkID: $0.id, day: now, after: max(hour, 14))) }
+            advice = ai.walkAdvice(weather: weather, now: now, shadeTip: tip.map { (landmark: $0.0, shadedFrom: $0.1) })
+        }
+        guard !hko.demoOverride, let r = hko.report else {
+            // "天文台話"只留给真实数据；演示选的天气唔好冒认天文台
+            if hko.demoOverride, let a = advice, a.hasPrefix("天文台話") { advice = String(a.dropFirst(4)) }
+            weatherTip = advice
+            return
+        }
+        // 实时：句首讲明来源和读数；落雨时模板那句"下晝會落大雨"不一定对，改用这边的说法。
+        let rest = r.isDanger ? "今日唔好出門，留喺屋企安全啲。"
+            : weather == .rain
+            ? (["低", "中低"].contains(r.tomorrowPSR ?? "") ? "唔好勉強出門，聽日天氣好啲先行。" : "唔好勉強出門，等雨停先。")
+            : advice ?? ""
+        let line = r.line + rest
+        weatherTip = line.isEmpty ? nil : line
     }
 }

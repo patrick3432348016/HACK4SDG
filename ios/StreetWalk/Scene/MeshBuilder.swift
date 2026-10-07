@@ -111,10 +111,7 @@ enum MeshBuilder {
             }
         }
         let geo = SCNGeometry(sources: [SCNGeometrySource(vertices: pts)], elements: [SCNGeometryElement(indices: idx, primitiveType: .line)])
-        let m = SCNMaterial()
-        m.diffuse.contents = color
-        m.lightingModel = .constant
-        geo.firstMaterial = m
+        geo.firstMaterial = material(color, lit: false)
         return geo
     }
 
@@ -167,7 +164,7 @@ enum MeshBuilder {
         let norm = (1 + t * t).squareRoot()
         var pos: [SCNVector3] = [], nor: [SCNVector3] = [], col: [SCNVector3] = [], idx: [UInt32] = []
         let sc = Double(SceneStyle.scale)
-        func rgb(_ c: UIColor) -> SCNVector3 { var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0; c.getRed(&r, green: &g, blue: &b, alpha: &a); return SCNVector3(Float(r), Float(g), Float(b)) }
+        func rgb(_ c: UIColor) -> SCNVector3 { var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0; c.resolvedColor(with: .current).getRed(&r, green: &g, blue: &b, alpha: &a); return SCNVector3(Float(r), Float(g), Float(b)) }
         let trunkC = rgb(trunk)
         for (k, (p, size)) in spots.enumerated() {
             let cx = p.x * sc, cz = -p.y * sc
@@ -219,9 +216,10 @@ enum MeshBuilder {
         return geo
     }
 
+    /// 动态色按当前 trait 解析（场景搭建时由 DioramaController 设好深浅色）。
     static func material(_ color: UIColor, lit: Bool = true) -> SCNMaterial {
         let m = SCNMaterial()
-        m.diffuse.contents = color
+        m.diffuse.contents = color.resolvedColor(with: .current)
         m.lightingModel = lit ? .lambert : .constant
         return m
     }

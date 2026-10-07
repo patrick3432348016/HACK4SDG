@@ -131,6 +131,8 @@ extension AppStore {
         UserDefaults.standard.set(on, forKey: "demoMode")
         localCommunity?.demoEnabled = on
         if on && walkLog.values.allSatisfy({ !$0.demo }) && walkLog.isEmpty { seedDemoHistory() }
+        // 演示模式同真机散步检测唔好同时开
+        if on { if walkDetector.recording { finishLiveWalk() }; walkDetector.stop() } else { startWalkDetection() }
         populate()
     }
 

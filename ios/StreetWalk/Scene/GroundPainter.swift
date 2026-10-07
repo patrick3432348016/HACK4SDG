@@ -11,9 +11,12 @@ enum GroundPainter {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = true
+        // 深浅色按调用时的 trait 解析。
+        let tc = UITraitCollection.current
+        func c(_ color: UIColor) -> UIColor { color.resolvedColor(with: tc) }
         return UIGraphicsImageRenderer(size: size, format: format).image { ctx in
             let cg = ctx.cgContext
-            SceneStyle.paving.setFill()
+            c(SceneStyle.paving).setFill()
             cg.fill(CGRect(origin: .zero, size: size))
 
             for a in map.areas {
@@ -21,9 +24,9 @@ enum GroundPainter {
                 path.move(to: pt(a.outline[0]))
                 a.outline.dropFirst().forEach { path.addLine(to: pt($0)) }
                 path.close()
-                SceneStyle.area(a.kind).setFill()
+                c(SceneStyle.area(a.kind)).setFill()
                 path.fill()
-                (a.kind == .water ? UIColor(red: 0.62, green: 0.74, blue: 0.84, alpha: 1) : UIColor(red: 0.66, green: 0.78, blue: 0.60, alpha: 1)).setStroke()
+                c(SceneStyle.areaEdge(a.kind)).setStroke()
                 path.lineWidth = 0.8 * k
                 path.stroke()
             }
@@ -41,10 +44,10 @@ enum GroundPainter {
                         r.points.dropFirst().forEach { path.addLine(to: pt($0)) }
                         if pass == 0 {
                             guard let edge = style.edge else { continue }
-                            edge.setStroke()
+                            c(edge).setStroke()
                             path.lineWidth = CGFloat(r.width + 1.2) * k
                         } else {
-                            style.fill.setStroke()
+                            c(style.fill).setStroke()
                             path.lineWidth = CGFloat(r.width) * k
                         }
                         path.lineCapStyle = .round

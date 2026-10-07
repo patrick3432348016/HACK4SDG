@@ -37,6 +37,29 @@ var minGap = Double.infinity
 for i in 0..<picked.count { for j in (i + 1)..<picked.count { minGap = min(minGap, picked[i].pos.distance(to: picked[j].pos)) } }
 check(minGap >= 30, "最小间隔 \(Int(minGap)) m")
 
+print("Diorama")
+var worstClear = Double.infinity, maxGreen = 0.0, names: Set<String> = []
+for h in map.buildings where h.kind == .residential {
+    let d = map.simplified(around: h.centroid, home: h.id)
+    names.insert(d.placeName)
+    maxGreen = max(maxGreen, d.areas.map { Polygon.area($0.outline) / (d.size * d.size) }.max() ?? 0)
+    for c in LandmarkDeriver.settle(LandmarkDeriver.pick(LandmarkDeriver.candidates(in: d)), in: d) {
+        worstClear = min(worstClear, d.buildings.map { LandmarkDeriver.distance(from: c.pos, to: $0.outline) }.min() ?? .infinity)
+    }
+}
+check(names == ["皇后山邨"], "裁切后地名沿用整格：\(names.sorted())")
+check(maxGreen <= 0.2001, "单块绿地最多占底座 \(Int(maxGreen * 100))%")
+check(worstClear >= 7.9, "地标离楼最近 \(String(format: "%.1f", worstClear)) m")
+let pickView = map.pickView(near: .zero)
+check(pickView.buildings.filter { $0.kind == .residential }.count <= 10 && pickView.buildings.filter { $0.kind != .residential }.count <= 3,
+      "选楼画面 \(pickView.buildings.count) 座楼（住宅 \(pickView.buildings.filter { $0.kind == .residential }.count)）")
+// 站在每座住宅楼：自己那座一定选得到；没有位置时整格的住宅楼都选得到。
+let allHomes = map.simplified(around: .zero, size: map.size, maxBuildings: nil).buildings.filter { $0.kind == .residential }.map(\.id)
+let missing = allHomes.filter { id in !map.pickView(near: map.building(id: id)!.centroid).buildings.contains { $0.id == id } }
+check(missing.isEmpty, "站在 \(allHomes.count) 座住宅楼，自己那座都在选楼画面（漏 \(missing.count)）")
+let noLoc = Set(map.pickView(near: nil).buildings.map(\.id))
+check(allHomes.allSatisfy(noLoc.contains), "没有位置时 \(allHomes.count) 座住宅楼都选得到（\(allHomes.filter(noLoc.contains).count) 座）")
+
 print("SolarPosition")
 func hk(_ s: String) -> Date { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm"; f.timeZone = SolarPosition.hongKong; return f.date(from: s)! }
 let jun = SolarPosition.at(hk("2026-06-21 12:25"), lat: 22.5044, lon: 114.1563)
@@ -71,6 +94,47 @@ print("     寻路耗时 \(Int(Date().timeIntervalSince(t2) * 1000)) ms，\(path
 check(path.count >= 2 && grid.length(of: path) >= a.distance(to: b) - 1, "路线不短于直线")
 let insideCount = path.filter { map.isInsideBuilding($0) }.count
 check(insideCount <= 1, "路线不穿楼（落在楼里的点 \(insideCount) 个）")
+
+print("MapModel.scenePoint")
+let home = map.buildings.first { $0.kind == .residential && $0.name != nil }!
+let small = map.simplified(around: home.centroid, home: home.id)
+let fullProj = LocalProjection(origin: map.center)
+var worst = 0.0
+for p in small.pois {
+    guard let orig = map.pois.first(where: { $0.id == p.id }) else { continue }
+    worst = max(worst, small.scenePoint(fullProj.toGeo(orig.pos)).distance(to: p.pos))
+}
+check(!small.pois.isEmpty && worst < 1, "经纬度换算到转正后的场景坐标，误差 \(String(format: "%.2f", worst)) m（\(small.pois.count) 个点，转 \(Int(small.rotation * 180 / .pi))°）")
+
+print("HKOReport")
+let rhrText = """
+{"temperature":{"data":[{"place":"京士柏","value":30},{"place":"打鼓嶺","value":34},{"place":"香港天文台","value":31}]},
+ "rainfall":{"data":[{"place":"北區","max":0,"main":"FALSE"},{"place":"油尖旺","max":12,"main":"FALSE"}]},
+ "icon":[50],"updateTime":"2026-10-07T13:02:00+08:00"}
+"""
+let rhr = rhrText.data(using: .utf8)!
+let warnHot = #"{"WHOT":{"name":"酷熱天氣警告","code":"WHOT","actionCode":"ISSUE"},"WFIRE":{"name":"火災危險警告","code":"WFIRER","type":"紅色","actionCode":"ISSUE"}}"#.data(using: .utf8)!
+let warnRain = #"{"WRAIN":{"name":"暴雨警告信號","code":"WRAINA","type":"黃色","actionCode":"ISSUE"}}"#.data(using: .utf8)!
+let fnd = #"{"weatherForecast":[{"forecastDate":"20261008","PSR":"低","forecastMaxtemp":{"value":30}}]}"#.data(using: .utf8)!
+let today = hk("2026-10-07 13:00")
+let hot = HKOReport.parse(rhrread: rhr, warnsum: warnHot, fnd: fnd, near: qh, today: today)
+check(hot?.station == "打鼓嶺" && hot?.temperature == 34, "皇后山邨用最近测站打鼓嶺：\(hot?.station ?? "-") \(hot?.temperature ?? 0) 度")
+check(hot?.rainMM == 0, "雨量用最近分区北區（油尖旺落雨不算）")
+check(hot?.isHot == true && hot?.isRain == false, "酷熱警告 → 熱")
+check(hot?.tomorrowPSR == "低" && hot?.todayPSR == nil, "九天预报从聽日开始，今日冇")
+check(hot?.line == "天文台話打鼓嶺而家 34 度，酷熱天氣警告生效。", "句子：\(hot?.line ?? "")")
+let rain = HKOReport.parse(rhrread: rhr, warnsum: warnRain, fnd: nil, near: GeoPoint(lat: 22.300, lon: 114.175), today: today)
+check(rain?.isRain == true && rain?.station == "香港天文台", "黃雨 → 落雨；尖沙咀附近用天文台站")
+check(rain?.line == "天文台話而家 31 度，黃色暴雨警告信號生效。", "句子：\(rain?.line ?? "")")
+let warnTC = #"{"WTCSGNL":{"name":"熱帶氣旋警告信號","code":"TC8NE","actionCode":"ISSUE"},"WL":{"name":"山泥傾瀉警告","code":"WL","actionCode":"ISSUE"}}"#.data(using: .utf8)!
+let tc = HKOReport.parse(rhrread: rhr, warnsum: warnTC, fnd: nil, near: qh, today: today)
+check(tc?.isDanger == true && tc?.isRain == true, "八號風球 / 山泥 → 唔好出門")
+check(tc?.line == "天文台話打鼓嶺而家 34 度，八號烈風或暴風信號、山泥傾瀉警告生效。", "句子：\(tc?.line ?? "")")
+let drizzle = HKOReport.parse(rhrread: Data(rhrText.replacingOccurrences(of: "[50]", with: "[62]").utf8), warnsum: nil, fnd: nil, near: qh, today: today)
+check(drizzle?.isRain == false, "全港微雨圖標 62 唔算落雨")
+let showers = HKOReport.parse(rhrread: Data(rhrText.replacingOccurrences(of: "[50]", with: "[63]").utf8), warnsum: nil, fnd: nil, near: qh, today: today)
+check(showers?.isRain == true && showers?.line == "天文台話打鼓嶺而家 34 度，有雨。", "雨圖標 63 → 落雨，句子要講有雨：\(showers?.line ?? "")")
+check(HKOReport.parse(rhrread: Data("oops".utf8), warnsum: nil, fnd: nil, near: qh, today: today) == nil, "坏数据 → 冇天气（唔會編）")
 
 print(failures == 0 ? "ALL PASSED" : "\(failures) FAILED")
 exit(failures == 0 ? 0 : 1)

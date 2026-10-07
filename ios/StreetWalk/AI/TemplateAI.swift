@@ -132,7 +132,7 @@ struct TemplateAI: AIService {
         let l = best.0
         let minutes = max(1, Int((max(l.pos.distance(to: mine), l.pos.distance(to: theirs)) / 65).rounded()))
         var parts: [String] = []
-        parts.append(best.2 >= 0.5 ? "嗰陣有樹蔭" : "嗰陣有啲曬")
+        parts.append(best.2 >= 0.5 ? "嗰陣有樓遮住" : "嗰陣有啲曬")
         if l.hasSeat { parts.append("有櫈") }
         parts.append("兩個都行 \(minutes) 分鐘左右")
         return MeetProposal(date: date, landmarkID: l.id, reason: parts.joined(separator: "、"))
@@ -142,10 +142,10 @@ struct TemplateAI: AIService {
         switch weather {
         case .rain: return "天文台話下晝會落大雨，不如早啲出門，或者聽日先行。"
         case .hot:
-            if let tip = shadeTip, let h = tip.shadedFrom { return "今日好熱。\(tip.landmark.name)\(Self.hourLabel(h))後有樹蔭，嗰陣先出門啱啲。" }
+            if let tip = shadeTip, let h = tip.shadedFrom { return "今日好熱。\(tip.landmark.name)\(Self.hourLabel(h))後有樓遮住，嗰陣先出門啱啲。" }
             return "今日好熱，記得帶水，揀有遮蔭嘅路行。"
         case .normal:
-            if let tip = shadeTip, let h = tip.shadedFrom { return "\(tip.landmark.name)\(Self.hourLabel(h))後有樹蔭，嗰陣行最舒服。" }
+            if let tip = shadeTip, let h = tip.shadedFrom { return "\(tip.landmark.name)\(Self.hourLabel(h))後有樓遮住，嗰陣行最舒服。" }
             return nil
         }
     }

@@ -98,7 +98,46 @@ enum LandmarkDeriver {
         return []
     }
 
+    /// 楼改成规整矩形后，地标可能压在楼上或贴着墙：挪到楼外、不在水里、底座内的最近位置，尽量少动。
+    /// clearance 是地标中心到楼的距离（小凉亭半宽约 4.75 m，8 m 即亭边离楼约 3 m）；地标之间仍保持 spacing。
+    /// 60 m 内都找不到合适位置的就不要了。
+    static func settle(_ picked: [LandmarkCandidate], in map: MapModel, clearance: Double = 8, spacing: Double = 30) -> [LandmarkCandidate] {
+        let limit = map.half - 10
+        let water = map.areas.filter { $0.kind == .water }.map(\.outline)
+        func ok(_ p: Vec2, _ placed: [LandmarkCandidate]) -> Bool {
+            abs(p.x) <= limit && abs(p.y) <= limit
+                && map.buildings.allSatisfy { $0.kind == .canopy || distance(from: p, to: $0.outline) >= clearance }
+                && !water.contains { Polygon.contains($0, p) }
+                && placed.allSatisfy { $0.pos.distance(to: p) >= spacing }
+        }
+        func spot(near q: Vec2, _ placed: [LandmarkCandidate]) -> Vec2? {
+            if ok(q, placed) { return q }
+            // 由近到远一圈圈找：半径每次加 2 m，每圈 24 个方向。
+            for r in stride(from: 2.0, through: 60, by: 2) {
+                for k in 0..<24 {
+                    let a = Double(k) * .pi / 12
+                    let p = q + Vec2(x: cos(a) * r, y: sin(a) * r)
+                    if ok(p, placed) { return p }
+                }
+            }
+            return nil
+        }
+        var out: [LandmarkCandidate] = []
+        for var c in picked {
+            guard let p = spot(near: c.pos, out) else { continue }
+            c.pos = p
+            out.append(c)
+        }
+        return out
+    }
+
     // MARK: - 几何
+
+    /// 点到多边形的距离（在里面算 0）。
+    static func distance(from p: Vec2, to poly: [Vec2]) -> Double {
+        if Polygon.contains(poly, p) { return 0 }
+        return (0..<poly.count).map { closestPoint(on: poly[$0], poly[($0 + 1) % poly.count], to: p).distance(to: p) }.min() ?? .infinity
+    }
 
     static func nearestRoadPoint(to p: Vec2, in map: MapModel, maxDistance: Double) -> Vec2? {
         var best: (Vec2, Double)?

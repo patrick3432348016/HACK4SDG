@@ -86,9 +86,17 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     private var lastUserInteraction: CFTimeInterval = 0
     var debugInfo: [String: Int] = [:]
 
+    /// 深色模式：搭建场景时按它解析 SceneStyle 的动态色。
+    private(set) var isDark = UITraitCollection.current.userInterfaceStyle == .dark
+    private var traits: UITraitCollection { UITraitCollection(userInterfaceStyle: isDark ? .dark : .light) }
+    private var highlighted: (ids: Set<Int64>, color: UIColor?) = ([], nil)
+    private var highlightedLandmark: String?
+    /// 当前被调成半透明的楼（切深浅色重建后补回）。
+    private var faded: Set<Int64> = []
+
     override init() {
         super.init()
-        scene.background.contents = SceneStyle.background
+        scene.background.contents = SceneStyle.background.resolvedColor(with: traits)
         scene.rootNode.addChildNode(world)
         [plinthNode, buildingsNode, treesNode, landmarksNode, routesNode, peopleNode].forEach(world.addChildNode)
         setupCamera()
@@ -102,13 +110,42 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         pathGrid = PathGrid(map: map)
         [plinthNode, buildingsNode, treesNode, landmarksNode, routesNode, peopleNode].forEach { $0.childNodes.forEach { $0.removeFromParentNode() } }
         lock.lock(); towerNodes = [:]; pickableNodes = [:]; landmarkNodes = [:]; personNodes = [:]; personState = [:]; lock.unlock()
+        faded = []
 
         // 阴影范围跟着底座大小走，小底座的影子更清楚。
         sunNode.light?.orthographicScale = map.size * Double(SceneStyle.scale) * 0.75
-        buildPlinth(map)
-        buildBuildings(map, animated: animated)
-        buildTrees(map)
-        setLandmarks(landmarks)
+        highlighted = ([], nil)
+        highlightedLandmark = nil
+        traits.performAsCurrent {
+            buildPlinth(map)
+            buildBuildings(map, animated: animated)
+            buildTrees(map)
+            setLandmarks(landmarks)
+        }
+    }
+
+    /// 系统切换深浅色：按新配色重建地面、楼、树、地标的材质，不重放楼宇升起；人和路线不动。
+    func setDark(_ dark: Bool) {
+        guard dark != isDark else { return }
+        isDark = dark
+        scene.background.contents = SceneStyle.background.resolvedColor(with: traits)
+        sunNode.light?.shadowColor = shadowColor
+        guard let map else { return }
+        [plinthNode, buildingsNode, treesNode].forEach { $0.childNodes.forEach { $0.removeFromParentNode() } }
+        lock.lock(); towerNodes = [:]; pickableNodes = [:]; let lms = Array(landmarkInfo.values); lock.unlock()
+        traits.performAsCurrent {
+            buildPlinth(map)
+            buildBuildings(map, animated: false)
+            buildTrees(map)
+            setLandmarks(lms)
+        }
+        highlightBuildings(highlighted.ids, color: highlighted.color)
+        highlightLandmark(highlightedLandmark)
+        for (id, node) in towerNodes where faded.contains(id) { node.opacity = 0.25 }
+    }
+
+    private var shadowColor: UIColor {
+        isDark ? UIColor(white: 0, alpha: 0.32) : UIColor(red: 0.45, green: 0.45, blue: 0.52, alpha: 0.12)
     }
 
     private func buildPlinth(_ map: MapModel) {
@@ -117,7 +154,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         let box = SCNBox(width: L, height: t, length: L, chamferRadius: 0.0015)
         let side = MeshBuilder.material(SceneStyle.plinthSide)
         let top = MeshBuilder.material(SceneStyle.paving)
-        let bottom = MeshBuilder.material(SceneStyle.plinthSide.withAlphaComponent(1))
+        let bottom = MeshBuilder.material(SceneStyle.plinthSide)
         box.materials = [side, side, side, side, top, bottom]
         let boxNode = SCNNode(geometry: box)
         boxNode.position = SCNVector3(0, -Float(t) / 2 - 0.0002, 0)
@@ -258,7 +295,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         sun.shadowSampleCount = 16
         sun.shadowRadius = 4
         sun.shadowMapSize = CGSize(width: 2048, height: 2048)
-        sun.shadowColor = UIColor(red: 0.45, green: 0.45, blue: 0.52, alpha: 0.12)
+        sun.shadowColor = shadowColor
         sun.automaticallyAdjustsShadowProjection = false
         sun.orthographicScale = 0.42
         sun.zNear = 0.05
@@ -461,14 +498,21 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     // MARK: - 高亮与遮挡
 
     /// 给楼染色（白色楼体上用自发光看不出来，所以改用正片叠底）：只有一座时用深一点的橙，表示"选中"。
+    /// 深色时深灰楼体正片叠底不够亮：先叠一层暖色压掉蓝，再加橙色自发光。
     func highlightBuildings(_ ids: Set<Int64>, color: UIColor?) {
+        highlighted = (ids, color)
         let tint = color ?? (ids.count == 1 ? UIColor(red: 0.93, green: 0.58, blue: 0.43, alpha: 1)
                                             : UIColor(red: 0.98, green: 0.83, blue: 0.74, alpha: 1))
+        let glow = ids.count == 1 ? UIColor(red: 0.62, green: 0.28, blue: 0.04, alpha: 1) : UIColor(red: 0.45, green: 0.22, blue: 0.06, alpha: 1)
+        let warm = UIColor(red: 1, green: 0.78, blue: 0.5, alpha: 1)
         SCNTransaction.begin()
         SCNTransaction.animationDuration = 0.35
         for (id, node) in pickableNodes {
             let on = ids.contains(id)
-            node.geometry?.materials.forEach { $0.multiply.contents = on ? tint : UIColor.white }
+            node.geometry?.materials.forEach {
+                $0.multiply.contents = on ? (isDark ? warm : tint) : UIColor.white
+                $0.emission.contents = on && isDark ? (color ?? glow) : UIColor.black
+            }
         }
         SCNTransaction.commit()
     }
@@ -479,6 +523,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     }
 
     func highlightLandmark(_ id: String?) {
+        highlightedLandmark = id
         for (lid, node) in landmarkNodes {
             let on = lid == id
             node.removeAction(forKey: "pulse")
@@ -504,6 +549,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
             let hits = buildingsNode.hitTestWithSegment(from: from, to: to, options: [SCNHitTestOption.searchMode.rawValue: SCNHitTestSearchMode.all.rawValue])
             for h in hits { if let name = h.node.name, name.hasPrefix("bld:"), let id = Int64(name.dropFirst(4)) { fade.insert(id) } }
         }
+        faded = fade
         SCNTransaction.begin()
         SCNTransaction.animationDuration = 0.35
         for (id, node) in towerNodes { node.opacity = fade.contains(id) ? 0.25 : 1 }

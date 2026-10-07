@@ -103,7 +103,7 @@ enum Figures {
 
         let w: CGFloat = 9.5
         let roof = SCNBox(width: w * s, height: 1.0 * s, length: w * s, chamferRadius: 0)
-        roof.firstMaterial = MeshBuilder.material(.white)
+        roof.firstMaterial = MeshBuilder.material(SceneStyle.pavilionRoof)
         let rn = SCNNode(geometry: roof)
         rn.position = SCNVector3(0, 7.4 * k, 0)
         root.addChildNode(rn)

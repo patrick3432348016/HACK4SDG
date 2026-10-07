@@ -319,7 +319,7 @@ struct FindOverlay: View {
                 }
                 .buttonStyle(.dsSecondary)
                 Button {
-                    store.speaker.speak("幫你打緊電話俾\(p.name)")
+                    store.call(p.id)
                     withAnimation(DS.motion(DS.spring)) { store.find?.latePrompt = false }
                 } label: {
                     Label("打電話", systemImage: "phone.fill").frame(maxWidth: .infinity)
