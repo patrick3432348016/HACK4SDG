@@ -202,7 +202,7 @@ struct InfoCard: View {
 
     @ViewBuilder private func facts(_ lm: Landmark, shade: Int) -> some View {
         CardFact(symbol: lm.hasSeat ? "chair.lounge.fill" : "chair.lounge", text: lm.hasSeat ? "有櫈" : "冇櫈")
-        CardFact(symbol: shade >= 50 ? "tree.fill" : "sun.max.fill", text: "而家遮蔭 \(shade)%")
+        CardFact(symbol: shade >= 50 ? "building.2.fill" : "sun.max.fill", text: "而家大約 \(shade)% 有樓遮")
             .contentTransition(.numericText(value: Double(shade)))
             .animation(DS.motion(DS.snappy), value: shade)
     }

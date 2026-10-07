@@ -6,13 +6,16 @@ final class Speaker: ObservableObject {
     private let synth = AVSpeechSynthesizer()
     @Published var lastSpoken = ""
 
+    /// 粤语声音只查一次（有些模拟器每次查都会卡住主线程）。
+    private static let voice = AVSpeechSynthesisVoice(language: "zh-HK")
+
     func speak(_ text: String) {
         lastSpoken = text
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
         try? AVAudioSession.sharedInstance().setActive(true)
         synth.stopSpeaking(at: .immediate)
         let u = AVSpeechUtterance(string: text)
-        u.voice = AVSpeechSynthesisVoice(language: "zh-HK")
+        u.voice = Self.voice
         u.rate = 0.42
         u.pitchMultiplier = 1.0
         synth.speak(u)
