@@ -69,10 +69,10 @@ struct TodayTab: View {
                 } else {
                     Text("出門行吓，見到面碰一碰就係街坊").ds(.body)
                 }
+                if passers?.isDemo == true { DemoBadge() }
             }
             .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
-            if passers?.isDemo == true { DemoBadge() }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .dsCard()
@@ -113,14 +113,11 @@ struct TodayTab: View {
             if let w = store.walk {
                 walkingStats(w)
             } else {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("今日行咗 \(store.todayMinutes) 分鐘 · 連續 \(me.streakDays) 日")
-                        .ds(.bodyBold)
-                        .contentTransition(.numericText(value: Double(store.todayMinutes * 1000 + me.streakDays)))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                    if store.streakHasDemo { DemoBadge(text: "含示範紀錄") }
-                }
+                Text("今日行咗 \(store.todayMinutes) 分鐘 · 連續 \(me.streakDays) 日")
+                    .ds(.bodyBold)
+                    .contentTransition(.numericText(value: Double(store.todayMinutes * 1000 + me.streakDays)))
+                    .fixedSize(horizontal: false, vertical: true)
+                if store.streakHasDemo { DemoBadge(text: "含示範紀錄") }
                 if !me.todayLine.isEmpty {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         TabAITag()
@@ -397,15 +394,12 @@ struct BoardTab: View {
         let share = CGFloat(race.ourSteps) / CGFloat(total)
         let diff = race.ourSteps - race.rivalSteps
         return VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(race.rivalSteps == 0 ? "本月 \(race.ourName) 行咗 \(Self.steps(race.ourSteps))"
-                     : "本月 \(race.ourName) \(diff >= 0 ? "領先" : "落後")\(race.rivalName) \(Self.steps(abs(diff)))")
-                    .ds(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-                if race.isDemo { DemoBadge() }
-            }
+            Text(race.rivalSteps == 0 ? "本月 \(race.ourName) 行咗 \(Self.steps(race.ourSteps))"
+                 : "本月 \(race.ourName) \(diff >= 0 ? "領先" : "落後")\(race.rivalName) \(Self.steps(abs(diff)))")
+                .ds(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if race.isDemo { DemoBadge() }
             GeometryReader { g in
                 let w = max(0, g.size.width - 4)
                 HStack(spacing: 4) {

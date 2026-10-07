@@ -22,5 +22,7 @@ struct RootView: View {
             }
         }
         .animation(DS.motion(DS.spring), value: isOnboarding)
+        // 正文基准已经是 24pt；再大过无障碍第 2 档就排唔落，所以封顶。
+        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
     }
 }

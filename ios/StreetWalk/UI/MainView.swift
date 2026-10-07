@@ -502,6 +502,7 @@ private struct BottomCardSlot: View {
     let size: CGSize
     let bottomInset: CGFloat
     @State private var drag: CGFloat = 0
+    @State private var contentHeight: CGFloat = 0
 
     var body: some View {
         let card = store.uiActiveCard
@@ -519,12 +520,20 @@ private struct BottomCardSlot: View {
     private func container(_ card: MainBottomCard) -> some View {
         let canDismiss = store.uiCanDismiss(card)
         let shape = UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24, style: .continuous)
+        let body = content(card)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, DS.side)
+            .padding(.bottom, max(bottomInset, DS.side) + DS.gap)
+        // 大字号时卡片可能高过屏幕：量出内容高度，超过上限才限高、可以上下滚。
+        let limit = size.height * 0.86 - 24
         return VStack(spacing: 0) {
             grabber(card, visible: canDismiss)
-            content(card)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, DS.side)
-                .padding(.bottom, max(bottomInset, DS.side) + DS.gap)
+            ScrollView {
+                body.onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { contentHeight = $0 }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollDisabled(contentHeight <= limit)
+            .frame(height: contentHeight > 0 ? min(contentHeight, limit) : nil)
         }
         .frame(width: size.width)
         .background(Color(.systemBackground), in: shape)
