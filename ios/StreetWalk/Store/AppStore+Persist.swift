@@ -87,15 +87,7 @@ extension AppStore {
         return l
     }
 
-    /// 连续天数：从今日（今日未行就从昨日）往回数，行过或请过假都算一日。演示模式关掉后不计示範纪录。
-    func myStreak() -> Int {
-        var day = now
-        func counts(_ d: Date) -> Bool { log(for: d).walks > 0 || leaveDays.contains(LocalStore.dayKey(d)) }
-        if !counts(day) { day = day.addingTimeInterval(-86400) }
-        var n = 0
-        while counts(day) && n < 3650 { n += 1; day = day.addingTimeInterval(-86400) }
-        return n
-    }
+    func myStreak() -> Int { LocalStore.streak(walkLog, leaves: leaveDays, today: now, includeDemo: demoMode) }
 
     /// 连续天数里有没有示範纪录（界面要标明）。
     var streakHasDemo: Bool {

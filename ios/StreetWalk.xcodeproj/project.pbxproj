@@ -8,7 +8,18 @@
 
 /* Begin PBXFileReference section */
 		5A1000000000000000000001 /* StreetWalk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StreetWalk.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A1000000000000000000002 /* StreetWalkTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StreetWalkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXContainerItemProxy section */
+		5A1000000000000000000047 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5A1000000000000000000060 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5A1000000000000000000040;
+			remoteInfo = StreetWalk;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		5A1000000000000000000010 /* StreetWalk */ = {
@@ -16,10 +27,22 @@
 			path = StreetWalk;
 			sourceTree = "<group>";
 		};
+		5A1000000000000000000011 /* StreetWalkTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = StreetWalkTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		5A1000000000000000000020 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5A1000000000000000000021 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				5A1000000000000000000010 /* StreetWalk */,
+				5A1000000000000000000011 /* StreetWalkTests */,
 				5A1000000000000000000031 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				5A1000000000000000000001 /* StreetWalk.app */,
+				5A1000000000000000000002 /* StreetWalkTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,6 +95,29 @@
 			productReference = 5A1000000000000000000001 /* StreetWalk.app */;
 			productType = "com.apple.product-type.application";
 		};
+		5A1000000000000000000045 /* StreetWalkTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5A1000000000000000000056 /* Build configuration list for PBXNativeTarget "StreetWalkTests" */;
+			buildPhases = (
+				5A1000000000000000000043 /* Sources */,
+				5A1000000000000000000021 /* Frameworks */,
+				5A1000000000000000000044 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5A1000000000000000000046 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				5A1000000000000000000011 /* StreetWalkTests */,
+			);
+			name = StreetWalkTests;
+			packageProductDependencies = (
+			);
+			productName = StreetWalkTests;
+			productReference = 5A1000000000000000000002 /* StreetWalkTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -82,6 +130,10 @@
 				TargetAttributes = {
 					5A1000000000000000000040 = {
 						CreatedOnToolsVersion = 26.0;
+					};
+					5A1000000000000000000045 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = 5A1000000000000000000040;
 					};
 				};
 			};
@@ -100,12 +152,20 @@
 			projectRoot = "";
 			targets = (
 				5A1000000000000000000040 /* StreetWalk */,
+				5A1000000000000000000045 /* StreetWalkTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		5A1000000000000000000042 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5A1000000000000000000044 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +182,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5A1000000000000000000043 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5A1000000000000000000046 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5A1000000000000000000040 /* StreetWalk */;
+			targetProxy = 5A1000000000000000000047 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		5A1000000000000000000062 /* Debug */ = {
@@ -234,6 +309,40 @@
 			};
 			name = Release;
 		};
+		5A1000000000000000000054 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = hk.hack4sdg.streetwalk.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/StreetWalk.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/StreetWalk";
+			};
+			name = Debug;
+		};
+		5A1000000000000000000055 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = hk.hack4sdg.streetwalk.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/StreetWalk.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/StreetWalk";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -251,6 +360,15 @@
 			buildConfigurations = (
 				5A1000000000000000000062 /* Debug */,
 				5A1000000000000000000063 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5A1000000000000000000056 /* Build configuration list for PBXNativeTarget "StreetWalkTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5A1000000000000000000054 /* Debug */,
+				5A1000000000000000000055 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

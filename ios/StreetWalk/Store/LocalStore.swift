@@ -47,6 +47,21 @@ enum LocalStore {
 
     static func clear() { try? FileManager.default.removeItem(at: url) }
 
+    /// 连续天数：从今日（今日未行就从昨日）往回数，行过或请过假都算一日。includeDemo = false 时不计示範纪录。
+    static func streak(_ log: [String: DayLog], leaves: Set<String>, today: Date, includeDemo: Bool) -> Int {
+        func counts(_ d: Date) -> Bool {
+            let k = dayKey(d)
+            if leaves.contains(k) { return true }
+            guard let l = log[k], includeDemo || !l.demo else { return false }
+            return l.walks > 0
+        }
+        var day = today
+        if !counts(day) { day = day.addingTimeInterval(-86400) }
+        var n = 0
+        while counts(day) && n < 3650 { n += 1; day = day.addingTimeInterval(-86400) }
+        return n
+    }
+
     /// 香港时区的日期键，例如 "2026-10-07"。
     static func dayKey(_ d: Date) -> String {
         var cal = Calendar(identifier: .gregorian)
