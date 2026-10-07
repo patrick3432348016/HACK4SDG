@@ -117,6 +117,8 @@ struct Report: Identifiable, Equatable, Codable {
     var date: Date
     /// F10：屋邨管理 / 社工落实后的回覆，会告诉反映的居民。
     var followUp: String?
+    /// 回覆是演示模拟的（可选值：旧存档没有这个字段也读得回）。
+    var followUpDemo: Bool?
 }
 
 struct BannerItem: Identifiable, Equatable {
@@ -136,6 +138,8 @@ struct VoiceCard: Identifiable, Equatable {
     var detail: String?
     var needsConfirm: Bool
     var intent: VoiceIntent
+    /// 改约 / 取消约时复述的是边一个约会（按「好」就改呢个，唔再重新揀）。
+    var appointmentID: UUID? = nil
 }
 
 enum Weather: Equatable {

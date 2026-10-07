@@ -43,17 +43,19 @@ extension AppStore {
     func runScript2() {
         Task { @MainActor in
             while map == nil || residents.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+            try? await Task.sleep(for: .seconds(1))
             createNeighbor("chan", remind: true)
             neighborGoesOut("chan")
             banner = nil
             let t0 = Date()
-            func step(_ at: Double, _ name: String, _ action: () -> Void) async {
+            @MainActor func step(_ at: Double, _ name: String, _ action: () -> Void) async {
                 let wait = at - Date().timeIntervalSince(t0)
                 if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
                 print("[script2] t=\(Int(at)) \(name)")
                 action()
             }
-            await step(2, "街坊頁 + 陳太約你") { tab = .neighbors; partnerInvites("chan") }
+            await step(2, "街坊頁") { tab = .neighbors }
+            await step(2.6, "陳太約你") { partnerInvites("chan") }
             await step(7, "地標資料卡") { banner = nil; select(.landmark(landmarks.first?.id ?? "")) }
             await step(11, "改名") { renaming = selection.flatMap { if case .landmark(let id) = $0 { return id } else { return nil } } }
             await step(15, "揀一句") { select(nil); phrasePicker = true }
@@ -100,7 +102,7 @@ extension AppStore {
         ticker?.cancel()
         walk = nil; find = nil; findFullScreen = false; proposal = nil; voiceCard = nil; banner = nil
         weather = .normal; weatherTip = nil; demoHour = LaunchArgs.hour
-        clearAllData()
+        resetDemoData()
         scene.setRoute(nil); scene.setTrail([]); scene.highlightLandmark(nil); scene.followID = nil
         populate()
         updateSun(animated: true)

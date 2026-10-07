@@ -38,12 +38,24 @@ extension AppStore {
                                    landmarkNames: landmarkNames, walkLog: walkLog, leaveDays: leaveDays))
     }
 
-    /// 底座换了（另一格或另一座楼）：约会地点、反映位置、改过的地标名都作废，街坊关系和散步记录保留。
+    var currentMapKey: String? { map.map { "\($0.tile)|\(scene.homeBuildingID.map(String.init) ?? "-")" } }
+
+    /// 第一次装好底座时记下是哪一格、哪座楼。之后只在真正改咗住嘅楼时（homeChanged）先清跟地图有关的数据，
+    /// 喺外面打开、冇定位、离线兜底都唔会清。
     func adoptMapKey() {
-        guard let m = map else { return }
-        let key = "\(m.tile)|\(scene.homeBuildingID.map(String.init) ?? "-")"
-        guard key != savedMapKey else { return }
-        if savedMapKey != nil {
+        guard savedMapKey == nil, let key = currentMapKey else { return }
+        savedMapKey = key
+        scheduleSave()
+    }
+
+    /// 首次使用 / 改楼完成：换咗楼就作废约会地点、反映位置、改过的地标名（街坊关系和散步记录保留），未完成的约会会通知对方取消。
+    func homeChanged() {
+        guard let key = currentMapKey else { return }
+        if let old = savedMapKey, old != key {
+            for i in appointments.indices where appointments[i].isOpen {
+                appointments[i].status = .cancelled
+                community.updateMeetup(appointments[i])
+            }
             appointments = []
             reports = []
             landmarkNames = [:]
@@ -70,14 +82,41 @@ extension AppStore {
         scheduleSave()
     }
 
-    /// 清除本机全部记录（设置页）。
+    /// 清除本机全部记录（设置页）。地标改回原名。
     func clearAllData() {
         LocalStore.clear()
         restoring = true
         savedNeighbors = [:]; appointments = []; reports = []; landmarkNames = [:]; walkLog = [:]; leaveDays = []
         if demoMode { seedDemoHistory() }
         restoring = false
+        restoreOriginalNames()
         saveNow()
+    }
+
+    func restoreOriginalNames() {
+        for i in landmarks.indices {
+            guard let o = originalLandmarkNames[landmarks[i].id], o != landmarks[i].name else { continue }
+            landmarks[i].name = o
+            scene.renameLandmark(landmarks[i].id, to: o)
+        }
+    }
+
+    /// 演示菜单「重置演示」：只清同示範街坊有关的东西（关系、约会、示範回覆、示範纪录），你自己的真实记录唔郁。
+    func resetDemoData() {
+        let demoIDs = Set(residents.filter(\.isDemo).map(\.id))
+        for id in demoIDs { savedNeighbors[id] = nil }
+        appointments.removeAll { demoIDs.contains($0.partnerID) }
+        for i in reports.indices where reports[i].followUpDemo == true { reports[i].followUp = nil; reports[i].followUpDemo = nil }
+        walkLog = walkLog.filter { !$0.value.demo }
+        if walkLog[LocalStore.dayKey(now)] == nil { seedDemoHistory() }
+        scheduleSave()
+    }
+
+    /// 关咗演示模式 / 对方已经唔喺圈入面：未完成的约会收埋（对方都唔存在，唔使通知）。
+    func closeOrphanAppointments() {
+        for i in appointments.indices where appointments[i].isOpen && resident(appointments[i].partnerID) == nil {
+            appointments[i].status = .cancelled
+        }
     }
 
     // MARK: - 每日记录与连续天数
@@ -111,11 +150,11 @@ extension AppStore {
         return walkLog.filter { $0.key.hasPrefix(prefix) && (demoMode || !$0.value.demo) }.reduce(0) { $0 + $1.value.walks }
     }
 
-    /// 记一次散步。
-    func recordWalk(minutes: Int, landmarks passed: [String]) {
+    /// 记一次散步。演示散步（模拟路线）算示範纪录；真机散步是真实纪录，唔会同示範纪录混埋。
+    func recordWalk(minutes: Int, landmarks passed: [String], simulated: Bool) {
         let key = LocalStore.dayKey(now)
-        var l = walkLog[key] ?? DayLog()
-        if l.demo { l = DayLog(minutes: l.minutes, walks: l.walks, landmarks: l.landmarks, demo: false) }
+        var l = walkLog[key] ?? DayLog(demo: simulated)
+        if simulated { l.demo = true } else if l.demo { l = DayLog() }
         l.minutes += minutes
         l.walks += 1
         l.landmarks += passed.filter { !l.landmarks.contains($0) }
@@ -152,7 +191,7 @@ extension AppStore {
         case .neighborHome(let id): neighborWentHome(id)
         case .inviteAnswered(let id, let accepted): partnerAnswered(id, accepted: accepted)
         case .invited(let a): invitedBy(a)
-        case .reportFollowUp(let id, let text): reportFollowedUp(id, text: text)
+        case .reportFollowUp(let id, let text, let isDemo): reportFollowedUp(id, text: text, isDemo: isDemo)
         }
     }
 

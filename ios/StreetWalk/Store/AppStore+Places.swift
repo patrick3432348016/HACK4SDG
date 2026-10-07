@@ -50,8 +50,13 @@ extension AppStore {
 
     /// 月报：我的反映 + 全邨其他居民的匿名反映 + 匿名汇总（单机演示时是示範数据）。
     var monthly: MonthlyReport {
-        ai.monthlyReport(placeName: map?.placeName ?? "屋邨", reports: reports + community.othersReports(landmarks: landmarks),
-                         landmarks: landmarks, stats: monthlyStats)
+        // 我只算一个人：本月、同一地标同一类问题只计一次（一个人撳十次都唔会变成十个人）。
+        var seen = Set<String>()
+        let mine = reports.filter { r in
+            Self.hk.isDate(r.date, equalTo: now, toGranularity: .month) && seen.insert("\(r.landmarkID ?? "-")|\(r.kind.rawValue)").inserted
+        }
+        return ai.monthlyReport(placeName: map?.placeName ?? "屋邨", reports: mine + community.othersReports(landmarks: landmarks),
+                                landmarks: landmarks, stats: monthlyStats)
     }
 
     var monthlyStats: MonthlyStats {
@@ -61,9 +66,10 @@ extension AppStore {
     }
 
     /// F10：反映落实后告诉居民。
-    func reportFollowedUp(_ id: UUID, text: String) {
+    func reportFollowedUp(_ id: UUID, text: String, isDemo: Bool) {
         guard let i = reports.firstIndex(where: { $0.id == id }) else { return }
         reports[i].followUp = text
+        reports[i].followUpDemo = isDemo ? true : nil
         let r = reports[i]
         let place = landmark(r.landmarkID)?.name ?? "呢度"
         let line = "你反映過「\(place)\(r.kind.rawValue)」。\(text)"
@@ -78,7 +84,7 @@ extension AppStore {
     }
 
     /// 有回覆的反映（今日页显示）。
-    var answeredReports: [Report] { reports.filter { $0.followUp != nil } }
+    var answeredReports: [Report] { reports.filter { $0.followUp != nil && (demoMode || $0.followUpDemo != true) } }
 
     // MARK: - F9 天气遮荫（香港天文台实时数据；演示菜单手动选的优先）
 
@@ -118,7 +124,7 @@ extension AppStore {
     func refreshWeatherTip() {
         var advice: String?
         if let shade {
-            let hour = Calendar.current.component(.hour, from: now)
+            let hour = Self.hk.component(.hour, from: now)
             let seat = landmarks.first(where: \.hasSeat)
             let tip = seat.map { ($0, shade.shadedFromHour(landmarkID: $0.id, day: now, after: max(hour, 14))) }
             advice = ai.walkAdvice(weather: weather, now: now, shadeTip: tip.map { (landmark: $0.0, shadedFrom: $0.1) })

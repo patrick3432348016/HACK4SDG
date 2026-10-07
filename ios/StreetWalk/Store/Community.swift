@@ -28,6 +28,9 @@ protocol CommunityService: AnyObject {
     /// 改时间、改地点或取消。改动要对方再确认，取消直接通知对方。
     func updateMeetup(_ a: Appointment)
 
+    /// 重启后接返未完成的事（例如仲等紧对方确认的约会）。
+    func resume(_ appointments: [Appointment])
+
     // F3 / F10
     func renameLandmark(_ id: String, to name: String)
     func submitReport(_ r: Report)
@@ -45,7 +48,7 @@ enum CommunityEvent {
     case neighborHome(residentID: String)
     case inviteAnswered(appointmentID: UUID, accepted: Bool)
     case invited(Appointment)
-    case reportFollowUp(reportID: UUID, text: String)
+    case reportFollowUp(reportID: UUID, text: String, isDemo: Bool)
 }
 
 /// 圈对圈：本月圈内总步数。
@@ -66,6 +69,8 @@ final class LocalCommunityService: CommunityService {
     var demoEnabled: Bool
     /// 演示菜单「陳太唔方便（下一次）」：下一次邀请 / 询问会被拒绝。
     var declineNext = false
+    /// 每个约会只留最新一次模拟回覆（改咗时间地点，旧回覆作废）。
+    private var pending: [UUID: Task<Void, Never>] = [:]
 
     init(demoEnabled: Bool) { self.demoEnabled = demoEnabled }
 
@@ -99,14 +104,21 @@ final class LocalCommunityService: CommunityService {
 
     func updateMeetup(_ a: Appointment) {
         // 取消直接生效；改时间 / 地点要对方再确认。
-        if a.status == .waiting { answerLater(a.id, after: 3) }
+        if a.status == .waiting { answerLater(a.id, after: 3) } else { pending[a.id]?.cancel(); pending[a.id] = nil }
+    }
+
+    func resume(_ appointments: [Appointment]) {
+        for a in appointments where a.status == .waiting && !a.fromPartner && a.date > Date() { answerLater(a.id, after: 3) }
     }
 
     private func answerLater(_ id: UUID, after s: Double) {
         let accept = !declineNext
         declineNext = false
-        Task { @MainActor in
+        pending[id]?.cancel()
+        pending[id] = Task { @MainActor in
             try? await Task.sleep(for: .seconds(s))
+            guard !Task.isCancelled else { return }
+            self.pending[id] = nil
             self.onEvent?(.inviteAnswered(appointmentID: id, accepted: accept))
         }
     }
@@ -123,7 +135,7 @@ final class LocalCommunityService: CommunityService {
         case .noSeat: text = "屋邨管理回覆：\(place)會加兩張櫈。"
         case .rough: text = "屋邨管理回覆：\(place)嘅路面已經安排整平。"
         }
-        onEvent?(.reportFollowUp(reportID: r.id, text: text))
+        onEvent?(.reportFollowUp(reportID: r.id, text: text, isDemo: true))
     }
 
     // MARK: 匿名汇总（示範数据：按地名 / 地标名做种子，同一屋邨每次一样）

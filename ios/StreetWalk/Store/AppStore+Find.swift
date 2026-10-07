@@ -49,7 +49,8 @@ extension AppStore {
     }
 
     func departForAppointment(_ a: Appointment) {
-        guard let p = resident(a.partnerID), let lm = landmark(a.landmarkID) else { return }
+        // 只有约好咗、对方仍然係街坊先可以出发（非街坊永远唔入场景）。
+        guard a.status == .accepted, let p = resident(a.partnerID), p.isNeighbor, let lm = landmark(a.landmarkID) else { return }
         let start = myPosition()
         findRoute = scene.route(from: start, to: scene.nearestWalkable(lm.pos + Vec2(x: -4, y: -3)))
         let theirStart = landmark(p.homeLandmarkID)?.pos ?? lm.pos

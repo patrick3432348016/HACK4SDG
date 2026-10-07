@@ -502,7 +502,8 @@ private struct BottomCardSlot: View {
     let size: CGSize
     let bottomInset: CGFloat
     @State private var drag: CGFloat = 0
-    @State private var contentHeight: CGFloat = 0
+    /// 每种卡各自量高度（换卡时新旧两张同时在，共用一个值会互相覆盖）。
+    @State private var heights: [MainBottomCard: CGFloat] = [:]
 
     var body: some View {
         let card = store.uiActiveCard
@@ -526,14 +527,15 @@ private struct BottomCardSlot: View {
             .padding(.bottom, max(bottomInset, DS.side) + DS.gap)
         // 大字号时卡片可能高过屏幕：量出内容高度，超过上限才限高、可以上下滚。
         let limit = size.height * 0.86 - 24
+        let h = heights[card] ?? 0
         return VStack(spacing: 0) {
             grabber(card, visible: canDismiss)
             ScrollView {
-                body.onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { contentHeight = $0 }
+                body.onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { heights[card] = $0 }
             }
             .scrollBounceBehavior(.basedOnSize)
-            .scrollDisabled(contentHeight <= limit)
-            .frame(height: contentHeight > 0 ? min(contentHeight, limit) : nil)
+            .scrollDisabled(h <= limit)
+            .frame(height: h > 0 ? min(h, limit) : nil)
         }
         .frame(width: size.width)
         .background(Color(.systemBackground), in: shape)

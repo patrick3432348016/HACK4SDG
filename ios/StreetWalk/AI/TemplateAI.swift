@@ -19,9 +19,9 @@ struct TemplateAI: AIService {
         }
         if !text.contains("改名"), let r = ["改去", "改喺", "改到", "改做", "改成", "改返"].compactMap({ text.range(of: $0) }).first {
             let before = String(text[..<r.lowerBound]), after = String(text[r.upperBound...])
-            let lm = context.landmarks.first { after.contains($0.name) }
+            let lm = context.landmarks.filter { after.contains($0.name) }.max { $0.name.count < $1.name.count }   // 名有包含关系时揀最长
             let hour = parseHour(after)
-            let day: Int? = after.contains("後日") ? 2 : (after.contains("聽日") || after.contains("明天")) ? 1 : after.contains("今日") ? 0 : nil
+            let day: Int? = after.contains("後日") ? 2 : (after.contains("聽日") || after.contains("明天") || after.contains("明日")) ? 1 : after.contains("今日") ? 0 : nil
             let aboutMeetup = before.isEmpty || before.contains("約") || partnerHit != nil
             if aboutMeetup, lm != nil || hour != nil || day != nil {
                 return .changeMeetup(partnerID: partnerHit?.id, day: day, hour: hour, landmarkID: lm?.id)

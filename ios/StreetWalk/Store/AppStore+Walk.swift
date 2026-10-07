@@ -95,11 +95,12 @@ extension AppStore {
 
     func finishWalk() {
         guard let w = walk else { return }
+        let live = walkDetector.recording
         walk = nil
         walkDetector.reset()
         scene.followID = nil
         scene.setTrail([])
-        recordWalk(minutes: max(w.minutes, 1), landmarks: w.passed)
+        recordWalk(minutes: max(w.minutes, 1), landmarks: w.passed, simulated: !live)
         community.publishOuting(landmarkID: nil)
         paceTip = nil
         syncScene()

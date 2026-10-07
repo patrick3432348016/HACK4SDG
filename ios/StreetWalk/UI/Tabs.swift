@@ -265,6 +265,7 @@ struct TodayTab: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("你反映過「\(place)\(r.kind.rawValue)」").ds(.caption).foregroundStyle(.secondary)
                 Text(r.followUp ?? "").ds(.body).fixedSize(horizontal: false, vertical: true)
+                if r.followUpDemo == true { DemoBadge() }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -580,7 +581,7 @@ struct NeighborsTab: View {
             }
             Button("保留", role: .cancel) { unlinking = nil }
         } message: {
-            Text("佢唔會收到通知。之後佢出門你唔會知，佢亦見唔到你。想再做街坊，要見面再碰一碰。")
+            Text("佢唔會收到通知。之後佢出門你唔會知，佢亦見唔到你；同佢未完成嘅約會會取消。想再做街坊，要見面再碰一碰。")
         }
     }
 

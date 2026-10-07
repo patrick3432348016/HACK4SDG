@@ -21,9 +21,16 @@ extension AppStore {
 
     /// 候选时间：讲咗就用讲嘅；冇讲就由而家之后嘅朝早 / 下晝 / 傍晚揀。
     func candidateTimes(day: Int?, hour: Int?) -> [(Int, Int)] {
-        if let day, let hour { return [(day, hour), (day, hour + 1), (day + 1, 8)] }
-        if let day { return [(day, 8), (day, 16), (day, 18)] }
-        let nowH = Calendar.current.component(.hour, from: now)
+        let nowH = Self.hk.component(.hour, from: now)
+        // 今日已经过咗嘅钟点唔提：讲咗"今日三點"而家已经四点，就改去聽日同一个钟。
+        if var day, let hour {
+            if day == 0 && hour <= nowH { day = 1 }
+            return [(day, hour), (day, min(hour + 1, 21)), (day + 1, 8)]
+        }
+        if let day {
+            let hours = [8, 16, 18].filter { day > 0 || $0 > nowH + 1 }
+            return hours.isEmpty ? [(day + 1, 8), (day + 1, 16)] : hours.map { (day, $0) }
+        }
         var c: [(Int, Int)] = []
         for h in [8, 16, 17, 18] where h > nowH + 1 { c.append((0, h)) }
         c += [(1, 8), (1, 17)]
@@ -63,7 +70,16 @@ extension AppStore {
 
     func confirmProposal() {
         guard let p = proposal else { return }
+        guard let partner = resident(p.partnerID), partner.isNeighbor else {
+            cancelProposal(); toast("你同佢已經唔係街坊，約唔到。"); return
+        }
         let opt = p.options[p.index]
+        if let id = p.editing {
+            guard let a = appointments.first(where: { $0.id == id }), a.isOpen else {
+                cancelProposal(); toast("呢個約會已經冇咗。"); return
+            }
+            if a.date == opt.date && a.landmarkID == opt.landmarkID { cancelProposal(); speaker.speak("冇改到，照舊。"); return }
+        }
         let name = resident(p.partnerID)?.name ?? ""
         let place = landmark(opt.landmarkID)?.name ?? ""
         if let id = p.editing, let i = appointments.firstIndex(where: { $0.id == id }) {
@@ -112,8 +128,9 @@ extension AppStore {
 
     /// 直接改（语音"改做下晝 4 點""改去涼亭"复述确认后）。
     func changeMeetup(_ id: UUID, day: Int?, hour: Int?, landmarkID: String?) {
-        guard let i = appointments.firstIndex(where: { $0.id == id }) else { return }
+        guard let i = appointments.firstIndex(where: { $0.id == id }), appointments[i].isOpen else { toast("呢個約會已經冇咗。"); return }
         var a = changed(appointments[i], day: day, hour: hour, landmarkID: landmarkID)
+        guard a.date > now else { toast("嗰個時間已經過咗，揀過第二個。"); return }
         a.status = .waiting
         a.fromPartner = false
         a.reminded = false
@@ -127,10 +144,12 @@ extension AppStore {
     /// 改咗之后嘅样子（未保存）：冇讲嘅部分保留原来的。
     func changed(_ a: Appointment, day: Int?, hour: Int?, landmarkID: String?) -> Appointment {
         var a = a
-        let cal = Calendar.current
+        let cal = Self.hk
         if hour != nil || day != nil {
             let base = day.map { cal.startOfDay(for: now).addingTimeInterval(Double($0) * 86400) } ?? cal.startOfDay(for: a.date)
             a.date = base.addingTimeInterval(Double(hour ?? cal.component(.hour, from: a.date)) * 3600)
+            // 冇讲日子、只讲钟点，而嗰个钟今日已经过咗：当係聽日。
+            if day == nil, a.date <= now { a.date = a.date.addingTimeInterval(86400) }
         }
         if let landmarkID { a.landmarkID = landmarkID }
         if let l = landmark(a.landmarkID) { a.reason = reason(for: l, at: a.date) }
@@ -179,7 +198,7 @@ extension AppStore {
             toast("要先同陳太碰一碰做街坊，佢先可以約你。")
             return
         }
-        let h = Calendar.current.component(.hour, from: now) < 15 ? 16 : 8
+        let h = Self.hk.component(.hour, from: now) < 15 ? 16 : 8
         let day = h == 8 ? 1 : 0
         guard let opt = ai.pickMeetupSpot(me: me, partner: p, date: Self.today(at: Double(h), dayOffset: day), landmarks: landmarks, shade: shade) else { return }
         localCommunity?.simulateInvite(Appointment(partnerID: id, date: opt.date, landmarkID: opt.landmarkID, reason: opt.reason, status: .waiting, fromPartner: true))
@@ -248,19 +267,19 @@ extension AppStore {
     // MARK: - 列表
 
     var todaysAppointments: [Appointment] {
-        let cal = Calendar.current
+        let cal = Self.hk
         return appointments.filter { cal.isDate($0.date, inSameDayAs: now) && $0.isOpen && !($0.fromPartner && $0.status == .waiting) }
             .sorted { $0.date < $1.date }
     }
     var invitations: [Appointment] { appointments.filter { $0.fromPartner && $0.status == .waiting } }
     var upcomingAppointments: [Appointment] {
-        let cal = Calendar.current
+        let cal = Self.hk
         return appointments.filter { !cal.isDate($0.date, inSameDayAs: now) && $0.date > now && $0.isOpen && !($0.fromPartner && $0.status == .waiting) }
             .sorted { $0.date < $1.date }
     }
 
     func dayTimeLabel(_ d: Date) -> String {
-        let cal = Calendar.current
+        let cal = Self.hk
         let day = cal.isDate(d, inSameDayAs: now) ? "今日" : cal.isDate(d, inSameDayAs: now.addingTimeInterval(86400)) ? "聽日" : "後日"
         return day + TemplateAI.hourLabel(cal.component(.hour, from: d))
     }

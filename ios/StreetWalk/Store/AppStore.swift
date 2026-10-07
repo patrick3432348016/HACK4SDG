@@ -38,6 +38,8 @@ final class AppStore: NeighborRegistry {
     @ObservationIgnored var saveTask: Task<Void, Never>?
     @ObservationIgnored var savedMapKey: String?
     @ObservationIgnored var savedNeighbors: [String: NeighborLink] = [:]
+    /// 地标的原名（清除纪录时改回去）。
+    @ObservationIgnored var originalLandmarkNames: [String: String] = [:]
     @ObservationIgnored var clockTask: Task<Void, Never>?
 
     // 状态
@@ -102,10 +104,11 @@ final class AppStore: NeighborRegistry {
     }
 
     static func today(at hour: Double, dayOffset: Int = 0) -> Date {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = SolarPosition.hongKong
-        return cal.startOfDay(for: Date()).addingTimeInterval(Double(dayOffset) * 86400 + hour * 3600)
+        hk.startOfDay(for: Date()).addingTimeInterval(Double(dayOffset) * 86400 + hour * 3600)
     }
+
+    /// 全部日期、钟点都按香港时间（约会、提醒、每日记录用同一个日历）。
+    static let hk: Calendar = { var c = Calendar(identifier: .gregorian); c.timeZone = SolarPosition.hongKong; return c }()
 
     // MARK: - 启动
 
@@ -115,8 +118,9 @@ final class AppStore: NeighborRegistry {
         community = LocalCommunityService(demoEnabled: LaunchArgs.has("-demo") || d.object(forKey: "demoMode") as? Bool ?? true)
         restoreSaved()
         community.onEvent = { [weak self] e in self?.receive(e) }
+        community.resume(appointments)
         startClock()
-        if LaunchArgs.has("-resetOnboarding") { ["onboarded", "homeBuilding", "floor", "mobility", "color"].forEach { d.removeObject(forKey: $0) } }
+        if LaunchArgs.has("-resetOnboarding") { ["onboarded", "homeBuilding", "homeTile", "floor", "mobility", "color"].forEach { d.removeObject(forKey: $0) } }
         if d.bool(forKey: "onboarded") || LaunchArgs.has("-skipOnboarding") {
             floorChoice = d.object(forKey: "floor") as? Int ?? 12
             mobilityChoice = Mobility(rawValue: d.string(forKey: "mobility") ?? "") ?? .walk
@@ -146,7 +150,7 @@ final class AppStore: NeighborRegistry {
         case .invite(let id): proposeMeetup(with: id)
         case .goFind(let id): goFind(id)
         case .openNeighbors: tab = .neighbors
-        case .depart(let id): if let a = appointments.first(where: { $0.id == id }) { departForAppointment(a) }
+        case .depart(let id): if let a = appointments.first(where: { $0.id == id }), a.status == .accepted { departForAppointment(a) }
         case .none: break
         }
     }

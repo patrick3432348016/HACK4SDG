@@ -11,8 +11,14 @@ extension AppStore {
 
     func loadMap(home: Int64?, animated: Bool) async {
         loadingMap = true
-        let loc = await mapService.currentLocation()
-        let tile = loc.map(TileKey.snap) ?? TileKey(ix: 0, iy: 0)
+        // 已经揀咗楼：直接装我屋企嗰格（唔使等定位，喺外面打开都唔会换底座）。
+        let homeTile: TileKey? = {
+            guard case .main = phase, let s = UserDefaults.standard.string(forKey: "homeTile") else { return nil }
+            let p = s.split(separator: ",").compactMap { Int($0) }
+            return p.count == 2 ? TileKey(ix: p[0], iy: p[1]) : nil
+        }()
+        let loc = homeTile == nil ? await mapService.currentLocation() : nil
+        let tile = homeTile ?? loc.map(TileKey.snap) ?? TileKey(ix: 0, iy: 0)
         let (m, source) = await mapService.load(tile: tile)
         fullMap = m
         mapSource = source
@@ -48,6 +54,7 @@ extension AppStore {
         map = m
         let picked = LandmarkDeriver.settle(LandmarkDeriver.pick(LandmarkDeriver.candidates(in: m)), in: m)
         landmarks = picked.map { Landmark(id: $0.id, name: ai.nameLandmark($0), kind: $0.kind, pos: $0.pos, hasSeat: $0.hasSeat) }
+        originalLandmarkNames = Dictionary(landmarks.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
         shade = ShadeService(map: m, landmarks: landmarks)
         scene.setHomeBuilding(home)
         scene.homeTarget = home.flatMap { m.building(id: $0)?.centroid } ?? .zero
@@ -87,12 +94,14 @@ extension AppStore {
         let d = UserDefaults.standard
         d.set(true, forKey: "onboarded")
         if let id = pendingHome { d.set(NSNumber(value: id), forKey: "homeBuilding") }
+        if let t = fullMap?.tile { d.set("\(t.ix),\(t.iy)", forKey: "homeTile") }
         d.set(floorChoice, forKey: "floor")
         d.set(mobilityChoice.rawValue, forKey: "mobility")
         d.set(colorChoice, forKey: "color")
         highlightResidential(false)
         scene.highlightBuildings([], color: nil)
         phase = .main
+        homeChanged()
         populate()
         scene.resetCamera()
         speaker.speak("搞掂。你行街嘅時候我會自動記錄，唔使撳任何掣。")
@@ -122,6 +131,7 @@ extension AppStore {
         list.append(meR)
         residents = list
         if LaunchArgs.has("-withNeighbor"), !list.isEmpty, !list[0].isMe { residents[0].isNeighbor = true; residents[0].neighborSince = Date() }
+        closeOrphanAppointments()
         refreshMe()
         syncScene()
         checkAppointments()

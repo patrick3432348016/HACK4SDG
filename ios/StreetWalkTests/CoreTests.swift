@@ -103,6 +103,13 @@ struct VoiceTests {
         #expect(ai.parseVoice("改去涼亭", context: ctx()) == .changeMeetup(partnerID: nil, day: nil, hour: nil, landmarkID: "shelter-1"))
         #expect(ai.parseVoice("同陳太嘅約改到聽日朝早", context: ctx()) == .changeMeetup(partnerID: "chan", day: 1, hour: 8, landmarkID: nil))
         #expect(ai.parseVoice("取消同陳太嘅約", context: ctx()) == .cancelMeetup(partnerID: "chan"))
+        #expect(ai.parseVoice("改到明日朝早", context: ctx()) == .changeMeetup(partnerID: nil, day: 1, hour: 8, landmarkID: nil))
+    }
+
+    @Test func 改约地点揀最长嘅名() {
+        let lms2 = lms + [Landmark(id: "park-1", name: "公園", kind: .park, pos: Vec2(x: 80, y: 0), hasSeat: true)]
+        let c = AIContext(residents: [chan, me], landmarks: lms2, now: Date(), walking: false, finding: false)
+        #expect(ai.parseVoice("改去公園櫈仔", context: c) == .changeMeetup(partnerID: nil, day: nil, hour: nil, landmarkID: "park-0"))
     }
 
     @Test func 找人时播位置() {

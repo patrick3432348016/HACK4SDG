@@ -77,7 +77,7 @@ extension AppStore {
 
     /// 而家喺唔喺接收提醒嘅时段。
     var inRemindWindow: Bool {
-        let h = Calendar.current.component(.hour, from: now)
+        let h = Self.hk.component(.hour, from: now)
         return remindFrom <= remindTo ? (remindFrom..<remindTo).contains(h) : (h >= remindFrom || h < remindTo)
     }
 
