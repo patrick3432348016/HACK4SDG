@@ -1,0 +1,2341 @@
+diff --git a/docs/backend_supabase.md b/docs/backend_supabase.md
+index 29eb352..41d57e2 100644
+--- a/docs/backend_supabase.md
++++ b/docs/backend_supabase.md
+@@ -49,6 +49,7 @@ create table users (
+ 
+ create table landmarks (
+   id text primary key,                -- 由地图要素（OSM id / 类型）推导的稳定 id
++                                      -- 原型按各自屋企 200 m 底座挑；上线前改为按整格挑全邨共用的一组
+   estate_id text not null,
+   circle_id uuid,
+   name text not null,                 -- 当前名字（改名后同圈生效）
+diff --git a/docs/prototype_status.md b/docs/prototype_status.md
+index f629fa7..16017c1 100644
+--- a/docs/prototype_status.md
++++ b/docs/prototype_status.md
+@@ -10,16 +10,16 @@
+ 
+ | 功能 | 真的 | 模拟 / 未做 |
+ |---|---|---|
+-| **地图与 3D 场景** | 按当前位置取 400 m 格子 → OpenStreetMap（Overpass）实时拉取 → 缓存 30 日；离线时用内置的皇后山邨。楼宇转正、风格化成「纸雕留白」等距模型。 | 楼高和形状为了画风做了简化，不追求和现实一致 |
++| **地图与 3D 场景** | 按当前位置取 400 m 格子（拉取 720 m 范围，屋企在格边时底座也有资料）→ OpenStreetMap（Overpass）实时拉取，两个服务器同时问、最多等 30 秒 → 缓存 30 日，拉不到时用旧缓存；没有位置、离线又没缓存时用内置的皇后山邨并标「示例」。可以选做屋企的是住宅楼，加上只标 building=yes、10 层以上的楼（香港不少私人楼只这样标；工厦、货仓、酒店、医院等不算）；你附近 300 m 内没有这些就放宽到附近的一般建筑，附近一座楼都没有就显示离你最近的可选楼一带，整格都没有才在你的位置放一座示意楼。楼宇转正、风格化成「纸雕留白」等距模型；场景只在有动画时才渲染。 | 楼高和形状为了画风做了简化，不追求和现实一致 |
+ | **F1 自动记录散步** | 真机：Core Motion 检测步行 → 只在步行时开定位 → 离家 55 m 开始、回到 40 m 内结束并隐身。轨迹只在手机内存里。 | 模拟器和演示模式里用一条按地图寻路生成的路线代替真实行走（1 秒 = 1 分钟） |
+ | **F2 划圈** | — | 按规格"原型阶段用预设分组"：示範街坊 6 人 |
+-| **F3 地标命名** | 从地图自动挑 3–4 个地标并吸附到楼外可走的位置；按类型模板命名；改名后存盘，重启后保留 | 改名"同圈生效"要等后端 |
++| **F3 地标命名** | 从地图自动挑 3–4 个地标（不够就用各座楼下补足，再不够用底座外不远的巴士站或路口，放在底座边）并吸附到楼外可走的位置；按类型模板命名，重名会加附近楼名，没名的楼下叫「你屋企樓下」「21座旁」；面状地标的 id 用 OSM 编号；改名后存盘，重启后保留 | 改名"同圈生效"要等后端 |
+ | **F4 排行榜** | 我的连续天数由本机每日记录推算（请假不断）；我的月步数按散步分钟估算 | 其他人的连续天数、对面圈的步数是示範数据 |
+ | **F5 碰一碰** | 配对后的确认、开不开出门提醒、解除街坊（对方不会收到通知），关系存盘 | 另一部手机是模拟的；真机用超宽带（Nearby Interaction），由组员 B 接 `BumpService` |
+ | **F6 出门提醒** | 提醒逻辑：发送、接收分开开关，总开关，只在指定时段接收，提醒里只讲地标 | 街坊出门的事件由演示菜单触发 |
+ | **F7 语音约人** | 粤语语音识别（iOS Speech zh-HK）→ 模板理解意图 → 按遮荫、座位、双方距离选地点并给出理由 → 复述后按「好」。约会全流程：改时间 / 地点（含语音"改做下晝五點""改去涼亭"）、取消、对方拒绝、出发前 30 分钟提醒、过时自动「過咗期」，全部存盘 | 对方的回覆由示範街坊按固定延时模拟；AI 是模板版，真模型由组员 B 按 `AIService` 接 |
+ | **F8 当天找人** | 寻路、距离、箭头方向、「我喺涼亭」播送、迟到 10 分钟询问、打电话（真拨号） | 对方的位置是模拟的；示範街坊没有电话号码，所以会显示说明；超宽带测距要真机 |
+-| **F9 天气与遮荫** | 香港天文台开放数据（本港地区天气、警告、九天预报），按最近的测站和地区判断酷热或下雨；地标遮荫按画面上的楼和真实太阳位置计算，每 15 分钟一档 | 遮荫是"大约"：楼高经过风格化，也不计树荫。演示菜单可以手动改天气 |
++| **F9 天气与遮荫** | 香港天文台开放数据（本港地区天气、警告、九天预报），按最近的测站和地区判断酷热或下雨；地标遮荫按画面上的楼和真实太阳位置计算，每 15 分钟一档；日落后显示「太陽落咗山」，不说有楼遮 | 遮荫是"大约"：楼高经过风格化，也不计树荫。演示菜单可以手动改天气 |
+ | **F10 北都月报** | 我的反映挂到最近的地标；月报只出人数 ≥ 10 的「地标 × 问题」汇总；反映有回覆时通知本人 | 全邨人次、其他居民的反映、屋邨管理的回覆是示範数据 |
+ | **知情同意、无障碍** | 首次使用的语音说明、每个语音操作都有按钮后备、影响别人的操作要先复述再确认；字号 24pt 起，支持放大到无障碍第 2 档；深色模式 | 普通话界面还没做；读屏顺序未逐屏人工检查 |
+ 
+diff --git a/ios/StreetWalk/Map/LandmarkDeriver.swift b/ios/StreetWalk/Map/LandmarkDeriver.swift
+index 74f8f3b..d10afdb 100644
+--- a/ios/StreetWalk/Map/LandmarkDeriver.swift
++++ b/ios/StreetWalk/Map/LandmarkDeriver.swift
+@@ -21,8 +21,71 @@ struct Landmark: Codable, Identifiable, Hashable {
+     var hasSeat: Bool
+ }
+ 
+-/// 从地图标签里挑 5–8 个间隔够远、居民会用来约见面的地方。
++/// 从地图标签里挑 3–4 个间隔够远、居民会用来约见面的地方。
+ enum LandmarkDeriver {
++    /// 底座的地标：先按常用地方挑；不够 3 个（村屋、资料未齐的新屋邨）就加上各座楼（包括我屋企）的楼下再挑；
++    /// 还不够（村屋太密，楼下都贴着别的屋）就逐个补，放得下就要；最后用底座外面不远的巴士站、车路出底座的路口（都放在底座边）。
++    static func derive(in map: MapModel, home: Int64? = nil) -> [LandmarkCandidate] {
++        let main = candidates(in: map)
++        let first = settle(pick(main), in: map)
++        guard first.count < 3 else { return first }
++        let ids = Set(main.map(\.id))
++        let extra = lobbyFallbacks(in: map, home: home).filter { !ids.contains($0.id) }
++        let second = settle(pick(main + extra), in: map)
++        var best = second.count > first.count ? second : first
++        for c in main + extra + edgeFallbacks(in: map) + roadExits(in: map) where best.count < 3 && !best.contains(where: { $0.id == c.id }) {
++            if genericKinds.contains(c.kind) && !c.id.hasPrefix("road-") && best.contains(where: { $0.kind == c.kind }) { continue }
++            let s = settle(best + [c], in: map)
++            if s.count == best.count + 1 { best = s }
++        }
++        return best
++    }
++
++    /// 底座外 80 m 内的巴士站（同名合并），挪到底座边上。只在地标不够时用。
++    static func edgeFallbacks(in map: MapModel) -> [LandmarkCandidate] {
++        let inner = map.half - 20, edge = map.half - 14
++        var byName: [String: [POI]] = [:]
++        for p in map.pois where p.kind == .busStop || p.kind == .busStation {
++            byName[p.name ?? "巴士站#\(p.id)", default: []].append(p)
++        }
++        return byName.compactMap { name, stops -> (LandmarkCandidate, Double)? in
++            let c = stops.map(\.pos).reduce(Vec2.zero, +) * (1.0 / Double(stops.count))
++            let out = max(abs(c.x), abs(c.y))
++            guard out > inner else { return nil }   // 底座里面的已在 candidates
++            let terminus = name.contains("總站") || stops.contains { $0.kind == .busStation }
++            let pos = Vec2(x: max(-edge, min(edge, c.x)), y: max(-edge, min(edge, c.y)))
++            return (LandmarkCandidate(id: "bus-\(stops[0].id)", kind: terminus ? .busTerminus : .busStop, pos: pos, osmName: name,
++                                      hasSeat: terminus || stops.contains { $0.hasShelter || $0.hasBench }), out)
++        }.sorted { $0.1 != $1.1 ? $0.1 < $1.1 : $0.0.id < $1.0.id }.map(\.0)
++    }
++
++    /// 车路出底座的地方，放在底座边（"X路口"，名字见 uniqueNames）。有名、大路的先。
++    /// 没有"路口"这一类，借用涼亭类（只影响模板起名，uniqueNames 按 id 改名），不当有座位。
++    static func roadExits(in map: MapModel) -> [LandmarkCandidate] {
++        let edge = map.half - 14
++        var seen = Set<String>()
++        return map.roads.flatMap { r -> [(LandmarkCandidate, Int)] in
++            let rank = (r.name == nil ? 3 : 0) + (r.kind == .major ? 0 : r.kind == .minor ? 1 : 2)
++            return [r.points.first, r.points.last].compactMap { $0 }.filter { max(abs($0.x), abs($0.y)) > map.half - 2 }.map { e in
++                let p = Vec2(x: max(-edge, min(edge, e.x)), y: max(-edge, min(edge, e.y)))
++                return (LandmarkCandidate(id: "road-\(Int((p.x / 5).rounded()))_\(Int((p.y / 5).rounded()))", kind: .shelter, pos: p, osmName: r.name, hasSeat: false), rank)
++            }
++        }.sorted { $0.1 != $1.1 ? $0.1 < $1.1 : $0.0.id < $1.0.id }.map(\.0).filter { seen.insert($0.id).inserted }
++    }
++
++    /// 后备地标：我屋企楼下（我屋企可能只标 building=yes）→ 任何高度、有没有名字的住宅楼楼下 → 其他有名的楼（商场、学校）楼下 → 其他楼。
++    static func lobbyFallbacks(in map: MapModel, home: Int64?) -> [LandmarkCandidate] {
++        let limit = map.half - 20
++        func rank(_ b: Building) -> Int { b.id == home ? 0 : b.kind == .residential ? 1 : b.name != nil ? 2 : 3 }
++        return map.buildings.filter { $0.kind != .small && $0.kind != .canopy && $0.kind != .construction }
++            .sorted { (rank($0), $0.centroid.length) < (rank($1), $1.centroid.length) }
++            .compactMap { b in
++                let lobby = nearestRoadPoint(to: b.centroid, in: map, maxDistance: 50) ?? edgePoint(b.outline, toward: .zero)
++                guard abs(lobby.x) <= limit, abs(lobby.y) <= limit else { return nil }
++                return LandmarkCandidate(id: "lobby-\(b.id)", kind: .lobby, pos: lobby, osmName: b.name, hasSeat: false)
++            }
++    }
++
+     static func candidates(in map: MapModel) -> [LandmarkCandidate] {
+         var raw: [(LandmarkCandidate, Int)] = []
+         let limit = map.half - 20
+@@ -57,16 +120,18 @@ enum LandmarkDeriver {
+             }
+         }
+ 
++        // 面状地标的 id 用 OSM 编号（不用裁切后数组的下标）：换楼、缓存刷新后同一块地仍然是同一个 id。
+         for (i, a) in map.areas.enumerated() {
+             let c = interiorPoint(a.outline)
+             guard inside(c) else { continue }
++            let key = a.osmID.map { "\($0)" } ?? "i\(i)"
+             switch a.kind {
+             case .park where Polygon.area(a.outline) > 300:
+-                raw.append((LandmarkCandidate(id: "park-\(i)", kind: .park, pos: c, osmName: a.name, hasSeat: true), 9))
++                raw.append((LandmarkCandidate(id: "park-\(key)", kind: .park, pos: c, osmName: a.name, hasSeat: true), 9))
+             case .playground:
+-                raw.append((LandmarkCandidate(id: "play-a\(i)", kind: .playground, pos: c, osmName: a.name, hasSeat: true), 6))
++                raw.append((LandmarkCandidate(id: "play-a\(key)", kind: .playground, pos: c, osmName: a.name, hasSeat: true), 6))
+             case .pitch where Polygon.area(a.outline) > 200:
+-                raw.append((LandmarkCandidate(id: "pitch-\(i)", kind: .pitch, pos: edgePoint(a.outline, toward: .zero), osmName: a.name, hasSeat: false), 5))
++                raw.append((LandmarkCandidate(id: "pitch-\(key)", kind: .pitch, pos: edgePoint(a.outline, toward: .zero), osmName: a.name, hasSeat: false), 5))
+             default: break
+             }
+         }
+@@ -78,24 +143,88 @@ enum LandmarkDeriver {
+             raw.append((LandmarkCandidate(id: "lobby-\(b.id)", kind: .lobby, pos: lobby, osmName: b.name, hasSeat: false), 4))
+         }
+ 
++        // 同一个 OSM 要素可能出几块（relation 多个外环）：id 重复的只留第一个。
++        var seen = Set<String>()
+         return raw.sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0.pos.length < $1.0.pos.length }.map(\.0)
++            .filter { seen.insert($0.id).inserted }
+     }
+ 
+-    /// 贪心挑选：间隔至少 minSpacing 米，每类最多 2 个，最多 maxCount 个；不够 5 个就放宽间隔再挑。
++    /// 泛称地标（模板会叫做"公園櫈仔""涼亭"之类）：每类最多 1 个，免得两个同名。
++    static let genericKinds: Set<LandmarkKind> = [.park, .playground, .shelter, .bench, .pitch]
++
++    /// 贪心挑选：间隔至少 spacing 米，泛称每类 1 个、其他每类 2 个，最多 maxCount 个；不够 3 个就放宽间隔再挑，
++    /// 还不够就用楼下补（各座楼名不同）。
+     static func pick(_ cands: [LandmarkCandidate], maxCount: Int = 4) -> [LandmarkCandidate] {
++        var best: [LandmarkCandidate] = []
+         for spacing in [55.0, 40.0, 30.0] {
+             var chosen: [LandmarkCandidate] = []
+             var perKind: [LandmarkKind: Int] = [:]
++            func far(_ c: LandmarkCandidate) -> Bool { !chosen.contains { $0.pos.distance(to: c.pos) < spacing } }
+             for c in cands {
+                 if chosen.count >= maxCount { break }
+-                if perKind[c.kind, default: 0] >= 2 { continue }
+-                if chosen.contains(where: { $0.pos.distance(to: c.pos) < spacing }) { continue }
++                if perKind[c.kind, default: 0] >= (genericKinds.contains(c.kind) ? 1 : 2) { continue }
++                if !far(c) { continue }
+                 chosen.append(c)
+                 perKind[c.kind, default: 0] += 1
+             }
+-            if chosen.count >= 3 || spacing == 30 { return chosen }
++            for c in cands where chosen.count < 3 && c.kind == .lobby && !chosen.contains(c) && far(c) { chosen.append(c) }
++            if chosen.count >= 3 { return chosen }
++            if chosen.count > best.count { best = chosen }
+         }
+-        return []
++        return best
++    }
++
++    /// 名字不能重复（语音、约会都靠名字分辨）：重名的加上最近的有名楼宇（"皇滙樓旁公園櫈仔"），还不行就加编号。
++    /// 没有名的楼的楼下（模板叫"大堂"，长者分不出是哪座）：我屋企叫"你屋企樓下"；其他按附近有名的楼、店、路叫"21座旁"，
++    /// 都没有就按在我屋企哪个方向叫"東邊嗰座樓下"。底座边的路口叫"X路口"（模板当涼亭，这里改名）。
++    static func uniqueNames(_ list: [Landmark], in map: MapModel, home: Int64? = nil) -> [Landmark] {
++        var out = list
++        var used = Set<String>()
++        let named = map.buildings.filter { $0.name != nil && $0.kind != .small }
++        func roadDistance(_ r: Road, _ p: Vec2) -> Double {
++            (0..<max(r.points.count - 1, 0)).map { closestPoint(on: r.points[$0], r.points[$0 + 1], to: p).distance(to: p) }.min() ?? .infinity
++        }
++        func namedRoads(near p: Vec2, within d: Double) -> [String] {
++            map.roads.compactMap { r -> (String, Double)? in
++                guard let n = r.name, !n.isEmpty else { return nil }
++                let x = roadDistance(r, p)
++                return x < d ? (n, x) : nil
++            }.sorted { $0.1 < $1.1 }.map(\.0)
++        }
++        for i in out.indices {
++            let p = out[i].pos
++            let taken = Set(out.enumerated().filter { $0.offset != i }.map(\.element.name))
++            if out[i].id.hasPrefix("road-") {
++                out[i].name = namedRoads(near: p, within: 20).map { $0.hasSuffix("口") ? $0 : "\($0)口" }.first { !taken.contains($0) } ?? "路口"
++                continue
++            }
++            guard out[i].kind == .lobby, let id = Int64(out[i].id.dropFirst("lobby-".count)),
++                  let b = map.building(id: id), b.name == nil else { continue }
++            if id == home { out[i].name = "你屋企樓下"; continue }
++            let byBuilding = named.filter { $0.id != id && distance(from: p, to: $0.outline) < 60 }
++                .sorted { distance(from: p, to: $0.outline) < distance(from: p, to: $1.outline) }.map { $0.name! }
++            // 店名太长（"Win East Sanitary Ware Co., Ltd"）不好讲，只用 6 个字以内的。
++            let byPOI = map.pois.filter { $0.kind != .busStop && $0.kind != .busStation && (1...6).contains($0.name?.count ?? 0) && $0.pos.distance(to: p) < 50 }
++                .sorted { $0.pos.distance(to: p) < $1.pos.distance(to: p) }.map { $0.name! }
++            // 方向按真北：底座转过 rotation（逆时针），转回去再算方位角。
++            let c = b.centroid, cr = cos(-map.rotation), sr = sin(-map.rotation)
++            let bearing = atan2(c.x * cr - c.y * sr, c.x * sr + c.y * cr) * 180 / .pi
++            let dir = ["北", "東北", "東", "東南", "南", "西南", "西", "西北"][Int(((bearing + 382.5).truncatingRemainder(dividingBy: 360)) / 45) % 8]
++            let options = (byBuilding + byPOI + namedRoads(near: p, within: 80)).map { "\($0)旁" } + ["\(dir)邊嗰座樓下"]
++            if let n = options.first(where: { !taken.contains($0) }) { out[i].name = n }
++        }
++        for i in out.indices {
++            guard used.contains(out[i].name) else { used.insert(out[i].name); continue }
++            let base = out[i].name, p = out[i].pos
++            var name = named.filter { distance(from: p, to: $0.outline) < 60 && !base.contains($0.name!) }
++                .min { distance(from: p, to: $0.outline) < distance(from: p, to: $1.outline) }
++                .map { "\($0.name!)旁\(base)" }
++            if let n = name, used.contains(n) { name = nil }
++            let name2 = name ?? ["二", "三", "四", "五", "六", "七"].map { "\(base)（\($0)）" }.first { !used.contains($0) } ?? "\(base)\(i + 1)"
++            out[i].name = name2
++            used.insert(name2)
++        }
++        return out
+     }
+ 
+     /// 楼改成规整矩形后，地标可能压在楼上或贴着墙：挪到楼外、不在水里、底座内的最近位置，尽量少动。
+diff --git a/ios/StreetWalk/Map/MapModel.swift b/ios/StreetWalk/Map/MapModel.swift
+index 9e4dcf6..afae091 100644
+--- a/ios/StreetWalk/Map/MapModel.swift
++++ b/ios/StreetWalk/Map/MapModel.swift
+@@ -22,6 +22,8 @@ struct Area: Codable {
+     var kind: AreaKind
+     var outline: [Vec2]
+     var name: String?
++    /// OSM 编号（way 为正、relation 为负）。地标 id 用它，见 LandmarkDeriver。
++    var osmID: Int64?
+ }
+ 
+ enum BuildingKind: String, Codable {
+@@ -36,6 +38,8 @@ struct Building: Codable, Identifiable {
+     var height: Double
+     var levels: Int
+     var kind: BuildingKind
++    /// OSM building= 的原值（yes、industrial……）。只标 yes 的高楼才当可能是住宅，见 markHomeCandidates。
++    var tag: String? = nil
+ 
+     var centroid: Vec2 { Polygon.centroid(outline) }
+     var isTower: Bool { height >= 25 }
+@@ -54,7 +58,7 @@ struct POI: Codable, Identifiable {
+     var hasBench = false
+ }
+ 
+-/// 一个格子（560 m 底座）里的全部地图要素，坐标是以格子中心为原点的米。
++/// 一个格子（实时拉取 720 m、内置示例 560 m）里的全部地图要素，坐标是以格子中心为原点的米。
+ struct MapModel: Codable {
+     var tile: TileKey
+     var center: GeoPoint
+@@ -78,20 +82,32 @@ struct MapModel: Codable {
+ 
+     var half: Double { size / 2 }
+ 
+-    /// 显示用的地名：附近有名字的住宅楼或建筑，例如"皇后山邨"。
+-    var placeName: String {
+-        if let areaName { return areaName }
+-        let named = buildings.compactMap { $0.name }
+-        if let estate = named.first(where: { $0.hasSuffix("邨") }) { return estate }
+-        if let block = buildings.filter({ $0.kind == .residential && $0.name != nil }).min(by: { $0.centroid.length < $1.centroid.length })?.name {
+-            return block
++    /// 显示用的地名，例如"皇后山邨"。裁成底座后沿用裁切时按我屋企算好的名。
++    var placeName: String { areaName ?? placeName(near: .zero) }
++
++    /// p（我屋企）附近的屋苑名：所在住宅用地的名 → 附近叫"X邨"的建筑（公屋常把邨名标在巴士站、商场上）
++    /// → 底座范围内（离 p 100 m 内）最近的有名住宅楼 → "你附近"。公厕、商场这类建筑的名不用。
++    /// 有名住宅楼不能太远：示意楼的名会显示成"住喺 X"，用一座看不到的楼会误导。
++    func placeName(near p: Vec2) -> String {
++        if let a = areas.first(where: { $0.kind == .residential && !($0.name ?? "").isEmpty && Polygon.contains($0.outline, p) }) {
++            return a.name!
+         }
+-        return named.first ?? "你附近"
++        func nearest(_ list: [Building]) -> String? { list.min { $0.centroid.distance(to: p) < $1.centroid.distance(to: p) }?.name }
++        if let estate = nearest(buildings.filter { ($0.name ?? "").hasSuffix("邨") && $0.centroid.distance(to: p) < 250 }) { return estate }
++        let r = Self.dioramaSize / 2
++        if let block = nearest(buildings.filter { $0.kind == .residential && $0.name != nil
++            && abs($0.centroid.x - p.x) <= r && abs($0.centroid.y - p.y) <= r }) { return block }
++        return "你附近"
++    }
++
++    /// 设定页"住喺"显示的楼名：示意楼叫"示意樓"，没有名的楼不显示（用地名）。
++    func homeLabel(_ id: Int64) -> String? {
++        Self.placeholderPos(id) != nil ? "示意樓" : building(id: id)?.name
+     }
+ 
+     func building(id: Int64) -> Building? { buildings.first { $0.id == id } }
+ 
+-    /// 场景用的底座边长：做减法，只留我屋企周围 300 米。
++    /// 场景用的底座边长：做减法，只留我屋企周围 200 米。
+     static let dioramaSize = 200.0
+ 
+     /// 以 c 为中心裁出 size 见方的一块（坐标重新以 c 为原点），并做减法：
+@@ -100,26 +116,29 @@ struct MapModel: Codable {
+     func simplified(around c: Vec2, size: Double = MapModel.dioramaSize, home: Int64? = nil,
+                     maxBuildings: Int? = 6, maxResidential: Int? = nil) -> MapModel {
+         let h = size / 2
+-        // 转正：取附近楼宇的主方向，整块地图绕中心旋转，让楼边和底座边平行。
+-        let nearby = buildings.filter { $0.kind != .small && $0.centroid.distance(to: c) < size }.map(\.outline)
+-        let theta = Polygon.dominantAngle(nearby)
+-        let phi = -theta
++        let phi = turn(around: c, size: size)
+         let cs = cos(phi), sn = sin(phi)
+         func shift(_ v: Vec2) -> Vec2 { let d = v - c; return Vec2(x: d.x * cs - d.y * sn, y: d.x * sn + d.y * cs) }
+         var out = self
+         out.size = size
+         out.center = LocalProjection(origin: center).toGeo(c)
+         out.rotation = rotation + phi
+-        out.areaName = placeName
++        out.areaName = areaName ?? placeName(near: c)
+ 
+         // 画风优先：楼改成规整长方体（转正后的外接矩形，四边内缩留缝），高度按美学比例压缩。
++        // 我屋企不受面积、尺寸门槛限制（村屋可能只有 8×10 m），最少保留 8×8 m 占地。
+         var blocks: [Building] = buildings.compactMap { b in
+-            guard b.kind != .small, b.kind != .canopy, Polygon.area(b.outline) >= 60 else { return nil }
++            let isHome = b.id == home
++            guard isHome || (b.kind != .small && b.kind != .canopy && Polygon.area(b.outline) >= 60) else { return nil }
+             let pts = b.outline.map(shift)
+             let xs = pts.map(\.x), ys = pts.map(\.y)
+             let inset = 2.5
+             var x0 = xs.min()! + inset, x1 = xs.max()! - inset, y0 = ys.min()! + inset, y1 = ys.max()! - inset
+             let cx = (x0 + x1) / 2, cy = (y0 + y1) / 2
++            if isHome {
++                if x1 - x0 < 8 { x0 = cx - 4; x1 = cx + 4 }
++                if y1 - y0 < 8 { y0 = cy - 4; y1 = cy + 4 }
++            }
+             guard abs(cx) <= h - 6, abs(cy) <= h - 6, x1 - x0 > 4, y1 - y0 > 4 else { return nil }
+             x0 = max(x0, -h + 4); x1 = min(x1, h - 4); y0 = max(y0, -h + 4); y1 = min(y1, h - 4)
+             // 接近正方形的（十字形塔楼）改成板楼：长边不变，短边收到长边的 45%，看起来像参考图里的薄板。
+@@ -165,7 +184,12 @@ struct MapModel: Codable {
+         out.buildings = placed
+         // 地面：绿地 / 水改成规整矩形色块，最多 3 块（取面积大的）。
+         // 外接矩形会比原来的面大很多：绕中心缩小到不超过原面积，单块也不超过底座的 20%。
++        // 改成矩形后盖住我屋企的水面不画（楼盖在水上不像样，人也走不出去）。
+         let maxArea = size * size * 0.2
++        let homeBox = placed.first { $0.id == home }.map { b -> (Vec2, Vec2) in
++            let xs = b.outline.map(\.x), ys = b.outline.map(\.y)
++            return (Vec2(x: xs.min()!, y: ys.min()!), Vec2(x: xs.max()!, y: ys.max()!))
++        }
+         out.areas = Array(areas.compactMap { a -> Area? in
+             let kind: AreaKind
+             switch a.kind {
+@@ -181,7 +205,9 @@ struct MapModel: Codable {
+             let mid = Vec2(x: (xs.min()! + xs.max()!) / 2, y: (ys.min()! + ys.max()!) / 2)
+             let hw = w * k / 2, hd = d * k / 2
+             let rect = [Vec2(x: mid.x - hw, y: mid.y - hd), Vec2(x: mid.x + hw, y: mid.y - hd), Vec2(x: mid.x + hw, y: mid.y + hd), Vec2(x: mid.x - hw, y: mid.y + hd)]
+-            return Area(kind: kind, outline: rect, name: a.name)
++            if kind == .water, let (lo, hi) = homeBox,
++               mid.x - hw < hi.x, mid.x + hw > lo.x, mid.y - hd < hi.y, mid.y + hd > lo.y { return nil }
++            return Area(kind: kind, outline: rect, name: a.name, osmID: a.osmID)
+         }.sorted { Polygon.area($0.outline) > Polygon.area($1.outline) }.prefix(3)).sorted { $0.kind.drawOrder < $1.kind.drawOrder }
+         out.roads = roads.flatMap { r -> [Road] in
+             // 只留车路（淡色宽带）；行人路、单车径、楼梯都不画。
+@@ -189,24 +215,131 @@ struct MapModel: Codable {
+             let kind = r.kind
+             return Polygon.clipPolyline(r.points.map(shift), half: h).map { Road(kind: kind, points: $0, width: r.width, name: r.name) }
+         }
++        // 巴士站多留底座外 80 m 内的：地标不够时放在底座边（见 LandmarkDeriver.edgeFallbacks）。
+         out.pois = pois.compactMap { p in
+             var np = p
+             np.pos = shift(p.pos)
+-            return abs(np.pos.x) <= h && abs(np.pos.y) <= h ? np : nil
++            let reach = p.kind == .busStop || p.kind == .busStation ? h + 80 : h
++            return abs(np.pos.x) <= reach && abs(np.pos.y) <= reach ? np : nil
+         }
+         out.trees = []
+         return out
+     }
+ 
+-    /// 首次选楼用的画面。知道我在哪：以我为中心看 300 m，住宅楼最多 10 座、其他楼 3 座，
+-    /// 我脚下（或最近）的住宅楼一定留着；不知道：看整格、住宅楼全留，哪座都选得到。
++    /// 转正：取 c 附近楼宇的主方向，整块地图要转多少弧度，楼边才和底座边平行。
++    func turn(around c: Vec2, size: Double) -> Double {
++        -Polygon.dominantAngle(buildings.filter { $0.kind != .small && $0.centroid.distance(to: c) < size }.map(\.outline))
++    }
++
++    /// 以 c 为中心、转正后的 200 m 底座，落在已拉取资料外面的部分最多 10%（那里没有楼和路）。
++    /// 按面积算：不转时等于一边出界 20 m 一条窄边；转 45° 时一角出界约 60 m 也只是个小三角；近格角两边都出界的会被挡下。
++    func dioramaFits(at c: Vec2) -> Bool {
++        let r = Self.dioramaSize / 2, m = max(abs(c.x), abs(c.y))
++        if m + r * 2.0.squareRoot() <= half { return true }   // 怎样转都在资料内，不用算方向
++        guard m - r < half else { return false }
++        let a = -turn(around: c, size: Self.dioramaSize)        // 底座在原图里的方向
++        let ca = cos(a), sa = sin(a)
++        let square = [(-r, -r), (r, -r), (r, r), (-r, r)].map { Vec2(x: c.x + $0.0 * ca - $0.1 * sa, y: c.y + $0.0 * sa + $0.1 * ca) }
++        return Polygon.area(Polygon.clip(square, half: half)) >= 0.9 * Self.dioramaSize * Self.dioramaSize
++    }
++
++    /// 首次选楼画面的边长（米）。
++    static let pickSize = 300.0
++
++    /// 首次选楼用的画面。知道我在哪：以我为中心看 300 m，可选的楼最多 10 座、其他楼 3 座，我脚下（或最近）的楼一定留着；
++    /// 附近 300 m 一座可选的楼都没有，就看离我最近那座可选的楼周围 300 m（不看整格：720 m 一格，楼细到点不到）。
++    /// 不知道我在哪：看整格、可选的楼全留，哪座都选得到。
++    /// 画面里可选的楼一律标成住宅楼（亮橙色、点得到），其余当普通楼，见 markHomeCandidates。
+     func pickView(near me: Vec2?) -> MapModel {
+-        guard let me else { return simplified(around: .zero, size: size, maxBuildings: 3, maxResidential: .max) }
+-        let homes = buildings.filter { $0.kind == .residential }
+-        let guess = (homes.first { Polygon.contains($0.outline, me) } ?? homes.min { $0.centroid.distance(to: me) < $1.centroid.distance(to: me) })?.id
+-        let lim = half - 150
+-        let c = Vec2(x: max(-lim, min(lim, me.x)), y: max(-lim, min(lim, me.y)))
+-        return simplified(around: c, size: 300, home: guess, maxBuildings: 3, maxResidential: 10)
++        guard let me else {
++            var src = self
++            src.buildings = markHomeCandidates(around: nil)
++            return src.simplified(around: .zero, size: size, maxBuildings: 3, maxResidential: .max)
++        }
++        let lim = half - Self.pickSize / 2
++        func clamp(_ p: Vec2) -> Vec2 { Vec2(x: max(-lim, min(lim, p.x)), y: max(-lim, min(lim, p.y))) }
++        func view(_ src: MapModel, at p: Vec2) -> MapModel {
++            let homes = src.buildings.filter { $0.kind == .residential }
++            let guess = (homes.first { Polygon.contains($0.outline, p) } ?? homes.min { $0.centroid.distance(to: p) < $1.centroid.distance(to: p) })?.id
++            return src.simplified(around: clamp(p), size: Self.pickSize, home: guess, maxBuildings: 3, maxResidential: 10)
++        }
++        var near = self
++        near.buildings = markHomeCandidates(around: clamp(me))
++        let v = view(near, at: me)
++        if v.hasHomeCandidate { return v }
++        var all = self
++        all.buildings = markHomeCandidates(around: nil)
++        guard let target = all.buildings.filter({ $0.kind == .residential }).min(by: { $0.centroid.distance(to: me) < $1.centroid.distance(to: me) })
++        else { return v }
++        return view(all, at: target.centroid)
++    }
++
++    /// 选楼画面里有没有可选的楼。
++    var hasHomeCandidate: Bool { buildings.contains { $0.kind == .residential } }
++
++    /// 可以选做"我屋企"的楼：住宅楼，加上只标 building=yes、10 层以上的楼（香港不少私人楼只这样标；工厦、货仓、停车场不算）。
++    /// around 附近（选楼画面的 300 m，不给就是整格）一座都没有，就放宽到那里的一般建筑（村屋、资料不全的新屋邨）。
++    /// 做屋企时底座会超出已拉取资料太多的楼不给选，见 dioramaFits。
++    private func markHomeCandidates(around c: Vec2?) -> [Building] {
++        let r = Self.pickSize / 2
++        func local(_ b: Building) -> Bool { c.map { abs(b.centroid.x - $0.x) <= r && abs(b.centroid.y - $0.y) <= r } ?? true }
++        func homeLike(_ b: Building) -> Bool { b.kind == .residential || (b.kind == .other && b.tag == "yes" && b.levels >= 10) }
++        func general(_ b: Building) -> Bool { b.kind == .other || b.kind == .commercial }
++        var fitCache: [Int64: Bool] = [:]
++        func fits(_ b: Building) -> Bool {
++            if let f = fitCache[b.id] { return f }
++            let f = dioramaFits(at: b.centroid)
++            fitCache[b.id] = f
++            return f
++        }
++        let hasHomes = buildings.contains { homeLike($0) && local($0) && fits($0) }
++        return buildings.map { b in
++            var b = b
++            let pickable = Self.placeholderPos(b.id) != nil
++                || (homeLike(b) || (!hasHomes && local(b) && general(b))) && fits(b)
++            if pickable { b.kind = .residential } else if b.kind == .residential { b.kind = .other }
++            return b
++        }
++    }
++
++    // MARK: - 示意楼（附近完全没有楼宇资料时，在我的位置放一座，让首次使用能走完）
++
++    /// 示意楼的 id 是负数，把位置（米，取整）编进去，下次启动按 id 放回同一个位置。
++    static func placeholderID(at p: Vec2) -> Int64 {
++        let x = Int64(max(-49_999, min(49_999, p.x.rounded()))) + 50_000
++        let y = Int64(max(-49_999, min(49_999, p.y.rounded()))) + 50_000
++        return -(1_000_000_000_000 + x * 100_000 + y)
++    }
++
++    static func placeholderPos(_ id: Int64) -> Vec2? {
++        guard id <= -1_000_000_000_000 else { return nil }
++        let v = -id - 1_000_000_000_000
++        return Vec2(x: Double(v / 100_000 - 50_000), y: Double(v % 100_000 - 50_000))
++    }
++
++    /// 加一座示意楼（16×12 m、30 层，和北都新屋邨差不多）。已经有就不再加。
++    /// 位置落在水面或别的楼里，就挪去最近的空地（同一份地图每次挪到同一个位置）。
++    func addingPlaceholderHome(at p: Vec2) -> (map: MapModel, id: Int64) {
++        let id = Self.placeholderID(at: p)
++        guard building(id: id) == nil else { return (self, id) }
++        var m = self
++        let water = areas.filter { $0.kind == .water }.map(\.outline)
++        func rect(_ c: Vec2) -> [Vec2] { [Vec2(x: c.x - 8, y: c.y - 6), Vec2(x: c.x + 8, y: c.y - 6), Vec2(x: c.x + 8, y: c.y + 6), Vec2(x: c.x - 8, y: c.y + 6)] }
++        func free(_ c: Vec2) -> Bool {
++            let r = rect(c) + [c]
++            return !r.contains { q in water.contains { Polygon.contains($0, q) } || isInsideBuilding(q) }
++        }
++        var q = Self.placeholderPos(id)!
++        search: for r in stride(from: 0.0, through: 120, by: 6) where !free(q) {
++            for k in 0..<16 {
++                let a = Double(k) * .pi / 8
++                let c = Self.placeholderPos(id)! + Vec2(x: cos(a) * r, y: sin(a) * r)
++                if free(c) { q = c; break search }
++            }
++        }
++        let outline = rect(q)
++        m.buildings.append(Building(id: id, name: nil, outline: outline, minHeight: 0, height: 92, levels: 30, kind: .residential))
++        return (m, id)
+     }
+ 
+     /// 点是否落在任何建筑里（不含遮蓬）。
+diff --git a/ios/StreetWalk/Map/MapService.swift b/ios/StreetWalk/Map/MapService.swift
+index 3bcf29c..6e97205 100644
+--- a/ios/StreetWalk/Map/MapService.swift
++++ b/ios/StreetWalk/Map/MapService.swift
+@@ -1,7 +1,7 @@
+ import CoreLocation
+ import Foundation
+ 
+-/// 取当前位置 → 吸附到格子 → 读缓存 / 请求 Overpass → 失败就用内置皇后山邨。
++/// 取当前位置 → 吸附到格子 → 读缓存 / 请求 Overpass → 失败就用旧缓存，再不行才用内置皇后山邨。
+ /// 只有格子范围会发给地图服务，精确位置不离开手机。
+ @MainActor
+ final class MapService: NSObject, CLLocationManagerDelegate {
+@@ -9,12 +9,18 @@ final class MapService: NSObject, CLLocationManagerDelegate {
+ 
+     private let manager = CLLocationManager()
+     private var locationContinuation: CheckedContinuation<GeoPoint?, Never>?
++    private var locationTimer: DispatchWorkItem?
+ 
+-    static let endpoints = [
++    /// overpass.private.coffee 已失效（2026-10 起一律回 500），不再用。
++    nonisolated static let endpoints = [
+         "https://overpass-api.de/api/interpreter",
+         "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+-        "https://overpass.private.coffee/api/interpreter",
+     ]
++    /// 实时拉取的边长（米）。比 400 m 格子大：屋企在格边（离格心约 200 m）时，以它为中心的 200 m 底座仍在资料范围内。
++    /// 内置示例屋邨仍然是 560 m（TileKey.plinthSize）。
++    nonisolated static let fetchSize = 720.0
++    /// 拉地图最多等几耐（秒）。两个服务器同时问，边个先答到就用边个。
++    nonisolated static let fetchTimeout = 30.0
+ 
+     override init() {
+         super.init()
+@@ -24,26 +30,47 @@ final class MapService: NSObject, CLLocationManagerDelegate {
+ 
+     // MARK: - 位置
+ 
++    /// 只在首次选楼 / 重新选楼时调用。权限框未回答前不计时（长者看权限框可能要很久），回答后才等 timeout 秒。
+     func currentLocation(timeout: TimeInterval = 8) async -> GeoPoint? {
+         if LaunchArgs.has("-offline") { return nil }
+         let status = manager.authorizationStatus
+         if status == .denied || status == .restricted { return nil }
+         return await withCheckedContinuation { cont in
++            // 上一次还在等（例如连按两次重新选楼）：先给它 nil，不要挂住。
++            finishLocation(nil)
+             locationContinuation = cont
+-            if status == .notDetermined { manager.requestWhenInUseAuthorization() } else { manager.requestLocation() }
+-            DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in self?.finishLocation(nil) }
++            if status == .notDetermined {
++                manager.requestWhenInUseAuthorization()
++                armTimeout(120)
++            } else {
++                manager.requestLocation()
++                armTimeout(timeout)
++            }
+         }
+     }
+ 
++    private func armTimeout(_ seconds: TimeInterval) {
++        locationTimer?.cancel()
++        let item = DispatchWorkItem { [weak self] in self?.finishLocation(nil) }
++        locationTimer = item
++        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: item)
++    }
++
+     private func finishLocation(_ p: GeoPoint?) {
++        locationTimer?.cancel()
++        locationTimer = nil
+         locationContinuation?.resume(returning: p)
+         locationContinuation = nil
+     }
+ 
+     nonisolated func locationManagerDidChangeAuthorization(_ m: CLLocationManager) {
+         Task { @MainActor in
++            // 建 CLLocationManager 时系统也会回调一次：没人在等位置就不取（F1：只在需要时开定位）。
++            guard self.locationContinuation != nil else { return }
+             switch m.authorizationStatus {
+-            case .authorizedAlways, .authorizedWhenInUse: m.requestLocation()
++            case .authorizedAlways, .authorizedWhenInUse:
++                m.requestLocation()
++                self.armTimeout(8)
+             case .denied, .restricted: self.finishLocation(nil)
+             default: break
+             }
+@@ -64,11 +91,13 @@ final class MapService: NSObject, CLLocationManagerDelegate {
+ 
+     func load(tile: TileKey) async -> (MapModel, Source) {
+         if !LaunchArgs.has("-offline") {
+-            if let data = TileCache.read(tile), let m = try? OSMParser.parse(data, tile: tile, source: "cache") { return (m, .cache) }
+-            if let data = await fetch(tile), let m = try? OSMParser.parse(data, tile: tile, source: "live") {
++            if let c = TileCache.read(tile), let m = try? OSMParser.parse(c.data, tile: tile, size: c.size, source: "cache") { return (m, .cache) }
++            if let data = await fetch(tile), let m = try? OSMParser.parse(data, tile: tile, size: Self.fetchSize, source: "live") {
+                 TileCache.write(tile, data)
+                 return (m, .live)
+             }
++            // 拉不到：过期的旧缓存也比示例屋邨好（至少是你屋企附近）。
++            if let c = TileCache.read(tile, maxAge: .infinity), let m = try? OSMParser.parse(c.data, tile: tile, size: c.size, source: "cache") { return (m, .cache) }
+         }
+         return (Self.fallback(), .fallback)
+     }
+@@ -79,46 +108,97 @@ final class MapService: NSObject, CLLocationManagerDelegate {
+         return try! OSMParser.parse(data, tile: TileKey(ix: 0, iy: 0), source: "fallback")
+     }
+ 
++    /// Overpass 用的 south,west,north,east（以格心为中心、边长 size，仍然按格子对齐，不含精确位置）。
++    nonisolated static func bbox(_ t: TileKey, size: Double = fetchSize) -> String {
++        let proj = LocalProjection(origin: t.center)
++        let h = size / 2
++        let sw = proj.toGeo(Vec2(x: -h, y: -h)), ne = proj.toGeo(Vec2(x: h, y: h))
++        return String(format: "%.7f,%.7f,%.7f,%.7f", sw.lat, sw.lon, ne.lat, ne.lon)
++    }
++
++    private enum FetchResult: Sendable { case data(Data), failed, timeout }
++
++    /// 两个服务器同时问，边个先答到就用边个；总共最多等 fetchTimeout 秒。
+     private func fetch(_ tile: TileKey) async -> Data? {
+         guard let qURL = Bundle.main.url(forResource: "estate", withExtension: "overpassql"),
+               let template = try? String(contentsOf: qURL, encoding: .utf8) else { return nil }
+-        let query = template.replacingOccurrences(of: "{{bbox}}", with: tile.bboxString)
+-        let body = "data=" + (query.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")
+-        for (i, endpoint) in Self.endpoints.enumerated() {
+-            for attempt in 0..<2 {
+-                var req = URLRequest(url: URL(string: endpoint)!, timeoutInterval: 20)
+-                req.httpMethod = "POST"
+-                req.setValue("hack4sdg-streetwalk/0.1 (iOS prototype)", forHTTPHeaderField: "User-Agent")
+-                req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+-                req.httpBody = body.data(using: .utf8)
+-                if let (data, resp) = try? await URLSession.shared.data(for: req),
+-                   let http = resp as? HTTPURLResponse, http.statusCode == 200, data.count > 200 {
+-                    return data
++        let query = template.replacingOccurrences(of: "{{bbox}}", with: Self.bbox(tile))
++        let body = Data(("data=" + (query.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")).utf8)
++        let deadline = Date().addingTimeInterval(Self.fetchTimeout)
++        return await withTaskGroup(of: FetchResult.self) { group in
++            for endpoint in Self.endpoints {
++                group.addTask { await Self.post(endpoint, body: body, until: deadline) }
++            }
++            group.addTask {
++                try? await Task.sleep(for: .seconds(Self.fetchTimeout))
++                return .timeout
++            }
++            var failed = 0
++            for await r in group {
++                switch r {
++                case .data(let d): group.cancelAll(); return d
++                case .timeout: group.cancelAll(); return nil
++                case .failed:
++                    failed += 1
++                    if failed == Self.endpoints.count { group.cancelAll(); return nil }
+                 }
+-                try? await Task.sleep(for: .seconds(attempt == 0 ? 2 : 4))
+             }
+-            if i == 0 { continue }
++            return nil
+         }
+-        return nil
++    }
++
++    /// 问一个服务器；好快就失败（504 / 429）就隔 2 秒再试，直到限期。
++    private nonisolated static func post(_ endpoint: String, body: Data, until deadline: Date) async -> FetchResult {
++        while !Task.isCancelled {
++            let left = deadline.timeIntervalSinceNow
++            guard left > 3 else { break }
++            var req = URLRequest(url: URL(string: endpoint)!, timeoutInterval: min(30, left))
++            req.httpMethod = "POST"
++            req.setValue("hack4sdg-streetwalk/0.1 (iOS prototype)", forHTTPHeaderField: "User-Agent")
++            req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
++            req.httpBody = body
++            if let (data, resp) = try? await URLSession.shared.data(for: req),
++               let http = resp as? HTTPURLResponse, http.statusCode == 200, data.count > 200 {
++                return .data(data)
++            }
++            guard deadline.timeIntervalSinceNow > 5 else { break }
++            try? await Task.sleep(for: .seconds(2))
++        }
++        return .failed
+     }
+ }
+ 
+-/// 解析前的原始 Overpass 响应按格子存在 Caches 里，保留 30 天。
++/// 解析前的原始 Overpass 响应按格子存在 Caches 里，保留 30 天；拉不到时再旧也照用。
++/// v2 起每格拉 720 m（MapService.fetchSize）；v1 是以前 560 m 的，只在拉不到时兜底，同一格写了 v2 就删掉。
+ enum TileCache {
++    /// 缓存根目录 tiles/（v1、v2 都在里面）。演示「重新生成」用的 clear() 删的就是它，旧的 v1 不会在离线时又被读出来。
+     static var dir: URL {
+-        let d = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("tiles/v1", isDirectory: true)
++        let d = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("tiles", isDirectory: true)
+         try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+         return d
+     }
+ 
+-    static func read(_ t: TileKey) -> Data? {
+-        let url = dir.appendingPathComponent("\(t).json")
+-        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+-              let date = attrs[.modificationDate] as? Date, Date().timeIntervalSince(date) < 30 * 86400 else { return nil }
+-        return try? Data(contentsOf: url)
++    private static func folder(_ v: String) -> URL {
++        let d = dir.appendingPathComponent(v, isDirectory: true)
++        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
++        return d
++    }
++
++    static func read(_ t: TileKey, maxAge: TimeInterval = 30 * 86400) -> (data: Data, size: Double)? {
++        let sources: [(URL, Double)] = maxAge.isFinite ? [(folder("v2"), MapService.fetchSize)]
++            : [(folder("v2"), MapService.fetchSize), (folder("v1"), TileKey.plinthSize)]
++        for (d, size) in sources {
++            let url = d.appendingPathComponent("\(t).json")
++            guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
++                  let date = attrs[.modificationDate] as? Date, Date().timeIntervalSince(date) < maxAge,
++                  let data = try? Data(contentsOf: url) else { continue }
++            return (data, size)
++        }
++        return nil
+     }
+ 
+     static func write(_ t: TileKey, _ data: Data) {
+-        try? data.write(to: dir.appendingPathComponent("\(t).json"))
++        guard (try? data.write(to: folder("v2").appendingPathComponent("\(t).json"))) != nil else { return }
++        try? FileManager.default.removeItem(at: folder("v1").appendingPathComponent("\(t).json"))
+     }
+ }
+diff --git a/ios/StreetWalk/Map/OSMParser.swift b/ios/StreetWalk/Map/OSMParser.swift
+index 62454c8..ebc65a9 100644
+--- a/ios/StreetWalk/Map/OSMParser.swift
++++ b/ios/StreetWalk/Map/OSMParser.swift
+@@ -21,11 +21,12 @@ enum OSMParser {
+ 
+     enum ParseError: Error { case empty }
+ 
+-    static func parse(_ data: Data, tile: TileKey, source: String) throws -> MapModel {
++    /// size：这份数据拉取时的边长（实时 720 m，内置示例 560 m），超出的部分裁掉。
++    static func parse(_ data: Data, tile: TileKey, size: Double = TileKey.plinthSize, source: String) throws -> MapModel {
+         let response = try JSONDecoder().decode(Response.self, from: data)
+         let center = tile.center
+         let proj = LocalProjection(origin: center)
+-        let half = TileKey.plinthSize / 2
++        let half = size / 2
+ 
+         var buildings: [Building] = []
+         var roads: [Road] = []
+@@ -88,7 +89,8 @@ enum OSMParser {
+                 if closed, let kind = areaKind(tags) {
+                     let outline = Polygon.normalized(Polygon.clip(Polygon.normalized(raw), half: half))
+                     guard outline.count >= 3, Polygon.area(outline) >= 10 else { continue }
+-                    areas.append(Area(kind: kind, outline: outline, name: name))
++                    // 保留 OSM 编号：地标 id 用它，换楼、缓存刷新后同一块地仍然是同一个 id。relation 用负数免得同 way 撞。
++                    areas.append(Area(kind: kind, outline: outline, name: name, osmID: e.type == "relation" ? -e.id : e.id))
+                     // 面状的巴士总站、商场、街市也当作兴趣点。
+                     if let pk = poiKind(tags) {
+                         let c = Polygon.centroid(outline)
+@@ -114,7 +116,7 @@ enum OSMParser {
+ 
+         areas.sort { $0.kind.drawOrder < $1.kind.drawOrder }
+         guard !buildings.isEmpty || !roads.isEmpty else { throw ParseError.empty }
+-        return MapModel(tile: tile, center: center, size: TileKey.plinthSize, buildings: buildings, roads: roads,
++        return MapModel(tile: tile, center: center, size: size, buildings: buildings, roads: roads,
+                         areas: areas, pois: pois, trees: trees, fetchedAt: Date(), source: source)
+     }
+ 
+@@ -146,8 +148,10 @@ enum OSMParser {
+             kind = .residential; levels = 3
+         case "school", "university", "college", "kindergarten":
+             kind = .school; levels = 6
+-        case "commercial", "retail", "office", "supermarket":
++        // 酒店、医院、政府楼这类高楼明确不是住宅：归商业 / 公共，不会被当成"只标 building=yes 的住宅高楼"选做屋企。
++        case "commercial", "retail", "office", "supermarket", "hotel", "hospital", "public", "civic", "government", "train_station", "transportation":
+             kind = .commercial; levels = area > 2000 ? 4 : 5
++        // 工厦、货仓就算标了 10 层以上也不当住宅（tag 不是 yes，见 MapModel.markHomeCandidates）。
+         case "industrial", "warehouse":
+             kind = .other; levels = 3
+         case "construction":
+@@ -160,6 +164,8 @@ enum OSMParser {
+             kind = .other; levels = area > 2500 ? 5 : area > 400 ? 3 : 2
+         }
+         if tags["amenity"] == "school" { kind = .school }
++        // 标成 building=yes 的公厕不算一般建筑（不能选做屋企，也不拿来做地名）。
++        if tags["amenity"] == "toilets" { kind = .small }
+         if let l = tags["building:levels"].flatMap({ Int($0.filter(\.isNumber)) }), l > 0 { levels = l }
+         var height = Double(levels) * 3.0 + (levels > 10 ? 2 : 0.6)
+         if let h = tags["height"].flatMap(parseMeters) { height = h }
+@@ -170,7 +176,7 @@ enum OSMParser {
+             height = max(height, minHeight + 0.6)
+             if tags["height"] == nil { height = minHeight + 0.6 }
+         }
+-        return Building(id: id, name: name, outline: outline, minHeight: minHeight, height: height, levels: levels, kind: kind)
++        return Building(id: id, name: name, outline: outline, minHeight: minHeight, height: height, levels: levels, kind: kind, tag: type)
+     }
+ 
+     static func parseMeters(_ s: String) -> Double? {
+diff --git a/ios/StreetWalk/Map/PathGrid.swift b/ios/StreetWalk/Map/PathGrid.swift
+index 444d92a..8dfd4ee 100644
+--- a/ios/StreetWalk/Map/PathGrid.swift
++++ b/ios/StreetWalk/Map/PathGrid.swift
+@@ -1,6 +1,6 @@
+ import Foundation
+ 
+-/// 4 m 网格寻路：楼宇不可走，道路和行人路便宜，空地贵一点。用于"我"的散步路线和找人路线。
++/// 4 m 网格寻路：楼宇和水面不可走（有车路经过的水面当桥），道路和行人路便宜，空地贵一点。用于"我"的散步路线和找人路线。
+ struct PathGrid {
+     let cell = 4.0
+     let n: Int
+@@ -33,6 +33,16 @@ struct PathGrid {
+                 }
+             }
+         }
++        // 水面（场景里画成浅蓝色块）不可走；路经过的格子已经比 2.5 便宜，留着当桥。
++        for a in map.areas where a.kind == .water {
++            let xs = a.outline.map(\.x), ys = a.outline.map(\.y)
++            for i in range(xs.min()!, xs.max()!) {
++                for j in range(ys.min()!, ys.max()!) where Polygon.contains(a.outline, cellCenter(i, j)) {
++                    let k = j * n + i
++                    if cost[k] >= 2.5 { cost[k] = 0 }
++                }
++            }
++        }
+         for b in map.buildings where b.kind != .canopy {
+             let xs = b.outline.map(\.x), ys = b.outline.map(\.y)
+             for i in range(xs.min()!, xs.max()!) {
+@@ -51,8 +61,6 @@ struct PathGrid {
+         Vec2(x: -half + (Double(i) + 0.5) * cell, y: -half + (Double(j) + 0.5) * cell)
+     }
+ 
+-    func isWalkable(_ p: Vec2) -> Bool { let (i, j) = index(p); return cost[j * n + i] > 0 }
+-
+     /// 离 p 最近的可走格子中心。
+     func nearestWalkable(_ p: Vec2) -> Vec2 {
+         let (i0, j0) = index(p)
+diff --git a/ios/StreetWalk/Scene/DioramaController.swift b/ios/StreetWalk/Scene/DioramaController.swift
+index b7ecde1..2b48e4c 100644
+--- a/ios/StreetWalk/Scene/DioramaController.swift
++++ b/ios/StreetWalk/Scene/DioramaController.swift
+@@ -7,6 +7,7 @@ struct ScenePerson: Equatable {
+     enum Motion: Equatable {
+         case wander(around: Vec2)          // 在地标附近 25 m 内慢慢走
+         case route([Vec2], speed: Double)  // 沿路线走（米/秒，演示时加速）
++        case catchUp(lead: [Vec2], fast: Double, rest: [Vec2], speed: Double)  // 先快步走完 lead 追上进度，再按 speed 走 rest
+         case stand(at: Vec2)
+     }
+     var id: String
+@@ -34,12 +35,15 @@ final class OverlayModel {
+ }
+ 
+ /// 3D 微缩模型的全部场景逻辑：搭建、太阳、相机、人物、路线、遮挡淡化、标签投影。
++/// 线程：场景由主线程搭建和修改；SceneKit 渲染线程只在 renderer(_:updateAtTime:) 里读标签和跟随要用的状态。
++/// 渲染线程会读的属性（map、人物、地标、屋企标签、反映标记、跟随、相机位置）一律在 lock 里写，渲染线程在 lock 里复制一份再用。
+ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+     let scene = SCNScene()
+     weak var view: SCNView?
+     let overlay = OverlayModel()
+ 
+-    private(set) var map: MapModel?
++    private var _map: MapModel?
++    var map: MapModel? { locked { _map } }
+     private let world = SCNNode()
+     private let plinthNode = SCNNode()
+     private let buildingsNode = SCNNode()
+@@ -55,36 +59,66 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+     private var personState: [String: ScenePerson] = [:]
+     private var pathGrid: PathGrid?
+ 
+-    // 相机：固定俯角和方位，只平移、缩放。
++    // 相机：固定俯角和方位，只由流程自动移动（场景只看不操作，没有拖动、缩放）。
+     private let cameraNode = SCNNode()
+     private let sunNode = SCNNode()
+     private let ambientNode = SCNNode()
+     private let pitch: Float = Float(LaunchArgs.value("-pitch").flatMap(Double.init) ?? 33) * .pi / 180
+     private let azimuth: Float = 45 * .pi / 180      // 从东南方看
+-    private(set) var target = Vec2(x: -72, y: 72)
+-    private(set) var distance: Float = 2.35
+-    let minDistance: Float = 0.25
+-    let maxDistance: Float = 2.8
++    private var _target = Vec2(x: -72, y: 72)
++    private var _distance: Float = 2.35
++    /// 镜头对准的地面点（米）。镜头飞行和跟随在渲染线程改，所以加锁。
++    private(set) var target: Vec2 {
++        get { locked { _target } }
++        set { locked { _target = newValue } }
++    }
++    private(set) var distance: Float {
++        get { locked { _distance } }
++        set { locked { _distance = newValue } }
++    }
+     var homeTarget = Vec2.zero
+-    var homeDistance: Float = 2.45
+ 
+-    // 平移惯性
+-    private var velocity = Vec2.zero
+-    private var displayLink: CADisplayLink?
+-    private var lastTick: CFTimeInterval = 0
+-
+-    // 标签
+-    var homeBuildingID: Int64?
+-    var homeLabel: String?
+-    var reportMarks: [(id: String, pos: Vec2, text: String)] = []
++    // 标签（渲染线程读，主线程写：都经 lock）
++    private var _homeBuildingID: Int64?
++    private var _homeLabel: String?
++    private var _reportMarks: [(id: String, pos: Vec2, text: String)] = []
++    private var _followID: String?
++    var homeBuildingID: Int64? {
++        get { locked { _homeBuildingID } }
++        set { locked { _homeBuildingID = newValue }; labelsChanged() }
++    }
++    var homeLabel: String? {
++        get { locked { _homeLabel } }
++        set { guard newValue != homeLabel else { return }; locked { _homeLabel = newValue }; labelsChanged() }
++    }
++    var reportMarks: [(id: String, pos: Vec2, text: String)] {
++        get { locked { _reportMarks } }
++        set { locked { _reportMarks = newValue }; labelsChanged() }
++    }
++    /// 跟随某个人（散步时跟着"我"）。
++    var followID: String? {
++        get { locked { _followID } }
++        set { locked { _followID = newValue } }
++    }
++    /// 标签每秒最多推 20 次，而且只在有变化时推（SwiftUI 跟得上，也省电）。
++    private static let overlayInterval = 1.0 / 20
+     private var lastOverlayPush: TimeInterval = 0
++    private var lastOverlay: [OverlayItem] = []
++    private var trailingScheduled = false
++    /// 每次取快照加一；主线程只采用比已显示更新的一份（渲染线程和主线程同时推时，旧快照不会盖过新的）。
++    private var overlaySeq = 0
++    private var lastOverlaySeq = 0
++    private var appliedSeq = 0   // 只在主线程读写
+     private let lock = NSLock()
+ 
+-    var onOverlay: (([OverlayItem]) -> Void)?
+-    /// 跟随某个人（散步时跟着"我"）。用户拖动后暂停 3 秒。
+-    var followID: String?
+-    private var lastUserInteraction: CFTimeInterval = 0
+-    var debugInfo: [String: Int] = [:]
++    private func locked<T>(_ body: () -> T) -> T {
++        lock.lock(); defer { lock.unlock() }
++        return body()
++    }
++
++    /// 减少动态效果：镜头直接跳到位、楼宇不升起、光晕不脉冲。渲染线程也要读，所以在主线程缓存一份。
++    private var _reduceMotion = UIAccessibility.isReduceMotionEnabled
++    private var reduceMotion: Bool { locked { _reduceMotion } }
+ 
+     /// 深色模式：搭建场景时按它解析 SceneStyle 的动态色。
+     private(set) var isDark = UITraitCollection.current.userInterfaceStyle == .dark
+@@ -101,15 +135,19 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+         [plinthNode, buildingsNode, treesNode, landmarksNode, routesNode, peopleNode].forEach(world.addChildNode)
+         setupCamera()
+         setupLights()
++        NotificationCenter.default.addObserver(forName: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
++            let on = UIAccessibility.isReduceMotionEnabled
++            self?.locked { self?._reduceMotion = on }
++        }
+     }
+ 
+     // MARK: - 搭建
+ 
+     func load(map: MapModel, landmarks: [Landmark], animated: Bool) {
+-        self.map = map
++        locked { _map = map }
+         pathGrid = PathGrid(map: map)
+         [plinthNode, buildingsNode, treesNode, landmarksNode, routesNode, peopleNode].forEach { $0.childNodes.forEach { $0.removeFromParentNode() } }
+-        lock.lock(); towerNodes = [:]; pickableNodes = [:]; landmarkNodes = [:]; personNodes = [:]; personState = [:]; lock.unlock()
++        locked { towerNodes = [:]; pickableNodes = [:]; landmarkNodes = [:]; personNodes = [:]; personState = [:] }
+         faded = []
+ 
+         // 阴影范围跟着底座大小走，小底座的影子更清楚。
+@@ -132,7 +170,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+         sunNode.light?.shadowColor = shadowColor
+         guard let map else { return }
+         [plinthNode, buildingsNode, treesNode].forEach { $0.childNodes.forEach { $0.removeFromParentNode() } }
+-        lock.lock(); towerNodes = [:]; pickableNodes = [:]; let lms = Array(landmarkInfo.values); lock.unlock()
++        let lms: [Landmark] = locked { towerNodes = [:]; pickableNodes = [:]; return Array(landmarkInfo.values) }
+         traits.performAsCurrent {
+             buildPlinth(map)
+             buildBuildings(map, animated: false)
+@@ -185,6 +223,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+         let homeMat = MeshBuilder.material(SceneStyle.home)
+ 
+         let lowGroup = SCNNode()
++        let homeBuildingID = self.homeBuildingID
+         for b in map.buildings {
+             let geo = MeshBuilder.building(b)
+             // 按用途区分颜色；我屋企淡橙 + 橙色描边，是画面主角。
+@@ -205,7 +244,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+                 en.castsShadow = false
+                 node.addChildNode(en)
+             }
+-            if b.isTower || b.kind == .residential {
++            if b.isTower || b.kind == .residential || b.id == homeBuildingID {
+                 // 可选中的楼各用一份材质，高亮时不会连累其他楼。
+                 geo.materials = geo.materials.map { $0.copy() as! SCNMaterial }
+                 buildingsNode.addChildNode(node)
+@@ -220,7 +259,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+         low.castsShadow = true
+         buildingsNode.addChildNode(low)
+ 
+-        guard animated else { return }
++        guard animated, !reduceMotion else { return }
+         // 楼宇按离我屋企的距离错峰"升起"。
+         let origin = homeTarget
+         for (id, node) in pickableNodes {
+@@ -258,10 +297,9 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+                 y += 18
+             }
+         }
+-        // 做减法：最多 12 棵。
++        // 做减法：最多 5 棵。
+         spots = Array(spots.prefix(5))
+-        debugInfo["trees"] = min(spots.count, 1200)
+-        guard let geo = MeshBuilder.trees(Array(spots.prefix(1200)), greens: SceneStyle.treeGreens, trunk: SceneStyle.trunk) else { return }
++        guard let geo = MeshBuilder.trees(spots, greens: SceneStyle.treeGreens, trunk: SceneStyle.trunk) else { return }
+         let node = SCNNode(geometry: geo)
+         node.castsShadow = true
+         treesNode.addChildNode(node)
+@@ -269,19 +307,24 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+ 
+     func setLandmarks(_ landmarks: [Landmark]) {
+         landmarksNode.childNodes.forEach { $0.removeFromParentNode() }
+-        landmarkNodes = [:]
+-        lock.lock(); landmarkInfo = Dictionary(uniqueKeysWithValues: landmarks.map { ($0.id, $0) }); lock.unlock()
++        var nodes: [String: SCNNode] = [:]
+         for l in landmarks {
+             let n = Figures.landmark(hasSeat: l.hasSeat)
+             n.position = scenePoint(l.pos)
+             n.name = "lm:\(l.id)"
+             landmarksNode.addChildNode(n)
+-            landmarkNodes[l.id] = n
++            nodes[l.id] = n
+         }
++        locked {
++            landmarkInfo = Dictionary(landmarks.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
++            landmarkNodes = nodes
++        }
++        labelsChanged()
+     }
+ 
+     func renameLandmark(_ id: String, to name: String) {
+-        lock.lock(); landmarkInfo[id]?.name = name; lock.unlock()
++        locked { landmarkInfo[id]?.name = name }
++        labelsChanged()
+     }
+ 
+     // MARK: - 太阳
+@@ -324,6 +367,8 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+         let day = sun.elevation > 0
+         let warm = max(0, min(1, (sun.elevation - 5) / 35))
+         sunNode.light?.intensity = day ? CGFloat(230 + 60 * warm) : 0
++        // 夜晚没有太阳：阴影 pass 也不用跑。
++        sunNode.light?.castsShadow = day
+         sunNode.light?.temperature = CGFloat(5200 + 1300 * warm)
+         ambientNode.light?.intensity = day ? 820 : 520
+         ambientNode.light?.color = day ? UIColor(red: 0.95, green: 0.95, blue: 0.97, alpha: 1) : UIColor(red: 0.62, green: 0.68, blue: 0.86, alpha: 1)
+@@ -332,7 +377,6 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+ 
+     // MARK: - 相机
+ 
+-
+     private func setupCamera() {
+         let cam = SCNCamera()
+         // 等距（正交）投影：和参考图一样平行线不汇聚。distance 只用来换算放大倍数。
+@@ -355,20 +399,24 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+     }
+ 
+     private func applyCamera() {
+-        let t = scenePoint(target)
++        let (tg, dist) = locked { (_target, _distance) }
++        let t = scenePoint(tg)
+         let far: Float = 4
+         let horiz = cos(pitch) * far
+         cameraNode.position = SCNVector3(t.x + horiz * sin(azimuth), sin(pitch) * far, t.z + horiz * cos(azimuth))
+         cameraNode.look(at: t, up: SCNVector3(0, 1, 0), localFront: SCNVector3(0, 0, -1))
+         // 与之前 20° 透视在同等 distance 下的取景高度一致：半高 = distance · tan(10°)。
+-        cameraNode.camera?.orthographicScale = Double(distance) * 0.1763
++        cameraNode.camera?.orthographicScale = Double(dist) * 0.1763
+     }
+ 
++    /// 减少动态效果时不飞，直接跳到位。
+     func setCamera(target t: Vec2, distance d: Float, animated: Bool, duration: Double = 0.75) {
+-        stopMomentum()
+         let half = (map?.half ?? 280) - 30
+         let clamped = Vec2(x: max(-half, min(half, t.x)), y: max(-half, min(half, t.y)))
+-        guard animated else { target = clamped; distance = d; applyCamera(); return }
++        guard animated, !reduceMotion else {
++            cameraNode.removeAction(forKey: "fly")
++            target = clamped; distance = d; applyCamera(); return
++        }
+         let from = (target, distance)
+         let action = SCNAction.customAction(duration: duration) { [weak self] _, e in
+             guard let self else { return }
+@@ -396,83 +444,6 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+         return Float(LaunchArgs.value("-ovd").flatMap(Double.init) ?? (size < 400 ? 0.88 * size / 200 : 2.35 * size / 560))
+     }
+     func resetCamera() { setCamera(target: overviewTarget, distance: overviewDistance, animated: true) }
+-    /// 回到我屋企：推近到自己住的楼。
+-    func flyHome() { setCamera(target: homeTarget, distance: 1.1, animated: true) }
+-
+-    /// 屏幕点对应的地面（y=0）米坐标。
+-    func groundPoint(at p: CGPoint) -> Vec2? {
+-        guard let v = view else { return nil }
+-        let near = v.unprojectPoint(SCNVector3(Float(p.x), Float(p.y), 0))
+-        let far = v.unprojectPoint(SCNVector3(Float(p.x), Float(p.y), 1))
+-        let dy = far.y - near.y
+-        guard abs(dy) > 1e-7 else { return nil }
+-        let t = -near.y / dy
+-        let x = near.x + (far.x - near.x) * t, z = near.z + (far.z - near.z) * t
+-        let s = Double(SceneStyle.scale)
+-        return Vec2(x: Double(x) / s, y: -Double(z) / s)
+-    }
+-
+-    // 手势
+-    private var panAnchor: Vec2?
+-    private var pinchStart: Float = 1
+-
+-    func panBegan(at p: CGPoint) {
+-        lastUserInteraction = CACurrentMediaTime()
+-        stopMomentum()
+-        cameraNode.removeAction(forKey: "fly")
+-        panAnchor = groundPoint(at: p)
+-    }
+-
+-    func panChanged(at p: CGPoint) {
+-        lastUserInteraction = CACurrentMediaTime()
+-        guard let anchor = panAnchor, let g = groundPoint(at: p) else { return }
+-        moveTarget(by: anchor - g)
+-    }
+-
+-    func panEnded(at p: CGPoint, velocity v: CGPoint) {
+-        panAnchor = nil
+-        guard let a = groundPoint(at: p), let b = groundPoint(at: CGPoint(x: p.x + v.x * 0.01, y: p.y + v.y * 0.01)) else { return }
+-        velocity = (a - b) * 100   // 米/秒
+-        guard velocity.length > 8 else { velocity = .zero; return }
+-        lastTick = CACurrentMediaTime()
+-        let link = CADisplayLink(target: self, selector: #selector(tick))
+-        link.add(to: .main, forMode: .common)
+-        displayLink = link
+-    }
+-
+-    @objc private func tick() {
+-        let now = CACurrentMediaTime()
+-        let dt = now - lastTick
+-        lastTick = now
+-        moveTarget(by: velocity * dt)
+-        // 与系统滚动一致的减速：每秒保留 13.5%。
+-        velocity = velocity * pow(0.135, dt)
+-        if velocity.length < 3 { stopMomentum() }
+-    }
+-
+-    private func stopMomentum() {
+-        displayLink?.invalidate()
+-        displayLink = nil
+-        velocity = .zero
+-    }
+-
+-    private func moveTarget(by d: Vec2) {
+-        let half = (map?.half ?? 280) - 30
+-        target = Vec2(x: max(-half, min(half, target.x + d.x)), y: max(-half, min(half, target.y + d.y)))
+-        SCNTransaction.begin()
+-        SCNTransaction.disableActions = true
+-        applyCamera()
+-        SCNTransaction.commit()
+-    }
+-
+-    func pinchBegan() { lastUserInteraction = CACurrentMediaTime(); pinchStart = distance; cameraNode.removeAction(forKey: "fly") }
+-    func pinchChanged(scale: CGFloat) {
+-        distance = max(minDistance, min(maxDistance, pinchStart / Float(max(scale, 0.05))))
+-        SCNTransaction.begin()
+-        SCNTransaction.disableActions = true
+-        applyCamera()
+-        SCNTransaction.commit()
+-    }
+ 
+     // MARK: - 命中
+ 
+@@ -522,13 +493,17 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+         if let id, let b = map?.building(id: id) { homeTarget = b.centroid }
+     }
+ 
++    /// 选中地标的光晕慢慢一呼一吸；减少动态效果时改成静止放大。
+     func highlightLandmark(_ id: String?) {
+         highlightedLandmark = id
+         for (lid, node) in landmarkNodes {
+             let on = lid == id
+             node.removeAction(forKey: "pulse")
+             if let halo = node.childNode(withName: "halo", recursively: false) {
+-                if on {
++                if on && reduceMotion {
++                    halo.removeAllActions()
++                    halo.scale = SCNVector3(1.3, 1, 1.3)
++                } else if on {
+                     let up = SCNAction.scale(to: 1.5, duration: 0.7); up.timingMode = .easeInEaseOut
+                     let down = SCNAction.scale(to: 1.0, duration: 0.7); down.timingMode = .easeInEaseOut
+                     halo.runAction(.repeatForever(.sequence([up, down])), forKey: "pulse")
+@@ -563,7 +538,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+         for (id, node) in personNodes where !ids.contains(id) {
+             let fade = SCNAction.fadeOut(duration: 0.3)
+             node.runAction(.sequence([fade, .removeFromParentNode()]))
+-            lock.lock(); personNodes[id] = nil; personState[id] = nil; lock.unlock()
++            locked { personNodes[id] = nil; personState[id] = nil }
+         }
+         for p in people {
+             let old = personState[p.id]
+@@ -577,24 +552,26 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+                 peopleNode.addChildNode(n)
+                 bob(n)
+                 node = n
+-                lock.lock(); personNodes[p.id] = n; lock.unlock()
++                locked { personNodes[p.id] = n }
+                 if let start = startPoint(p.motion) { n.position = scenePoint(start) }
+             }
+             if old?.motion != p.motion { apply(p.motion, to: node!) }
+-            lock.lock(); personState[p.id] = p; lock.unlock()
++            locked { personState[p.id] = p }
+         }
++        labelsChanged()
+     }
+ 
+     private func startPoint(_ m: ScenePerson.Motion) -> Vec2? {
+         switch m {
+         case .wander(let c): return pathGrid?.nearestWalkable(c + Vec2(x: 6, y: -4)) ?? c
+         case .route(let r, _): return r.first
++        case .catchUp(let lead, _, _, _): return lead.first
+         case .stand(let p): return p
+         }
+     }
+ 
+     private func bob(_ n: SCNNode) {
+-        guard let body = n.childNode(withName: "body", recursively: false), !UIAccessibility.isReduceMotionEnabled else { return }
++        guard let body = n.childNode(withName: "body", recursively: false), !reduceMotion else { return }
+         let up = SCNAction.moveBy(x: 0, y: CGFloat(1.0 * SceneStyle.scale), z: 0, duration: 0.28); up.timingMode = .easeOut
+         let down = SCNAction.moveBy(x: 0, y: -CGFloat(1.0 * SceneStyle.scale), z: 0, duration: 0.28); down.timingMode = .easeIn
+         body.runAction(.repeatForever(.sequence([up, down])), forKey: "bob")
+@@ -607,7 +584,9 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+             let a = SCNAction.move(to: scenePoint(p), duration: 0.4); a.timingMode = .easeInEaseOut
+             node.runAction(a, forKey: "move")
+         case .route(let pts, let speed):
+-            node.runAction(walk(pts, speed: speed, from: node), forKey: "move")
++            node.runAction(walk(pts, speed: speed, from: point(of: node)), forKey: "move")
++        case .catchUp(let lead, let fast, let rest, let speed):
++            node.runAction(.sequence([walk(lead, speed: fast, from: point(of: node)), walk(rest, speed: speed, from: lead.last)]), forKey: "move")
+         case .wander(let c):
+             var rng = SeededRandom(seed: UInt64(abs(c.x * 1000 + c.y)))
+             var pts: [Vec2] = []
+@@ -620,15 +599,16 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+         }
+     }
+ 
+-    /// 沿折线走，每段转向前进方向。
+-    private func walk(_ pts: [Vec2], speed: Double, from node: SCNNode?) -> SCNAction {
++    private func point(of node: SCNNode) -> Vec2 {
++        let p = node.position
++        let s = Double(SceneStyle.scale)
++        return Vec2(x: Double(p.x) / s, y: -Double(p.z) / s)
++    }
++
++    /// 从 start 起沿折线走，每段转向前进方向；没有 start 就先瞬移到第一点。
++    private func walk(_ pts: [Vec2], speed: Double, from start: Vec2?) -> SCNAction {
+         var actions: [SCNAction] = []
+-        var prev: Vec2? = nil
+-        if let node {
+-            let p = node.position
+-            let s = Double(SceneStyle.scale)
+-            prev = Vec2(x: Double(p.x) / s, y: -Double(p.z) / s)
+-        }
++        var prev = start
+         for p in pts {
+             if let q = prev {
+                 let d = q.distance(to: p)
+@@ -674,34 +654,70 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+         routesNode.addChildNode(n)
+     }
+ 
++    /// 镜头跟着某个人（渲染线程每帧调用）。减少动态效果时不慢慢移，人走出 35 m 才一下跳过去。
+     private func followStep() {
+-        guard let fid = followID, panAnchor == nil, displayLink == nil,
+-              CACurrentMediaTime() - lastUserInteraction > 3, cameraNode.action(forKey: "fly") == nil else { return }
+-        lock.lock(); let node = personNodes[fid]; lock.unlock()
+-        guard let n = node else { return }
++        let (fid, node) = locked { (_followID, _followID.flatMap { personNodes[$0] }) }
++        guard fid != nil, let n = node, cameraNode.action(forKey: "fly") == nil else { return }
+         let p = n.presentation.worldPosition
+         let s = Double(SceneStyle.scale)
+         let goal = Vec2(x: Double(p.x) / s, y: -Double(p.z) / s)
+-        target = target + (goal - target) * 0.06
++        let cur = target
++        if reduceMotion {
++            guard goal.distance(to: cur) > 35 else { return }
++            target = goal
++        } else {
++            target = cur + (goal - cur) * 0.06
++        }
+         applyCamera()
+     }
+ 
+     // MARK: - 标签投影（渲染线程 → 主线程）
+ 
++    /// 场景没有在动、但标签内容变了（改名、反映、屋企标签）：主线程补推一次。
++    /// 场景只在有变化时才渲染（见 DioramaView），所以不能只靠渲染回调。
++    private func labelsChanged() { scheduleTrailing() }
++
++    /// 安排一次主线程补推：最早在上次推送一个间隔之后；已经安排了就不再安排。
++    /// 渲染回调因为限速跳过的那一帧也靠它补，动画停下后标签也会停在最后位置。
++    private func scheduleTrailing() {
++        let delay: Double? = locked {
++            guard !trailingScheduled else { return nil }
++            trailingScheduled = true
++            return max(0, lastOverlayPush + Self.overlayInterval - CACurrentMediaTime())
++        }
++        guard let delay else { return }
++        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
++            guard let self else { return }
++            self.locked { self.trailingScheduled = false }
++            if let v = self.view { self.pushOverlay(v) }
++        }
++    }
++
+     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+         followStep()
+-        guard time - lastOverlayPush > 1.0 / 30 else { return }
+-        lastOverlayPush = time
++        pushOverlay(renderer)
++    }
++
++    /// 投影出全部标签，有变化先推给 SwiftUI。两次推送至少隔 overlayInterval（每秒最多 20 次）；未到时间就约一次补推。
++    private func pushOverlay(_ renderer: SCNSceneRenderer) {
++        let now = CACurrentMediaTime()
++        let due: Bool = locked {
++            guard now - lastOverlayPush >= Self.overlayInterval - 0.001 else { return false }
++            lastOverlayPush = now
++            return true
++        }
++        guard due else { scheduleTrailing(); return }
+         var items: [OverlayItem] = []
+         let s = SceneStyle.scale
+-        lock.lock()
+-        let personState = self.personState, personNodes = self.personNodes, landmarkInfo = self.landmarkInfo, landmarkNodes = self.landmarkNodes
+-        let reportMarks = self.reportMarks, homeID = self.homeBuildingID, homeLabel = self.homeLabel, map = self.map
+-        lock.unlock()
++        let (personState, personNodes, landmarkInfo, landmarkNodes, reportMarks, homeID, homeLabel, map, seq) = locked {
++            overlaySeq += 1
++            return (self.personState, self.personNodes, self.landmarkInfo, self.landmarkNodes, _reportMarks, _homeBuildingID, _homeLabel, _map, overlaySeq)
++        }
+         func project(_ p: SCNVector3) -> CGPoint? {
+             let q = renderer.projectPoint(p)
+             guard q.z > 0, q.z < 1 else { return nil }
+-            return CGPoint(x: CGFloat(q.x), y: CGFloat(q.y))
++            // 取到半点，细微抖动不会让标签重排
++            return CGPoint(x: (CGFloat(q.x) * 2).rounded() / 2, y: (CGFloat(q.y) * 2).rounded() / 2)
+         }
+         for (id, st) in personState {
+             guard let label = st.label, let n = personNodes[id] else { continue }
+@@ -711,7 +727,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+         }
+         for (id, l) in landmarkInfo {
+             guard let n = landmarkNodes[id] else { continue }
+-            var p = n.worldPosition
++            var p = n.presentation.worldPosition
+             p.y -= 0.5 * s
+             if let pt = project(p) { items.append(OverlayItem(id: "l:\(id)", kind: .landmark, text: l.name, point: pt, highlighted: false, priority: 1)) }
+         }
+@@ -723,11 +739,21 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
+         for r in reportMarks {
+             if let pt = project(scenePoint(r.pos, height: 2)) { items.append(OverlayItem(id: "r:\(r.id)", kind: .report, text: r.text, point: pt, highlighted: false, priority: 0)) }
+         }
+-        DispatchQueue.main.async { [weak self] in
+-            guard let self else { return }
++        items.sort { $0.id < $1.id }
++        // 比较时也按快照先后：较旧的快照不会覆盖 lastOverlay（否则可能误判"没有变化"而漏推）。
++        let changed: Bool = locked {
++            guard seq > lastOverlaySeq, items != lastOverlay else { return false }
++            lastOverlay = items
++            lastOverlaySeq = seq
++            return true
++        }
++        guard changed else { return }
++        let apply = { [weak self] in
++            guard let self, seq > self.appliedSeq else { return }
++            self.appliedSeq = seq
+             self.overlay.items = items
+-            self.onOverlay?(items)
+         }
++        if Thread.isMainThread { apply() } else { DispatchQueue.main.async(execute: apply) }
+     }
+ }
+ 
+diff --git a/ios/StreetWalk/Scene/DioramaView.swift b/ios/StreetWalk/Scene/DioramaView.swift
+index b7d84dc..5498e90 100644
+--- a/ios/StreetWalk/Scene/DioramaView.swift
++++ b/ios/StreetWalk/Scene/DioramaView.swift
+@@ -5,7 +5,6 @@ import SwiftUI
+ struct DioramaView: UIViewRepresentable {
+     let controller: DioramaController
+     var onTap: ((DioramaController.Hit?) -> Void)?
+-    var showStats = false
+     /// 跟随系统深浅色，切换时场景重建材质。
+     @Environment(\.colorScheme) private var colorScheme
+ 
+@@ -17,10 +16,13 @@ struct DioramaView: UIViewRepresentable {
+         v.backgroundColor = SceneStyle.background
+         v.antialiasingMode = .multisampling4X
+         v.preferredFramesPerSecond = 60
+-        v.isPlaying = true
+-        v.rendersContinuously = true
++        // 只在有变化时才渲染：人在走、镜头在飞、楼在升起时 60 fps；静止时一帧都不画（省电、不发热）。
++        // isPlaying = true 会令 SCNView 每帧重画（实测静止时 60 fps、约 6% CPU），SCNAction 和过渡动画不需要它。
++        // 静止时标签内容变了由 DioramaController.labelsChanged 补推。
++        v.isPlaying = false
++        v.rendersContinuously = false
+         v.allowsCameraControl = false
+-        v.showsStatistics = showStats
++        v.showsStatistics = LaunchArgs.has("-stats")
+         v.pointOfView = controller.scene.rootNode.childNodes.first { $0.camera != nil }
+         if LaunchArgs.has("-tilt") { v.technique = TiltShift.technique() }
+         controller.view = v
+@@ -35,7 +37,6 @@ struct DioramaView: UIViewRepresentable {
+ 
+     func updateUIView(_ v: SCNView, context: Context) {
+         context.coordinator.parent = self
+-        v.showsStatistics = showStats
+         controller.setDark(colorScheme == .dark)
+     }
+ 
+diff --git a/ios/StreetWalk/Scene/GroundPainter.swift b/ios/StreetWalk/Scene/GroundPainter.swift
+index 094bfd9..fed6a1b 100644
+--- a/ios/StreetWalk/Scene/GroundPainter.swift
++++ b/ios/StreetWalk/Scene/GroundPainter.swift
+@@ -56,21 +56,6 @@ enum GroundPainter {
+                     }
+                 }
+             }
+-
+-
+-        }
+-    }
+-
+-    /// 一个开间（3.6 m）× 一层（3 m）的立面贴图：一层一道窗缝（参考图 ② 的画法），远看干净。
+-    static func facadeTile(wall: UIColor, lit: Bool = false) -> UIImage {
+-        let size = CGSize(width: 72, height: 60)
+-        let format = UIGraphicsImageRendererFormat()
+-        format.scale = 1
+-        return UIGraphicsImageRenderer(size: size, format: format).image { ctx in
+-            wall.setFill()
+-            ctx.fill(CGRect(origin: .zero, size: size))
+-            (lit ? UIColor(red: 1.0, green: 0.86, blue: 0.62, alpha: 1) : UIColor(red: 0.36, green: 0.33, blue: 0.30, alpha: 0.78)).setFill()
+-            ctx.fill(CGRect(x: 18, y: 26, width: 36, height: 9))
+         }
+     }
+ }
+diff --git a/ios/StreetWalk/Shade/ShadeCalculator.swift b/ios/StreetWalk/Shade/ShadeCalculator.swift
+index 0c47636..91ef692 100644
+--- a/ios/StreetWalk/Shade/ShadeCalculator.swift
++++ b/ios/StreetWalk/Shade/ShadeCalculator.swift
+@@ -30,7 +30,7 @@ struct ShadeCalculator {
+         return pts.filter { p in !solidOutlines.contains { Polygon.contains($0, p) } }
+     }
+ 
+-    /// 遮荫比例 0–1。太阳低于 2° 当作全阴。
++    /// 遮荫比例 0–1。太阳低于 2° 当作全阴（只用于排序；文案要分开讲"日落"，见 ShadeService.isSunUp）。
+     func shade(at c: Vec2, sun: SolarPosition) -> Double {
+         guard sun.elevation > 2 else { return 1 }
+         let pts = samplePoints(around: c)
+diff --git a/ios/StreetWalk/Shade/ShadeService.swift b/ios/StreetWalk/Shade/ShadeService.swift
+index 2230a94..529a9be 100644
+--- a/ios/StreetWalk/Shade/ShadeService.swift
++++ b/ios/StreetWalk/Shade/ShadeService.swift
+@@ -8,11 +8,14 @@ final class ShadeService: ShadeProviding {
+     private var landmarks: [String: Vec2]
+     private var cache: [String: Double] = [:]
+ 
++    /// 太阳低于这个高度（度）就当已经落山：没有日晒，不能说"有樓遮"。与 ShadeCalculator 一致。
++    static let sunUpElevation = 2.0
++
+     init(map: MapModel, landmarks: [Landmark]) {
+         calc = ShadeCalculator(map: map)
+         center = map.center
+         self.map = map
+-        self.landmarks = Dictionary(uniqueKeysWithValues: landmarks.map { ($0.id, $0.pos) })
++        self.landmarks = Dictionary(landmarks.map { ($0.id, $0.pos) }, uniquingKeysWith: { a, _ in a })
+     }
+ 
+     func shade(landmarkID: String, at date: Date) -> Double {
+@@ -29,14 +32,31 @@ final class ShadeService: ShadeProviding {
+         return v
+     }
+ 
++    /// 那个时刻太阳是否还在天上。日落后遮荫按 100% 计（排序用），但文案要说"已經日落"，不能说"有樓遮"。
++    func isSunUp(at date: Date) -> Bool {
++        SolarPosition.at(date, lat: center.lat, lon: center.lon).elevation > Self.sunUpElevation
++    }
++
+     /// 某地标当天从几点开始有遮荫（下午优先），用于天气提示。
++    /// 只计太阳高于 5° 的钟点（天黑不算"有樓遮"）；19 点后没有可选的就返回 nil。
+     func shadedFromHour(landmarkID: String, day: Date, after hour: Int) -> Int? {
++        guard hour <= 18 else { return nil }
+         var cal = Calendar(identifier: .gregorian)
+         cal.timeZone = SolarPosition.hongKong
+         let start = cal.startOfDay(for: day)
+-        for h in hour...18 {
+-            if shade(landmarkID: landmarkID, at: start.addingTimeInterval(Double(h) * 3600)) >= 0.6 { return h }
++        for h in stride(from: max(hour, 0), through: 18, by: 1) {
++            let t = start.addingTimeInterval(Double(h) * 3600)
++            guard SolarPosition.at(t, lat: center.lat, lon: center.lon).elevation > 5 else { continue }
++            if shade(landmarkID: landmarkID, at: t) >= 0.6 { return h }
+         }
+         return nil
+     }
++
++    /// 天气提示用：有櫈的地标里哪个最早有楼遮；都没有就选第一个有櫈的（时段为 nil，提示不讲钟点）。
++    func shadeTip(_ landmarks: [Landmark], day: Date, after hour: Int) -> (landmark: Landmark, shadedFrom: Int?)? {
++        let seats = landmarks.filter(\.hasSeat)
++        let best = seats.compactMap { l in shadedFromHour(landmarkID: l.id, day: day, after: hour).map { (l, $0) } }.min { $0.1 < $1.1 }
++        if let best { return (best.0, best.1) }
++        return seats.first.map { ($0, nil) }
++    }
+ }
+diff --git a/ios/StreetWalk/Shade/SolarPosition.swift b/ios/StreetWalk/Shade/SolarPosition.swift
+index 5a8513b..e04a39a 100644
+--- a/ios/StreetWalk/Shade/SolarPosition.swift
++++ b/ios/StreetWalk/Shade/SolarPosition.swift
+@@ -13,8 +13,6 @@ struct SolarPosition {
+         return (cos(el) * sin(az), cos(el) * cos(az), sin(el))
+     }
+ 
+-    var isDaytime: Bool { elevation > 0 }
+-
+     static let hongKong = TimeZone(identifier: "Asia/Hong_Kong")!
+ 
+     static func at(_ date: Date, lat: Double, lon: Double, timeZone: TimeZone = hongKong) -> SolarPosition {
+diff --git a/ios/StreetWalk/Store/AppStore+Find.swift b/ios/StreetWalk/Store/AppStore+Find.swift
+index d0af618..7741eb9 100644
+--- a/ios/StreetWalk/Store/AppStore+Find.swift
++++ b/ios/StreetWalk/Store/AppStore+Find.swift
+@@ -50,7 +50,8 @@ extension AppStore {
+ 
+     func departForAppointment(_ a: Appointment) {
+         // 只有约好咗、对方仍然係街坊先可以出发（非街坊永远唔入场景）。
+-        guard a.status == .accepted, let p = resident(a.partnerID), p.isNeighbor, let lm = landmark(a.landmarkID) else { return }
++        guard a.status == .accepted, let p = resident(a.partnerID), p.isNeighbor else { return }
++        guard let lm = landmark(a.landmarkID) else { toast("搵唔到約會個地點（地圖更新咗），撳「改時間地點」揀過。"); return }
+         let start = myPosition()
+         findRoute = scene.route(from: start, to: scene.nearestWalkable(lm.pos + Vec2(x: -4, y: -3)))
+         let theirStart = landmark(p.homeLandmarkID)?.pos ?? lm.pos
+diff --git a/ios/StreetWalk/Store/AppStore+Map.swift b/ios/StreetWalk/Store/AppStore+Map.swift
+index 7356e8d..0404af7 100644
+--- a/ios/StreetWalk/Store/AppStore+Map.swift
++++ b/ios/StreetWalk/Store/AppStore+Map.swift
+@@ -10,7 +10,10 @@ extension AppStore {
+     }
+ 
+     func loadMap(home: Int64?, animated: Bool) async {
++        mapLoadGen += 1
++        let gen = mapLoadGen
+         loadingMap = true
++        mapNotice = nil
+         // 已经揀咗楼：直接装我屋企嗰格（唔使等定位，喺外面打开都唔会换底座）。
+         let homeTile: TileKey? = {
+             guard case .main = phase, let s = UserDefaults.standard.string(forKey: "homeTile") else { return nil }
+@@ -18,42 +21,100 @@ extension AppStore {
+             return p.count == 2 ? TileKey(ix: p[0], iy: p[1]) : nil
+         }()
+         let loc = homeTile == nil ? await mapService.currentLocation() : nil
+-        let tile = homeTile ?? loc.map(TileKey.snap) ?? TileKey(ix: 0, iy: 0)
+-        let (m, source) = await mapService.load(tile: tile)
++        guard gen == mapLoadGen else { return }
++        let loaded: (MapModel, MapService.Source)
++        if let tile = homeTile ?? loc.map(TileKey.snap) {
++            loaded = await mapService.load(tile: tile)
++        } else {
++            // 拿不到位置：不要假装是你附近，直接用内置示例屋邨，并说明。
++            loaded = (MapService.fallback(), .fallback)
++        }
++        // 等待期间按了「用示例屋邨」或又重新选楼：这次的结果不要。
++        guard gen == mapLoadGen else { return }
++        var (m, source) = loaded
++        // 示意楼（附近没有楼宇资料时放的）按 id 放回原位。
++        if let h = home, let p = MapModel.placeholderPos(h), homeTile == nil || m.tile == homeTile { m = m.addingPlaceholderHome(at: p).map }
+         fullMap = m
+         mapSource = source
+-        var homeID = home.flatMap { id in m.building(id: id) != nil ? id : nil }
+-        if homeID == nil, case .main = phase { homeID = defaultHome(in: m) }
+         if case .onboarding = phase {
+-            // 选楼时也做减法（见 pickView）；选定后再收窄。
+             let me = loc.flatMap { TileKey.snap($0) == m.tile ? LocalProjection(origin: m.center).toLocal($0) : nil }
+-            let v = m.pickView(near: me)
+-            install(v, home: nil, animated: animated)
+-            // 全屏看整个底座（主界面的总览按上半屏调的，这里另算；数值按 300 m 调，再按边长缩放）。
+-            let k = v.size / 300
+-            scene.setCamera(target: Vec2(x: -65 * k, y: 65 * k), distance: Float(2.85 * k), animated: false)
+-            loadingMap = false
+-            phase = .onboarding(.pickHome)
+-            highlightResidential(true)
++            let notice: String? = loc == nil ? "攞唔到你嘅位置，而家用緊示例屋邨（\(m.placeName)）。"
++                : source == .fallback ? "攞唔到地圖資料，而家用緊示例屋邨（\(m.placeName)）。" : nil
++            showPickHome(near: me, notice: notice, animated: animated)
+         } else {
++            var homeID = home.flatMap { id in m.building(id: id) != nil ? id : nil }
++            if homeID == nil {
++                if let t = homeTile, m.tile != t {
++                    // 拉不到我屋企那格（离线又没缓存）：显示示例屋邨，但不把示例的楼当成你屋企。
++                    noticeMap("暫時攞唔到你屋企附近嘅地圖，而家顯示緊示例屋邨。", delay: 1)
++                } else {
++                    homeID = defaultHome(in: m)
++                }
++            }
+             installDiorama(home: homeID, animated: animated)
+             loadingMap = false
+             populate()
+         }
+     }
+ 
+-    /// 以我屋企为中心裁出 300 m 底座并装进场景。
++    /// 选楼一步：附近没有可选的楼就看离我最近那座可选的楼一带；整格都没有（资料不全的新屋邨）就在我的位置放一座示意楼，保证首次使用能走完。
++    private func showPickHome(near me: Vec2?, notice: String?, animated: Bool) {
++        guard var full = fullMap else { return }
++        var notice = notice
++        var v = full.pickView(near: me)
++        if let me, v.hasHomeCandidate {
++            // 画面不是以我为中心（附近没有可选的楼）：讲清楚，免得以为橙色那几座就是我附近。
++            let p = v.scenePoint(LocalProjection(origin: full.center).toGeo(me))
++            if max(abs(p.x), abs(p.y)) > v.half { notice = notice ?? "你附近未有住宅樓資料，而家顯示緊離你最近嘅住宅樓。" }
++        }
++        if !v.hasHomeCandidate {
++            full = full.addingPlaceholderHome(at: me ?? .zero).map
++            fullMap = full
++            v = full.pickView(near: me)
++            notice = "附近未有樓宇資料，喺你位置放咗一座示意樓，撳佢就得。"
++        }
++        install(v, home: nil, animated: animated)
++        // 全屏看整个底座（主界面的总览按上半屏调的，这里另算；数值按 300 m 调，再按边长缩放）。
++        let k = v.size / 300
++        scene.setCamera(target: Vec2(x: -65 * k, y: 65 * k), distance: Float(2.85 * k), animated: false)
++        loadingMap = false
++        phase = .onboarding(.pickHome)
++        highlightResidential(true)
++        // 等「撳一下你住嗰座樓」说完再说。
++        if let notice { noticeMap(notice, delay: 2.5) }
++    }
++
++    /// 等太久时改用内置示例屋邨（给选楼一步的「用示例屋邨」按钮用）。正在拉的地图拉到了也不要。
++    func useSampleMap() {
++        guard case .onboarding = phase else { return }
++        mapLoadGen += 1
++        fullMap = MapService.fallback()
++        mapSource = .fallback
++        pendingHome = nil
++        showPickHome(near: nil, notice: "而家用緊示例屋邨（\(fullMap?.placeName ?? "皇后山邨")）。", animated: true)
++    }
++
++    /// 地图有状况（示例屋邨、示意楼）：mapNotice 留给画面显示，再用提示说一次（字 + 声）。
++    func noticeMap(_ text: String, delay: Double = 0) {
++        mapNotice = text
++        Task { @MainActor in
++            try? await Task.sleep(for: .seconds(delay))
++            if self.mapNotice == text { self.toast(text) }
++        }
++    }
++
++    /// 以我屋企为中心裁出 200 m 底座并装进场景。
+     func installDiorama(home: Int64?, animated: Bool) {
+         guard let full = fullMap else { return }
+-        // 底座中心放在我屋企稍南一点（楼下大堂那边），高楼不会顶住画面上沿。
+         let c = home.flatMap { full.building(id: $0)?.centroid } ?? .zero
+         install(full.simplified(around: c, home: home), home: home, animated: animated)
+     }
+ 
+     func install(_ m: MapModel, home: Int64?, animated: Bool) {
+         map = m
+-        let picked = LandmarkDeriver.settle(LandmarkDeriver.pick(LandmarkDeriver.candidates(in: m)), in: m)
+-        landmarks = picked.map { Landmark(id: $0.id, name: ai.nameLandmark($0), kind: $0.kind, pos: $0.pos, hasSeat: $0.hasSeat) }
++        let picked = LandmarkDeriver.derive(in: m, home: home)
++        let named = picked.map { Landmark(id: $0.id, name: ai.nameLandmark($0), kind: $0.kind, pos: $0.pos, hasSeat: $0.hasSeat) }
++        landmarks = LandmarkDeriver.uniqueNames(named, in: m, home: home)
+         originalLandmarkNames = Dictionary(landmarks.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
+         shade = ShadeService(map: m, landmarks: landmarks)
+         scene.setHomeBuilding(home)
+@@ -67,6 +128,7 @@ extension AppStore {
+         m.buildings.filter { $0.kind == .residential }.min { $0.centroid.length < $1.centroid.length }?.id
+     }
+ 
++    /// 可以选做屋企的楼。选楼画面已把可选的楼标成住宅楼（没有住宅资料时放宽到一般建筑或示意楼，见 MapModel.pickView）。
+     func residentialBuildings() -> [Building] { map?.buildings.filter { $0.kind == .residential } ?? [] }
+ 
+     func highlightResidential(_ on: Bool) {
+@@ -74,7 +136,7 @@ extension AppStore {
+     }
+ 
+     func pickHome(_ id: Int64) {
+-        guard let b = map?.building(id: id), b.kind == .residential else { toast("請揀一座住宅樓"); return }
++        guard let b = map?.building(id: id), b.kind == .residential else { toast("請揀一座亮咗橙色嘅樓"); return }
+         pendingHome = id
+         scene.highlightBuildings([id], color: nil)
+         scene.setCamera(target: b.centroid, distance: 1.2, animated: true)
+@@ -85,7 +147,7 @@ extension AppStore {
+         guard let id = pendingHome else { return }
+         floorChoice = min(floorChoice, max(1, map?.building(id: id)?.levels ?? 30))
+         highlightResidential(false)
+-        // 选好楼：底座收窄到我屋企周围 300 m，楼宇重新"升起"。
++        // 选好楼：底座收窄到我屋企周围 200 m，楼宇重新"升起"。
+         installDiorama(home: id, animated: true)
+         phase = .onboarding(.floor)
+     }
+@@ -100,6 +162,7 @@ extension AppStore {
+         d.set(colorChoice, forKey: "color")
+         highlightResidential(false)
+         scene.highlightBuildings([], color: nil)
++        mapNotice = nil
+         phase = .main
+         homeChanged()
+         populate()
+@@ -125,12 +188,13 @@ extension AppStore {
+                 list[i].receiveRemind = link.receive
+             }
+         }
+-        var meR = Resident(id: "me", name: "你", floor: floorChoice, blockName: scene.homeBuildingID.flatMap { m.building(id: $0)?.name },
++        var meR = Resident(id: "me", name: "你", floor: floorChoice, blockName: scene.homeBuildingID.flatMap(m.homeLabel),
+                            colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 0, todayLine: "", isMe: true)
+         meR.homeLandmarkID = nearestLandmark(to: scene.homeTarget)?.id
+         list.append(meR)
+         residents = list
+         if LaunchArgs.has("-withNeighbor"), !list.isEmpty, !list[0].isMe { residents[0].isNeighbor = true; residents[0].neighborSince = Date() }
++        dropStaleReferences()
+         closeOrphanAppointments()
+         refreshMe()
+         syncScene()
+@@ -138,6 +202,20 @@ extension AppStore {
+         runScriptIfNeeded()
+     }
+ 
++    /// 圈成员变了（关演示模式、清除纪录）：指向已不在圈里、或不再是街坊的人的找人、选中、提议、提醒、复述卡都收起，
++    /// 不会留下关不掉的卡，非街坊也不会留在场景。
++    private func dropStaleReferences() {
++        func neighbor(_ id: String) -> Bool { resident(id)?.isNeighbor == true }
++        if let f = find, !neighbor(f.partnerID) { endFind() }
++        if let p = proposal, !neighbor(p.partnerID) { cancelProposal() }
++        if case .person(let id) = selection, resident(id) == nil { select(nil) }
++        if let id = remindPromptFor, resident(id) == nil { remindPromptFor = nil }
++        switch voiceCard?.intent {
++        case .invite(let id, _, _)?, .goFind(let id)?: if !neighbor(id) { voiceCard = nil }
++        default: break
++        }
++    }
++
+     func nearestLandmark(to p: Vec2) -> Landmark? { landmarks.min { $0.pos.distance(to: p) < $1.pos.distance(to: p) } }
+ 
+     // MARK: - 场景同步（隐私规则在这里落实：非街坊永远不进场景）
+@@ -145,9 +223,19 @@ extension AppStore {
+     func syncScene() {
+         var people: [ScenePerson] = []
+         if let w = walk, find == nil {
+-            people.append(ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility, motion: .route(remainingRoute(w), speed: Self.walkSpeed), label: "你"))
++            // 碰完面再走：从站着的位置沿路走回路线，不要直线穿楼。站着期间进度照走（路线已画到前面），
++            // 所以先用 2.5 倍速追上，再按正常速度走，到屋企时和散步结束同步。
++            let rest = remainingRoute(w), v = Self.walkSpeed
++            var motion = ScenePerson.Motion.route(rest, speed: v)
++            if let cur = scene.personPosition("me"), let first = rest.first, cur.distance(to: first) > 8 {
++                let back = scene.route(from: cur, to: first), fast = v * 2.5
++                // 追上那一刻进度又走了 d：d = v × (走回路线的距离 + d) / fast
++                let (meet, i) = point(along: rest, at: v * pathLength(back) / (fast - v))
++                motion = .catchUp(lead: back + rest.prefix(i + 1).dropFirst() + [meet], fast: fast, rest: [meet] + rest.dropFirst(i + 1), speed: v)
++            }
++            people.append(ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility, motion: motion, label: "你"))
+         }
+-        if let f = find, let p = resident(f.partnerID), let lm = landmark(f.landmarkID) {
++        if let f = find, let p = resident(f.partnerID), p.isNeighbor, let lm = landmark(f.landmarkID) {
+             let myStart = myPosition()
+             people.append(ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility,
+                                       motion: f.stage == .asking || f.stage == .declined ? .stand(at: myStart) : .route(findRoute ?? [myStart, lm.pos], speed: Self.findSpeed), label: "你"))
+@@ -157,9 +245,13 @@ extension AppStore {
+                                       label: p.name, highlighted: true))
+         }
+         if case .found(let id) = bumpStage, let p = resident(id) {
+-            let home = scene.nearestWalkable(scene.homeTarget + Vec2(x: 0, y: -18))
+-            people.append(ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility, motion: .stand(at: home + Vec2(x: -4, y: 0)), label: "你"))
+-            people.append(ScenePerson(id: p.id, color: p.uiColor, mobility: p.mobility, motion: .stand(at: home + Vec2(x: 4, y: 0)), label: "\(p.floorLabel) \(p.name)", highlighted: true))
++            // 两人在碰面的地方并排站：散步中就在我走到的位置，不要跳回屋企。
++            let spot = bumpMeetSpot()
++            people.removeAll { $0.id == "me" }
++            people.append(ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility, motion: .stand(at: spot + Vec2(x: -4, y: 0)), label: "你"))
++            people.append(ScenePerson(id: p.id, color: p.uiColor, mobility: p.mobility, motion: .stand(at: spot + Vec2(x: 4, y: 0)), label: "\(p.floorLabel) \(p.name)", highlighted: true))
++        } else {
++            bumpSpot = nil
+         }
+         let shown = Set(people.map(\.id))
+         for n in outNeighbors where !shown.contains(n.id) {
+@@ -171,6 +263,14 @@ extension AppStore {
+         scene.reportMarks = reports.map { (id: $0.id.uuidString, pos: $0.pos, text: $0.kind.rawValue) }
+     }
+ 
++    /// 碰一碰时两个人见面的位置：散步中是我当时行到的地方，否则是我屋企楼下。碰面期间固定不变。
++    func bumpMeetSpot() -> Vec2 {
++        if let s = bumpSpot { return s }
++        let s = walk != nil && find == nil ? scene.nearestWalkable(myPosition()) : scene.nearestWalkable(scene.homeTarget + Vec2(x: 0, y: -18))
++        bumpSpot = s
++        return s
++    }
++
+     // MARK: - 时间与太阳
+ 
+     func updateSun(animated: Bool) {
+@@ -184,4 +284,26 @@ extension AppStore {
+         refreshWeatherTip()
+         checkAppointments()
+     }
++
++    /// 某地标某时刻的遮荫（0–1）；太阳已经落山就返回 nil（画面显示"—"，不说"100% 有樓遮"）。
++    func shadeValue(_ landmarkID: String, at date: Date) -> Double? {
++        guard let shade, shade.isSunUp(at: date) else { return nil }
++        return shade.shade(landmarkID: landmarkID, at: date)
++    }
++
++    /// 地标信息卡的遮荫一句（图标 + 文字）。日落后说"太陽落咗山"。
++    func shadeFact(_ landmarkID: String) -> (symbol: String, text: String) {
++        guard shade != nil else { return ("sun.max.fill", "而家大約 0% 有樓遮") }
++        guard let v = shadeValue(landmarkID, at: now) else { return ("moon.stars.fill", "太陽落咗山，冇得曬") }
++        let pct = Int((v * 100).rounded())
++        return (pct >= 50 ? "building.2.fill" : "sun.max.fill", "而家大約 \(pct)% 有樓遮")
++    }
++
++    /// 约人理由：模板按遮荫写"嗰陣有樓遮住"，但日落后遮荫按 100% 计，要改成"嗰陣已經日落"。
++    func honestReason(_ p: MeetProposal) -> MeetProposal {
++        guard let shade, !shade.isSunUp(at: p.date) else { return p }
++        var p = p
++        p.reason = p.reason.replacingOccurrences(of: "嗰陣有樓遮住", with: "嗰陣已經日落")
++        return p
++    }
+ }
+diff --git a/ios/StreetWalk/Store/AppStore+Meetup.swift b/ios/StreetWalk/Store/AppStore+Meetup.swift
+index 715ef85..ff5475b 100644
+--- a/ios/StreetWalk/Store/AppStore+Meetup.swift
++++ b/ios/StreetWalk/Store/AppStore+Meetup.swift
+@@ -9,11 +9,11 @@ extension AppStore {
+         guard p.isNeighbor else { toast("你同\(p.floorLabel)仲未係街坊。見到面碰一碰，先可以約。"); return }
+         var options: [MeetProposal] = []
+         for (d, h) in candidateTimes(day: day, hour: hour) {
+-            if let prop = ai.pickMeetupSpot(me: me, partner: p, date: Self.today(at: Double(h), dayOffset: d), landmarks: landmarks, shade: shade) {
++            if let prop = ai.pickMeetupSpot(me: me, partner: p, date: Self.today(at: Double(h), dayOffset: d), landmarks: landmarks, shade: shade).map(honestReason) {
+                 options.append(prop)
+             }
+         }
+-        guard !options.isEmpty else { return }
++        guard !options.isEmpty else { toast("附近未有合適嘅地標，暫時約唔到。"); return }
+         proposal = Proposal(partnerID: partnerID, options: options, index: 0)
+         scene.highlightLandmark(options[0].landmarkID)
+         focus(onLandmark: options[0].landmarkID)
+@@ -53,7 +53,8 @@ extension AppStore {
+             let a = ($0.hasSeat ? 1 : 0, shade.shade(landmarkID: $0.id, at: cur.date)), b = ($1.hasSeat ? 1 : 0, shade.shade(landmarkID: $1.id, at: cur.date))
+             return a != b ? a > b : $0.id < $1.id
+         }
+-        guard let i = ranked.firstIndex(where: { $0.id == cur.landmarkID }) ?? ranked.indices.first, ranked.count > 1 else { return }
++        guard ranked.count > 1 else { toast("附近只有一個地標，換唔到第二個。"); return }
++        guard let i = ranked.firstIndex(where: { $0.id == cur.landmarkID }) ?? ranked.indices.first else { return }
+         let next = ranked[(i + 1) % ranked.count]
+         p.options[p.index] = MeetProposal(date: cur.date, landmarkID: next.id, reason: reason(for: next, at: cur.date))
+         proposal = p
+@@ -65,7 +66,7 @@ extension AppStore {
+     /// 地点理由：遮荫按画面上的楼大约计（唔计树荫）。
+     func reason(for l: Landmark, at d: Date) -> String {
+         let s = shade?.shade(landmarkID: l.id, at: d) ?? 0
+-        return (s >= 0.5 ? "嗰陣有樓遮住" : "嗰陣會曬") + (l.hasSeat ? "、有櫈" : "")
++        return (shade?.isSunUp(at: d) == false ? "嗰陣已經日落" : s >= 0.5 ? "嗰陣有樓遮住" : "嗰陣會曬") + (l.hasSeat ? "、有櫈" : "")
+     }
+ 
+     func confirmProposal() {
+@@ -119,7 +120,7 @@ extension AppStore {
+         for (d, h) in candidateTimes(day: nil, hour: nil) {
+             let date = Self.today(at: Double(h), dayOffset: d)
+             guard abs(date.timeIntervalSince(a.date)) > 1800 else { continue }
+-            if let prop = ai.pickMeetupSpot(me: me, partner: p, date: date, landmarks: landmarks, shade: shade) { options.append(prop) }
++            if let prop = ai.pickMeetupSpot(me: me, partner: p, date: date, landmarks: landmarks, shade: shade).map(honestReason) { options.append(prop) }
+         }
+         proposal = Proposal(partnerID: a.partnerID, options: options, index: 0, editing: id)
+         scene.highlightLandmark(a.landmarkID)
+@@ -200,7 +201,7 @@ extension AppStore {
+         }
+         let h = Self.hk.component(.hour, from: now) < 15 ? 16 : 8
+         let day = h == 8 ? 1 : 0
+-        guard let opt = ai.pickMeetupSpot(me: me, partner: p, date: Self.today(at: Double(h), dayOffset: day), landmarks: landmarks, shade: shade) else { return }
++        guard let opt = ai.pickMeetupSpot(me: me, partner: p, date: Self.today(at: Double(h), dayOffset: day), landmarks: landmarks, shade: shade).map(honestReason) else { return }
+         localCommunity?.simulateInvite(Appointment(partnerID: id, date: opt.date, landmarkID: opt.landmarkID, reason: opt.reason, status: .waiting, fromPartner: true))
+     }
+ 
+diff --git a/ios/StreetWalk/Store/AppStore+Neighbors.swift b/ios/StreetWalk/Store/AppStore+Neighbors.swift
+index 11d0bb2..58fb1b7 100644
+--- a/ios/StreetWalk/Store/AppStore+Neighbors.swift
++++ b/ios/StreetWalk/Store/AppStore+Neighbors.swift
+@@ -12,7 +12,7 @@ extension AppStore {
+             self.bumpStage = .found(r.id)
+             self.speaker.speak("你同\(r.floorLabel)\(r.name)而家係街坊。")
+             self.syncScene()
+-            self.scene.setCamera(target: self.scene.homeTarget + Vec2(x: 0, y: -18), distance: self.scene.overviewDistance * 0.7, animated: true, duration: 1.0)
++            self.scene.setCamera(target: self.bumpMeetSpot(), distance: self.scene.overviewDistance * 0.7, animated: true, duration: 1.0)
+             Task { @MainActor in
+                 try? await Task.sleep(for: .seconds(2.6))
+                 self.remindPromptFor = r.id
+diff --git a/ios/StreetWalk/Store/AppStore+Places.swift b/ios/StreetWalk/Store/AppStore+Places.swift
+index f25248b..6d275d4 100644
+--- a/ios/StreetWalk/Store/AppStore+Places.swift
++++ b/ios/StreetWalk/Store/AppStore+Places.swift
+@@ -125,9 +125,8 @@ extension AppStore {
+         var advice: String?
+         if let shade {
+             let hour = Self.hk.component(.hour, from: now)
+-            let seat = landmarks.first(where: \.hasSeat)
+-            let tip = seat.map { ($0, shade.shadedFromHour(landmarkID: $0.id, day: now, after: max(hour, 14))) }
+-            advice = ai.walkAdvice(weather: weather, now: now, shadeTip: tip.map { (landmark: $0.0, shadedFrom: $0.1) })
++            let tip = shade.shadeTip(landmarks, day: now, after: max(hour, 14))
++            advice = ai.walkAdvice(weather: weather, now: now, shadeTip: tip)
+         }
+         guard !hko.demoOverride, let r = hko.report else {
+             // "天文台話"只留给真实数据；演示选的天气唔好冒认天文台
+diff --git a/ios/StreetWalk/Store/AppStore.swift b/ios/StreetWalk/Store/AppStore.swift
+index d7b116a..f304561 100644
+--- a/ios/StreetWalk/Store/AppStore.swift
++++ b/ios/StreetWalk/Store/AppStore.swift
+@@ -91,6 +91,12 @@ final class AppStore: NeighborRegistry {
+     var remindAll = UserDefaults.standard.object(forKey: "remindAll") as? Bool ?? true { didSet { UserDefaults.standard.set(remindAll, forKey: "remindAll") } }
+     var remindFrom = UserDefaults.standard.object(forKey: "remindFrom") as? Int ?? 7 { didSet { UserDefaults.standard.set(remindFrom, forKey: "remindFrom") } }
+     var remindTo = UserDefaults.standard.object(forKey: "remindTo") as? Int ?? 21 { didSet { UserDefaults.standard.set(remindTo, forKey: "remindTo") } }
++    /// 地图有状况时的一句说明（示例屋邨、示意楼、拿不到位置），选楼画面可以显示；见 AppStore+Map。
++    var mapNotice: String?
++    /// 第几次装地图：等网络时改用示例屋邨或重新选楼，旧的结果就不要。
++    @ObservationIgnored var mapLoadGen = 0
++    /// 碰一碰时两个人见面的位置（碰面期间固定）。
++    @ObservationIgnored var bumpSpot: Vec2?
+ 
+     var me: Resident { residents.first { $0.isMe } ?? Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true) }
+     var neighbors: [Resident] { residents.filter { $0.isNeighbor && !$0.isMe } }
+diff --git a/ios/StreetWalk/Store/DemoScript.swift b/ios/StreetWalk/Store/DemoScript.swift
+index df24722..cbfa58a 100644
+--- a/ios/StreetWalk/Store/DemoScript.swift
++++ b/ios/StreetWalk/Store/DemoScript.swift
+@@ -14,7 +14,8 @@ extension AppStore {
+         Task { @MainActor in
+             while map == nil || residents.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+             let t0 = Date()
+-            func step(_ at: Double, _ name: String, _ action: () -> Void) async {
++            // 必须 @MainActor：否则 sleep 之后在后台线程恢复，脚本动作会在后台改 store 和场景（界面不刷新、数据竞争）。
++            @MainActor func step(_ at: Double, _ name: String, _ action: () -> Void) async {
+                 let wait = at - Date().timeIntervalSince(t0)
+                 if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+                 print("[script] t=\(Int(at)) \(name)")
+@@ -79,7 +80,7 @@ extension AppStore {
+             print("[script] 同意"); consent()
+             while map == nil || loadingMap { try? await Task.sleep(for: .milliseconds(200)) }
+             try? await Task.sleep(for: .seconds(4))
+-            if let b = residentialBuildings().first(where: { $0.name != nil }) { print("[script] 揀樓"); pickHome(b.id) }
++            if let b = residentialBuildings().first(where: { $0.name != nil }) ?? residentialBuildings().first { print("[script] 揀樓"); pickHome(b.id) }
+             try? await Task.sleep(for: .seconds(4))
+             print("[script] 確認"); confirmHome()
+             try? await Task.sleep(for: .seconds(4))
+diff --git a/ios/StreetWalk/UI/Cards.swift b/ios/StreetWalk/UI/Cards.swift
+index 3a4e247..702a006 100644
+--- a/ios/StreetWalk/UI/Cards.swift
++++ b/ios/StreetWalk/UI/Cards.swift
+@@ -202,7 +202,8 @@ struct InfoCard: View {
+ 
+     @ViewBuilder private func facts(_ lm: Landmark, shade: Int) -> some View {
+         CardFact(symbol: lm.hasSeat ? "chair.lounge.fill" : "chair.lounge", text: lm.hasSeat ? "有櫈" : "冇櫈")
+-        CardFact(symbol: shade >= 50 ? "building.2.fill" : "sun.max.fill", text: "而家大約 \(shade)% 有樓遮")
++        let fact = store.shadeFact(lm.id)
++        CardFact(symbol: fact.symbol, text: fact.text)
+             .contentTransition(.numericText(value: Double(shade)))
+             .animation(DS.motion(DS.snappy), value: shade)
+     }
+diff --git a/ios/StreetWalk/UI/Demo.swift b/ios/StreetWalk/UI/Demo.swift
+index 2bfbae9..38d3b54 100644
+--- a/ios/StreetWalk/UI/Demo.swift
++++ b/ios/StreetWalk/UI/Demo.swift
+@@ -158,7 +158,7 @@ struct TimeSliderSheet: View {
+     }
+ 
+     private func shadeRow(_ lm: Landmark, _ h: Double) -> some View {
+-        let v = store.shade?.shade(landmarkID: lm.id, at: AppStore.today(at: h))
++        let v = store.shadeValue(lm.id, at: AppStore.today(at: h))
+         let pct = Int(((v ?? 0) * 100).rounded())
+         return HStack(spacing: 12) {
+             Image(systemName: "mappin.circle.fill")
+diff --git a/ios/StreetWalkTests/mapTests.swift b/ios/StreetWalkTests/mapTests.swift
+new file mode 100644
+index 0000000..c3c5cf7
+--- /dev/null
++++ b/ios/StreetWalkTests/mapTests.swift
+@@ -0,0 +1,258 @@
++import Foundation
++import Testing
++@testable import StreetWalk
++
++// 地图、场景与遮荫的回归测试（2026-10-08 审核修正：A01 A08 A25 A26 A29 A32 A98 A99 A100；10-09 复核补充）。
++
++private func hk(_ s: String) -> Date { SunShadeTests.hk(s) }
++
++private func box(_ id: Int64, _ x: Double, _ y: Double, w: Double = 20, d: Double = 14, name: String? = nil,
++                 kind: BuildingKind = .residential, height: Double = 30) -> Building {
++    Building(id: id, name: name, outline: [Vec2(x: x - w / 2, y: y - d / 2), Vec2(x: x + w / 2, y: y - d / 2),
++                                           Vec2(x: x + w / 2, y: y + d / 2), Vec2(x: x - w / 2, y: y + d / 2)],
++             minHeight: 0, height: height, levels: Int(height / 3), kind: kind)
++}
++
++private func rect(_ x0: Double, _ y0: Double, _ x1: Double, _ y1: Double) -> [Vec2] {
++    [Vec2(x: x0, y: y0), Vec2(x: x1, y: y0), Vec2(x: x1, y: y1), Vec2(x: x0, y: y1)]
++}
++
++private func testMap(_ buildings: [Building], areas: [Area] = [], roads: [Road] = [], size: Double = 560) -> MapModel {
++    MapModel(tile: TileKey(ix: 0, iy: 0), center: GeoPoint(lat: 22.5044, lon: 114.1563), size: size, buildings: buildings,
++             roads: roads, areas: areas, pois: [], trees: [], fetchedAt: Date(), source: "t")
++}
++
++@MainActor
++struct ShadeHourTests {
++    let full = MapService.fallback()
++
++    func service() -> (ShadeService, Landmark) {
++        let home = full.buildings.filter { $0.kind == .residential }.min { $0.centroid.length < $1.centroid.length }!
++        let m = full.simplified(around: home.centroid, home: home.id)
++        let lm = LandmarkDeriver.derive(in: m, home: home.id).map { Landmark(id: $0.id, name: "x", kind: $0.kind, pos: $0.pos, hasSeat: $0.hasSeat) }
++        return (ShadeService(map: m, landmarks: lm), lm[0])
++    }
++
++    @Test func 夜晚问几点有遮荫唔会闪退() {
++        let (s, lm) = service()
++        let day = hk("2026-10-08 20:00")
++        #expect(s.shadedFromHour(landmarkID: lm.id, day: day, after: 19) == nil)
++        #expect(s.shadedFromHour(landmarkID: lm.id, day: day, after: 23) == nil)
++    }
++
++    @Test func 天黑唔算有樓遮() {
++        let (s, lm) = service()
++        let day = hk("2026-12-21 10:00")
++        // 冬至 18:00 太阳已经落山：就算遮荫按 100% 计，也不能答"6 點後有樓遮住"。
++        if let h = s.shadedFromHour(landmarkID: lm.id, day: day, after: 14) {
++            let el = SolarPosition.at(AppStore.hk.startOfDay(for: day).addingTimeInterval(Double(h) * 3600), lat: 22.5044, lon: 114.1563).elevation
++            #expect(el > 5, "返回嘅钟点 \(h) 太阳要喺天上")
++        }
++        #expect(!s.isSunUp(at: hk("2026-10-08 19:00")))
++        #expect(!s.isSunUp(at: hk("2026-12-21 18:00")))
++        #expect(s.isSunUp(at: hk("2026-10-08 15:00")))
++    }
++}
++
++@MainActor
++struct DioramaFixTests {
++    let full = MapService.fallback()
++    let ai = TemplateAI()
++
++    @Test func 细屋做屋企都留喺底座() {
++        // 9×7 m 斜放的村屋：转正后外接矩形内缩 2.5 m 不够 4 m，以前会被丢掉。
++        let a = 0.4
++        let pts = [Vec2(x: -4.5, y: -3.5), Vec2(x: 4.5, y: -3.5), Vec2(x: 4.5, y: 3.5), Vec2(x: -4.5, y: 3.5)]
++            .map { Vec2(x: $0.x * cos(a) - $0.y * sin(a) + 30, y: $0.x * sin(a) + $0.y * cos(a) + 20) }
++        let house = Building(id: 7, name: nil, outline: pts, minHeight: 0, height: 9, levels: 3, kind: .residential)
++        let m = testMap([house, box(8, -40, -30), box(9, 60, 50)])
++        let d = m.simplified(around: house.centroid, home: house.id)
++        let kept = d.buildings.first { $0.id == house.id }
++        #expect(kept != nil, "我屋企一定保留")
++        if let k = kept {
++            let xs = k.outline.map(\.x), ys = k.outline.map(\.y)
++            #expect(xs.max()! - xs.min()! >= 7.9 && ys.max()! - ys.min()! >= 7.9, "最少 8×8 m")
++        }
++        // 示例屋邨里每座可选的楼都一样。
++        for b in full.pickView(near: nil).buildings where b.kind == .residential {
++            #expect(full.simplified(around: full.building(id: b.id)!.centroid, home: b.id).buildings.contains { $0.id == b.id })
++        }
++    }
++
++    @Test func 地标三个以上而且唔撞名() {
++        for h in full.buildings where h.kind == .residential {
++            let d = full.simplified(around: h.centroid, home: h.id)
++            let picked = LandmarkDeriver.derive(in: d, home: h.id)
++            let named = LandmarkDeriver.uniqueNames(picked.map { Landmark(id: $0.id, name: ai.nameLandmark($0), kind: $0.kind, pos: $0.pos, hasSeat: $0.hasSeat) }, in: d)
++            #expect(named.count >= 3, "\(h.name ?? "#\(h.id)") 只有 \(named.count) 个地标")
++            #expect(Set(named.map(\.name)).count == named.count, "\(h.name ?? "#\(h.id)") 地标撞名：\(named.map(\.name))")
++            #expect(Set(named.map(\.id)).count == named.count)
++        }
++    }
++
++    @Test func 撞名加附近楼名() {
++        let d = testMap([box(1, 0, 30, name: "17座")], size: 200)
++        let l = [Landmark(id: "a", name: "公園櫈仔", kind: .park, pos: Vec2(x: 0, y: 0), hasSeat: true),
++                 Landmark(id: "b", name: "公園櫈仔", kind: .park, pos: Vec2(x: 5, y: 15), hasSeat: true),
++                 Landmark(id: "c", name: "公園櫈仔", kind: .park, pos: Vec2(x: -80, y: -80), hasSeat: true)]
++        let u = LandmarkDeriver.uniqueNames(l, in: d).map(\.name)
++        #expect(u == ["公園櫈仔", "17座旁公園櫈仔", "公園櫈仔（二）"])
++    }
++
++    @Test func 面状地标id用OSM编号() {
++        // 两座不同的屋企各自裁底座：面状地标的 id 是 OSM 编号，而且指向整格里同一块地（不再是裁切后的下标）。
++        func toFull(_ v: Vec2, from d: MapModel) -> Vec2 {
++            let cs = cos(-d.rotation), sn = sin(-d.rotation)
++            return full.scenePoint(LocalProjection(origin: d.center).toGeo(Vec2(x: v.x * cs - v.y * sn, y: v.x * sn + v.y * cs)))
++        }
++        var checked = 0
++        for h in full.buildings where h.kind == .residential {
++            let d = full.simplified(around: h.centroid, home: h.id)
++            for c in LandmarkDeriver.candidates(in: d) where c.kind == .park || c.kind == .pitch {
++                let n = Int64(c.id.split(separator: "-").last!)
++                let area = full.areas.first { $0.osmID != nil && $0.osmID == n }
++                #expect(area != nil, "\(c.id) 唔系 OSM 编号")
++                if let a = area {
++                    #expect(LandmarkDeriver.distance(from: toFull(c.pos, from: d), to: a.outline) < 40, "\(c.id) 指向唔同地方")
++                    checked += 1
++                }
++            }
++        }
++        #expect(checked > 10)
++    }
++
++    @Test func 地名用屋苑名唔用公厕() {
++        let estate = Area(kind: .residential, outline: rect(-40, -40, 40, 40), name: "逸東邨", osmID: 5)
++        let m = testMap([box(1, 0, 0, name: "德逸樓"), box(2, 150, 150, name: "石湖新村公廁", kind: .other)], areas: [estate])
++        #expect(m.placeName == "逸東邨")
++        #expect(m.placeName(near: Vec2(x: 70, y: 60)) == "德逸樓", "屋苑外：底座内最近的有名住宅楼")
++        let lonely = testMap([box(2, 0, 0, name: "石湖新村公廁", kind: .other)])
++        #expect(lonely.placeName == "你附近", "公厕、商场的名唔用")
++    }
++
++    @Test func 冇住宅楼时都有楼可以揀() {
++        // 村屋只标 building=yes：放宽到一般建筑。
++        let village = testMap([box(1, 10, 10, kind: .other), box(2, -40, 30, kind: .other), box(3, 0, -60, kind: .small)])
++        let v = village.pickView(near: Vec2(x: 5, y: 5))
++        #expect(v.hasHomeCandidate)
++        #expect(!v.buildings.contains { $0.id == 3 && $0.kind == .residential }, "细屋唔畀揀")
++        // 一座楼都没有：示意楼放在我的位置，下次启动按 id 放回原位。
++        let empty = testMap([box(3, 0, -60, kind: .small)])
++        #expect(!empty.pickView(near: .zero).hasHomeCandidate)
++        let p = Vec2(x: 123.4, y: -87.6)
++        let (withHome, id) = empty.addingPlaceholderHome(at: p)
++        #expect(MapModel.placeholderPos(id) == Vec2(x: 123, y: -88))
++        #expect(MapModel.placeholderPos(659677269) == nil)
++        #expect(withHome.pickView(near: p).buildings.contains { $0.id == id && $0.kind == .residential })
++        #expect(withHome.simplified(around: withHome.building(id: id)!.centroid, home: id).buildings.contains { $0.id == id })
++    }
++
++    @Test func 酒店高楼唔当住宅() {
++        // 天水围银座：25 层的酒店（building=hotel）以前被当成"只标 building=yes 的住宅高楼"可以选。
++        let hotel = OSMParser.makeBuilding(id: 1, type: "hotel", tags: ["building": "hotel", "building:levels": "25"], name: "第二期", outline: rect(-10, -8, 10, 8))
++        #expect(hotel.kind == .commercial)
++        let tall = OSMParser.makeBuilding(id: 2, type: "yes", tags: ["building": "yes", "building:levels": "30"], name: nil, outline: rect(30, -8, 50, 8))
++        let v = testMap([hotel, tall]).pickView(near: .zero)
++        #expect(v.buildings.contains { $0.id == 2 && $0.kind == .residential }, "只标 building=yes 的高楼可以揀")
++        #expect(!v.buildings.contains { $0.id == 1 && $0.kind == .residential }, "酒店唔畀揀")
++    }
++
++    @Test func 太近格边嘅楼唔畀揀() {
++        // 720 m 一格：离格心 300 m 的楼做屋企，200 m 底座会超出资料范围。
++        let m = testMap([box(1, 0, 0), box(2, 300, 0)], size: 720)
++        let v = m.pickView(near: nil)
++        #expect(v.buildings.contains { $0.id == 1 && $0.kind == .residential })
++        #expect(!v.buildings.contains { $0.id == 2 && $0.kind == .residential })
++    }
++
++    @Test func 寻路唔行水() {
++        // 一个水池挡在起点和终点中间：路线要绕过去。
++        let pond = Area(kind: .water, outline: rect(-30, -60, 30, 60), name: nil, osmID: 9)
++        let m = testMap([], areas: [pond], roads: [Road(kind: .residential, points: [Vec2(x: -90, y: -95), Vec2(x: 90, y: -95)], width: 7)], size: 200)
++        let grid = PathGrid(map: m)
++        let path = grid.path(from: Vec2(x: -60, y: 0), to: Vec2(x: 60, y: 0))
++        #expect(path.count > 2)
++        #expect(!path.dropFirst().dropLast().contains { Polygon.contains(pond.outline, $0) }, "路线穿过水面")
++    }
++
++    @Test func 示意樓唔借远处嘅楼名() {
++        // 鳳凰嶺：示意楼 180 m 外才有"第五座"，不在底座里，地名不能叫"第五座"，设定页显示"示意樓"。
++        let (m, id) = testMap([box(1, 180, 0, name: "第五座")], size: 720).addingPlaceholderHome(at: .zero)
++        let d = m.simplified(around: m.building(id: id)!.centroid, home: id)
++        #expect(d.placeName == "你附近")
++        #expect(d.homeLabel(id) == "示意樓")
++        #expect(testMap([box(1, 60, 0, name: "第五座")]).placeName(near: .zero) == "第五座", "底座里面的有名住宅楼照用")
++    }
++
++    @Test func 工厦货仓唔当住宅() {
++        // 旺角：标 building=industrial 又有 12 层的工厦，以前当成"只标 yes 的住宅高楼"亮橙色。
++        let factory = OSMParser.makeBuilding(id: 1, type: "industrial", tags: ["building": "industrial", "building:levels": "12"], name: nil, outline: rect(-10, -8, 10, 8))
++        let tall = OSMParser.makeBuilding(id: 2, type: "yes", tags: ["building": "yes", "building:levels": "20"], name: nil, outline: rect(30, -8, 50, 8))
++        let flat = OSMParser.makeBuilding(id: 3, type: "apartments", tags: ["building": "apartments"], name: nil, outline: rect(-50, 20, -30, 34))
++        let v = testMap([factory, tall, flat]).pickView(near: .zero)
++        #expect(v.buildings.contains { $0.id == 2 && $0.kind == .residential })
++        #expect(v.buildings.contains { $0.id == 3 && $0.kind == .residential })
++        #expect(!v.buildings.contains { $0.id == 1 && $0.kind == .residential }, "工厦唔畀揀")
++    }
++
++    @Test func 附近冇住宅楼就近放宽() {
++        // 天水围：我在商场旁，住宅楼在 250 m 外。附近的一般建筑可以揀，不会只剩远处那几座。
++        let m = testMap([box(1, 20, 10, kind: .commercial, height: 12), box(2, 250, 0)], size: 720)
++        let v = m.pickView(near: .zero)
++        #expect(v.size == MapModel.pickSize)
++        #expect(v.buildings.contains { $0.id == 1 && $0.kind == .residential })
++    }
++
++    @Test func 附近乜都冇就睇最近嗰座() {
++        // 附近 150 m 内一座楼都没有：不要退回整格（720 m 时楼细到点不到），看最近那座可选的楼一带。
++        let m = testMap([box(1, 0, -10, kind: .small), box(2, 230, 40)], size: 720)
++        let v = m.pickView(near: .zero)
++        #expect(v.size == MapModel.pickSize)
++        #expect(v.buildings.contains { $0.id == 2 && $0.kind == .residential })
++    }
++
++    @Test func 转咗向近格边嘅楼唔畀揀() {
++        // 270 m：不转时只出界一条 10 m 窄边，可以；近格角、附近的楼斜 45°：底座转正后两个角各出界约 50 m，不给选。
++        func diamond(_ id: Int64, _ x: Double, _ y: Double) -> Building {
++            Building(id: id, name: nil, outline: [Vec2(x: x, y: y - 12), Vec2(x: x + 12, y: y), Vec2(x: x, y: y + 12), Vec2(x: x - 12, y: y)],
++                     minHeight: 0, height: 30, levels: 10, kind: .residential)
++        }
++        #expect(testMap([box(1, 270, 0)], size: 720).dioramaFits(at: Vec2(x: 270, y: 0)))
++        let tilted = testMap([diamond(1, 270, 270), diamond(2, 250, 230)], size: 720)
++        #expect(!tilted.dioramaFits(at: Vec2(x: 270, y: 270)))
++        #expect(tilted.dioramaFits(at: Vec2(x: 100, y: 80)))
++    }
++
++    @Test func 冇名嘅楼下唔叫大堂() {
++        // 古洞村屋：我屋企和隔篱屋都没有名。我屋企叫"你屋企樓下"，隔篱叫"21座旁"，不再是"大堂""大堂（二）"。
++        let d = testMap([box(1, 0, 0), box(2, 60, 0), box(3, 60, 30, name: "21座")], size: 200)
++        let l = [Landmark(id: "lobby-1", name: "大堂", kind: .lobby, pos: Vec2(x: 0, y: -12), hasSeat: false),
++                 Landmark(id: "lobby-2", name: "大堂", kind: .lobby, pos: Vec2(x: 60, y: -12), hasSeat: false),
++                 Landmark(id: "lobby-3", name: "21座樓下", kind: .lobby, pos: Vec2(x: 60, y: 42), hasSeat: false)]
++        #expect(LandmarkDeriver.uniqueNames(l, in: d, home: 1).map(\.name) == ["你屋企樓下", "21座旁", "21座樓下"])
++    }
++
++    @Test func 地标唔够用底座外嘅巴士站() {
++        // 只有我屋企一座楼：楼下 1 个 + 底座外 40 m 的巴士站（放在底座边）+ 公园。
++        var m = testMap([box(1, 0, 0)], areas: [Area(kind: .park, outline: rect(-90, -90, -40, -40), name: nil, osmID: 7)], size: 720)
++        m.pois = [POI(id: 5, kind: .busStop, name: "古洞", pos: Vec2(x: 140, y: 10))]
++        let d = m.simplified(around: .zero, home: 1)
++        let picked = LandmarkDeriver.derive(in: d, home: 1)
++        #expect(picked.count >= 3, "\(picked.map(\.id))")
++        let bus = picked.first { $0.kind == .busStop }
++        #expect(bus != nil)
++        if let b = bus { #expect(max(abs(b.pos.x), abs(b.pos.y)) <= d.half - 10) }
++    }
++
++    @Test func 写新快取会删旧格() throws {
++        let t = TileKey(ix: 9_999, iy: 9_999)
++        let v1 = TileCache.dir.appendingPathComponent("v1", isDirectory: true)
++        try FileManager.default.createDirectory(at: v1, withIntermediateDirectories: true)
++        let old = v1.appendingPathComponent("\(t).json")
++        try Data("{}".utf8).write(to: old)
++        TileCache.write(t, Data("{\"elements\":[]}".utf8))
++        #expect(!FileManager.default.fileExists(atPath: old.path), "写了 v2 就删 v1")
++        #expect(TileCache.read(t)?.size == MapService.fetchSize)
++        try? FileManager.default.removeItem(at: TileCache.dir.appendingPathComponent("v2/\(t).json"))
++    }
++}
+diff --git a/ios/tools/selftest.sh b/ios/tools/selftest.sh
+index 0f05422..927e0df 100755
+--- a/ios/tools/selftest.sh
++++ b/ios/tools/selftest.sh
+@@ -1,5 +1,6 @@
+ #!/bin/sh
+ # 在 Mac 上编译运行核心逻辑自测（地图解析、地标、太阳位置、遮荫），不需要模拟器。
++# 可选：STREETWALK_TILES=<放 v1/、v2/ 实时格子缓存的目录> ./tools/selftest.sh，再用实时格子检查选楼、地名、地标。
+ set -e
+ cd "$(dirname "$0")/.."
+ OUT=$(mktemp -d)/selftest
+diff --git a/ios/tools/selftest/main.swift b/ios/tools/selftest/main.swift
+index 210064b..72eb1bd 100644
+--- a/ios/tools/selftest/main.swift
++++ b/ios/tools/selftest/main.swift
+@@ -38,27 +38,73 @@ for i in 0..<picked.count { for j in (i + 1)..<picked.count { minGap = min(minGa
+ check(minGap >= 30, "最小间隔 \(Int(minGap)) m")
+ 
+ print("Diorama")
+-var worstClear = Double.infinity, maxGreen = 0.0, names: Set<String> = []
++var worstClear = Double.infinity, maxGreen = 0.0, wrongNames: [String] = [], dropped = 0, fewLandmarks = 0
++let estates = map.areas.filter { $0.kind == .residential && $0.name != nil }
+ for h in map.buildings where h.kind == .residential {
+     let d = map.simplified(around: h.centroid, home: h.id)
+-    names.insert(d.placeName)
++    // 地名：屋企所在的屋苑（住宅用地）名，否则是整个邨名。
++    let expected = estates.first { Polygon.contains($0.outline, h.centroid) }?.name ?? "皇后山邨"
++    if d.placeName != expected { wrongNames.append("\(h.name ?? "#\(h.id)")→\(d.placeName)") }
++    if !d.buildings.contains(where: { $0.id == h.id }) { dropped += 1 }
+     maxGreen = max(maxGreen, d.areas.map { Polygon.area($0.outline) / (d.size * d.size) }.max() ?? 0)
+-    for c in LandmarkDeriver.settle(LandmarkDeriver.pick(LandmarkDeriver.candidates(in: d)), in: d) {
++    let lms = LandmarkDeriver.derive(in: d, home: h.id)
++    if lms.count < 3 || Set(lms.map(\.id)).count != lms.count { fewLandmarks += 1 }
++    for c in lms {
+         worstClear = min(worstClear, d.buildings.map { LandmarkDeriver.distance(from: c.pos, to: $0.outline) }.min() ?? .infinity)
+     }
+ }
+-check(names == ["皇后山邨"], "裁切后地名沿用整格：\(names.sorted())")
++check(wrongNames.isEmpty, "底座地名用屋企所在屋苑 / 邨名（错 \(wrongNames)）")
++check(dropped == 0, "每座住宅楼做屋企时都留喺底座（漏 \(dropped)）")
++check(fewLandmarks == 0, "每个底座都有 3 个以上、id 唔重复嘅地标（唔够 \(fewLandmarks)）")
+ check(maxGreen <= 0.2001, "单块绿地最多占底座 \(Int(maxGreen * 100))%")
+ check(worstClear >= 7.9, "地标离楼最近 \(String(format: "%.1f", worstClear)) m")
+ let pickView = map.pickView(near: .zero)
+ check(pickView.buildings.filter { $0.kind == .residential }.count <= 10 && pickView.buildings.filter { $0.kind != .residential }.count <= 3,
+       "选楼画面 \(pickView.buildings.count) 座楼（住宅 \(pickView.buildings.filter { $0.kind == .residential }.count)）")
+-// 站在每座住宅楼：自己那座一定选得到；没有位置时整格的住宅楼都选得到。
+-let allHomes = map.simplified(around: .zero, size: map.size, maxBuildings: nil).buildings.filter { $0.kind == .residential }.map(\.id)
+-let missing = allHomes.filter { id in !map.pickView(near: map.building(id: id)!.centroid).buildings.contains { $0.id == id } }
+-check(missing.isEmpty, "站在 \(allHomes.count) 座住宅楼，自己那座都在选楼画面（漏 \(missing.count)）")
+-let noLoc = Set(map.pickView(near: nil).buildings.map(\.id))
++// 站在每座住宅楼：自己那座一定选得到；没有位置时整格的住宅楼都选得到（离格心太远、底座会出界的除外）。
++let allHomes = map.simplified(around: .zero, size: map.size, maxBuildings: nil).buildings
++    .filter { $0.kind == .residential && map.dioramaFits(at: map.building(id: $0.id)!.centroid) }.map(\.id)
++let missing = allHomes.filter { id in !map.pickView(near: map.building(id: id)!.centroid).buildings.contains { $0.id == id && $0.kind == .residential } }
++check(missing.isEmpty, "站在 \(allHomes.count) 座住宅楼，自己那座都可以揀（漏 \(missing.count)）")
++let noLoc = Set(map.pickView(near: nil).buildings.filter { $0.kind == .residential }.map(\.id))
+ check(allHomes.allSatisfy(noLoc.contains), "没有位置时 \(allHomes.count) 座住宅楼都选得到（\(allHomes.filter(noLoc.contains).count) 座）")
++// 每座可选的楼，做屋企时都要留在底座（A26：转正角度不同也不能漏）。
++let pickable = map.pickView(near: nil).buildings.filter { $0.kind == .residential }.map(\.id)
++let lost = pickable.filter { id in !map.simplified(around: map.building(id: id)!.centroid, home: id).buildings.contains { $0.id == id } }
++check(lost.isEmpty, "\(pickable.count) 座可揀的楼做屋企都留喺底座（漏 \(lost.count)）")
++
++// 实时拉到的格子（STREETWALK_TILES=放 v1/、v2/ 缓存的目录）：每座可揀的楼做屋企，地名、地标都要合理。
++if let dir = ProcessInfo.processInfo.environment["STREETWALK_TILES"] {
++    print("Live tiles")
++    func name(_ c: LandmarkCandidate) -> String {   // 只模仿模板 AI 的楼下命名（没名叫"大堂"），其他用类型
++        c.kind == .lobby ? (c.osmName.map { "\($0)樓下" } ?? "大堂") : (c.osmName ?? c.kind.rawValue)
++    }
++    for (v, size) in [("v2", 720.0), ("v1", TileKey.plinthSize)] {
++        let d = URL(fileURLWithPath: dir).appendingPathComponent(v)
++        for f in ((try? FileManager.default.contentsOfDirectory(atPath: d.path)) ?? []).sorted() where f.hasSuffix(".json") {
++            let k = f.dropLast(5).split(separator: "_").compactMap { Int($0) }
++            guard k.count == 2, let data = try? Data(contentsOf: d.appendingPathComponent(f)),
++                  let m = try? OSMParser.parse(data, tile: TileKey(ix: k[0], iy: k[1]), size: size, source: "live") else { continue }
++            var homes = m.pickView(near: nil).buildings.filter { $0.kind == .residential }.map(\.id)
++            var full = m
++            if homes.isEmpty { let r = m.addingPlaceholderHome(at: .zero); full = r.map; homes = [r.id] }
++            var bad: [String] = []
++            for h in homes {
++                let dm = full.simplified(around: full.building(id: h)!.centroid, home: h)
++                let lms = LandmarkDeriver.derive(in: dm, home: h).map { Landmark(id: $0.id, name: name($0), kind: $0.kind, pos: $0.pos, hasSeat: $0.hasSeat) }
++                let named = LandmarkDeriver.uniqueNames(lms, in: dm, home: h).map(\.name)
++                let label = "\(full.homeLabel(h) ?? "#\(h)")@\(dm.placeName)"
++                if named.count < 3 || Set(named).count != named.count || named.contains(where: { $0.hasPrefix("大堂") }) { bad.append("\(label) \(named)") }
++                // 地名只用底座里的有名住宅楼（示意楼不借 180 m 外的"第五座"）
++                if let b = dm.buildings.first(where: { $0.name == dm.placeName }), b.kind == .residential,
++                   max(abs(b.centroid.x), abs(b.centroid.y)) > MapModel.dioramaSize / 2 + 1 { bad.append("\(label) 地名用底座外的楼") }
++            }
++            check(bad.isEmpty, "\(v)/\(f)：\(homes.count) 座可揀，地标 ≥3、唔撞名、冇「大堂」\(bad.isEmpty ? "" : "（\(bad.prefix(3))）")")
++        }
++    }
++} else {
++    print("Live tiles（未设 STREETWALK_TILES，跳过）")
++}
+ 
+ print("SolarPosition")
+ func hk(_ s: String) -> Date { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm"; f.timeZone = SolarPosition.hongKong; return f.date(from: s)! }

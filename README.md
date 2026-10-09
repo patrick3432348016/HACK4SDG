@@ -4,6 +4,7 @@
 
 北都新屋邨的街坊天天在同一条路上擦肩而过。这个 App 让大家在每天本来就会走的那段路上认识彼此：在排行榜上认出面孔，碰一碰手机成为街坊，说一句话就约好一起走。
 
+- **成员 A 当前进度（做了什么、缺什么、已知 bug、手动验证清单）：[docs/PROGRESS_member_A.md](docs/PROGRESS_member_A.md)**
 - 产品规格：[docs/产品定稿_康乐社交App_v1.0.md](docs/产品定稿_康乐社交App_v1.0.md)
 - 排版草图：[docs/design/layout_sketch.html](docs/design/layout_sketch.html)（浏览器直接打开）
 - 演示视频：[docs/demo/streetwalk_demo.mp4](docs/demo/streetwalk_demo.mp4)（约 107 秒，中英字幕）

@@ -1,0 +1,1926 @@
+diff --git a/docs/backend_supabase.md b/docs/backend_supabase.md
+index 29eb352..a98d8be 100644
+--- a/docs/backend_supabase.md
++++ b/docs/backend_supabase.md
+@@ -2,7 +2,7 @@
+ 
+ 状态：**未实现，原型阶段是单机演示**（2026-10-07 定）。App 里所有"要和别人同步"的操作都经过 `CommunityService` 协议（`ios/StreetWalk/Store/Community.swift`）。现在用的是 `LocalCommunityService`：数据只存在手机，圈里的其他人是「示範街坊」，界面上标了「示範」。
+ 
+-上线时新写一个 `SupabaseCommunityService`，实现同一个协议，App 其他部分都不用改。本文是它的表结构、权限规则和对应关系。
++上线时新写一个 `SupabaseCommunityService`，实现同一个协议。2026-10-08 起找人（问对方、对方回覆、播送、出门 / 途中 / 到达）、每日汇总、请假、个人资料、撤回反映也都在协议里了；其中每日汇总、请假、个人资料的调用点还没接上（见 §5 末尾）。本文是它的表结构、权限规则和对应关系。
+ 
+ 表以规格 §7 初稿为底（§7 写明"第 1 天两人一起确认"），按隐私原则做了这些改动：
+ 
+@@ -234,10 +234,19 @@ create policy "own reports" on reports for all using (user_id = auth.uid()) with
+ | `publishOuting` | `upsert outings`（地标）/ `delete`（回家隐身） |
+ | `sendInvite` / `respond` / `updateMeetup` | `insert` / `update meetups`；对方用 Realtime 订阅 `meetups` 收到变化 |
+ | `renameLandmark` | `update landmarks set name`（同圈生效；策略限同圈成员、只开放 name 一栏） |
+-| `submitReport` | `insert into reports` |
++| `submitReport` | `insert into reports`（`Report.rawText` → `raw_text`；`pos` 不上传，只传 `landmark_id`） |
++| `retractReport` | `delete from reports where id = … and user_id = auth.uid()`（策略 "own reports" 已允许） |
++| `askToFind` / `cancelFindAsk` | Realtime Broadcast（两人私有频道，Realtime Authorization 只放行两个当事人，只传地标 id）；对方撳「好 / 唔方便」后回传，App 按 `answer` 回调处理 |
++| `broadcast` | 同一频道发一句「我喺X」/「我就到X」，不落表 |
++| `departForMeetup` / `endMeetupTrip` | `meetup:<id>` 频道：我出门 + 大约几分钟；对方出门、途中、到达时回传 `PartnerTrip(etaMinutes, arrived)`（可以多次），不落表、不传坐标 |
++| `uploadDay` | `upsert walks (user_id, day, minutes, steps, landmark_ids, stop_landmark_ids, daily_line)` |
++| `setLeave` | `insert` / `delete from leaves` |
++| `updateProfile` | `update users set floor, avatar`（avatar 存 mobility、color） |
+ | `passersToday` / `circleRace` / `monthlyStats` / `othersReports` | 上面第 4 节的视图和函数 |
+ | `onEvent` | Realtime：订阅 `outings`（街坊出门）、`meetups`（约会变化）、`reports.follow_up`（反映回覆） |
+ 
++未接调用点（接口和单机实现已有，调用由「散步与数据」一边加）：`uploadDay`（`finishWalk` 里 `recordWalk` 之后；改名后当日一句变了也要再传一次）、`setLeave`（`toggleLeave`）、`updateProfile`（`finishOnboarding`、设置页 `setFloor` / `setAvatar`）。
++
+ ## 6. 上线步骤（估计）
+ 
+ 1. 建 Supabase 项目，执行上面的 SQL（表、全部 RLS 策略、三个判断函数、`link_neighbor`），开匿名登录：0.5 天。
+diff --git a/docs/prototype_status.md b/docs/prototype_status.md
+index f629fa7..4592095 100644
+--- a/docs/prototype_status.md
++++ b/docs/prototype_status.md
+@@ -13,14 +13,14 @@
+ | **地图与 3D 场景** | 按当前位置取 400 m 格子 → OpenStreetMap（Overpass）实时拉取 → 缓存 30 日；离线时用内置的皇后山邨。楼宇转正、风格化成「纸雕留白」等距模型。 | 楼高和形状为了画风做了简化，不追求和现实一致 |
+ | **F1 自动记录散步** | 真机：Core Motion 检测步行 → 只在步行时开定位 → 离家 55 m 开始、回到 40 m 内结束并隐身。轨迹只在手机内存里。 | 模拟器和演示模式里用一条按地图寻路生成的路线代替真实行走（1 秒 = 1 分钟） |
+ | **F2 划圈** | — | 按规格"原型阶段用预设分组"：示範街坊 6 人 |
+-| **F3 地标命名** | 从地图自动挑 3–4 个地标并吸附到楼外可走的位置；按类型模板命名；改名后存盘，重启后保留 | 改名"同圈生效"要等后端 |
++| **F3 地标命名** | 从地图自动挑 3–4 个地标并吸附到楼外可走的位置；按类型模板命名；改名（按钮，或「講新名」只讲新名、复述后按「好」）后存盘，重启后保留，每日一句跟着用新名 | 改名"同圈生效"要等后端（未接后端时界面讲明"暫時只喺你部手機"） |
+ | **F4 排行榜** | 我的连续天数由本机每日记录推算（请假不断）；我的月步数按散步分钟估算 | 其他人的连续天数、对面圈的步数是示範数据 |
+ | **F5 碰一碰** | 配对后的确认、开不开出门提醒、解除街坊（对方不会收到通知），关系存盘 | 另一部手机是模拟的；真机用超宽带（Nearby Interaction），由组员 B 接 `BumpService` |
+ | **F6 出门提醒** | 提醒逻辑：发送、接收分开开关，总开关，只在指定时段接收，提醒里只讲地标 | 街坊出门的事件由演示菜单触发 |
+ | **F7 语音约人** | 粤语语音识别（iOS Speech zh-HK）→ 模板理解意图 → 按遮荫、座位、双方距离选地点并给出理由 → 复述后按「好」。约会全流程：改时间 / 地点（含语音"改做下晝五點""改去涼亭"）、取消、对方拒绝、出发前 30 分钟提醒、过时自动「過咗期」，全部存盘 | 对方的回覆由示範街坊按固定延时模拟；AI 是模板版，真模型由组员 B 按 `AIService` 接 |
+-| **F8 当天找人** | 寻路、距离、箭头方向、「我喺涼亭」播送、迟到 10 分钟询问、打电话（真拨号） | 对方的位置是模拟的；示範街坊没有电话号码，所以会显示说明；超宽带测距要真机 |
++| **F8 当天找人** | 寻路、到达估计（约会按对方剩下的路算）、距离、箭头方向；约会时对方出门前不在场景里（箭头先指约定地点，不会提示「喺附近」）；「我喺X」播送有按钮也有咪（讲完先复述，播出去的就是复述那句）；过了约定时间 10 分钟自动问一次要不要打电话；打电话（真拨号） | 问对方方不方便、对方出门 / 途中 / 到达、播送都经 `CommunityService`，单机由示範街坊按固定延时模拟（只报一次出门，之后按模拟路线走），播送只在本机显示；找人时"你"的位置沿路线模拟（真机也是，未接定位）；箭头按屏幕方位，超宽带测距要真机；示範街坊没有电话号码，所以会显示说明；演示菜单「遲到」把时钟拨到约定后 11 分钟 |
+ | **F9 天气与遮荫** | 香港天文台开放数据（本港地区天气、警告、九天预报），按最近的测站和地区判断酷热或下雨；地标遮荫按画面上的楼和真实太阳位置计算，每 15 分钟一档 | 遮荫是"大约"：楼高经过风格化，也不计树荫。演示菜单可以手动改天气 |
+-| **F10 北都月报** | 我的反映挂到最近的地标；月报只出人数 ≥ 10 的「地标 × 问题」汇总；反映有回覆时通知本人 | 全邨人次、其他居民的反映、屋邨管理的回覆是示範数据 |
++| **F10 北都月报** | 散步时的反映挂到最近的地标（语音反映留原话）；「撤回」按条撤回；月报只出人数 ≥ 10 的「地标 × 问题」汇总；反映有回覆时通知本人 | 全邨人次、其他居民的反映、屋邨管理的回覆是示範数据 |
+ | **知情同意、无障碍** | 首次使用的语音说明、每个语音操作都有按钮后备、影响别人的操作要先复述再确认；字号 24pt 起，支持放大到无障碍第 2 档；深色模式 | 普通话界面还没做；读屏顺序未逐屏人工检查 |
+ 
+ ## 怎样验证
+diff --git a/ios/StreetWalk/Domain/Models.swift b/ios/StreetWalk/Domain/Models.swift
+index 9642926..d6590f1 100644
+--- a/ios/StreetWalk/Domain/Models.swift
++++ b/ios/StreetWalk/Domain/Models.swift
+@@ -55,6 +55,8 @@ struct Appointment: Identifiable, Equatable, Codable {
+     var fromPartner = false
+     /// 已经提醒过"半個鐘後出發"。
+     var reminded = false
++    /// F8：已经问过"過咗 10 分鐘，要唔要打電話"（可选值：旧存档没有这个字段也读得回）。
++    var lateAsked: Bool?
+ 
+     /// 仲有效（未完成、未取消、未過期）。
+     var isOpen: Bool { status == .waiting || status == .accepted }
+@@ -87,6 +89,10 @@ struct FindSession: Equatable {
+     var bearing: Double = 0          // 相对屏幕上方的角度（度）
+     var latePrompt = false
+     var broadcast: String?
++    /// 每次找人一个记号：延时回覆认返係边一次，旧回覆唔会落到新一次（A22）。
++    var token = UUID()
++    /// 约会找人：对方出咗门未（收到 CommunityService 通知先算）。临时找人对方已经喺地标等。
++    var partnerOut = true
+ }
+ 
+ struct WalkSession: Equatable {
+@@ -119,10 +125,12 @@ struct Report: Identifiable, Equatable, Codable {
+     var followUp: String?
+     /// 回覆是演示模拟的（可选值：旧存档没有这个字段也读得回）。
+     var followUpDemo: Bool?
++    /// 规格 §7：语音反映的原话（只在汇总前给 AI 分类，不对外）；撳掣反映没有。
++    var rawText: String?
+ }
+ 
+ struct BannerItem: Identifiable, Equatable {
+-    enum Action: Equatable { case invite(String), goFind(String), openNeighbors, depart(UUID), none }
++    enum Action: Equatable { case invite(String), goFind(String), openNeighbors, depart(UUID), call(String), none }
+     let id = UUID()
+     var symbol: String
+     var text: String
+@@ -140,6 +148,8 @@ struct VoiceCard: Identifiable, Equatable {
+     var intent: VoiceIntent
+     /// 改约 / 取消约时复述的是边一个约会（按「好」就改呢个，唔再重新揀）。
+     var appointmentID: UUID? = nil
++    /// 语音反映记低咗边一条（「撤回」就撤呢条，唔会撤错）。
++    var reportID: UUID? = nil
+ }
+ 
+ enum Weather: Equatable {
+diff --git a/ios/StreetWalk/Store/Announcer.swift b/ios/StreetWalk/Store/Announcer.swift
+new file mode 100644
+index 0000000..c7e40bd
+--- /dev/null
++++ b/ios/StreetWalk/Store/Announcer.swift
+@@ -0,0 +1,138 @@
++import Accessibility
++import AVFoundation
++import UIKit
++
++/// 成员 A：播报的排队与读屏兼容（审核 A90 / A77）。Speaker 归 B，这里不改它，只在 A 侧包一层：
++/// - VoiceOver 开着：改发读屏公告（低优先级 = 排喺读屏之后），唔会两把声撞埋；
++/// - 连续几句：讲完一句先讲下一句，唔再互相截断；
++/// - 过期：资讯句排咗超过 6 秒就唔讲（画面上仍然有），语音唔会落后画面；
++/// - 要回应嘅句子（复述确认、问题）优先：清走排喺前面嘅资讯句，永远唔会被挤走；
++/// - 聆听中：先收起，停咪之后先讲（播报会抢走麦克风、仲会录埋入去）。
++/// AppStore 经 say() 调用；其他地方唔好直接用 speaker.speak。
++@MainActor
++final class Announcer {
++    /// prompt = 要用户回应（「啱就撳『好』」、「要唔要打電話」）；info = 讲完就算。
++    enum Kind { case info, prompt }
++
++    struct Line: Equatable {
++        var text: String
++        var kind: Kind
++        var at: Date
++    }
++
++    /// 最多排几句：多咗先丢最早嘅资讯句。
++    static let maxQueued = 3
++    /// 资讯句排咗咁耐仲未讲到就唔讲。
++    static let staleAfter: TimeInterval = 6
++
++    private var queue: [Line] = []
++    private var held: [Line] = []
++    private var pump: Task<Void, Never>?
++    /// 拎唔到合成器状态时，按字数估计讲完嘅时间。
++    private var estimatedEnd = Date.distantPast
++
++    /// 读屏开着时用公告（测试可以改）。
++    var voiceOverRunning: () -> Bool = { UIAccessibility.isVoiceOverRunning }
++    /// 时钟（测试可以改）。
++    var clock: () -> Date = { Date() }
++    /// 测试用：当成合成器讲紧 / 讲完。nil = 睇真嘅合成器。
++    var busy: (() -> Bool)?
++
++    func say(_ text: String, kind: Kind = .info, via speaker: Speaker, holding: Bool) {
++        guard !text.isEmpty else { return }
++        enqueue(Line(text: text, kind: kind, at: clock()), via: speaker, holding: holding)
++    }
++
++    /// 入队（停咪后交返嘅句子都经呢度，保留原来嘅时间，过期就唔讲）。
++    func enqueue(_ line: Line, via speaker: Speaker, holding: Bool) {
++        if holding { held.append(line); return }
++        if isStale(line) { return }
++        if voiceOverRunning() { announce(line.text); return }
++        // 要回应嘅句子唔好排喺旧资讯后面。
++        if line.kind == .prompt { queue.removeAll { $0.kind == .info } }
++        if queue.isEmpty && !isSpeaking(speaker) {
++            speakNow(line.text, speaker)
++            return
++        }
++        queue.append(line)
++        while queue.count > Self.maxQueued {
++            if let i = queue.firstIndex(where: { $0.kind == .info }) { queue.remove(at: i) } else { queue.removeFirst() }
++        }
++        drain(speaker)
++    }
++
++    /// 开始聆听：停咗正在讲嘅，未讲嘅留到停咪之后。
++    func hold(_ speaker: Speaker) {
++        held = queue + held
++        queue = []
++        pump?.cancel()
++        pump = nil
++        speaker.announcerSynth?.stopSpeaking(at: .immediate)
++        estimatedEnd = .distantPast
++    }
++
++    /// 停咪：交返聆听期间收起嘅句子（由调用方喺回应之后再入队）。
++    func release() -> [Line] {
++        defer { held = [] }
++        return held
++    }
++
++    /// 排紧（未讲）嘅句子，测试用。
++    var queued: [Line] { queue }
++    var pendingCount: Int { queue.count + held.count }
++
++    // MARK: - 内部
++
++    private func isStale(_ line: Line) -> Bool {
++        line.kind == .info && clock().timeIntervalSince(line.at) > Self.staleAfter
++    }
++
++    private func announce(_ text: String) {
++        var a = AttributedString(text)
++        a.languageIdentifier = "zh-HK"
++        a.accessibilitySpeechAnnouncementPriority = .low
++        AccessibilityNotification.Announcement(a).post()
++    }
++
++    private func speakNow(_ text: String, _ speaker: Speaker) {
++        speaker.speak(text)
++        // 粤语约每秒 3.5 个字（rate 0.42），加少少停顿。
++        estimatedEnd = Date().addingTimeInterval(Double(text.count) / 3.5 + 0.5)
++    }
++
++    private func drain(_ speaker: Speaker) {
++        guard pump == nil else { return }
++        pump = Task { @MainActor [weak self] in
++            while let self, !Task.isCancelled, !self.queue.isEmpty {
++                if self.isSpeaking(speaker) {
++                    try? await Task.sleep(for: .milliseconds(150))
++                    continue
++                }
++                if self.voiceOverRunning() {
++                    self.queue.filter { !self.isStale($0) }.forEach { self.announce($0.text) }
++                    self.queue = []
++                    break
++                }
++                let line = self.queue.removeFirst()
++                if self.isStale(line) { continue }
++                self.speakNow(line.text, speaker)
++                try? await Task.sleep(for: .milliseconds(300))
++            }
++            self?.pump = nil
++        }
++    }
++
++    private func isSpeaking(_ speaker: Speaker) -> Bool {
++        if let busy { return busy() }
++        if let s = speaker.announcerSynth { return s.isSpeaking }
++        return Date() < estimatedEnd
++    }
++}
++
++extension Speaker {
++    /// Speaker 归 B，未公开「讲紧未 / 即刻停」（已请 B 加 isSpeaking、stop()）。暂时经反射读佢嘅合成器，
++    /// 只喺呢一处；B 一加就改呢度，Announcer 其余唔使改。读唔到会退回按字数估时，单元测试会报错提醒。
++    var announcerSynth: AVSpeechSynthesizer? {
++        Mirror(reflecting: self).children.first { $0.label == "synth" }?.value as? AVSpeechSynthesizer
++    }
++}
+diff --git a/ios/StreetWalk/Store/AppStore+Find.swift b/ios/StreetWalk/Store/AppStore+Find.swift
+index d0af618..491b3b3 100644
+--- a/ios/StreetWalk/Store/AppStore+Find.swift
++++ b/ios/StreetWalk/Store/AppStore+Find.swift
+@@ -6,34 +6,44 @@ extension AppStore {
+ 
+     func goFind(_ partnerID: String) {
+         guard let p = resident(partnerID), p.isNeighbor, let lm = landmark(p.atLandmarkID ?? p.homeLandmarkID) else { return }
++        // 换人 / 再问：撤回上一个询问，清走上次留低嘅「話好」同约会路线（A22）。
++        if let old = find { community.cancelFindAsk(partnerID: old.partnerID) }
+         banner = nil
++        renaming = nil
++        partnerAgreed = false
++        findAppointment = nil
++        partnerRoute = nil
+         let start = myPosition()
+         findRoute = scene.route(from: start, to: scene.nearestWalkable(lm.pos + Vec2(x: -4, y: -3)))
+         findTravelled = 0
+-        find = FindSession(partnerID: partnerID, landmarkID: lm.id, spontaneous: true, stage: .asking)
++        let session = FindSession(partnerID: partnerID, landmarkID: lm.id, spontaneous: true, stage: .asking)
++        find = session
+         scene.setRoute(findRoute)
+         scene.highlightLandmark(lm.id)
+         syncScene()
+-        Task { @MainActor in
+-            try? await Task.sleep(for: .seconds(2.4))
+-            guard var f = self.find, f.stage == .asking else { return }
+-            if self.localCommunity?.declineNext == true {
+-                self.localCommunity?.declineNext = false
+-                f.stage = .declined
+-                self.find = f
+-                self.speaker.speak("\(p.name)而家唔方便。")
++        // 先问对方（经 CommunityService；单机由示範街坊模拟回覆）。
++        let token = session.token
++        community.askToFind(partnerID: partnerID, landmarkID: lm.id) { [weak self] accepted in
++            self?.findAnswered(token: token, accepted: accepted)
++        }
++    }
++
++    /// 对方答咗：只认同一次找人（token），旧嘅回覆唔会落到新一次。
++    func findAnswered(token: UUID, accepted: Bool) {
++        guard var f = find, f.token == token, f.stage == .asking, !partnerAgreed, let p = resident(f.partnerID) else { return }
++        if !accepted {
++            f.stage = .declined
++            find = f
++            say("\(p.name)而家唔方便。")
++            Task { @MainActor in
+                 try? await Task.sleep(for: .seconds(2))
+-                self.endFind()
+-                return
++                if self.find?.token == token { self.endFind() }
+             }
+-            self.speaker.speak("\(p.name)話好，喺\(lm.name)等你。")
+-            Haptics.success()
+-            f.stage = .going
+-            f.etaMinutes = 0
+-            self.find = f
+-            self.find?.stage = .asking   // 等用户按「去」
+-            self.partnerAgreed = true
++            return
+         }
++        say("\(p.name)話好，喺\(landmark(f.landmarkID)?.name ?? "")等你。撳「去」就出發。", prompt: true)
++        Haptics.success()
++        partnerAgreed = true
+     }
+ 
+     func startGoing() {
+@@ -51,72 +61,136 @@ extension AppStore {
+     func departForAppointment(_ a: Appointment) {
+         // 只有约好咗、对方仍然係街坊先可以出发（非街坊永远唔入场景）。
+         guard a.status == .accepted, let p = resident(a.partnerID), p.isNeighbor, let lm = landmark(a.landmarkID) else { return }
++        if let old = find { community.cancelFindAsk(partnerID: old.partnerID) }
++        renaming = nil
+         let start = myPosition()
+         findRoute = scene.route(from: start, to: scene.nearestWalkable(lm.pos + Vec2(x: -4, y: -3)))
+-        let theirStart = landmark(p.homeLandmarkID)?.pos ?? lm.pos
+-        partnerRoute = scene.route(from: scene.nearestWalkable(theirStart + Vec2(x: 30, y: 25)), to: scene.nearestWalkable(lm.pos + Vec2(x: 5, y: 3)))
++        // 对方未出门：唔入场景（syncScene 只画出咗门嘅对方），呢度只记低模拟路线嘅起点（A19 / A67）。
++        let theirStart = scene.nearestWalkable((landmark(p.homeLandmarkID)?.pos ?? lm.pos) + Vec2(x: 30, y: 25))
++        partnerRoute = [theirStart]
+         findTravelled = 0
+         partnerTravelled = 0
++        partnerAgreed = false
+         findAppointment = a.id
+-        find = FindSession(partnerID: p.id, landmarkID: lm.id, spontaneous: false, stage: .going)
++        let session = FindSession(partnerID: p.id, landmarkID: lm.id, spontaneous: false, stage: .going, partnerOut: false)
++        find = session
+         findFullScreen = true
+         scene.setRoute(findRoute)
+         scene.highlightLandmark(lm.id)
+         syncScene()
+         startTicker()
+         scene.setCamera(target: lm.pos + Vec2(x: -10, y: -10), distance: scene.overviewDistance * 0.8, animated: true, duration: 1.0)
+-        speaker.speak("今日約咗\(p.name)喺\(lm.name)。\(p.name)出咗門，大約 \(max(1, Int(pathLength(partnerRoute ?? []) / 70))) 分鐘到。")
++        say("今日約咗\(p.name)喺\(lm.name)。等緊\(p.name)出門。")
++        let myMinutes = max(1, Int((pathLength(findRoute ?? []) / 70).rounded(.up)))
++        let token = session.token
++        community.departForMeetup(a.id, etaMinutes: myMinutes) { [weak self] trip in
++            self?.partnerUpdate(token: token, trip: trip)
++        }
++    }
++
++    /// 对方嘅进度（CommunityService 通知，可以多次）。第一次 = 出咗门：先入场景、开始行，讲大约几耐到。
++    /// 之后嘅分钟数 / 到咗：将模拟位置拉到同佢讲嘅一致（单机只报一次，之后靠模拟路线）。
++    func partnerUpdate(token: UUID, trip: PartnerTrip) {
++        guard var f = find, f.token == token, !f.spontaneous, f.stage != .met, let p = resident(f.partnerID),
++              let lm = landmark(f.landmarkID) else { return }
++        let departing = !f.partnerOut
++        if departing {
++            guard let start = partnerRoute?.first else { return }
++            partnerRoute = scene.route(from: start, to: scene.nearestWalkable(lm.pos + Vec2(x: 5, y: 3)))
++            partnerTravelled = 0
++            f.partnerOut = true
++        }
++        let total = pathLength(partnerRoute ?? [])
++        let wasThere = partnerTravelled >= total
++        if trip.arrived { partnerTravelled = total }
++        else if let m = trip.etaMinutes { partnerTravelled = min(total, max(0, total - Double(m) * 70)) }
++        // 对方冇传分钟数（单机模拟）就按佢条路估。
++        f.etaMinutes = trip.arrived ? 0 : trip.etaMinutes ?? max(1, Int(((total - partnerTravelled) / 70).rounded(.up)))
++        find = f
++        if departing {
++            syncScene()
++            say(trip.arrived ? "\(p.name)已經喺\(lm.name)等你。" : "\(p.name)出咗門，大約 \(f.etaMinutes) 分鐘到\(lm.name)。")
++        } else if trip.arrived && !wasThere {
++            say("\(p.name)到咗\(lm.name)。")
++        }
+     }
+ 
+     func tickFind(_ f: inout FindSession, _ dt: Double) {
+         guard f.stage == .going || f.stage == .near, let route = findRoute else { return }
+         findTravelled = min(pathLength(route), findTravelled + dt * Self.findSpeed)
+-        if !f.spontaneous, let pr = partnerRoute { partnerTravelled = min(pathLength(pr), partnerTravelled + dt * Self.findSpeed * 0.8) }
++        if !f.spontaneous, f.partnerOut, let pr = partnerRoute { partnerTravelled = min(pathLength(pr), partnerTravelled + dt * Self.findSpeed * 0.8) }
+         let mePos = point(along: route, at: findTravelled).0
+-        let partnerPos: Vec2 = {
+-            if f.spontaneous { return landmark(f.landmarkID).map { scene.nearestWalkable($0.pos + Vec2(x: 5, y: 3)) } ?? mePos }
+-            return point(along: partnerRoute ?? [mePos], at: partnerTravelled).0
+-        }()
++        let spot = landmark(f.landmarkID).map { scene.nearestWalkable($0.pos + Vec2(x: 5, y: 3)) } ?? mePos
++        // 临时找人：对方喺地标等。约会未出门：箭咀指去约定地方（对方唔喺场景，A19）。
++        let partnerPos = f.spontaneous || !f.partnerOut ? spot : point(along: partnerRoute ?? [spot], at: partnerTravelled).0
+         let d = mePos.distance(to: partnerPos)
+         f.distance = d
+-        f.etaMinutes = max(0, Int((d / 70).rounded(.up)))
++        // 到达估计（A67）：约会讲对方仲要几耐到约定地方（0 = 已经喺度等）；临时找人讲我仲要几耐到。
++        if f.spontaneous {
++            f.etaMinutes = max(0, Int(((pathLength(route) - findTravelled) / 70).rounded(.up)))
++        } else if f.partnerOut, let pr = partnerRoute {
++            f.etaMinutes = max(0, Int(((pathLength(pr) - partnerTravelled) / 70).rounded(.up)))
++        }
+         // 屏幕上方 = 西北（相机从东南看），所以把方位角减 315°。
+         let bearing = atan2(partnerPos.x - mePos.x, partnerPos.y - mePos.y) * 180 / .pi
+         f.bearing = bearing - 315
+-        if d <= 50 && f.stage == .going {
++        // 对方未出门：唔会「喺附近」，亦唔会「見到」。
++        if d <= 50 && f.stage == .going && f.partnerOut {
+             f.stage = .near
+             Haptics.success()
+-            speaker.speak("\(resident(f.partnerID)?.name ?? "")喺附近，跟住箭咀行。")
++            say("\(resident(f.partnerID)?.name ?? "")喺附近，跟住箭咀行。")
+         }
+-        if d <= 9 || (findTravelled >= pathLength(route) && (f.spontaneous || partnerTravelled >= pathLength(partnerRoute ?? []))) {
++        let partnerThere = f.spontaneous || (f.partnerOut && partnerTravelled >= pathLength(partnerRoute ?? []))
++        if f.partnerOut && (d <= 9 || (findTravelled >= pathLength(route) && partnerThere)) {
+             f.stage = .met
+             Haptics.success()
+-            speaker.speak("見到喇！")
++            say("見到喇！")
+             if let id = findAppointment, let i = appointments.firstIndex(where: { $0.id == id }) { appointments[i].status = .done }
+             let finished = f
+             Task { @MainActor in
+                 try? await Task.sleep(for: .seconds(3))
+                 if self.find == finished || self.find?.stage == .met { self.endFind() }
+             }
++            return
+         }
++        checkLate(&f)
+     }
+ 
+-    func lateDemo() {
+-        guard var f = find else { return }
++    /// F8：过咗约定时间 10 分钟仍未碰头，问要唔要打电话。每个约会只问一次（A20）。
++    func checkLate(_ f: inout FindSession) {
++        guard !f.spontaneous, f.stage != .met, !f.latePrompt, let id = findAppointment,
++              let i = appointments.firstIndex(where: { $0.id == id }), appointments[i].status == .accepted,
++              appointments[i].lateAsked != true, now.timeIntervalSince(appointments[i].date) > 600 else { return }
++        appointments[i].lateAsked = true
+         f.latePrompt = true
+-        find = f
+-        speaker.speak("過咗約定時間 10 分鐘，仲未見到\(resident(f.partnerID)?.name ?? "")。要唔要打電話俾佢？")
++        say("過咗約定時間 10 分鐘，仲未見到\(resident(f.partnerID)?.name ?? "")。要唔要打電話俾佢？", prompt: true)
++    }
++
++    /// 演示：将时间拨到约定时间后 11 分钟，等自动检查问「要唔要打電話」（唔再直接弹卡）。
++    func lateDemo() {
++        guard let f = find, !f.spontaneous, let id = findAppointment, let a = appointments.first(where: { $0.id == id }) else {
++            toast("示範：約好咗、撳咗「出發」先用得。")
++            return
++        }
++        setDemoHour(a.date.timeIntervalSince(Self.hk.startOfDay(for: Date())) / 3600 + 11.0 / 60)
+     }
+ 
+-    func broadcastHere() {
++    /// 「我喺X」播送。text 係语音复述过嘅原话；撳掣时：约会讲「我喺X」，临时找人讲「我就到X」（A11）。
++    func broadcastHere(_ text: String? = nil) {
+         guard var f = find, let lm = landmark(f.landmarkID) else { return }
+-        f.broadcast = "我喺\(lm.name)"
++        let msg = text ?? (f.spontaneous ? "我就到\(lm.name)" : "我喺\(lm.name)")
++        f.broadcast = msg
+         find = f
+-        speaker.speak("已經話俾\(resident(f.partnerID)?.name ?? "")知：我喺\(lm.name)。")
++        community.broadcast(to: f.partnerID, text: msg)
++        say("已經話俾\(resident(f.partnerID)?.name ?? "")知：\(msg)。")
+         Haptics.light()
+     }
+ 
+     func endFind() {
++        if let f = find {
++            community.cancelFindAsk(partnerID: f.partnerID)
++            if let id = findAppointment { community.endMeetupTrip(id, met: f.stage == .met) }
++        }
+         find = nil
+         findFullScreen = false
+         findRoute = nil
+@@ -144,6 +218,6 @@ extension AppStore {
+         syncScene()
+     }
+ 
+-    /// 演示：下一次问陈太（过去搵佢 / 约佢）会被拒绝。
++    /// 演示：下一次问陈太（过去搵佢 / 约佢）会被拒绝（由 LocalCommunityService 模拟）。
+     func declineNextAsk() { localCommunity?.declineNext = true }
+ }
+diff --git a/ios/StreetWalk/Store/AppStore+Map.swift b/ios/StreetWalk/Store/AppStore+Map.swift
+index 7356e8d..91a0e5d 100644
+--- a/ios/StreetWalk/Store/AppStore+Map.swift
++++ b/ios/StreetWalk/Store/AppStore+Map.swift
+@@ -104,7 +104,7 @@ extension AppStore {
+         homeChanged()
+         populate()
+         scene.resetCamera()
+-        speaker.speak("搞掂。你行街嘅時候我會自動記錄，唔使撳任何掣。")
++        say("搞掂。你行街嘅時候我會自動記錄，唔使撳任何掣。")
+         startWalkDetection()   // 同意之后先问动作 / 定位权限
+     }
+ 
+@@ -152,9 +152,9 @@ extension AppStore {
+             people.append(ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility,
+                                       motion: f.stage == .asking || f.stage == .declined ? .stand(at: myStart) : .route(findRoute ?? [myStart, lm.pos], speed: Self.findSpeed), label: "你"))
+             let spot = scene.nearestWalkable(lm.pos + Vec2(x: 5, y: 3))
+-            people.append(ScenePerson(id: p.id, color: p.uiColor, mobility: p.mobility,
++            if f.spontaneous || f.partnerOut { people.append(ScenePerson(id: p.id, color: p.uiColor, mobility: p.mobility,
+                                       motion: f.spontaneous ? .stand(at: spot) : .route(partnerRoute ?? [spot], speed: Self.findSpeed * 0.8),
+-                                      label: p.name, highlighted: true))
++                                      label: p.name, highlighted: true)) }
+         }
+         if case .found(let id) = bumpStage, let p = resident(id) {
+             let home = scene.nearestWalkable(scene.homeTarget + Vec2(x: 0, y: -18))
+diff --git a/ios/StreetWalk/Store/AppStore+Meetup.swift b/ios/StreetWalk/Store/AppStore+Meetup.swift
+index 715ef85..e0e3872 100644
+--- a/ios/StreetWalk/Store/AppStore+Meetup.swift
++++ b/ios/StreetWalk/Store/AppStore+Meetup.swift
+@@ -4,9 +4,12 @@ import SwiftUI
+ extension AppStore {
+     // MARK: - 提议
+ 
+-    func proposeMeetup(with partnerID: String, day: Int? = nil, hour: Int? = nil) {
++    /// announce：撳掣约人时讲出 AI 揀嘅时间、地点、理由（§4 语音 + 图像）；语音约人由复述卡自己讲。
++    func proposeMeetup(with partnerID: String, day: Int? = nil, hour: Int? = nil, announce: Bool = true) {
+         guard let p = resident(partnerID), let shade else { return }
+-        guard p.isNeighbor else { toast("你同\(p.floorLabel)仲未係街坊。見到面碰一碰，先可以約。"); return }
++        renaming = nil   // 约人卡盖住改名卡：之后讲嘢唔再当新名
++        // 唔讲楼层：免得名同楼层对得上（A03）。
++        guard p.isNeighbor else { toast("佢仲未係你街坊。見到面碰一碰，先可以約。"); return }
+         var options: [MeetProposal] = []
+         for (d, h) in candidateTimes(day: day, hour: hour) {
+             if let prop = ai.pickMeetupSpot(me: me, partner: p, date: Self.today(at: Double(h), dayOffset: d), landmarks: landmarks, shade: shade) {
+@@ -17,6 +20,10 @@ extension AppStore {
+         proposal = Proposal(partnerID: partnerID, options: options, index: 0)
+         scene.highlightLandmark(options[0].landmarkID)
+         focus(onLandmark: options[0].landmarkID)
++        if announce {
++            let o = options[0]
++            say("約\(p.name)\(dayTimeLabel(o.date))，喺\(landmark(o.landmarkID)?.name ?? "")，\(o.reason)。撳「好」就約。", prompt: true)
++        }
+     }
+ 
+     /// 候选时间：讲咗就用讲嘅；冇讲就由而家之后嘅朝早 / 下晝 / 傍晚揀。
+@@ -78,7 +85,7 @@ extension AppStore {
+             guard let a = appointments.first(where: { $0.id == id }), a.isOpen else {
+                 cancelProposal(); toast("呢個約會已經冇咗。"); return
+             }
+-            if a.date == opt.date && a.landmarkID == opt.landmarkID { cancelProposal(); speaker.speak("冇改到，照舊。"); return }
++            if a.date == opt.date && a.landmarkID == opt.landmarkID { cancelProposal(); toast("冇改到，照舊。"); return }
+         }
+         let name = resident(p.partnerID)?.name ?? ""
+         let place = landmark(opt.landmarkID)?.name ?? ""
+@@ -90,13 +97,14 @@ extension AppStore {
+             appointments[i].status = .waiting
+             appointments[i].fromPartner = false
+             appointments[i].reminded = false
++            appointments[i].lateAsked = nil
+             community.updateMeetup(appointments[i])
+-            speaker.speak("改咗：\(dayTimeLabel(opt.date))，喺\(place)附近。等緊\(name)確認。")
++            toast("改咗：\(dayTimeLabel(opt.date))，喺\(place)附近。等緊\(name)確認。")
+         } else {
+             let a = Appointment(partnerID: p.partnerID, date: opt.date, landmarkID: opt.landmarkID, reason: opt.reason, status: .waiting)
+             appointments.insert(a, at: 0)
+             community.sendInvite(a)
+-            speaker.speak("幫你約咗\(name)\(dayTimeLabel(opt.date))，喺\(place)附近。等緊\(name)確認。")
++            toast("幫你約咗\(name)\(dayTimeLabel(opt.date))，喺\(place)附近。等緊\(name)確認。")
+         }
+         proposal = nil
+         scene.highlightLandmark(nil)
+@@ -115,6 +123,7 @@ extension AppStore {
+     /// 打开一个已有约会来改：当前时间地点排第一，其余是候选时间。
+     func startEditing(_ id: UUID) {
+         guard let a = appointments.first(where: { $0.id == id }), let p = resident(a.partnerID), let shade else { return }
++        renaming = nil
+         var options = [MeetProposal(date: a.date, landmarkID: a.landmarkID, reason: a.reason)]
+         for (d, h) in candidateTimes(day: nil, hour: nil) {
+             let date = Self.today(at: Double(h), dayOffset: d)
+@@ -131,13 +140,16 @@ extension AppStore {
+         guard let i = appointments.firstIndex(where: { $0.id == id }), appointments[i].isOpen else { toast("呢個約會已經冇咗。"); return }
+         var a = changed(appointments[i], day: day, hour: hour, landmarkID: landmarkID)
+         guard a.date > now else { toast("嗰個時間已經過咗，揀過第二個。"); return }
++        // 冇变就唔好将已约好嘅打返做「等緊確認」、或者将对方嘅邀请变成我嘅反提议（A84）。
++        guard a.date != appointments[i].date || a.landmarkID != appointments[i].landmarkID else { toast("時間地點都冇變，照舊。"); return }
+         a.status = .waiting
+         a.fromPartner = false
+         a.reminded = false
++        a.lateAsked = nil
+         appointments[i] = a
+         community.updateMeetup(a)
+         let name = resident(a.partnerID)?.name ?? ""
+-        speaker.speak("改咗：\(dayTimeLabel(a.date))，喺\(landmark(a.landmarkID)?.name ?? "")附近。等緊\(name)確認。")
++        toast("改咗：\(dayTimeLabel(a.date))，喺\(landmark(a.landmarkID)?.name ?? "")附近。等緊\(name)確認。")
+         Haptics.success()
+     }
+ 
+@@ -162,7 +174,7 @@ extension AppStore {
+         community.updateMeetup(appointments[i])
+         if proposal?.editing == id { cancelProposal() }
+         let name = resident(appointments[i].partnerID)?.name ?? ""
+-        speaker.speak("取消咗同\(name)嘅約，已經話咗俾\(name)知。")
++        say("取消咗同\(name)嘅約，已經話咗俾\(name)知。")
+         Haptics.light()
+     }
+ 
+@@ -175,27 +187,28 @@ extension AppStore {
+     // MARK: - 对方的回覆、对方约我
+ 
+     func partnerAnswered(_ id: UUID, accepted: Bool) {
+-        guard let i = appointments.firstIndex(where: { $0.id == id }), appointments[i].status == .waiting else { return }
++        // 对方已经唔喺圈入面（或者圈仲未装好）：唔好出空名（A36）。
++        guard let i = appointments.firstIndex(where: { $0.id == id }), appointments[i].status == .waiting,
++              let name = resident(appointments[i].partnerID)?.name else { return }
+         let a = appointments[i]
+-        let name = resident(a.partnerID)?.name ?? ""
+         if accepted {
+             appointments[i].status = .accepted
+             let text = "\(name)應承咗：\(dayTimeLabel(a.date))，喺\(landmark(a.landmarkID)?.name ?? "")附近見。"
+             showBanner(BannerItem(symbol: "checkmark.circle.fill", text: text))
+-            speaker.speak(text)
++            say(text)
+             Haptics.success()
+         } else {
+             appointments[i].status = .cancelled
+             let text = "\(name)話\(dayTimeLabel(a.date))唔得。換個時間再約？"
+             showBanner(BannerItem(symbol: "calendar.badge.exclamationmark", text: text, action: .invite(a.partnerID), actionTitle: "再約"))
+-            speaker.speak(text)
++            say(text)
+         }
+     }
+ 
+     /// 演示：陈太约你（经 CommunityService 送回来）。
+     func partnerInvites(_ id: String = "chan") {
+         guard let p = resident(id), p.isNeighbor, let shade else {
+-            toast("要先同陳太碰一碰做街坊，佢先可以約你。")
++            toast("示範：要先碰一碰做咗街坊，先可以約你。")
+             return
+         }
+         let h = Self.hk.component(.hour, from: now) < 15 ? 16 : 8
+@@ -209,7 +222,7 @@ extension AppStore {
+         appointments.insert(a, at: 0)
+         let text = "\(p.name)約你\(dayTimeLabel(a.date))喺\(landmark(a.landmarkID)?.name ?? "")一齊行。"
+         showBanner(BannerItem(symbol: "envelope.fill", text: text, action: .openNeighbors, actionTitle: "睇吓"))
+-        speaker.speak(text)
++        say(text)
+     }
+ 
+     /// 对方只需一次确认（规格 F7）：我按「好」。
+@@ -218,7 +231,7 @@ extension AppStore {
+         appointments[i].status = .accepted
+         community.respond(to: appointments[i], accept: true)
+         let a = appointments[i]
+-        speaker.speak("約好咗：\(dayTimeLabel(a.date))，喺\(landmark(a.landmarkID)?.name ?? "")附近見\(resident(a.partnerID)?.name ?? "")。")
++        say("約好咗：\(dayTimeLabel(a.date))，喺\(landmark(a.landmarkID)?.name ?? "")附近見\(resident(a.partnerID)?.name ?? "")。")
+         Haptics.success()
+     }
+ 
+@@ -226,7 +239,7 @@ extension AppStore {
+         guard let i = appointments.firstIndex(where: { $0.id == id }) else { return }
+         appointments[i].status = .cancelled
+         community.respond(to: appointments[i], accept: false)
+-        speaker.speak("已經話咗俾\(resident(appointments[i].partnerID)?.name ?? "佢")知，今次唔去。")
++        say("已經話咗俾\(resident(appointments[i].partnerID)?.name ?? "佢")知，今次唔去。")
+         Haptics.light()
+     }
+ 
+@@ -245,7 +258,14 @@ extension AppStore {
+                 let name = resident(a.partnerID)?.name ?? ""
+                 let text = "\(Int((left / 60).rounded())) 分鐘後約咗\(name)喺\(landmark(a.landmarkID)?.name ?? "")。"
+                 showBanner(BannerItem(symbol: "bell.fill", text: text, action: .depart(a.id), actionTitle: "出發"))
+-                speaker.speak(text)
++                say(text)
++            } else if a.status == .accepted, a.lateAsked != true, left < -600, left >= -3600, findAppointment != a.id {
++                // F8：过咗约定时间 10 分钟（冇喺找人画面）：问一次要唔要打电话（A20）。
++                appointments[i].lateAsked = true
++                let name = resident(a.partnerID)?.name ?? "街坊"
++                let text = "同\(name)約咗\(dayTimeLabel(a.date))，過咗 10 分鐘。要唔要打電話俾佢？"
++                showBanner(BannerItem(symbol: "clock.fill", text: text, action: .call(a.partnerID), actionTitle: "打電話"))
++                say(text, prompt: true)
+             } else if left < -3600, findAppointment != a.id {
+                 // 过咗约定时间一个钟都冇碰头：收埋，唔再提。
+                 appointments[i].status = .expired
+@@ -278,9 +298,20 @@ extension AppStore {
+             .sorted { $0.date < $1.date }
+     }
+ 
++    /// 按日差讲：琴日 / 今日 / 聽日 / 後日，再远就讲几月几号星期几（A62）。
+     func dayTimeLabel(_ d: Date) -> String {
+         let cal = Self.hk
+-        let day = cal.isDate(d, inSameDayAs: now) ? "今日" : cal.isDate(d, inSameDayAs: now.addingTimeInterval(86400)) ? "聽日" : "後日"
++        let diff = cal.dateComponents([.day], from: cal.startOfDay(for: now), to: cal.startOfDay(for: d)).day ?? 0
++        let day: String
++        switch diff {
++        case -1: day = "琴日"
++        case 0: day = "今日"
++        case 1: day = "聽日"
++        case 2: day = "後日"
++        default:
++            let wd = ["日", "一", "二", "三", "四", "五", "六"][(cal.component(.weekday, from: d) + 6) % 7]
++            day = "\(cal.component(.month, from: d))月\(cal.component(.day, from: d))日（星期\(wd)）"
++        }
+         return day + TemplateAI.hourLabel(cal.component(.hour, from: d))
+     }
+ }
+diff --git a/ios/StreetWalk/Store/AppStore+Neighbors.swift b/ios/StreetWalk/Store/AppStore+Neighbors.swift
+index 11d0bb2..ded6714 100644
+--- a/ios/StreetWalk/Store/AppStore+Neighbors.swift
++++ b/ios/StreetWalk/Store/AppStore+Neighbors.swift
+@@ -5,23 +5,32 @@ extension AppStore {
+     // MARK: - F5 碰一碰
+ 
+     func startBump() {
++        renaming = nil
++        // 先讲清楚点解碰唔到：圈入面冇其他人，同"都係街坊"係两回事（A38）。
++        guard residents.contains(where: { !$0.isMe }) else {
++            toast(community.isSimulated ? "圈入面暫時只有你。" : "圈入面暫時只有你。單機版碰唔到其他手機，要兩部 iPhone 先得。")
++            return
++        }
++        guard residents.contains(where: { !$0.isMe && !$0.isNeighbor }) else {
++            toast("圈入面嘅人都已經係你街坊。")
++            return
++        }
+         bumpStage = .searching
+         bump.startSearching(candidates: residents) { [weak self] r in
+             guard let self else { return }
+             Haptics.success()
+             self.bumpStage = .found(r.id)
+-            self.speaker.speak("你同\(r.floorLabel)\(r.name)而家係街坊。")
++            self.say("你同\(r.floorLabel)\(r.name)而家係街坊。")
+             self.syncScene()
+             self.scene.setCamera(target: self.scene.homeTarget + Vec2(x: 0, y: -18), distance: self.scene.overviewDistance * 0.7, animated: true, duration: 1.0)
+             Task { @MainActor in
+                 try? await Task.sleep(for: .seconds(2.6))
++                guard self.bumpStage == .found(r.id) else { return }
+                 self.remindPromptFor = r.id
++                // 问题都要讲出嚟（§4），讲明係双向（F6，A15）。
++                self.say("開唔開出門提醒？開咗之後，佢出門你會知，你出門佢都會知。", prompt: true)
+             }
+         }
+-        if case .searching = bumpStage, residents.allSatisfy({ $0.isMe || $0.isNeighbor }) {
+-            bumpStage = .idle
+-            toast("圈入面嘅人都已經係你街坊")
+-        }
+     }
+ 
+     func cancelBump() {
+@@ -42,7 +51,7 @@ extension AppStore {
+         bumpStage = .idle
+         syncScene()
+         scene.resetCamera()
+-        speaker.speak(remind ? "開咗出門提醒。" : "冇問題，之後想開隨時可以。")
++        say(remind ? "開咗出門提醒，你哋出門都會互相話知（只講地標）。" : "冇問題，之後想開隨時可以。")
+     }
+ 
+     /// F6：发送、接收可以分开开关。
+@@ -60,6 +69,9 @@ extension AppStore {
+         let name = residents[i].name
+         residents[i].isNeighbor = false
+         residents[i].neighborSince = nil
++        // 唔再係街坊：唔好留低佢嘅出门位置，下次碰一碰唔会带出旧位置（A13）。
++        residents[i].isOut = false
++        residents[i].atLandmarkID = nil
+         community.unlinkNeighbor(id)
+         storeLink(residents[i])
+         // 未完成的约会一并取消（会通知对方约会取消，但唔会讲解除街坊）。
+@@ -69,7 +81,7 @@ extension AppStore {
+         }
+         if case .person(id) = selection { select(nil) }
+         syncScene()
+-        speaker.speak("已經同\(name)解除街坊。佢唔會收到通知。")
++        say("已經同\(name)解除街坊。佢唔會收到通知。")
+         Haptics.light()
+     }
+ 
+@@ -84,30 +96,28 @@ extension AppStore {
+     /// 演示：圈里某人出门（经 CommunityService 送回来，跟真后端一样走 receive）。
+     func neighborGoesOut(_ id: String = "chan") {
+         guard let r = resident(id), let lm = r.homeLandmarkID ?? landmarks.first?.id else { return }
++        // 真后端唔会将非街坊嘅出门送嚟；演示菜单撳咗就讲规则，唔讲楼层同名（A13）。
++        guard r.isNeighbor else { toast("示範：佢仲未係你街坊，出門你唔會收到。"); return }
+         localCommunity?.simulateOut(id, at: lm)
+     }
+ 
+     func neighborGoesHome(_ id: String = "chan") { localCommunity?.simulateHome(id) }
+ 
+     func neighborWentOut(_ id: String, at landmarkID: String) {
+-        guard let i = residents.firstIndex(where: { $0.id == id }) else { return }
++        // 非街坊：唔记状态、唔提示（永远唔进场景，也唔会知佢出咗门）。
++        guard let i = residents.firstIndex(where: { $0.id == id }), residents[i].isNeighbor else { return }
+         residents[i].isOut = true
+         residents[i].atLandmarkID = landmarkID
+         let r = residents[i]
+-        guard r.isNeighbor else {
+-            // 非街坊永远不进场景，也不会收到佢嘅位置。
+-            toast("\(r.floorLabel)出咗門，但佢未係你街坊，所以地圖上唔會見到佢。")
+-            return
+-        }
+         syncScene()
+         guard remindAll, r.receiveRemind, inRemindWindow, let lm = landmark(r.atLandmarkID) else { return }
+         let text = "\(r.floorLabel)\(r.name)啱啱出門，應該喺\(lm.name)嗰邊。"
+         showBanner(BannerItem(symbol: "figure.walk", text: text, action: walk != nil ? .goFind(r.id) : .invite(r.id), actionTitle: walk != nil ? "過去搵佢" : "約佢"))
+-        speaker.speak(text)
++        say(text)
+     }
+ 
+     func neighborWentHome(_ id: String) {
+-        guard let i = residents.firstIndex(where: { $0.id == id }) else { return }
++        guard let i = residents.firstIndex(where: { $0.id == id }), residents[i].isNeighbor else { return }
+         residents[i].isOut = false
+         residents[i].atLandmarkID = nil
+         syncScene()
+diff --git a/ios/StreetWalk/Store/AppStore+Places.swift b/ios/StreetWalk/Store/AppStore+Places.swift
+index f25248b..c69b506 100644
+--- a/ios/StreetWalk/Store/AppStore+Places.swift
++++ b/ios/StreetWalk/Store/AppStore+Places.swift
+@@ -21,30 +21,55 @@ extension AppStore {
+     func rename(_ id: String, to name: String) {
+         guard let i = landmarks.firstIndex(where: { $0.id == id }) else { return }
+         let old = landmarks[i].name
++        let names = landmarks.map(\.name)
+         landmarks[i].name = name
+         landmarkNames[id] = name
+         community.renameLandmark(id, to: name)
+         scene.renameLandmark(id, to: name)
++        // 每日一句都用新名（F3 全产品统一，A83）；只换完整嘅地标名，「車站涼亭」唔会因为改「涼亭」而变。
++        for j in residents.indices where residents[j].todayLine.contains(old) {
++            residents[j].todayLine = Self.renamed(residents[j].todayLine, names: names, old: old, new: name)
++        }
+         renaming = nil
+-        speaker.speak("改咗。\(old)而家叫\(name)，同圈嘅街坊都會見到。")
++        say(community.isSimulated ? "改咗。\(old)而家叫\(name)，同圈嘅街坊都會見到。" : "改咗。\(old)而家叫\(name)。暫時只喺你部手機。")
+         Haptics.success()
+     }
+ 
++    /// 句子入面嘅地标名由长到短先换做记号，再将旧名换新名、其余换返原名：短名唔会误中长名嘅一部分。
++    static func renamed(_ line: String, names: [String], old: String, new: String) -> String {
++        let sorted = Array(Set(names + [old])).filter { !$0.isEmpty }.sorted { $0.count > $1.count }
++        // 记号用私用区字符（一个名一个），唔会撞到地标名。
++        func mark(_ k: Int) -> String { String(Character(UnicodeScalar(0xF0000 + k)!)) }
++        var s = line
++        for (k, n) in sorted.enumerated() { s = s.replacingOccurrences(of: n, with: mark(k)) }
++        for (k, n) in sorted.enumerated() { s = s.replacingOccurrences(of: mark(k), with: n == old ? new : n) }
++        return s
++    }
++
+     // MARK: - F10 反映
+ 
+-    func report(_ kind: ReportKind) {
++    /// rawText：语音反映的原话（规格 §7），撳掣反映没有。返回记低嗰条的 id（撤回用）。
++    @discardableResult
++    func report(_ kind: ReportKind, rawText: String? = nil) -> UUID {
+         let pos = myPosition()
+         let lm = nearestLandmark(to: pos)
+-        let r = Report(kind: kind, pos: pos, landmarkID: lm?.id, date: now)
++        var r = Report(kind: kind, pos: pos, landmarkID: lm?.id, date: now)
++        r.rawText = rawText
+         reports.append(r)
+         community.submitReport(r)
+         syncScene()
+-        speaker.speak("記低咗：\(lm?.name ?? "呢度")\(kind.rawValue)。月尾會同其他街坊嘅反映一齊交俾屋邨管理。")
++        say(community.isSimulated
++            ? "記低咗：\(lm?.name ?? "呢度")\(kind.rawValue)。月尾會同其他街坊嘅反映一齊交俾屋邨管理。"
++            : "記低咗：\(lm?.name ?? "呢度")\(kind.rawValue)。暫時只存喺你部手機。")
+         Haptics.light()
++        return r.id
+     }
+ 
+-    func undoLastReport() {
+-        _ = reports.popLast()
++    /// 撤回一条反映：按 id 撤，唔会撤错；同时撤回已经交出去嘅（A18）。
++    func retractReport(_ id: UUID) {
++        guard let i = reports.firstIndex(where: { $0.id == id }) else { return }
++        reports.remove(at: i)
++        community.retractReport(id)
+         syncScene()
+     }
+ 
+@@ -74,7 +99,7 @@ extension AppStore {
+         let place = landmark(r.landmarkID)?.name ?? "呢度"
+         let line = "你反映過「\(place)\(r.kind.rawValue)」。\(text)"
+         showBanner(BannerItem(symbol: "checkmark.seal.fill", text: line))
+-        speaker.speak(line)
++        say(line)
+     }
+ 
+     /// 演示：屋邨管理回覆最早一条未回覆的反映。
+@@ -95,7 +120,7 @@ extension AppStore {
+         refreshWeatherTip()
+         if let tip = weatherTip {
+             showBanner(BannerItem(symbol: w == .rain ? "cloud.heavyrain.fill" : "sun.max.fill", text: tip))
+-            speaker.speak(tip)
++            say(tip)
+         }
+     }
+ 
+@@ -113,6 +138,16 @@ extension AppStore {
+         guard !hko.demoOverride else { return }
+         weather = hko.report.map { $0.isRain ? .rain : $0.isHot ? .hot : .normal } ?? .normal
+         refreshWeatherTip()
++        announceWeatherIfNeeded()
++    }
++
++    /// 实时天气转咗热 / 落雨：每日每档只讲一次（F9 唔回应唔重复）；画面喺今日卡。
++    func announceWeatherIfNeeded() {
++        guard phase == .main, weather != .normal, let tip = weatherTip else { return }
++        let key = "\(LocalStore.dayKey(now))|\(weather)"
++        guard UserDefaults.standard.string(forKey: "weatherSpoken") != key else { return }
++        UserDefaults.standard.set(key, forKey: "weatherSpoken")
++        say(tip)
+     }
+ 
+     /// 重置演示：回到实时天气。
+@@ -132,15 +167,31 @@ extension AppStore {
+         guard !hko.demoOverride, let r = hko.report else {
+             // "天文台話"只留给真实数据；演示选的天气唔好冒认天文台
+             if hko.demoOverride, let a = advice, a.hasPrefix("天文台話") { advice = String(a.dropFirst(4)) }
+-            weatherTip = advice
++            weatherTip = advice.map { Self.oneSentence([$0]) }
+             return
+         }
+         // 实时：句首讲明来源和读数；落雨时模板那句"下晝會落大雨"不一定对，改用这边的说法。
+-        let rest = r.isDanger ? "今日唔好出門，留喺屋企安全啲。"
+-            : weather == .rain
+-            ? (["低", "中低"].contains(r.tomorrowPSR ?? "") ? "唔好勉強出門，聽日天氣好啲先行。" : "唔好勉強出門，等雨停先。")
+-            : advice ?? ""
+-        let line = r.line + rest
++        // 真係落紧雨先讲「等雨停」；只係降雨概率高就讲「可能會落雨」（A81）。
++        let rainingNow = r.warnings.contains { $0.code.hasPrefix("WRAIN") || $0.code == "WTS" }
++            || (r.rainMM ?? 0) >= 0.5 || (63...65).contains(r.icon ?? 0)
++        var rest = r.isDanger ? "今日唔好出門，留喺屋企安全啲"
++            : weather != .rain ? advice ?? ""
++            : !rainingNow ? "可能會落雨，出門記得帶遮，或者聽日先行"
++            : ["低", "中低"].contains(r.tomorrowPSR ?? "") ? "唔好勉強出門，聽日天氣好啲先行" : "唔好勉強出門，等雨停先"
++        // 天文台已经讲咗酷熱警告，就唔再讲一次「今日好熱」。
++        if r.walkWarnings.contains(where: { $0.contains("酷熱") }) {
++            rest = rest.replacingOccurrences(of: "今日好熱。", with: "").replacingOccurrences(of: "今日好熱，", with: "")
++        }
++        let line = Self.oneSentence([r.line, rest])
+         weatherTip = line.isEmpty ? nil : line
+     }
++
++    /// F9：每次提示唔超过一句——几段用逗号接埋，只留最尾一个句号。
++    static func oneSentence(_ parts: [String]) -> String {
++        let ends = CharacterSet(charactersIn: "。，, ")
++        let body = parts.map { $0.trimmingCharacters(in: ends) }.filter { !$0.isEmpty }
++            .joined(separator: "，")
++            .replacingOccurrences(of: "。", with: "，")
++        return body.isEmpty ? "" : body + "。"
++    }
+ }
+diff --git a/ios/StreetWalk/Store/AppStore+Voice.swift b/ios/StreetWalk/Store/AppStore+Voice.swift
+index 3745ca5..cced81f 100644
+--- a/ios/StreetWalk/Store/AppStore+Voice.swift
++++ b/ios/StreetWalk/Store/AppStore+Voice.swift
+@@ -1,101 +1,223 @@
+ import SwiftUI
++import AVFoundation
++import Speech
+ 
+ // 语音
+ extension AppStore {
++    // MARK: - 播报
++
++    /// 所有播报都经呢度：排队唔互相截断、读屏开着改用公告、聆听中先收起、过期唔讲（见 Announcer）。
++    /// prompt：要用户回应嘅句子（复述确认、问题），优先讲、唔会被挤走。
++    func say(_ s: String, prompt: Bool = false) {
++        announcer.say(s, kind: prompt ? .prompt : .info, via: speaker, holding: listening)
++    }
++
++    /// 聆听结束：讲返聆听期间收起嘅提示（排喺对用户嗰句嘅回应之后；排得太耐嘅资讯句唔再讲）。
++    func flushHeldSpeech(_ held: [Announcer.Line]) {
++        held.forEach { announcer.enqueue($0, via: speaker, holding: listening) }
++    }
++
+     // MARK: - 语音
+ 
+     func micTapped() {
+         if listening { stopListening(); return }
+-        if !askedSpeechAuth {
+-            // 第一次按咪才请求麦克风和语音识别权限。
+-            askedSpeechAuth = true
+-            listener.requestAuth()
+-        }
++        guard !micStarting else { return }
+         // 复述卡仲等紧确认：当係「唔係」（收返高亮、撤回提议），唔好静静鸡丢咗。
+         if voiceCard?.needsConfirm == true { rejectVoice() } else { voiceCard = nil }
+-        do {
+-            try listener.start()
+-            listening = true
+-            Haptics.light()
+-        } catch {
+-            listening = false
+-            phrasePicker = true
++        micStarting = true
++        Task { @MainActor in
++            defer { micStarting = false }
++            // 第一次按咪：等用户答完权限框先开始听，唔系第一句会冇咗（A47）。
++            let auth = await ensureVoiceAuth()
++            guard auth.granted else {
++                toast("未開咪或者語音識別權限。可以揀一句，或者去設定開。")
++                phrasePicker = true
++                return
++            }
++            // 啱啱弹完权限框：等音频会话定落嚟先开咪（模拟器上即刻开录音引擎试过超时崩溃，见复核 A47）。
++            if auth.prompted { try? await Task.sleep(for: .milliseconds(400)) }
++            guard AVAudioSession.sharedInstance().isInputAvailable else {
++                toast("而家用唔到咪，可以揀一句。")
++                phrasePicker = true
++                return
++            }
++            announcer.hold(speaker)
++            do {
++                try listener.start()
++                listening = true
++                Haptics.light()
++            } catch {
++                listening = false
++                flushHeldSpeech(announcer.release())
++                toast("而家用唔到咪，可以揀一句。")
++                phrasePicker = true
++            }
++        }
++    }
++
++    /// 语音识别同麦克风权限：未问过就等用户答。granted：两样都允许；prompted：今次弹过权限框。
++    func ensureVoiceAuth() async -> (granted: Bool, prompted: Bool) {
++        var prompted = false
++        var speech = SFSpeechRecognizer.authorizationStatus()
++        if speech == .notDetermined {
++            prompted = true
++            speech = await withCheckedContinuation { c in SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0) } }
++        }
++        guard speech == .authorized else { return (false, prompted) }
++        switch AVAudioApplication.shared.recordPermission {
++        case .granted: return (true, prompted)
++        case .undetermined: return (await AVAudioApplication.requestRecordPermission(), true)
++        default: return (false, prompted)
+         }
+     }
+ 
+     func stopListening() {
+         let text = listener.stop()
+         listening = false
+-        if text.isEmpty { phrasePicker = true } else { handle(text) }
++        if text.isEmpty {
++            let held = announcer.release()
++            say("聽唔清楚。可以再講一次，或者揀一句。", prompt: true)
++            phrasePicker = true
++            flushHeldSpeech(held)
++        } else {
++            handle(text)
++        }
++    }
++
++    /// 改名卡真係喺度先算改名中：揀中嗰个地标、冇约人 / 找人 / 出门提醒 / 碰一碰盖住。
++    /// renaming 本身会留低（例如撳咗「改名」就去约人），唔好用佢判断（复核 A02）。
++    var renamingNow: String? {
++        guard let id = renaming, selection == .landmark(id), proposal == nil, find == nil,
++              remindPromptFor == nil, bumpStage == .idle else { return nil }
++        return id
+     }
+ 
+     var suggestedPhrases: [String] {
++        // 改名中：建议几个新名，撳一个 = 讲咗个新名（之后照样复述确认）。
++        if let id = renamingNow, let lm = landmark(id) { return ai.alternativeNames(for: lm) }
+         // 只用街坊的名字（非街坊唔出名）；未有街坊就唔出约人嘅句子。
+         let name = neighbors.first?.name
+         if find != nil { return ["我喺\(landmark(find?.landmarkID)?.name ?? "涼亭")"] }
+         if walk != nil { return ["呢度好曬", "呢度冇櫈"] + (name.map { ["過去搵\($0)", "約\($0)聽日朝早一齊行"] } ?? []) }
+         if let a = targetAppointment(partnerID: nil), let p = resident(a.partnerID),
+            let other = landmarks.filter({ $0.id != a.landmarkID }).max(by: { $0.name.count < $1.name.count }) {
+-            return ["改做下晝四點", "改去\(other.name)", "取消同\(p.name)嘅約", "今日請假"]
++            // 建议一个同而家唔同嘅钟点（约咗四点就建议五点）。
++            let alt = Self.hk.component(.hour, from: a.date) == 16 ? "五" : "四"
++            return ["改做下晝\(alt)點", "改去\(other.name)", "取消同\(p.name)嘅約", "今日請假"]
+         }
+-        return (name.map { ["約\($0)聽日下晝三點一齊行"] } ?? []) + ["今日請假", "\(landmarks.first?.name ?? "涼亭")改名做大樹底", "呢度好曬"]
++        // 反映只喺散步时讲（F10）；唔散步时唔建议。
++        return (name.map { ["約\($0)聽日下晝三點一齊行"] } ?? []) + ["今日請假", "\(landmarks.first?.name ?? "涼亭")改名做大樹底"]
+     }
+ 
+     func handle(_ text: String) {
+         phrasePicker = false
+         if listening { _ = listener.stop() }
+         listening = false
+-        let ctx = AIContext(residents: residents, landmarks: landmarks, now: now, walking: walk != nil, finding: find != nil)
+-        let intent = ai.parseVoice(text, context: ctx)
++        let held = announcer.release()
++        defer { flushHeldSpeech(held) }
++        // 只俾 AI 睇我同街坊（非街坊连名都唔传，A03）。讲非街坊个名 = 听唔明，唔会讲出佢住几楼。
++        let known = residents.filter { $0.isMe || $0.isNeighbor }
++        let ctx = AIContext(residents: known, landmarks: landmarks, now: now, walking: walk != nil, finding: find != nil)
++        var intent = ai.parseVoice(text, context: ctx)
++        // 地标卡撳咗「講新名」：成句当新名（A02）。
++        if let id = renamingNow {
++            switch intent {
++            case .rename, .leave, .report: break
++            default:
++                guard let name = Self.spokenName(text) else { toast("聽唔清個新名，講短啲（十個字以內）。"); return }
++                intent = .rename(landmarkID: id, newName: name)
++            }
++        }
+         switch intent {
+         case .invite(let id, let day, let hour):
+-            guard let p = resident(id) else { return }
+-            guard p.isNeighbor else { toast("你同\(p.floorLabel)仲未係街坊。見到面碰一碰，先可以約。"); return }
+-            proposeMeetup(with: id, day: day, hour: hour)
++            guard let p = resident(id), p.isNeighbor else { toast("你講嘅人仲未係你街坊。見到面碰一碰，先可以約。"); return }
++            proposeMeetup(with: id, day: day, hour: hour, announce: false)
+             if let prop = proposal?.options.first {
+-                voiceCard = VoiceCard(heard: text, title: "約\(p.name)\(dayTimeLabel(prop.date))一齊行",
+-                                      detail: "地點：\(landmark(prop.landmarkID)?.name ?? "")\n\(prop.reason)", needsConfirm: true, intent: intent)
++                let place = landmark(prop.landmarkID)?.name ?? ""
++                let title = "約\(p.name)\(dayTimeLabel(prop.date))一齊行"
++                showConfirm(VoiceCard(heard: text, title: title, detail: "地點：\(place)\n\(prop.reason)", needsConfirm: true, intent: intent),
++                            spoken: "\(title)，喺\(place)，\(prop.reason)")
+             }
+         case .goFind(let id):
+             guard let p = resident(id), p.isNeighbor, p.isOut else { toast("而家冇街坊喺外面。"); return }
+-            voiceCard = VoiceCard(heard: text, title: "過去搵\(p.name)", detail: "會先問\(p.name)方唔方便", needsConfirm: true, intent: intent)
++            showConfirm(VoiceCard(heard: text, title: "過去搵\(p.name)", detail: "會先問\(p.name)方唔方便", needsConfirm: true, intent: intent),
++                        spoken: "過去搵\(p.name)，會先問佢方唔方便")
+         case .leave:
+             voiceCard = VoiceCard(heard: text, title: "今日請假", detail: "連續日數會保留", needsConfirm: false, intent: intent)
+             if !me.onLeave { toggleLeave() }
+         case .rename(let id, let name):
++            // 改名全圈生效（F3）：影响别人，先复述，撳「好」先改（A02）。
+             let old = landmark(id)?.name ?? ""
+-            voiceCard = VoiceCard(heard: text, title: "\(old)改名做\(name)", detail: "同圈街坊都會見到", needsConfirm: false, intent: intent)
+-            rename(id, to: name)
++            guard name != old else { toast("而家已經叫\(name)。"); return }
++            showConfirm(VoiceCard(heard: text, title: "\(old)改名做\(name)？", detail: renameNote, needsConfirm: true, intent: intent))
+         case .report(let kind):
+-            voiceCard = VoiceCard(heard: text, title: "記低：呢度\(kind.rawValue)", detail: "月尾匿名交俾屋邨管理", needsConfirm: false, intent: intent)
+-            report(kind)
+-        case .broadcast:
+-            voiceCard = VoiceCard(heard: text, title: "播俾對方聽", detail: text, needsConfirm: true, intent: intent)
++            // F10：反映喺散步时讲，挂喺最近嘅地标（A18）。
++            guard walk != nil else { toast("散步時講「呢度好曬」「呢度冇櫈」，我會記喺附近嘅地標。"); return }
++            let rid = report(kind, rawText: text)
++            voiceCard = VoiceCard(heard: text, title: "記低：呢度\(kind.rawValue)", detail: reportNote, needsConfirm: false, intent: intent, reportID: rid)
++        case .broadcast(let raw):
++            // 复述同真正播出去嘅係同一句（A11）。
++            let msg = Self.cleanBroadcast(raw)
++            let name = find.flatMap { resident($0.partnerID)?.name } ?? "對方"
++            showConfirm(VoiceCard(heard: text, title: "播俾\(name)聽", detail: msg, needsConfirm: true, intent: .broadcast(msg)),
++                        spoken: "播俾\(name)聽：\(msg)")
+         case .changeMeetup(let pid, let day, let hour, let lmID):
+             guard let a = targetAppointment(partnerID: pid) else { toast("而家冇約會可以改。"); return }
+             let c = changed(a, day: day, hour: hour, landmarkID: lmID)
+             guard c.date > now else { toast("嗰個時間已經過咗，揀過第二個。"); return }
++            guard c.date != a.date || c.landmarkID != a.landmarkID else { toast("時間地點都冇變，照舊。"); return }
+             let name = resident(a.partnerID)?.name ?? "街坊"
+-            voiceCard = VoiceCard(heard: text, title: "改約\(name)：\(dayTimeLabel(c.date)) · \(landmark(c.landmarkID)?.name ?? "")",
+-                                  detail: "會再問\(name)確認\n\(c.reason)", needsConfirm: true, intent: intent, appointmentID: a.id)
++            let place = landmark(c.landmarkID)?.name ?? ""
++            showConfirm(VoiceCard(heard: text, title: "改約\(name)：\(dayTimeLabel(c.date)) · \(place)",
++                                  detail: "會再問\(name)確認\n\(c.reason)", needsConfirm: true, intent: intent, appointmentID: a.id),
++                        spoken: "改約\(name)：\(dayTimeLabel(c.date))，喺\(place)，會再問\(name)確認")
+             scene.highlightLandmark(c.landmarkID)
+         case .cancelMeetup(let pid):
+             guard let a = targetAppointment(partnerID: pid) else { toast("而家冇約會可以取消。"); return }
+             let name = resident(a.partnerID)?.name ?? "街坊"
+-            voiceCard = VoiceCard(heard: text, title: "取消同\(name)\(dayTimeLabel(a.date))嘅約", detail: "會話俾\(name)知", needsConfirm: true, intent: intent, appointmentID: a.id)
++            showConfirm(VoiceCard(heard: text, title: "取消同\(name)\(dayTimeLabel(a.date))嘅約", detail: "會話俾\(name)知", needsConfirm: true, intent: intent, appointmentID: a.id))
+         case .unknown:
+-            speaker.speak("唔好意思，我未聽明白。可以揀一句。")
++            say("唔好意思，我未聽明白。可以再講一次，或者揀一句。", prompt: true)
+             phrasePicker = true
+         }
+     }
+ 
++    /// 要撳「好」嘅复述卡：画面同语音一齐出（§4），讲埋点样确认。
++    private func showConfirm(_ card: VoiceCard, spoken: String? = nil) {
++        voiceCard = card
++        let s = (spoken ?? card.title).trimmingCharacters(in: CharacterSet(charactersIn: "。？?！! "))
++        say("\(s)。啱就撳「好」。", prompt: true)
++    }
++
++    /// 改名、反映嘅说明：未接伺服器时唔好讲成已经同步咗（A69）。
++    var renameNote: String { community.isSimulated ? "同圈街坊都會見到" : "暫時只喺你部手機（未接伺服器）" }
++    var reportNote: String { community.isSimulated ? "月尾匿名交俾屋邨管理" : "暫時只喺你部手機，接咗伺服器之後先會交俾屋邨管理" }
++
++    /// 改名中只讲新名：去掉「改名做」「叫」之类同标点；太长（超过 10 个字）当听错。
++    static func spokenName(_ text: String) -> String? {
++        let strip = CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters).union(.symbols)
++        var s = text.trimmingCharacters(in: strip).replacingOccurrences(of: " ", with: "")
++        for p in ["改名做", "改名叫", "改名為", "改做", "改成", "就叫", "叫做", "叫"] where s.hasPrefix(p) {
++            s.removeFirst(p.count)
++            break
++        }
++        s = s.trimmingCharacters(in: strip)
++        return (1...10).contains(s.count) ? s : nil
++    }
++
++    /// 播送嘅句子：去掉头尾空格同标点。
++    static func cleanBroadcast(_ raw: String) -> String {
++        raw.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
++    }
++
+     func confirmVoice() {
+         guard let card = voiceCard else { return }
+         voiceCard = nil
+         switch card.intent {
+         case .invite: confirmProposal()
+         case .goFind(let id): goFind(id)
+-        case .broadcast: broadcastHere()
++        case .broadcast(let msg): broadcastHere(msg)
++        case .rename(let id, let name): rename(id, to: name)
+         case .changeMeetup(_, let day, let hour, let lmID):
+             scene.highlightLandmark(nil)
+             if let id = card.appointmentID { changeMeetup(id, day: day, hour: hour, landmarkID: lmID) }
+@@ -112,7 +234,7 @@ extension AppStore {
+         switch card.intent {
+         case .invite: cancelProposal()
+         case .leave: if me.onLeave { toggleLeave() }
+-        case .report: undoLastReport()
++        case .report: if let id = card.reportID { retractReport(id) }
+         case .changeMeetup: scene.highlightLandmark(nil)
+         default: break
+         }
+diff --git a/ios/StreetWalk/Store/AppStore+Walk.swift b/ios/StreetWalk/Store/AppStore+Walk.swift
+index 73147d5..5d6cff8 100644
+--- a/ios/StreetWalk/Store/AppStore+Walk.swift
++++ b/ios/StreetWalk/Store/AppStore+Walk.swift
+@@ -28,7 +28,7 @@ extension AppStore {
+         community.publishOuting(landmarkID: nearestLandmark(to: route[0])?.id)
+         paceTip = nil
+         tab = .today
+-        speaker.speak("偵測到你出咗門，開始記錄，唔使撳任何掣。")
++        say("偵測到你出咗門，開始記錄，唔使撳任何掣。")
+         Haptics.light()
+         scene.followID = "me"
+         scene.setCamera(target: route[0], distance: scene.overviewDistance * 0.85, animated: true)
+@@ -76,7 +76,7 @@ extension AppStore {
+         scene.setTrail(prefix(of: w.route, upTo: w.travelled))
+         if w.minutes == 18 && paceTip == nil, let seat = landmarks.first(where: { $0.hasSeat && !w.passed.contains($0.id) }) ?? landmarks.first(where: \.hasSeat) {
+             paceTip = "行慢咗少少。前面\(seat.name)有櫈，可以唞陣。"
+-            speaker.speak(paceTip!)
++            showBanner(BannerItem(symbol: "chair.lounge.fill", text: paceTip!)); say(paceTip!)
+         }
+         walk = w
+         if w.travelled >= total { finishWalk() }
+@@ -105,7 +105,7 @@ extension AppStore {
+         paceTip = nil
+         syncScene()
+         scene.resetCamera()
+-        speaker.speak("返到屋企喇。今日行咗 \(max(w.minutes, 1)) 分鐘，經過 \(w.passed.count) 個地方。而家已經隱身。")
++        say("返到屋企喇。今日行咗 \(max(w.minutes, 1)) 分鐘，經過 \(w.passed.count) 個地方。而家已經隱身。")
+         Haptics.success()
+     }
+ 
+@@ -195,7 +195,7 @@ extension AppStore {
+         let key = LocalStore.dayKey(now)
+         if leaveDays.contains(key) { leaveDays.remove(key) } else { leaveDays.insert(key) }
+         refreshMe()
+-        speaker.speak(me.onLeave ? "收到，今日請假。連續 \(me.streakDays) 日會保留。" : "撤回咗請假。")
++        say(me.onLeave ? "收到，今日請假。連續 \(me.streakDays) 日會保留。" : "撤回咗請假。")
+         Haptics.light()
+     }
+ }
+diff --git a/ios/StreetWalk/Store/AppStore.swift b/ios/StreetWalk/Store/AppStore.swift
+index d7b116a..491a646 100644
+--- a/ios/StreetWalk/Store/AppStore.swift
++++ b/ios/StreetWalk/Store/AppStore.swift
+@@ -92,6 +92,12 @@ final class AppStore: NeighborRegistry {
+     var remindFrom = UserDefaults.standard.object(forKey: "remindFrom") as? Int ?? 7 { didSet { UserDefaults.standard.set(remindFrom, forKey: "remindFrom") } }
+     var remindTo = UserDefaults.standard.object(forKey: "remindTo") as? Int ?? 21 { didSet { UserDefaults.standard.set(remindTo, forKey: "remindTo") } }
+ 
++    // 语音与社交流程（A 线追加）
++    /// 播报排队、读屏兼容、聆听时先收起（AppStore+Voice 的 say()）。
++    @ObservationIgnored let announcer = Announcer()
++    /// 按咪后等紧权限框：再撳唔会开两次。
++    @ObservationIgnored var micStarting = false
++
+     var me: Resident { residents.first { $0.isMe } ?? Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true) }
+     var neighbors: [Resident] { residents.filter { $0.isNeighbor && !$0.isMe } }
+     var outNeighbors: [Resident] { neighbors.filter(\.isOut) }
+@@ -153,13 +159,14 @@ final class AppStore: NeighborRegistry {
+         case .goFind(let id): goFind(id)
+         case .openNeighbors: tab = .neighbors
+         case .depart(let id): if let a = appointments.first(where: { $0.id == id }), a.status == .accepted { departForAppointment(a) }
++        case .call(let id): call(id)
+         case .none: break
+         }
+     }
+ 
+     func toast(_ s: String) {
+         withAnimation(.snappy) { toast = s }
+-        speaker.speak(s)
++        say(s)
+         Task { @MainActor in
+             try? await Task.sleep(for: .seconds(3.5))
+             if self.toast == s { withAnimation(.snappy) { self.toast = nil } }
+diff --git a/ios/StreetWalk/Store/Community.swift b/ios/StreetWalk/Store/Community.swift
+index ee5944d..33f277d 100644
+--- a/ios/StreetWalk/Store/Community.swift
++++ b/ios/StreetWalk/Store/Community.swift
+@@ -41,6 +41,39 @@ protocol CommunityService: AnyObject {
+     func monthlyStats(myWalks: Int, myMeetups: Int, estateHomes: Int) -> MonthlyStats
+     /// 其他居民的匿名反映（月报用）。
+     func othersReports(landmarks: [Landmark]) -> [Report]
++
++    // MARK: F8 找人（2026-10-08 补）
++    // 只传地标 id、分钟数同一句播送；双方位置唔离开手机。
++
++    /// 散步中临时"過去搵佢"：先问对方方唔方便。对方答复经 answer 送返（真后端：对方撳「好 / 唔方便」，Realtime 推返嚟）。
++    func askToFind(partnerID: String, landmarkID: String, answer: @escaping (_ accepted: Bool) -> Void)
++    /// 我取消 / 结束咗：撤回仲未答嘅询问。
++    func cancelFindAsk(partnerID: String)
++    /// 播送一句俾对方（「我喺X」「我就到X」）。
++    func broadcast(to partnerID: String, text: String)
++    /// 约会当日我出发：话俾对方知我大约几分钟到。对方出门、途中、到达都经 partnerUpdate 送返（可以多次；
++    /// 第一次 = 佢出咗门）。真后端双方位置都唔离开手机，App 只靠呢度知道对方几耐到、到咗未。
++    func departForMeetup(_ appointmentID: UUID, etaMinutes: Int, partnerUpdate: @escaping (_ trip: PartnerTrip) -> Void)
++    /// 见到面 / 结束找人：停止通知。
++    func endMeetupTrip(_ appointmentID: UUID, met: Bool)
++
++    // MARK: 每日汇总、请假、个人资料、撤回反映（2026-10-08 补）
++
++    /// 当日汇总（walks 表）：分钟数、步数（圈对圈）、经过的地标、落脚点地标、当日一句。排行榜上别人睇到嘅就係呢啲。
++    func uploadDay(day: String, minutes: Int, steps: Int, landmarkIDs: [String], stopLandmarkIDs: [String], line: String)
++    /// 请假（leaves 表）：连续天数唔断。
++    func setLeave(day: String, on: Bool)
++    /// 个人资料（users 表）：楼层、行动方式、颜色。名只俾街坊睇。
++    func updateProfile(floor: Int, mobility: Mobility, colorIndex: Int)
++    /// 撤回自己的一条反映。
++    func retractReport(_ id: UUID)
++}
++
++/// F8 约会当日对方嘅进度（只有分钟数同到咗未，冇坐标）。
++struct PartnerTrip: Equatable {
++    /// 大约仲要几分钟到约定地方；nil = 对方冇讲（单机由 App 按模拟路线估）。
++    var etaMinutes: Int?
++    var arrived = false
+ }
+ 
+ enum CommunityEvent {
+@@ -71,6 +104,11 @@ final class LocalCommunityService: CommunityService {
+     var declineNext = false
+     /// 每个约会只留最新一次模拟回覆（改咗时间地点，旧回覆作废）。
+     private var pending: [UUID: Task<Void, Never>] = [:]
++    /// 重启后要接返的约会：等圈成员装好（circleMembers）先排回覆，免得横幅出空名、空地点。
++    private var resumeLater: [UUID] = []
++    /// 找人询问、约会当日对方出门：每个对方 / 约会只留最新一次模拟。
++    private var findAsks: [String: Task<Void, Never>] = [:]
++    private var trips: [UUID: Task<Void, Never>] = [:]
+ 
+     init(demoEnabled: Bool) { self.demoEnabled = demoEnabled }
+ 
+@@ -81,6 +119,7 @@ final class LocalCommunityService: CommunityService {
+     ]
+ 
+     func circleMembers(blocks: [String], landmarks: [Landmark]) -> [Resident] {
++        defer { flushResume() }
+         guard demoEnabled else { return [] }
+         let seatFirst = landmarks.sorted { ($0.hasSeat ? 0 : 1, $0.pos.length) < ($1.hasSeat ? 0 : 1, $1.pos.length) }
+         return Self.roster.enumerated().map { i, r in
+@@ -108,7 +147,13 @@ final class LocalCommunityService: CommunityService {
+     }
+ 
+     func resume(_ appointments: [Appointment]) {
+-        for a in appointments where a.status == .waiting && !a.fromPartner && a.date > Date() { answerLater(a.id, after: 3) }
++        resumeLater = appointments.filter { $0.status == .waiting && !$0.fromPartner && $0.date > Date() }.map(\.id)
++    }
++
++    private func flushResume() {
++        let ids = resumeLater
++        resumeLater = []
++        for id in ids { answerLater(id, after: 3) }
+     }
+ 
+     private func answerLater(_ id: UUID, after s: Double) {
+@@ -123,6 +168,52 @@ final class LocalCommunityService: CommunityService {
+         }
+     }
+ 
++    // MARK: F8 找人（模拟：示範街坊 2.4 秒后答；演示菜单「陳太唔方便（下一次）」会拒绝一次）
++
++    func askToFind(partnerID: String, landmarkID: String, answer: @escaping (Bool) -> Void) {
++        findAsks[partnerID]?.cancel()
++        findAsks[partnerID] = Task { @MainActor in
++            try? await Task.sleep(for: .seconds(2.4))
++            guard !Task.isCancelled else { return }
++            self.findAsks[partnerID] = nil
++            // 答嗰陣先用「唔方便」：中途取消唔会用咗佢。
++            let accept = !self.declineNext
++            self.declineNext = false
++            answer(accept)
++        }
++    }
++
++    func cancelFindAsk(partnerID: String) {
++        findAsks[partnerID]?.cancel()
++        findAsks[partnerID] = nil
++    }
++
++    /// 单机：冇对方部手机，播送只喺本机显示。
++    func broadcast(to partnerID: String, text: String) {}
++
++    /// 单机：示範街坊 1.5 秒后出门，只报一次（之后嘅进度、到达由 App 按模拟路线自己行）。
++    func departForMeetup(_ appointmentID: UUID, etaMinutes: Int, partnerUpdate: @escaping (PartnerTrip) -> Void) {
++        trips[appointmentID]?.cancel()
++        trips[appointmentID] = Task { @MainActor in
++            try? await Task.sleep(for: .seconds(1.5))
++            guard !Task.isCancelled else { return }
++            self.trips[appointmentID] = nil
++            partnerUpdate(PartnerTrip(etaMinutes: nil))
++        }
++    }
++
++    func endMeetupTrip(_ appointmentID: UUID, met: Bool) {
++        trips[appointmentID]?.cancel()
++        trips[appointmentID] = nil
++    }
++
++    // MARK: 每日汇总、请假、个人资料、撤回反映（单机：只存本机，冇嘢要上传）
++
++    func uploadDay(day: String, minutes: Int, steps: Int, landmarkIDs: [String], stopLandmarkIDs: [String], line: String) {}
++    func setLeave(day: String, on: Bool) {}
++    func updateProfile(floor: Int, mobility: Mobility, colorIndex: Int) {}
++    func retractReport(_ id: UUID) {}
++
+     // MARK: 演示触发（演示菜单 / 自动脚本）
+ 
+     func simulateOut(_ id: String, at landmarkID: String) { onEvent?(.neighborOut(residentID: id, landmarkID: landmarkID)) }
+diff --git a/ios/StreetWalk/UI/Cards.swift b/ios/StreetWalk/UI/Cards.swift
+index 3a4e247..131beeb 100644
+--- a/ios/StreetWalk/UI/Cards.swift
++++ b/ios/StreetWalk/UI/Cards.swift
+@@ -151,7 +151,7 @@ struct InfoCard: View {
+ 
+             if renaming {
+                 VStack(alignment: .leading, spacing: 12) {
+-                    Text("揀個新名，同圈街坊都會見到")
++                    Text(store.community.isSimulated ? "揀個新名，同圈街坊都會見到" : "揀個新名（暫時只喺你部手機）")
+                         .ds(.caption)
+                         .foregroundStyle(.secondary)
+                         .fixedSize(horizontal: false, vertical: true)
+@@ -309,7 +309,7 @@ struct RemindPrompt: View {
+                 }
+                 .accessibilityElement(children: .combine)
+ 
+-                Text("開唔開出門提醒？佢出門嗰陣會話你知。")
++                Text("開唔開出門提醒？開咗之後，佢出門你會知，你出門佢都會知（只講地標）。")
+                     .ds(.caption)
+                     .foregroundStyle(.secondary)
+                     .fixedSize(horizontal: false, vertical: true)
+diff --git a/ios/StreetWalk/UI/FullScreen.swift b/ios/StreetWalk/UI/FullScreen.swift
+index d63409c..4e997f6 100644
+--- a/ios/StreetWalk/UI/FullScreen.swift
++++ b/ios/StreetWalk/UI/FullScreen.swift
+@@ -45,7 +45,7 @@ struct BumpView: View {
+             .padding(.horizontal, DS.side)
+             .padding(.bottom, 16)
+         }
+-        .onAppear { store.speaker.speak("將手機貼近對方手機。") }
++        .onAppear { store.say("將手機貼近對方手機。") }
+     }
+ }
+ 
+@@ -196,6 +196,10 @@ struct FindOverlay: View {
+             let place = store.landmark(f.landmarkID)?.name ?? "約定地方"
+             ZStack {
+                 VStack(spacing: 8) {
++                    // 演示：约会找人时都撳得到演示菜单（「遲到」= 将时间拨到约定后 11 分钟）。
++                    if store.demoMode && !f.spontaneous {
++                        HStack { Spacer(minLength: 0); DemoMenu() }
++                    }
+                     topCard(f, p, place)
+                     Spacer(minLength: 0)
+                     if f.latePrompt && f.stage != .met {
+@@ -241,8 +245,14 @@ struct FindOverlay: View {
+                     if f.stage == .met {
+                         Text("見到\(p.name)喇")
+                     } else if f.spontaneous {
+-                        Text("\(p.name)喺\(place)等你 · 大約 \(eta) 分鐘")
++                        Text("\(p.name)喺\(place)等你 · 你大約 \(eta) 分鐘到")
++                    } else if !f.partnerOut {
++                        // 未收到对方出门通知，唔好讲佢出咗门（A19）。
++                        Text("約咗\(p.name)喺\(place) · 等緊佢出門")
++                    } else if f.etaMinutes == 0 {
++                        Text("\(p.name)已經喺\(place)等你")
+                     } else {
++                        // 对方仲要几耐到约定地方（按佢剩低嘅路，A67）。
+                         Text("\(p.name)出咗門 · 大約 \(eta) 分鐘到\(place)")
+                     }
+                 }
+@@ -332,18 +342,21 @@ struct FindOverlay: View {
+         .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
+     }
+ 
++    /// 结束、播送、讲嘢（咪）。放得落就一行；大字号放唔落就播送占一行、其余排第二行（唔截字，A41）。
+     private func bottomBar(_ f: FindSession, _ place: String) -> some View {
+-        HStack(spacing: 8) {
+-            Button { store.endFind() } label: { Text("結束") }
+-                .buttonStyle(.dsSecondary)
+-            Button { store.broadcastHere() } label: {
+-                Label(f.spontaneous ? "我就到" : "我喺\(place)", systemImage: "speaker.wave.2.fill")
+-                    .lineLimit(1)
+-                    .minimumScaleFactor(0.7)
+-                    .symbolEffect(.bounce, value: f.broadcast)
+-                    .frame(maxWidth: .infinity)
++        ViewThatFits(in: .horizontal) {
++            HStack(spacing: 8) {
++                endButton(expand: false)
++                broadcastButton(f, place)
++                micButton(place)
++            }
++            VStack(spacing: 8) {
++                broadcastButton(f, place)
++                HStack(spacing: 8) {
++                    endButton(expand: true)
++                    micButton(place)
++                }
+             }
+-            .buttonStyle(.dsPrimary)
+         }
+         .padding(12)
+         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DS.radius + 4, style: .continuous))
+@@ -351,6 +364,42 @@ struct FindOverlay: View {
+     }
+ }
+ 
++extension FindOverlay {
++    fileprivate func endButton(expand: Bool) -> some View {
++        Button { store.endFind() } label: { Text("結束").frame(maxWidth: expand ? .infinity : nil) }
++            .buttonStyle(.dsSecondary)
++    }
++
++    fileprivate func broadcastButton(_ f: FindSession, _ place: String) -> some View {
++        Button { store.broadcastHere() } label: {
++            Label(f.spontaneous ? "我就到" : "我喺\(place)", systemImage: "speaker.wave.2.fill")
++                .symbolEffect(.bounce, value: f.broadcast)
++                .frame(maxWidth: .infinity)
++        }
++        .buttonStyle(.dsPrimary)
++    }
++
++    /// 找人途中都可以讲（例如「我喺涼亭」）：同主画面个咪一样，讲完照样复述再撳「好」（A21）。
++    fileprivate func micButton(_ place: String) -> some View {
++        let on = store.listening
++        return Button { store.micTapped() } label: {
++            Image(systemName: on ? "waveform" : "mic.fill")
++                .font(.system(size: 26, weight: .semibold))
++                .foregroundStyle(.white)
++                .contentTransition(.symbolEffect(.replace))
++                .symbolEffect(.variableColor.iterative.reversing, isActive: on)
++                .frame(width: DS.micSize, height: DS.micSize)
++                .background(DS.accent, in: Circle())
++                .overlay(Circle().strokeBorder(Color.white.opacity(0.9), lineWidth: 3))
++                .contentShape(Circle())
++        }
++        .buttonStyle(.plain)
++        .accessibilityLabel("講嘢")
++        .accessibilityValue(on ? "聽緊" : "")
++        .accessibilityHint(on ? "再撳一下講完" : "撳一下開始講，例如「我喺\(place)」")
++    }
++}
++
+ /// 相遇：对勾弹一下 + "見到喇！"。store 3 秒后自动结束。
+ private struct FSMetCelebration: View {
+     var name: String
+diff --git a/ios/StreetWalk/UI/Overlays.swift b/ios/StreetWalk/UI/Overlays.swift
+index 268ea84..07e34c0 100644
+--- a/ios/StreetWalk/UI/Overlays.swift
++++ b/ios/StreetWalk/UI/Overlays.swift
+@@ -385,7 +385,7 @@ private struct ListeningCard: View {
+                 Spacer(minLength: 0)
+                 VoiceBars()
+             }
+-            Text(listener.transcript.isEmpty ? "講啦，例如「\(phrases.first ?? "今日請假")」" : "「\(listener.transcript)」")
++            Text(listener.transcript.isEmpty ? hint(phrases) : "「\(listener.transcript)」")
+                 .ds(.body)
+                 .foregroundStyle(listener.transcript.isEmpty ? Color.secondary : Color.primary)
+                 .frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
+@@ -397,7 +397,7 @@ private struct ListeningCard: View {
+             }
+             .buttonStyle(.dsPrimary)
+             if !phrases.isEmpty {
+-                Text("或者揀一句").ds(.caption).foregroundStyle(.secondary)
++                Text(store.renamingNow != nil ? "或者揀一個名" : "或者揀一句").ds(.caption).foregroundStyle(.secondary)
+                 ChipFlow(spacing: DS.gap) {
+                     ForEach(phrases, id: \.self) { p in
+                         Button { store.pickPhrase(p) } label: {
+@@ -418,6 +418,14 @@ private struct ListeningCard: View {
+     }
+ }
+ 
++extension ListeningCard {
++    /// 改名中只要讲新名；其他时候举一句做例子。
++    fileprivate func hint(_ phrases: [String]) -> String {
++        if store.renamingNow != nil { return "講新名，例如「\(phrases.first ?? "大樹底")」" }
++        return "講啦，例如「\(phrases.first ?? "今日請假")」"
++    }
++}
++
+ /// 聆听时跳动的声波条。
+ private struct VoiceBars: View {
+     private let count = 5
+@@ -454,7 +462,7 @@ private struct PhrasePickerCard: View {
+     var body: some View {
+         VStack(alignment: .leading, spacing: 12) {
+             HStack(alignment: .center) {
+-                Text("揀一句").ds(.title)
++                Text(store.renamingNow != nil ? "揀一個新名" : "揀一句").ds(.title)
+                 Spacer(minLength: 0)
+                 Button { store.phrasePicker = false } label: {
+                     Image(systemName: "xmark")
+@@ -466,7 +474,7 @@ private struct PhrasePickerCard: View {
+                 .buttonStyle(.plain)
+                 .accessibilityLabel("關閉")
+             }
+-            Text("撳一句，等於講咗嗰句").ds(.caption).foregroundStyle(.secondary)
++            Text(store.renamingNow != nil ? "撳一個，等於講咗新名" : "撳一句，等於講咗嗰句").ds(.caption).foregroundStyle(.secondary)
+             ForEach(store.suggestedPhrases, id: \.self) { p in
+                 Button { store.pickPhrase(p) } label: {
+                     HStack(spacing: 12) {
+diff --git a/ios/StreetWalkTests/voiceTests.swift b/ios/StreetWalkTests/voiceTests.swift
+new file mode 100644
+index 0000000..38fac6c
+--- /dev/null
++++ b/ios/StreetWalkTests/voiceTests.swift
+@@ -0,0 +1,311 @@
++import Foundation
++import Testing
++@testable import StreetWalk
++
++// 语音与社交流程：改名复述、非街坊保护、播送、反映、找人、约会日子、迟到询问、播报排队（对应审核 A02–A90）。
++
++@MainActor
++struct VoiceFlowTests {
++    let lms = [Landmark(id: "shelter-1", name: "涼亭", kind: .shelter, pos: .zero, hasSeat: true),
++               Landmark(id: "park-0", name: "公園櫈仔", kind: .park, pos: Vec2(x: 40, y: 0), hasSeat: true)]
++    let me = Resident(id: "me", name: "你", floor: 12, colorIndex: 6, mobility: .walk, streakDays: 1, todayLine: "", isMe: true)
++    var chan: Resident { var r = Resident(id: "chan", name: "陳太", floor: 8, colorIndex: 0, mobility: .walk, streakDays: 3, todayLine: "8 樓喺涼亭坐咗陣"); r.isNeighbor = true; return r }
++    let wong = Resident(id: "wong", name: "黃太", floor: 3, colorIndex: 1, mobility: .walk, streakDays: 30, todayLine: "")
++
++    /// 测试用的 store：唔写盘、唔跑定时器、唔用读屏公告。
++    func makeStore(_ people: [Resident]? = nil) -> AppStore {
++        let s = AppStore()
++        s.restoring = true
++        s.clockTask?.cancel()
++        s.announcer.voiceOverRunning = { false }
++        s.demoHour = 10
++        s.landmarks = lms
++        s.residents = people ?? [chan, wong, me]
++        s.appointments = []
++        s.reports = []
++        return s
++    }
++
++    @Test func 语音改名要复述再撳好() {
++        let s = makeStore()
++        s.handle("涼亭改名做大樹底")
++        #expect(s.voiceCard?.needsConfirm == true)
++        #expect(s.landmark("shelter-1")?.name == "涼亭", "未撳「好」唔改")
++        s.confirmVoice()
++        #expect(s.landmark("shelter-1")?.name == "大樹底")
++    }
++
++    @Test func 改名中只讲新名() {
++        let s = makeStore()
++        s.select(.landmark("shelter-1"))
++        s.renaming = "shelter-1"
++        s.handle("大樹底")
++        #expect(s.voiceCard?.intent == .rename(landmarkID: "shelter-1", newName: "大樹底"))
++        #expect(s.voiceCard?.needsConfirm == true)
++        s.rejectVoice()
++        #expect(s.landmark("shelter-1")?.name == "涼亭")
++        #expect(AppStore.spokenName("改名做「大樹底」。") == "大樹底")
++        #expect(AppStore.spokenName("呢個名真係好長好長好長好長好長") == nil)
++    }
++
++    @Test func 改名后每日一句用新名() {
++        let s = makeStore()
++        s.rename("shelter-1", to: "大樹底")
++        #expect(s.resident("chan")?.todayLine == "8 樓喺大樹底坐咗陣")
++    }
++
++    @Test func 讲非街坊个名唔会讲出楼层() {
++        let s = makeStore()
++        s.handle("約黃太聽日行")
++        #expect(s.voiceCard == nil)
++        #expect(!(s.toast ?? "").contains("3 樓"))
++        #expect(s.phrasePicker, "当听唔明")
++    }
++
++    @Test func 播送讲乜就播乜() {
++        let s = makeStore()
++        s.find = FindSession(partnerID: "chan", landmarkID: "shelter-1", spontaneous: false, stage: .going)
++        s.handle("我喺巴士站。")
++        #expect(s.voiceCard?.detail == "我喺巴士站")
++        s.confirmVoice()
++        #expect(s.find?.broadcast == "我喺巴士站")
++        s.find = FindSession(partnerID: "chan", landmarkID: "shelter-1", spontaneous: true, stage: .going)
++        s.broadcastHere()
++        #expect(s.find?.broadcast == "我就到涼亭", "临时找人个掣写「我就到」，就唔好播「我喺」")
++    }
++
++    @Test func 非街坊出门唔记唔讲() {
++        let s = makeStore()
++        s.neighborWentOut("wong", at: "shelter-1")
++        #expect(s.resident("wong")?.isOut == false)
++        #expect(s.resident("wong")?.atLandmarkID == nil)
++        #expect(s.toast == nil)
++    }
++
++    @Test func 唔散步唔收反映_撤回认准嗰条() {
++        let s = makeStore()
++        #expect(!s.suggestedPhrases.contains("呢度好曬"))
++        s.handle("呢度好曬")
++        #expect(s.reports.isEmpty)
++        s.walk = WalkSession(start: Date())
++        s.handle("呢度冇櫈")
++        let rid = s.voiceCard?.reportID
++        #expect(rid != nil && rid == s.reports.first?.id)
++        #expect(s.reports.first?.rawText == "呢度冇櫈")
++        s.report(.sunny)
++        s.rejectVoice()
++        #expect(s.reports.map(\.kind) == [.sunny], "撤回语音嗰条，唔系最后一条")
++    }
++
++    @Test func 日子标签按日差() {
++        let s = makeStore()
++        let d = AppStore.today(at: 16)
++        #expect(s.dayTimeLabel(d.addingTimeInterval(-86400)).hasPrefix("琴日"))
++        #expect(s.dayTimeLabel(d).hasPrefix("今日"))
++        #expect(s.dayTimeLabel(d.addingTimeInterval(86400)).hasPrefix("聽日"))
++        #expect(s.dayTimeLabel(d.addingTimeInterval(2 * 86400)).hasPrefix("後日"))
++        let far = s.dayTimeLabel(d.addingTimeInterval(3 * 86400))
++        #expect(far.contains("月") && far.contains("星期") && !far.contains("後日"))
++    }
++
++    @Test func 改约建议唔同钟_冇变就照舊() {
++        let s = makeStore()
++        let a = Appointment(partnerID: "chan", date: AppStore.today(at: 16), landmarkID: "shelter-1", reason: "", status: .accepted)
++        s.appointments = [a]
++        #expect(s.suggestedPhrases.first == "改做下晝五點")
++        s.handle("改做下晝四點")
++        #expect(s.voiceCard == nil)
++        s.changeMeetup(a.id, day: nil, hour: 16, landmarkID: nil)
++        #expect(s.appointments[0].status == .accepted, "冇变唔好打返做等緊確認")
++    }
++
++    @Test func 碰一碰讲清楚点解碰唔到() {
++        let s = makeStore([me])
++        s.startBump()
++        #expect(s.bumpStage == .idle)
++        #expect(s.toast?.contains("只有你") == true)
++        let t = makeStore([chan, me])
++        t.startBump()
++        #expect(t.toast?.contains("都已經係你街坊") == true)
++    }
++
++    @Test func 迟到十分钟只问一次() {
++        let s = makeStore()
++        s.demoHour = 16 + 11.0 / 60
++        let a = Appointment(partnerID: "chan", date: AppStore.today(at: 16), landmarkID: "shelter-1", reason: "", status: .accepted)
++        s.appointments = [a]
++        s.findAppointment = a.id
++        var f = FindSession(partnerID: "chan", landmarkID: "shelter-1", spontaneous: false, stage: .going)
++        s.checkLate(&f)
++        #expect(f.latePrompt)
++        #expect(s.appointments[0].lateAsked == true)
++        f.latePrompt = false
++        s.checkLate(&f)
++        #expect(!f.latePrompt)
++
++        // 冇喺找人画面：横幅问要唔要打电话
++        let t = makeStore()
++        t.demoHour = 16 + 12.0 / 60
++        t.appointments = [Appointment(partnerID: "chan", date: AppStore.today(at: 16), landmarkID: "shelter-1", reason: "", status: .accepted)]
++        t.checkAppointments()
++        #expect(t.banner?.action == .call("chan"))
++        #expect(t.appointments[0].status == .accepted)
++    }
++
++    @Test func 约会到达估计按对方剩低嘅路() {
++        let s = makeStore()
++        s.findRoute = [Vec2(x: 0, y: 0), Vec2(x: 0, y: 700)]
++        s.partnerRoute = [Vec2(x: 20, y: 0)]
++        var f = FindSession(partnerID: "chan", landmarkID: "shelter-1", spontaneous: false, stage: .going, partnerOut: false)
++        s.tickFind(&f, 0.01)
++        #expect(f.etaMinutes == 0 && s.partnerTravelled == 0, "未出门唔郁、唔讲几耐到")
++        #expect(f.stage == .going, "未出门唔会「喺附近」")
++        s.partnerRoute = [Vec2(x: 20, y: 0), Vec2(x: 20, y: 300)]
++        f.partnerOut = true
++        s.tickFind(&f, 0.01)
++        #expect(f.etaMinutes == 5, "按对方 300 米路计，唔系同我嘅直线距离")
++    }
++
++    @Test func 旧嘅找人回覆唔会落到新一次() {
++        let s = makeStore()
++        s.find = FindSession(partnerID: "chan", landmarkID: "shelter-1", spontaneous: true, stage: .asking)
++        s.findAnswered(token: UUID(), accepted: true)
++        #expect(!s.partnerAgreed)
++        s.findAnswered(token: s.find!.token, accepted: true)
++        #expect(s.partnerAgreed)
++    }
++
++    @Test func 聆听中播报先收起() {
++        let s = makeStore()
++        s.listening = true
++        s.say("陳太應承咗")
++        #expect(s.speaker.lastSpoken != "陳太應承咗")
++        #expect(s.announcer.release().map(\.text) == ["陳太應承咗"])
++    }
++
++    @Test func 撳咗改名再去约人或找人_讲嘢唔会当新名() {
++        let s = makeStore()
++        s.select(.landmark("shelter-1"))
++        s.renaming = "shelter-1"
++        #expect(s.renamingNow == "shelter-1")
++        // 冇撳「唔改喇」就去找人：找人画面盖住改名卡
++        s.find = FindSession(partnerID: "chan", landmarkID: "shelter-1", spontaneous: false, stage: .going)
++        #expect(s.renamingNow == nil)
++        #expect(s.suggestedPhrases == ["我喺涼亭"])
++        s.handle("我喺涼亭")
++        #expect(s.voiceCard?.intent == .broadcast("我喺涼亭"))
++        s.voiceCard = nil
++        s.find = nil
++        // 约人卡盖住都一样
++        s.renaming = "shelter-1"
++        s.proposal = Proposal(partnerID: "chan", options: [MeetProposal(date: AppStore.today(at: 16), landmarkID: "park-0", reason: "")], index: 0)
++        #expect(s.renamingNow == nil)
++        #expect(!s.suggestedPhrases.contains("大樹底"))
++    }
++
++    @Test func 改名只换完整地标名() {
++        let names = ["涼亭", "車站涼亭", "公園"]
++        #expect(AppStore.renamed("8 樓今日經過車站涼亭同涼亭", names: names, old: "涼亭", new: "大樹底") == "8 樓今日經過車站涼亭同大樹底")
++        #expect(AppStore.renamed("3 樓喺車站涼亭坐咗陣", names: names, old: "車站涼亭", new: "總站") == "3 樓喺總站坐咗陣")
++        #expect(AppStore.renamed("8 樓今日行到公園", names: names, old: "涼亭", new: "大樹底") == "8 樓今日行到公園")
++    }
++
++    @Test func 约会对方未出门唔入场景_出咗门先入() {
++        let s = makeStore()
++        s.findRoute = [Vec2(x: 0, y: 0), Vec2(x: 0, y: 4)]
++        s.partnerRoute = [Vec2(x: 20, y: 0)]
++        let f = FindSession(partnerID: "chan", landmarkID: "shelter-1", spontaneous: false, stage: .going, partnerOut: false)
++        s.find = f
++        s.syncScene()
++        #expect(s.scene.personPosition("chan") == nil, "等緊佢出門：场景冇佢")
++        #expect(s.scene.personPosition("me") != nil)
++        // 我已经行到约定地方：对方未出门唔会「見到」
++        var g = f
++        s.tickFind(&g, 10)
++        #expect(g.stage == .going)
++        // 收到出门通知：先入场景、开始讲几耐到
++        s.partnerUpdate(token: f.token, trip: PartnerTrip(etaMinutes: nil))
++        #expect(s.find?.partnerOut == true)
++        #expect(s.scene.personPosition("chan") != nil)
++        // 后端报到咗：几耐到 = 0
++        s.partnerUpdate(token: f.token, trip: PartnerTrip(etaMinutes: nil, arrived: true))
++        #expect(s.find?.etaMinutes == 0)
++        #expect(s.partnerTravelled == s.pathLength(s.partnerRoute ?? []))
++        // 旧一次嘅通知唔理
++        s.partnerUpdate(token: UUID(), trip: PartnerTrip(etaMinutes: 9))
++        #expect(s.find?.etaMinutes == 0)
++    }
++
++    @Test func 播报过期唔讲_要回应嘅优先() {
++        let s = makeStore()
++        var t = Date()
++        s.announcer.clock = { t }
++        s.announcer.busy = { true }   // 当成讲紧一句长嘢
++        s.say("資訊一")
++        s.say("資訊二")
++        #expect(s.announcer.queued.map(\.text) == ["資訊一", "資訊二"])
++        // 复述确认：清走排喺前面嘅资讯句
++        s.say("約陳太聽日三點。啱就撳「好」。", prompt: true)
++        #expect(s.announcer.queued.map(\.text) == ["約陳太聽日三點。啱就撳「好」。"])
++        // 排满都唔会挤走要回应嘅句子
++        s.say("資訊三"); s.say("資訊四"); s.say("資訊五")
++        #expect(s.announcer.queued.count == Announcer.maxQueued)
++        #expect(s.announcer.queued.first?.kind == .prompt)
++        // 停咪后交返嘅句子：排咗超过 6 秒嘅资讯句唔讲
++        s.listening = true
++        s.say("舊資訊")
++        let held = s.announcer.release()
++        t = t.addingTimeInterval(7)
++        s.listening = false
++        s.flushHeldSpeech(held)
++        #expect(!s.announcer.queued.map(\.text).contains("舊資訊"))
++        s.announcer.hold(s.speaker)   // 停咗排队循环
++    }
++
++    @Test func 读得到B嘅合成器状态() {
++        // Speaker 归 B；佢改咗内部名，播报排队会退回按字数估时。呢个测试失败就要改 Speaker.announcerSynth。
++        #expect(Speaker().announcerSynth != nil)
++    }
++
++    @Test func 未接伺服器唔讲同圈见到() {
++        let s = makeStore()
++        #expect(s.renameNote.contains("同圈"))
++        s.localCommunity?.demoEnabled = false
++        #expect(s.renameNote.contains("你部手機"))
++        #expect(s.reportNote.contains("你部手機"))
++    }
++
++    @Test func 天气提示只得一句() {
++        let tip = AppStore.oneSentence(["天文台話打鼓嶺而家 34 度。", "今日好熱。涼亭下晝 3 點後有樓遮住，嗰陣先出門啱啲。"])
++        #expect(tip.filter { $0 == "。" }.count == 1)
++        #expect(tip.hasSuffix("。"))
++    }
++}
++
++@MainActor
++struct CommunityFindTests {
++    let lms = [Landmark(id: "a", name: "涼亭", kind: .shelter, pos: .zero, hasSeat: true)]
++
++    @Test func 取消咗嘅询问唔会答() async {
++        let c = LocalCommunityService(demoEnabled: true)
++        c.declineNext = true
++        var answered = false
++        c.askToFind(partnerID: "chan", landmarkID: "a") { _ in answered = true }
++        c.cancelFindAsk(partnerID: "chan")
++        try? await Task.sleep(for: .seconds(2.7))
++        #expect(!answered)
++        #expect(c.declineNext, "冇答就唔好用咗「唔方便」")
++    }
++
++    @Test func 重启后等圈装好先回覆() async {
++        let c = LocalCommunityService(demoEnabled: true)
++        var events = 0
++        c.onEvent = { _ in events += 1 }
++        c.resume([Appointment(partnerID: "chan", date: Date().addingTimeInterval(3600), landmarkID: "a", reason: "", status: .waiting)])
++        try? await Task.sleep(for: .seconds(3.3))
++        #expect(events == 0)
++        _ = c.circleMembers(blocks: [], landmarks: lms)
++        try? await Task.sleep(for: .seconds(3.3))
++        #expect(events == 1)
++    }
++}

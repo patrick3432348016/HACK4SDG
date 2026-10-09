@@ -1,0 +1,2207 @@
+diff --git a/README.md b/README.md
+index 129e095..8710e87 100644
+--- a/README.md
++++ b/README.md
+@@ -10,7 +10,7 @@
+ - 原型完成度（哪些是真的、哪些是模拟）：[docs/prototype_status.md](docs/prototype_status.md)
+ - 后端草案（Supabase，未实现）：[docs/backend_supabase.md](docs/backend_supabase.md)
+ 
+-**原型是单机演示**：圈里的其他居民（陳太等 6 人）是「示範街坊」，界面上标「示範」；碰一碰的另一部手机、全邨匿名汇总也是模拟的。真的在跑的：实时地图与 3D 场景、地标、楼影遮荫、寻路、香港天文台天气、粤语语音（模板理解）、本机持久化、约会全流程、真机步行检测。
++**原型是单机演示**：圈里的其他居民（陳太等 6 人）是「示範街坊」，界面上标「示範」；碰一碰的另一部手机、全邨匿名汇总也是模拟的。真的在跑的：实时地图与 3D 场景、地标、楼影遮荫、寻路、香港天文台天气、粤语语音（模板理解）、本机持久化、约会全流程、真机步行检测（App 打开时用定位，锁屏期间的散步回到前台时补记分钟；真机默认关闭演示模式）。
+ 
+ ## iOS 原型（`ios/`）
+ 
+@@ -19,7 +19,7 @@
+ ```sh
+ cd ios
+ ./tools/selftest.sh      # 在 Mac 上跑核心逻辑自测：地图解析、地标、太阳位置、遮荫、天文台数据
+-./tools/test.sh          # Xcode 单元测试（19 个）：地图、遮荫、寻路、语音意图、连续天数、持久化、示範数据
++./tools/test.sh          # Xcode 单元测试（33 个）：地图、遮荫、寻路、语音意图、连续天数、持久化、示範数据、散步逻辑；失败返回非零（SIM="iPhone Air" 换模拟器）
+ ./tools/run.sh -demo     # 编译、装到 iPhone 17 模拟器并启动（定位设在皇后山邨）；编译失败会停下
+ ./tools/record_demo.sh   # 录演示视频（先关掉其他模拟器）
+ ```
+@@ -27,7 +27,7 @@ cd ios
+ `run.sh` 可用 `SIM="iPhone 17 Pro"` 换模拟器。启动参数：
+ 
+ - 演示：`-demo`（右上角演示菜单）、`-script`（主演示，约 105 秒）、`-captions`（配中英字幕）、`-script2`（街坊页、信息卡、语音卡、时间滑杆）、`-script3`（改约、反映回覆、出发提醒、过期、解除街坊、设置页）、`-resetOnboarding -scriptOnboarding`（首次使用）。
+-- 状态：`-skipOnboarding`、`-resetOnboarding`、`-resetData`（清本机纪录）、`-withNeighbor`、`-hour 15`（指定时间）、`-offline`（强制用内置地图、不拉天气）。
++- 状态：`-skipOnboarding`、`-resetOnboarding`、`-resetData`（清本机纪录）、`-withNeighbor`、`-hour 15`（指定时间）、`-offline`（强制用内置地图、不拉天气）、`-logNotifications`（打印已安排的约会通知）、`-autoWalk`（自动走一次演示散步，打印落脚点）、`-scriptWalk`（请假几日、提醒时段、关闭演示模式、改楼时返回上一步 / 定位中和选楼后按「唔改」）。
+ - 画面：`-stats`、`-tilt`（移轴模糊）、`-pitch`、`-ovy`、`-ovd`。
+ 
+ ### 分工与目录
+@@ -37,7 +37,7 @@ cd ios
+ | `App/` `Design/` `Store/` `UI/` | A | App 骨架、设计规范、状态与流程（`AppStore` 按功能分成多个扩展文件）、全部界面、设置页 |
+ | `Store/Community.swift` | A | `CommunityService`：要和别人同步的数据（街坊、约会、出门状态、反映）。现为 `LocalCommunityService` 单机模拟，上线换 Supabase |
+ | `Store/LocalStore.swift` | A | 本机持久化（街坊关系、约会、反映、地标名、每日散步纪录、请假） |
+-| `Services/` | A | 香港天文台天气、真机步行检测（Core Motion + 定位）、电话 |
++| `Services/` | A | 香港天文台天气、真机步行检测（Core Motion + 定位 + 计步器）、散步纯逻辑（落脚点、补记、请假）、本地通知、电话 |
+ | `Map/` | A | 定位 → 400 m 网格 → Overpass 实时地图 → 缓存/兜底、地标选取、寻路 |
+ | `Scene/` | A | SceneKit 微缩模型、相机、人物、标签投影、移轴模糊 |
+ | `Shade/` | A | 太阳位置（NOAA）、楼宇射线遮荫 |
+diff --git a/docs/prototype_status.md b/docs/prototype_status.md
+index f629fa7..18de945 100644
+--- a/docs/prototype_status.md
++++ b/docs/prototype_status.md
+@@ -2,7 +2,7 @@
+ 
+ 对应评分标准「原型 / 演示」一项："How complete is the prototype (what works vs. what's simulated)?"
+ 
+-**一句话**：单部 iPhone 上真的在跑的有：地图生成、3D 场景、地标选取、楼影遮荫、寻路、天文台天气、语音理解（模板版）、本机持久化、约会全流程、真机步行检测。模拟的有：圈里的其他居民（「示範街坊」）、碰一碰的另一部手机、全邨匿名汇总。后端接口已经预留（`CommunityService`），表结构见 [backend_supabase.md](backend_supabase.md)。
++**一句话**：单部 iPhone 上真的在跑的有：地图生成、3D 场景、地标选取、楼影遮荫、寻路、天文台天气、语音理解（模板版）、本机持久化、约会全流程、真机步行检测（App 打开时用定位；锁屏 / 后台期间的散步，回到前台时用 Core Motion 补记分钟和步数）、约会本地通知。模拟的有：圈里的其他居民（「示範街坊」）、碰一碰的另一部手机、全邨匿名汇总。后端接口已经预留（`CommunityService`），表结构见 [backend_supabase.md](backend_supabase.md)。
+ 
+ 界面上所有模拟的数据都标了「示範」。设置里可以关掉演示模式，关掉后圈里只剩你自己。
+ 
+@@ -11,21 +11,21 @@
+ | 功能 | 真的 | 模拟 / 未做 |
+ |---|---|---|
+ | **地图与 3D 场景** | 按当前位置取 400 m 格子 → OpenStreetMap（Overpass）实时拉取 → 缓存 30 日；离线时用内置的皇后山邨。楼宇转正、风格化成「纸雕留白」等距模型。 | 楼高和形状为了画风做了简化，不追求和现实一致 |
+-| **F1 自动记录散步** | 真机：Core Motion 检测步行 → 只在步行时开定位 → 离家 55 m 开始、回到 40 m 内结束并隐身。轨迹只在手机内存里。 | 模拟器和演示模式里用一条按地图寻路生成的路线代替真实行走（1 秒 = 1 分钟） |
++| **F1 自动记录散步** | 真机（默认关演示模式）：Core Motion 检测步行 → 只在步行时开定位 → 两个相隔 5 秒、扣除误差后离家 55 m 以外（400 m 以内，底座外也算）的定位点才开始；回到 40 m 内、或在外面停下 10 分钟即结束（坐下的时间不计）；不足 2 分钟且不足 100 m 的不记录。落脚点：30 m 内停留 ≥2 分钟 → 吸附到最近的地标；每日一句只用落脚点。步数用计步器（轮椅用户不计步，按分钟估算）。轮椅用户不靠「步行」判断。锁屏 / 后台时没有定位：回到前台时用 Core Motion 活动记录补记分钟和步数（没有地标）；回到前台时仍在走的那一段交给定位接着记录，接不上（已停下、已到家、在 400 m 外）就按停下的时间补记。轨迹只在手机内存里。 | 模拟器和演示模式里用一条按地图寻路生成的路线代替真实行走（1 秒 = 1 分钟），途中在有櫈的地标停 3 秒形成落脚点。后台期间不会实时更新出门状态 |
+ | **F2 划圈** | — | 按规格"原型阶段用预设分组"：示範街坊 6 人 |
+ | **F3 地标命名** | 从地图自动挑 3–4 个地标并吸附到楼外可走的位置；按类型模板命名；改名后存盘，重启后保留 | 改名"同圈生效"要等后端 |
+-| **F4 排行榜** | 我的连续天数由本机每日记录推算（请假不断）；我的月步数按散步分钟估算 | 其他人的连续天数、对面圈的步数是示範数据 |
++| **F4 排行榜** | 我的连续天数由本机每日记录推算（请假期间保留、不增加；可请今日、明日、3 日、7 日，界面写「今日」「聽日」）；我的月步数：真机用计步器，没有计步数据的散步（模拟器、演示、轮椅、补记查不到步数）按分钟估算（界面写「約」） | 其他人的连续天数、对面圈的步数是示範数据 |
+ | **F5 碰一碰** | 配对后的确认、开不开出门提醒、解除街坊（对方不会收到通知），关系存盘 | 另一部手机是模拟的；真机用超宽带（Nearby Interaction），由组员 B 接 `BumpService` |
+-| **F6 出门提醒** | 提醒逻辑：发送、接收分开开关，总开关，只在指定时段接收，提醒里只讲地标 | 街坊出门的事件由演示菜单触发 |
+-| **F7 语音约人** | 粤语语音识别（iOS Speech zh-HK）→ 模板理解意图 → 按遮荫、座位、双方距离选地点并给出理由 → 复述后按「好」。约会全流程：改时间 / 地点（含语音"改做下晝五點""改去涼亭"）、取消、对方拒绝、出发前 30 分钟提醒、过时自动「過咗期」，全部存盘 | 对方的回覆由示範街坊按固定延时模拟；AI 是模板版，真模型由组员 B 按 `AIService` 接 |
++| **F6 出门提醒** | 提醒逻辑：发送、接收分开开关，总开关，只在指定时段接收，提醒里只讲地标 | 街坊出门的事件由演示菜单触发；提醒只在 App 打开时出现（后台推送需要后端 + APNs） |
++| **F7 语音约人** | 粤语语音识别（iOS Speech zh-HK）→ 模板理解意图 → 按遮荫、座位、双方距离选地点并给出理由 → 复述后按「好」。约会全流程：改时间 / 地点（含语音"改做下晝五點""改去涼亭"）、取消、对方拒绝、出发前 30 分钟提醒、过时自动「過咗期」（两者都安排本地通知，锁屏也能收到；App 在前台时用 App 内横幅），全部存盘 | 对方的回覆由示範街坊按固定延时模拟；AI 是模板版，真模型由组员 B 按 `AIService` 接 |
+ | **F8 当天找人** | 寻路、距离、箭头方向、「我喺涼亭」播送、迟到 10 分钟询问、打电话（真拨号） | 对方的位置是模拟的；示範街坊没有电话号码，所以会显示说明；超宽带测距要真机 |
+-| **F9 天气与遮荫** | 香港天文台开放数据（本港地区天气、警告、九天预报），按最近的测站和地区判断酷热或下雨；地标遮荫按画面上的楼和真实太阳位置计算，每 15 分钟一档 | 遮荫是"大约"：楼高经过风格化，也不计树荫。演示菜单可以手动改天气 |
++| **F9 天气与遮荫** | 香港天文台开放数据（本港地区天气、警告、九天预报），按最近的测站和地区判断酷热或下雨；地标遮荫按画面上的楼和真实太阳位置计算，每 15 分钟一档；真机散步中步频持续下降（走了 10 分钟以后、连续 2 分钟低于七成）提示附近有櫈 | 遮荫是"大约"：楼高经过风格化，也不计树荫。演示菜单可以手动改天气；演示散步的「行慢咗」提示固定在第 18 分钟 |
+ | **F10 北都月报** | 我的反映挂到最近的地标；月报只出人数 ≥ 10 的「地标 × 问题」汇总；反映有回覆时通知本人 | 全邨人次、其他居民的反映、屋邨管理的回覆是示範数据 |
+ | **知情同意、无障碍** | 首次使用的语音说明、每个语音操作都有按钮后备、影响别人的操作要先复述再确认；字号 24pt 起，支持放大到无障碍第 2 档；深色模式 | 普通话界面还没做；读屏顺序未逐屏人工检查 |
+ 
+ ## 怎样验证
+ 
+-- `ios/tools/test.sh`：19 个 Xcode 单元测试（地图、遮荫、寻路、语音意图、连续天数、持久化、示範数据开关、月报门槛）。
++- `ios/tools/test.sh`：33 个 Xcode 单元测试（地图、遮荫、寻路、语音意图、连续天数与请假、持久化与旧存档、示範数据开关、月报门槛、落脚点、真机开始 / 收尾、背景补记、步频、本地通知）。失败时返回非零。
+ - `ios/tools/selftest.sh`：不用模拟器的核心逻辑自测。
+ - `ios/tools/run.sh -demo -skipOnboarding -script`：约 95 秒的自动演示，录视频用。
+ - `-script2`、`-script3`：街坊页、信息卡、改约、反映回覆、出发提醒、过期、解除街坊、设置页。
+@@ -33,4 +33,5 @@
+ ## 未做 / 需要真机
+ 
+ - 后端（见 backend_supabase.md）、真模型 AI（组员 B）、超宽带碰一碰（组员 B）。
++- 后台持续定位（需要「始终」定位权限 + UIBackgroundModes location）：目前锁屏期间只补记分钟和步数，没有地标、没有落脚点，街坊也收不到你出门的提醒。
+ - 真机测试：签名、iPhone 11 性能、户外粤语识别率（规格要求低于八成就加复述确认；现在所有会影响别人的操作已经都要复述确认）。
+diff --git a/ios/StreetWalk/Services/Notifier.swift b/ios/StreetWalk/Services/Notifier.swift
+new file mode 100644
+index 0000000..e6e28ef
+--- /dev/null
++++ b/ios/StreetWalk/Services/Notifier.swift
+@@ -0,0 +1,85 @@
++import Foundation
++import UserNotifications
++
++/// A58 本地通知：约会出发前 30 分钟提醒、过咗期。App 锁屏 / 喺背景都收到。
++/// App 喺前台时唔弹系统通知，照用 App 自己嘅横幅（checkAppointments）。
++/// 街坊出门提醒要等后端推送（APNs），单机演示做唔到。
++@MainActor
++final class Notifier: NSObject, UNUserNotificationCenterDelegate {
++    override init() {
++        super.init()
++        UNUserNotificationCenter.current().delegate = self
++    }
++
++    /// 完成首次使用后先问（只问一次，之后由系统设定管）。
++    func requestIfNeeded() {
++        let c = UNUserNotificationCenter.current()
++        c.getNotificationSettings { s in
++            guard s.authorizationStatus == .notDetermined else { return }
++            c.requestAuthorization(options: [.alert, .sound]) { _, _ in }
++        }
++    }
++
++    /// 上次排咗乜（一样就唔再郁系统通知）。
++    private var lastPlan: [NotificationPlan.Item]?
++    /// 串行队列：两次 sync 嘅「清走、再排」唔会交错（唔会留低已取消约会嘅提醒）。
++    private let queue = DispatchQueue(label: "streetwalk.notifier", qos: .utility)
++
++    /// 按而家嘅约会重排全部通知（本 App 只有约会通知，所以先全部清走）。
++    /// 系统调用放去背景串行队列做，唔好阻住界面。
++    func sync(_ items: [NotificationPlan.Item]) {
++        let plan = items.filter { $0.at.timeIntervalSinceNow > 1 }
++        guard plan != lastPlan else { return }
++        lastPlan = plan
++        if LaunchArgs.has("-logNotifications") { plan.forEach { print("[notify] \($0.id) \($0.at) \($0.body)") } }
++        queue.async {
++            let c = UNUserNotificationCenter.current()
++            c.removeAllPendingNotificationRequests()
++            for it in plan {
++                let content = UNMutableNotificationContent()
++                content.title = "街坊行"
++                content.body = it.body
++                content.sound = .default
++                // 用倒数（唔受手机时区影响）；每次约会有改动都会重排
++                let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, it.at.timeIntervalSinceNow), repeats: false)
++                c.add(UNNotificationRequest(identifier: it.id, content: content, trigger: trigger))
++            }
++        }
++    }
++
++    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
++                                            withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
++        completionHandler([])
++    }
++}
++
++/// 要排边几个通知（纯逻辑，可单测）。
++enum NotificationPlan {
++    struct Item: Equatable {
++        var id: String
++        var at: Date
++        var body: String
++    }
++
++    static let remindBefore: TimeInterval = 30 * 60
++    /// 同 checkAppointments 一样：过咗约定时间一个钟当过期。
++    static let expireAfter: TimeInterval = 60 * 60
++
++    static func items(_ appointments: [Appointment], now: Date,
++                      partner: (String) -> String, place: (String) -> String) -> [Item] {
++        var out: [Item] = []
++        for a in appointments where a.isOpen {
++            let who = partner(a.partnerID), spot = place(a.landmarkID)
++            let remindAt = a.date.addingTimeInterval(-remindBefore)
++            if a.status == .accepted, !a.reminded, remindAt > now {
++                out.append(Item(id: "appt-\(a.id.uuidString)-remind", at: remindAt, body: "30 分鐘後約咗\(who)喺\(spot)。"))
++            }
++            let expireAt = a.date.addingTimeInterval(expireAfter)
++            if expireAt > now {
++                let hour = TemplateAI.hourLabel(AppStore.hk.component(.hour, from: a.date))
++                out.append(Item(id: "appt-\(a.id.uuidString)-expire", at: expireAt, body: "同\(who)\(hour)喺\(spot)嘅約過咗時間，收埋咗。"))
++            }
++        }
++        return out
++    }
++}
+diff --git a/ios/StreetWalk/Services/WalkDetector.swift b/ios/StreetWalk/Services/WalkDetector.swift
+index 8404656..0c40ea6 100644
+--- a/ios/StreetWalk/Services/WalkDetector.swift
++++ b/ios/StreetWalk/Services/WalkDetector.swift
+@@ -3,28 +3,51 @@ import CoreMotion
+ import Foundation
+ 
+ /// 真机散步检测：Core Motion 判断开始 / 停止行路，只在行路（或正在记录）时开定位（使用期间、前台）。
++/// 锁屏 / 背景冇定位：返前台时用 Core Motion 嘅活动纪录同计步器补记（AppStore.backfill）。
+ /// 精确位置只在手机上换算成场景坐标，不上传、不存盘。模拟器和演示模式不启用，继续用演示散步。
+ @MainActor
+ final class WalkDetector: NSObject, CLLocationManagerDelegate {
+     enum Event {
+         case walking(Bool)          // Core Motion：开始 / 停止行路
+         case riding                 // 坐车 / 踩单车：不算散步
+-        case location(GeoPoint, accuracy: Double)   // 精度 ≤100 m 的定位（>30 m 只用来判断返到屋企）
+-        case still                  // 停低超过 stillAfter
++        case location(GeoPoint, accuracy: Double)   // 精度 ≤100 m、10 秒内嘅定位（>30 m 只用来判断返到屋企）
++        case still(since: Date)     // 停低咗 2、5、10 分钟各报一次
++        case steps(Int, cadence: Double?)           // 计步器：今次散步嘅步数、而家步频（步/秒）
++
++        var isSteps: Bool { if case .steps = self { return true } else { return false } }
+     }
+ 
+-    static let stillAfter: TimeInterval = 5 * 60
++    /// 停低几耐报一次 .still：2 分钟（落脚点）、5 分钟（喺屋企附近就收尾）、10 分钟（喺外面都收尾）。
++    static let stillMarks: [TimeInterval] = [2 * 60, 5 * 60, 10 * 60]
+ 
+     var onEvent: ((Event) -> Void)?
+     /// 当前这次散步是真机记录的（不是演示）。
+     var recording = false
+     /// 真机记录到的轨迹（场景坐标）。
+     var trail: [Vec2] = []
++    /// 坐轮椅：iPhone 认唔到推轮椅，唔係「肯定停低」就当郁紧；坐车要定位速度 >4 m/s 先算。
++    /// 唔开计步器（步数≈0 唔公平），按分钟估算。
++    var seated = false { didSet { if seated && countingSteps { pedometer.stopUpdates(); countingSteps = false } } }
++    /// 开始 / 收尾判断（未开始时要两个好点先算出门）。
++    var gate = LiveWalkGate()
++    /// 背景补记嘅最后一段（仲行紧 / 啱啱停）：等定位接手，接唔到就停低后补记。
++    var pendingWalk: PendingWalk?
++    /// 返前台睇紧活动纪录（AppStore.resumeLiveWalk / backfill）：呢段时间唔开定位、唔开始、唔收尾。
++    var catchUps = 0
++    var catchingUp: Bool { catchUps > 0 }
++    /// Core Motion 而家判断喺行路，同埋呢段行路由几时开始（散步开始时间用佢，唔用第一个定位点）。
++    private(set) var moving = false
++    private(set) var movingSince: Date?
++    private(set) var stillSince: Date?
+     /// 最后一个定位点的时间和位置：散步分钟数按这个算，退到后台再返嚟时用来收尾。
+     private(set) var lastFixAt: Date?
+     private(set) var lastFix: (GeoPoint, accuracy: Double)?
++    private var lastSpeed = -1.0
+ 
+-    private let motion = CMMotionActivityManager()
++    /// 用到先建（一建就可能弹「运动与健身」权限框，要等同意页之后、真机先建）。
++    private lazy var motion = CMMotionActivityManager()
++    private lazy var pedometer = CMPedometer()
++    private var countingSteps = false
+     private let location = CLLocationManager()
+     private(set) var running = false
+     private var locating = false
+@@ -39,6 +62,15 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
+         #endif
+     }
+ 
++    /// 演示模式嘅默认值：模拟器开，真机关（真机装好就检测散步；设置里改过就按改过的）。
++    static var demoByDefault: Bool {
++        #if targetEnvironment(simulator)
++        return true
++        #else
++        return false
++        #endif
++    }
++
+     override init() {
+         super.init()
+         location.delegate = self
+@@ -47,47 +79,67 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
+         location.activityType = .fitness
+     }
+ 
++    /// 记录中退过后台（catchingUp）：等 AppStore 睇完活动纪录先决定继续定位定收尾。
+     func start() {
+         guard Self.isAvailable, !running else { return }
+         running = true
+-        // 记录中退过后台：返嚟即刻重开定位，唔使等下一次行路事件
+-        if recording { setLocating(true) }
++        if recording && !catchingUp { setLocating(true) }
+         motion.startActivityUpdates(to: .main) { [weak self] a in
+-            guard let self, let a, a.confidence != .low else { return }
+-            let still = a.stationary && !(a.walking || a.running || a.automotive || a.cycling)
++            guard let self, let a, a.confidence != .low || self.seated else { return }
++            let stepping = a.walking || a.running
++            let riding = (a.automotive || a.cycling) && !(self.seated && self.lastSpeed <= 4)
++            let moving = self.seated ? !a.stationary && !riding : stepping
++            let still = a.stationary && !stepping && !riding
+             self.watchStill(still)
+-            if a.automotive || a.cycling { self.onEvent?(.riding) }
+-            else if a.walking || a.running { self.onEvent?(.walking(true)) }
+-            else if still { self.onEvent?(.walking(false)) }
++            if riding {
++                self.moving = false
++                self.onEvent?(.riding)
++            } else if moving {
++                if !self.moving { self.movingSince = a.startDate }
++                self.moving = true
++                self.onEvent?(.walking(true))
++            } else if still {
++                self.moving = false
++                self.onEvent?(.walking(false))
++            }
+         }
+     }
+ 
+-    /// 停低够久就报一次 .still（定位有 distanceFilter，企定唔郁就唔会再有新点）。
++    /// 停低够耐就报 .still（定位有 distanceFilter，企定唔郁就唔会再有新点）。
+     private func watchStill(_ still: Bool) {
+-        guard still else { stillTask?.cancel(); stillTask = nil; return }
++        guard still else { stillTask?.cancel(); stillTask = nil; stillSince = nil; return }
+         guard stillTask == nil else { return }
++        let since = Date()
++        stillSince = since
+         stillTask = Task { @MainActor [weak self] in
+-            try? await Task.sleep(for: .seconds(Self.stillAfter))
+-            guard let self, !Task.isCancelled else { return }
+-            self.stillTask = nil
+-            self.onEvent?(.still)
++            var waited: TimeInterval = 0
++            for mark in Self.stillMarks {
++                try? await Task.sleep(for: .seconds(mark - waited))
++                waited = mark
++                guard let self, !Task.isCancelled else { return }
++                self.onEvent?(.still(since: since))
++            }
+         }
+     }
+ 
+-    /// 一次散步收尾：清轨迹和最后定位。
++    /// 一次散步收尾：清轨迹和最后定位，停计步。
+     func reset() {
+         recording = false
+         trail = []
+         lastFixAt = nil
+         lastFix = nil
++        gate = LiveWalkGate()
++        if countingSteps { pedometer.stopUpdates(); countingSteps = false }
+     }
+ 
+     func stop() {
+         guard running else { return }
+         running = false
++        moving = false
+         motion.stopActivityUpdates()
+         stillTask?.cancel()
+         stillTask = nil
++        stillSince = nil
+         setLocating(false)
+     }
+ 
+@@ -103,14 +155,52 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
+         }
+     }
+ 
++    // MARK: - 计步器（A85：真机步数；F9：步频）
++
++    func startSteps(from start: Date) {
++        guard Self.isAvailable, !seated, CMPedometer.isStepCountingAvailable() else { return }
++        countingSteps = true
++        pedometer.startUpdates(from: start) { [weak self] data, _ in
++            guard let data else { return }
++            let n = data.numberOfSteps.intValue, cadence = data.currentCadence?.doubleValue
++            Task { @MainActor in self?.onEvent?(.steps(n, cadence: cadence)) }
++        }
++    }
++
++    func steps(from: Date, to: Date) async -> Int? {
++        guard Self.isAvailable, !seated, CMPedometer.isStepCountingAvailable() else { return nil }
++        return await withCheckedContinuation { cont in
++            pedometer.queryPedometerData(from: from, to: to) { data, _ in cont.resume(returning: data?.numberOfSteps.intValue) }
++        }
++    }
++
++    /// 背景期间嘅活动纪录（系统保留 7 日）。冇权限 / 冇纪录返回 nil。
++    func activities(from: Date, to: Date) async -> [WalkBackfill.Sample]? {
++        guard Self.isAvailable else { return nil }
++        let seated = seated
++        return await withCheckedContinuation { cont in
++            motion.queryActivityStarting(from: from, to: to, to: .main) { list, _ in
++                // 补记唔睇位置：低可信度嘅唔要（轮椅都一样）
++                let s = list?.filter { $0.confidence != .low }.map {
++                    WalkBackfill.Sample(start: $0.startDate, moving: WalkBackfill.isMoving(
++                        walking: $0.walking, running: $0.running, stationary: $0.stationary, automotive: $0.automotive,
++                        cycling: $0.cycling, unknown: $0.unknown, seated: seated))
++                }
++                cont.resume(returning: s)
++            }
++        }
++    }
++
+     nonisolated func locationManager(_ m: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+         // 超过 100 m 的点不要；30–100 m 的（屋企楼里常见）只用来判断返到屋企，不画轨迹。
+-        let ok = locations.filter { $0.horizontalAccuracy >= 0 && $0.horizontalAccuracy <= 100 }
++        // 开定位后系统可能先俾一个旧嘅缓存点：10 秒前嘅唔要。
++        let ok = locations.filter { $0.horizontalAccuracy >= 0 && $0.horizontalAccuracy <= 100 && abs($0.timestamp.timeIntervalSinceNow) < 10 }
+         guard let l = ok.last else { return }
+-        let p = GeoPoint(lat: l.coordinate.latitude, lon: l.coordinate.longitude), acc = l.horizontalAccuracy, at = l.timestamp
++        let p = GeoPoint(lat: l.coordinate.latitude, lon: l.coordinate.longitude), acc = l.horizontalAccuracy, at = l.timestamp, speed = l.speed
+         Task { @MainActor in
+             self.lastFixAt = at
+             self.lastFix = (p, acc)
++            self.lastSpeed = speed
+             self.onEvent?(.location(p, accuracy: acc))
+         }
+     }
+diff --git a/ios/StreetWalk/Services/WalkRules.swift b/ios/StreetWalk/Services/WalkRules.swift
+new file mode 100644
+index 0000000..8a08a06
+--- /dev/null
++++ b/ios/StreetWalk/Services/WalkRules.swift
+@@ -0,0 +1,207 @@
++import Foundation
++
++// 散步嘅纯逻辑（唔掂界面、唔掂传感器），方便单测：落脚点、真机开始 / 收尾、背景补记、步频下降、请假日子。
++
++/// F1 落脚点：同一位置附近停留 ≥ 2 分钟、半径 ≤ 30 m。每段停留只报一次。
++/// 演示散步每秒只行 9 m（= 每分钟 9 m，比真人慢好多），所以演示用细啲嘅半径。
++struct StopDetector {
++    var minDwell: TimeInterval
++    var radius: Double
++    private var center: Vec2?
++    private var sum = Vec2.zero
++    private var count = 0
++    private var since: Date?
++    private var reported = false
++
++    init(minDwell: TimeInterval = 120, radius: Double = 30) {
++        self.minDwell = minDwell
++        self.radius = radius
++    }
++
++    /// 新位置。啱啱停够 minDwell 时返回落脚点中心（每段一次）。
++    mutating func add(_ p: Vec2, at t: Date) -> Vec2? {
++        if let c = center, c.distance(to: p) <= radius {
++            sum = sum + p
++            count += 1
++            center = sum * (1 / Double(count))
++            return check(t)
++        }
++        center = p; sum = p; count = 1; since = t; reported = false
++        return nil
++    }
++
++    /// 冇新定位点，但知道仲喺原地（Core Motion 话停低咗；企定唔郁时定位唔会再出新点）。
++    mutating func hold(at t: Date) -> Vec2? { center == nil ? nil : check(t) }
++
++    private mutating func check(_ t: Date) -> Vec2? {
++        guard !reported, let s = since, let c = center, t.timeIntervalSince(s) >= minDwell else { return nil }
++        reported = true
++        return c
++    }
++}
++
++/// F1 真机：按定位点判断几时开始、几时收尾。
++struct LiveWalkGate {
++    static let homeRadius = 40.0     // 我屋企 40 m 内算返到屋企
++    static let leaveRadius = 55.0    // 扣埋误差都离开 55 m 先算出门（大过返屋企阈值，唔会一开一收）
++    static let maxStart = 400.0      // 400 m 外先开始唔算（喺别区落车行路唔係「出門」）
++    static let goodAcc = 30.0        // 开始、画轨迹要精度 ≤30 m
++    static let homeAcc = 50.0        // 放宽嘅返屋企判断只接受精度 ≤50 m
++    static let confirmGap: TimeInterval = 5   // 要两个相隔 ≥5 秒嘅好点先开始（防定位跳一下）
++
++    enum Action: Equatable { case none, start, step, minutesOnly, finish }
++
++    private(set) var pendingSince: Date?
++
++    /// 精度差（屋企楼里）时放宽：扣掉误差仍在 40 m 内、精度唔差过 50 m、唔超过 100 m。
++    static func isHome(fromHome d: Double, acc: Double) -> Bool {
++        d < homeRadius || (acc <= homeAcc && d - acc < homeRadius && d < 100)
++    }
++
++    /// moving：Core Motion 而家判断喺行路（轮椅：唔係停低）。
++    mutating func decide(fromHome d: Double, acc: Double, at t: Date, recording: Bool, moving: Bool) -> Action {
++        if recording {
++            pendingSince = nil
++            if Self.isHome(fromHome: d, acc: acc) { return .finish }
++            return acc <= Self.goodAcc ? .step : .minutesOnly
++        }
++        guard moving, acc <= Self.goodAcc, d - acc > Self.leaveRadius, d < Self.maxStart else { pendingSince = nil; return .none }
++        guard let s = pendingSince else { pendingSince = t; return .none }
++        guard t.timeIntervalSince(s) >= Self.confirmGap else { return .none }
++        pendingSince = nil
++        return .start
++    }
++}
++
++/// A05：App 喺背景 / 锁屏时冇定位，返前台用 Core Motion 嘅活动纪录补记行路时段（只有分钟、步数，冇地标）。
++enum WalkBackfill {
++    struct Sample: Equatable {
++        var start: Date
++        var moving: Bool
++    }
++    static let minLength: TimeInterval = 5 * 60   // 少过 5 分钟唔算（屋企入面行来行去）
++    static let mergeGap: TimeInterval = 2 * 60    // 停低少过 2 分钟（等过马路）当同一次
++
++    /// 连续「行路」嘅时段。最后一段如果仲未停，就到 end 为止。
++    static func segments(_ samples: [Sample], until end: Date, minLength: TimeInterval = minLength) -> [DateInterval] {
++        var raw: [DateInterval] = []
++        var open: Date?
++        for s in samples.sorted(by: { $0.start < $1.start }) {
++            if s.moving { if open == nil { open = s.start } }
++            else if let o = open { raw.append(DateInterval(start: o, end: max(o, s.start))); open = nil }
++        }
++        if let o = open, o < end { raw.append(DateInterval(start: o, end: end)) }
++        var merged: [DateInterval] = []
++        for r in raw {
++            if let last = merged.last, r.start.timeIntervalSince(last.end) < mergeGap {
++                merged[merged.count - 1] = DateInterval(start: last.start, end: max(last.end, r.end))
++            } else {
++                merged.append(r)
++            }
++        }
++        return merged.filter { $0.duration >= minLength }
++    }
++
++    /// 分开：已经完咗嘅段（即刻补记）同最后一段（返前台时仲行紧、或者 2 分钟内啱啱停）。
++    /// 最后一段交俾定位接手做真机散步（开始时间用佢嘅）；接唔到就等停低再补记（PendingWalk.interval）。
++    static func split(_ samples: [Sample], until end: Date) -> (done: [DateInterval], tail: PendingWalk?) {
++        var segs = segments(samples, until: end, minLength: 0)
++        let open = samples.max { $0.start < $1.start }?.moving == true
++        var tail: PendingWalk?
++        if let last = segs.last, last.end >= end.addingTimeInterval(-mergeGap) {
++            tail = PendingWalk(start: last.start, end: open ? nil : last.end)
++            segs.removeLast()
++        }
++        return (segs.filter { $0.duration >= minLength }, tail)
++    }
++
++    /// 轮椅：iPhone 认唔到推轮椅，只信中高可信度、而且明确唔係停低 / 坐车 / 踩单车 / 唔知（手机拎喺手、放袋都可能报 unknown）。
++    static func isMoving(walking: Bool, running: Bool, stationary: Bool, automotive: Bool, cycling: Bool, unknown: Bool, seated: Bool) -> Bool {
++        seated ? !stationary && !automotive && !cycling && !unknown : walking || running
++    }
++}
++
++/// 背景补记嘅最后一段：end = nil 即係返前台时仲行紧。
++struct PendingWalk: Equatable {
++    var start: Date
++    var end: Date?
++
++    /// 冇接到真机散步，按停低嘅时间补记；少过 5 分钟唔记。
++    func interval(stoppedAt: Date) -> DateInterval? {
++        let d = DateInterval(start: start, end: max(start, end ?? stoppedAt))
++        return d.duration >= WalkBackfill.minLength ? d : nil
++    }
++}
++
++/// F9 真机步频：行咗 10 分钟后，步频持续 2 分钟低过本次散步中位数七成，就提示休息（每次散步一次）。
++struct CadenceWatch {
++    static let warmUp: TimeInterval = 10 * 60
++    static let sustain: TimeInterval = 2 * 60
++    static let ratio = 0.7
++    private var samples: [Double] = []
++    private var lowSince: Date?
++    private(set) var fired = false
++
++    /// cadence：每秒步数（CMPedometerData.currentCadence）。返回 true = 而家要提示。
++    mutating func add(_ cadence: Double, at t: Date, walkStart: Date) -> Bool {
++        guard !fired, cadence > 0 else { return false }
++        guard t.timeIntervalSince(walkStart) >= Self.warmUp, samples.count >= 5 else {
++            samples.append(cadence)
++            return false
++        }
++        let sorted = samples.sorted()
++        let median = sorted[sorted.count / 2]
++        guard cadence < median * Self.ratio else {
++            lowSince = nil
++            samples.append(cadence)   // 慢落嚟嘅唔计入基线
++            return false
++        }
++        let since = lowSince ?? t
++        lowSince = since
++        guard t.timeIntervalSince(since) >= Self.sustain else { return false }
++        fired = true
++        return true
++    }
++}
++
++/// F4 请假日子：「聽日請假」「請三日假」「聽日起請一個禮拜」。冇讲就係今日一日。
++struct LeaveRequest: Hashable {
++    var startOffset = 0     // 0 今日、1 聽日、2 後日、3 大後日；「下星期」= 下個禮拜一
++    var days = 1
++
++    static let maxDays = 14
++
++    /// today：按佢计「下星期」由边日开始（香港日历）。
++    static func parse(_ raw: String, today: Date = Date()) -> LeaveRequest {
++        let t = raw.replacingOccurrences(of: " ", with: "")
++        var r = LeaveRequest()
++        if t.contains("大後日") { r.startOffset = 3 }
++        else if t.contains("後日") { r.startOffset = 2 }
++        else if t.contains("聽日") || t.contains("明日") || t.contains("明天") { r.startOffset = 1 }
++        else if ["下星期", "下個星期", "下禮拜", "下個禮拜", "下周", "下週"].contains(where: t.contains) {
++            let wd = AppStore.hk.component(.weekday, from: today)   // 1 = 星期日、2 = 星期一
++            let k = (9 - wd) % 7
++            r.startOffset = k == 0 ? 7 : k
++        }
++        // 先睇明讲嘅「N 日」，再睇「一個禮拜」（「下星期」只係讲由几时开始）
++        if let m = t.range(of: "[0-9一二兩三四五六七八九十]+[日天]", options: .regularExpression), let n = number(String(t[m].dropLast())) {
++            r.days = n
++        } else if ["兩個禮拜", "兩個星期", "兩星期"].contains(where: t.contains) {
++            r.days = 14
++        } else if ["一個禮拜", "一個星期", "成個禮拜", "成個星期", "一星期", "一周", "一週"].contains(where: t.contains) {
++            r.days = 7
++        }
++        r.days = max(1, min(maxDays, r.days))
++        return r
++    }
++
++    /// 「3」「三」「十四」「兩」→ 数字。
++    static func number(_ s: String) -> Int? {
++        if let n = Int(s) { return n }
++        let d: [Character: Int] = ["一": 1, "二": 2, "兩": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9]
++        if s == "十" { return 10 }
++        if s.hasPrefix("十"), let last = s.last { return 10 + (d[last] ?? 0) }
++        if s.count == 2, s.last == "十", let first = s.first { return (d[first] ?? 0) * 10 }
++        return s.count == 1 ? s.first.flatMap { d[$0] } : nil
++    }
++}
+diff --git a/ios/StreetWalk/Store/AppStore+Neighbors.swift b/ios/StreetWalk/Store/AppStore+Neighbors.swift
+index 11d0bb2..cf853b9 100644
+--- a/ios/StreetWalk/Store/AppStore+Neighbors.swift
++++ b/ios/StreetWalk/Store/AppStore+Neighbors.swift
+@@ -78,6 +78,7 @@ extension AppStore {
+     /// 而家喺唔喺接收提醒嘅时段。
+     var inRemindWindow: Bool {
+         let h = Self.hk.component(.hour, from: now)
++        if remindFrom == remindTo { return true }   // 由、到一樣當全日（A66）
+         return remindFrom <= remindTo ? (remindFrom..<remindTo).contains(h) : (h >= remindFrom || h < remindTo)
+     }
+ 
+diff --git a/ios/StreetWalk/Store/AppStore+Persist.swift b/ios/StreetWalk/Store/AppStore+Persist.swift
+index c9a4e82..2d9ddeb 100644
+--- a/ios/StreetWalk/Store/AppStore+Persist.swift
++++ b/ios/StreetWalk/Store/AppStore+Persist.swift
+@@ -6,6 +6,10 @@ extension AppStore {
+ 
+     /// 启动时读回上次的数据。自动演示（-script / -script2）和 -resetData 从干净状态开始。
+     func restoreSaved() {
++        // 演示模式默认：模拟器开、真机关（A05）；-demo 参数或者设置里改过就照用。
++        UserDefaults.standard.register(defaults: ["demoMode": WalkDetector.demoByDefault])
++        demoMode = LaunchArgs.has("-demo") || UserDefaults.standard.bool(forKey: "demoMode")
++        localCommunity?.demoEnabled = demoMode
+         if LaunchArgs.has("-script") || LaunchArgs.has("-script2") || LaunchArgs.has("-script3") || LaunchArgs.has("-resetData") || LaunchArgs.has("-resetOnboarding") {
+             LocalStore.clear()
+         }
+@@ -30,6 +34,7 @@ extension AppStore {
+             try? await Task.sleep(for: .milliseconds(500))
+             guard !Task.isCancelled else { return }
+             self.saveNow()
++            self.syncNotifications()
+         }
+     }
+ 
+@@ -50,6 +55,7 @@ extension AppStore {
+ 
+     /// 首次使用 / 改楼完成：换咗楼就作废约会地点、反映位置、改过的地标名（街坊关系和散步记录保留），未完成的约会会通知对方取消。
+     func homeChanged() {
++        changingHome = false
+         guard let key = currentMapKey else { return }
+         if let old = savedMapKey, old != key {
+             for i in appointments.indices where appointments[i].isOpen {
+@@ -108,7 +114,8 @@ extension AppStore {
+         appointments.removeAll { demoIDs.contains($0.partnerID) }
+         for i in reports.indices where reports[i].followUpDemo == true { reports[i].followUp = nil; reports[i].followUpDemo = nil }
+         walkLog = walkLog.filter { !$0.value.demo }
+-        if walkLog[LocalStore.dayKey(now)] == nil { seedDemoHistory() }
++        // 只补冇纪录嘅日子（真实纪录嗰几日照旧）
++        seedDemoHistory()
+         scheduleSave()
+     }
+ 
+@@ -131,18 +138,20 @@ extension AppStore {
+     /// 连续天数里有没有示範纪录（界面要标明）。
+     var streakHasDemo: Bool {
+         guard demoMode else { return false }
+-        var day = now
+-        for _ in 0..<max(myStreak() + 1, 1) {
+-            if walkLog[LocalStore.dayKey(day)]?.demo == true { return true }
+-            day = day.addingTimeInterval(-86400)
+-        }
+-        return false
++        return LocalStore.streakKeys(walkLog, leaves: leaveDays, today: now, includeDemo: true).contains { walkLog[$0]?.demo == true }
+     }
+ 
+-    /// 本月我行咗几多步（按每分钟约 100 步估算；没有计步器时的近似）。
++    /// 本月我行咗几多步：真机用计步器量到嘅；冇量到嘅日子（模拟器、演示、背景补记冇步数）按每分钟约 100 步估算。
+     var myMonthSteps: Int {
++        monthLogs.reduce(0) { $0 + $1.stepEstimate }
++    }
++
++    /// 本月步数有冇用估算（界面要写「約」）。
++    var myMonthStepsEstimated: Bool { monthLogs.contains(where: \.stepsEstimated) }
++
++    private var monthLogs: [DayLog] {
+         let prefix = String(LocalStore.dayKey(now).prefix(7))
+-        return walkLog.filter { $0.key.hasPrefix(prefix) && (demoMode || !$0.value.demo) }.reduce(0) { $0 + $1.value.minutes * 100 }
++        return walkLog.filter { $0.key.hasPrefix(prefix) && (demoMode || !$0.value.demo) }.map(\.value)
+     }
+ 
+     var myMonthWalks: Int {
+@@ -150,15 +159,11 @@ extension AppStore {
+         return walkLog.filter { $0.key.hasPrefix(prefix) && (demoMode || !$0.value.demo) }.reduce(0) { $0 + $1.value.walks }
+     }
+ 
+-    /// 记一次散步。演示散步（模拟路线）算示範纪录；真机散步是真实纪录，唔会同示範纪录混埋。
+-    func recordWalk(minutes: Int, landmarks passed: [String], simulated: Bool) {
+-        let key = LocalStore.dayKey(now)
+-        var l = walkLog[key] ?? DayLog(demo: simulated)
+-        if simulated { l.demo = true } else if l.demo { l = DayLog() }
+-        l.minutes += minutes
+-        l.walks += 1
+-        l.landmarks += passed.filter { !l.landmarks.contains($0) }
+-        walkLog[key] = l
++    /// 记一次散步。演示散步（模拟路线）算示範纪录，唔会改当日嘅真实纪录；真机散步是真实纪录，唔会同示範纪录混埋。
++    /// day：背景补记时係嗰段行路嘅日子。
++    func recordWalk(minutes: Int, landmarks passed: [String], simulated: Bool, day: Date? = nil, steps: Int? = nil, stops: [String] = []) {
++        LocalStore.record(&walkLog, key: LocalStore.dayKey(day ?? now), minutes: minutes, landmarks: passed, stops: stops,
++                          steps: steps, simulated: simulated)
+         refreshMe()
+     }
+ 
+@@ -167,20 +172,33 @@ extension AppStore {
+         guard let i = residents.firstIndex(where: \.isMe) else { return }
+         residents[i].streakDays = myStreak()
+         residents[i].onLeave = leaveDays.contains(LocalStore.dayKey(now))
++        residents[i].todayLine = myTodayLine(residents[i])
++    }
++
++    /// 今日一句（全圈见到）：只用落脚点地标，唔讲经过边度（F1 对外只有落脚点）。
++    func myTodayLine(_ r: Resident) -> String {
++        guard !landmarks.isEmpty else { return "" }   // 地图未装好：先唔讲
+         let today = log(for: now)
+-        var passed = today.landmarks.compactMap(landmark)
++        guard !r.onLeave, today.walks > 0 else { return ai.dailyLine(for: r, passed: []) }
++        let stops = today.stops.compactMap(landmark)
++        if let s = stops.last { return s.hasSeat ? "\(r.floorLabel)喺\(s.name)坐咗陣" : ai.dailyLine(for: r, passed: stops) }
+         // 示範纪录只有分钟数：当佢行过自己常去嗰度，免得"行咗 24 分鐘"同"仲未出門"矛盾。
+-        if passed.isEmpty, today.walks > 0, let home = landmark(residents[i].homeLandmarkID) { passed = [home] }
+-        residents[i].todayLine = ai.dailyLine(for: residents[i], passed: passed)
++        if today.demo, let home = landmark(r.homeLandmarkID) { return ai.dailyLine(for: r, passed: [home]) }
++        // 真实散步冇落脚点（或者喺背景补记）：照实讲分钟数，唔好编地标。
++        return "\(r.floorLabel)今日行咗 \(today.minutes) 分鐘"
+     }
+ 
+-    /// 演示模式第一次启动：放过去 8 日 + 今日早上的示範纪录，连续 9 日。都标 demo，关掉演示模式就不算。
++    /// 演示模式：放过去 8 日 + 今日早上的示範纪录，连续 9 日。都标 demo，关掉演示模式就不算；已有纪录嘅日子唔郁。
+     func seedDemoHistory() {
+-        let mins = [32, 28, 41, 25, 36, 30, 22, 38]
+-        for (i, m) in mins.enumerated() {
+-            walkLog[LocalStore.dayKey(now.addingTimeInterval(-Double(i + 1) * 86400))] = DayLog(minutes: m, walks: 1, landmarks: [], demo: true)
+-        }
+-        walkLog[LocalStore.dayKey(now)] = DayLog(minutes: 24, walks: 1, landmarks: [], demo: true)
++        LocalStore.seedDemo(&walkLog, today: now)
++    }
++
++    /// 地图未装好前，「我」都用真实纪录算（唔好显示后备值）。
++    func ensureMeBeforeMap() {
++        guard residents.isEmpty, phase == .main else { return }
++        residents = [Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice,
++                              streakDays: myStreak(), todayLine: "", isMe: true)]
++        refreshMe()
+     }
+ 
+     // MARK: - 别人那边的事（CommunityService 事件）
+diff --git a/ios/StreetWalk/Store/AppStore+Services.swift b/ios/StreetWalk/Store/AppStore+Services.swift
+index 024958e..4f6d75b 100644
+--- a/ios/StreetWalk/Store/AppStore+Services.swift
++++ b/ios/StreetWalk/Store/AppStore+Services.swift
+@@ -1,19 +1,75 @@
+ import UIKit
+ 
+-// 真实服务的接线：天文台天气、真机散步检测、打电话
++// 真实服务的接线：天文台天气、真机散步检测、本地通知、打电话
+ extension AppStore {
+     /// 回到前台 / 退到后台（StreetWalkApp 按 scenePhase 调用，启动时也会来一次；.inactive 不调）。
+     func appActive(_ active: Bool) {
+         if active {
++            ensureMeBeforeMap()
+             refreshLiveWeather()
+             hko.keepFresh(true) { [weak self] in self?.refreshLiveWeather() }
+             startWalkDetection()
++            // 隔咗一阵返嚟：太阳、今日状态、约会提醒跟返而家（A34）
++            updateSun(animated: false)
++            refreshMe()
++            if map != nil { checkAppointments() }   // 启动时地图未装好，等 populate 再查（唔好出冇名嘅提醒）
++            startDayClock()
+         } else {
++            // 退后台即刻写盘（唔等 0.5 秒），之后被系统收咗都唔会冇咗最后一次改动（A76）
++            saveTask?.cancel()
++            saveNow()
++            syncNotifications()
++            dayClock?.cancel()
+             hko.keepFresh(false) {}
++            markBackground()
+             walkDetector.stop()
+         }
+     }
+ 
++    /// 前台时每分钟：用真实时间时每 5 分钟郁一次太阳；过咗午夜刷新连续天数、请假、今日一句。
++    func startDayClock() {
++        dayClock?.cancel()
++        dayClock = Task { [weak self] in
++            var day = LocalStore.dayKey(Date())
++            var sunAt = Date()
++            while !Task.isCancelled {
++                try? await Task.sleep(for: .seconds(60))
++                guard let self, !Task.isCancelled else { return }
++                if self.demoHour == nil, Date().timeIntervalSince(sunAt) >= 5 * 60 {
++                    self.updateSun(animated: true)
++                    sunAt = Date()
++                }
++                let k = LocalStore.dayKey(self.now)
++                if k != day {
++                    day = k
++                    self.refreshMe()
++                    self.refreshWeatherTip()
++                }
++            }
++        }
++    }
++
++    // MARK: - 本地通知（A58）
++
++    /// 自动演示、录视频、开发用嘅 -skipOnboarding 唔弹通知权限框（免得挡住画面）。
++    var skipsPermissionPrompt: Bool {
++        ["-script", "-script2", "-script3", "-scriptOnboarding", "-captions", "-skipOnboarding"].contains(where: LaunchArgs.has)
++    }
++
++    /// 完成首次使用之后先问通知权限（之后每次开 App 都唔会再问，由系统设定管）。
++    func requestNotificationsIfReady() {
++        guard phase == .main, UserDefaults.standard.bool(forKey: "onboarded"), !skipsPermissionPrompt else { return }
++        notifier.requestIfNeeded()
++    }
++
++    /// 约会有改动（存盘时）同退后台时重排。演示拉咗时间滑杆（假钟点）就唔排。
++    func syncNotifications() {
++        guard demoHour == nil else { notifier.sync([]); return }
++        notifier.sync(NotificationPlan.items(appointments, now: Date(),
++                                             partner: { resident($0)?.name ?? "街坊" },
++                                             place: { landmark($0)?.name ?? "約好嘅地方" }))
++    }
++
+     // MARK: - 打电话（找人超时卡片）
+ 
+     func call(_ id: String) {
+diff --git a/ios/StreetWalk/Store/AppStore+Walk.swift b/ios/StreetWalk/Store/AppStore+Walk.swift
+index 73147d5..82beb97 100644
+--- a/ios/StreetWalk/Store/AppStore+Walk.swift
++++ b/ios/StreetWalk/Store/AppStore+Walk.swift
+@@ -1,33 +1,70 @@
+ import SwiftUI
+ 
++/// 一次散步嘅附加状态（唔使刷新界面）：演示时钟、落脚点、步数、真机行咗几远。
++struct WalkTrack {
++    /// 演示散步累计秒数（1 秒 = 1 分钟）。每格最多当 1 秒，退后台再返嚟唔会一下跳几百分钟。
++    var elapsed = 0.0
++    var stops = StopDetector()
++    /// 今次嘅落脚点（地标 id）。
++    var stopIDs: [String] = []
++    /// 演示：喺呢个有櫈嘅地标停一停，形成落脚点。
++    var pauseAt: Vec2?
++    var pauseSeat: String?
++    var pauseLeft = 0.0
++    /// 真机：计步器步数、步频、行咗几远（太短唔记）。
++    var steps: Int?
++    var cadence = CadenceWatch()
++    var distance = 0.0
++    var lastPoint: Vec2?
++}
++
+ // F1 散步、F4 请假
+ extension AppStore {
+     // MARK: - F1 散步（演示：1 秒 = 1 分钟）
+ 
+     static let walkSpeed = 9.0     // 米/秒（演示加速）
+     static let findSpeed = 7.0
++    /// 演示：喺有櫈嘅地标停 3 秒（= 3 分钟，够一个落脚点）。
++    static let demoPause = 3.0
++    /// 演示散步每分钟只行 9 m（真人约 70 m），落脚点半径按比例缩细。
++    static let demoStopRadius = 4.0
++    /// 落脚点吸附到 60 m 内最近嘅地标；再远就唔算，唔好乱讲地标。
++    static let stopSnap = 60.0
+ 
+     func startWalk() {
+         guard walk == nil, find == nil, map != nil else { return }
+         let start = scene.nearestWalkable(scene.homeTarget + Vec2(x: 0, y: -18))
+-        var stops = landmarks.sorted { $0.pos.distance(to: start) < $1.pos.distance(to: start) }.prefix(3).map(\.pos)
+-        if stops.count >= 2 { stops = [stops[0], stops[2 % stops.count], stops[1]] }
++        var near = Array(landmarks.sorted { $0.pos.distance(to: start) < $1.pos.distance(to: start) }.prefix(3))
++        // 路线上要有一个有櫈嘅地标（演示落脚点）
++        if !near.isEmpty, !near.contains(where: \.hasSeat),
++           let seat = landmarks.filter(\.hasSeat).min(by: { $0.pos.distance(to: start) < $1.pos.distance(to: start) }) {
++            near[near.count - 1] = seat
++        }
++        if near.count >= 2 { near = [near[0], near[2 % near.count], near[1]] }
+         var route: [Vec2] = [start]
+         var prev = start
+-        for s in stops + [start] {
+-            let leg = scene.route(from: prev, to: scene.nearestWalkable(s))
+-            route += leg.dropFirst()
++        var seat: (Vec2, String)?
++        for l in near {
++            route += scene.route(from: prev, to: scene.nearestWalkable(l.pos)).dropFirst()
+             prev = route.last!
++            if seat == nil, l.hasSeat { seat = (prev, l.id) }
+         }
++        route += scene.route(from: prev, to: start).dropFirst()
++        // 自己撳「出門」先切去今日页；真机自动开始唔切页（A92）
++        tab = .today
+         beginWalk(route: route)
++        track.pauseAt = seat?.0
++        track.pauseSeat = seat?.1
+         startTicker()
+     }
+ 
+-    private func beginWalk(route: [Vec2]) {
+-        walk = WalkSession(start: Date(), route: route)
++    private func beginWalk(route: [Vec2], start: Date = Date(), live: Bool = false) {
++        walk = WalkSession(start: start, route: route)
++        track = WalkTrack()
++        if !live { track.stops = StopDetector(radius: Self.demoStopRadius) }
++        if live { walkDetector.startSteps(from: start) }
+         community.publishOuting(landmarkID: nearestLandmark(to: route[0])?.id)
+         paceTip = nil
+-        tab = .today
+         speaker.speak("偵測到你出咗門，開始記錄，唔使撳任何掣。")
+         Haptics.light()
+         scene.followID = "me"
+@@ -37,6 +74,8 @@ extension AppStore {
+ 
+     func remainingRoute(_ w: WalkSession) -> [Vec2] {
+         let (pt, idx) = point(along: w.route, at: w.travelled)
++        // 演示落脚点：停喺度
++        if track.pauseLeft > 0 { return [pt] }
+         return [pt] + w.route.dropFirst(idx + 1)
+     }
+ 
+@@ -53,7 +92,8 @@ extension AppStore {
+             while !Task.isCancelled {
+                 try? await Task.sleep(for: .milliseconds(250))
+                 guard let self else { return }
+-                let dt = Date().timeIntervalSince(last)
++                // 每格最多当 1 秒：退咗后台再返嚟唔会一下记几百分钟（A75）；机慢偶然一格长啲都照计
++                let dt = min(Date().timeIntervalSince(last), 1)
+                 last = Date()
+                 self.tick(dt)
+             }
+@@ -61,6 +101,15 @@ extension AppStore {
+     }
+ 
+     func tick(_ dt: Double) {
++        if walk != nil, !walkDetector.recording {
++            // 演示散步嘅时钟：过去搵人途中都照计（都係行紧路）
++            track.elapsed += dt
++            if find != nil, let w = walk {
++                if w.minutes != Int(track.elapsed) { walk?.minutes = Int(track.elapsed) }
++                // 等对方、见面倾偈都係停低：照样计落脚点
++                if let c = track.stops.add(myPosition(), at: w.start.addingTimeInterval(track.elapsed * 60)) { addStop(at: c) }
++            }
++        }
+         if var f = find { tickFind(&f, dt); find = f }
+         else if var w = walk, !walkDetector.recording { tickWalk(&w, dt) }
+         // 真机散步由定位推动，不用计时器
+@@ -68,13 +117,27 @@ extension AppStore {
+     }
+ 
+     func tickWalk(_ w: inout WalkSession, _ dt: Double) {
+-        w.travelled += dt * Self.walkSpeed
+         let total = pathLength(w.route)
+-        w.minutes = Int(Date().timeIntervalSince(w.start))
+-        let (pos, _) = point(along: w.route, at: w.travelled)
++        var pos = point(along: w.route, at: w.travelled).0
++        if track.pauseLeft > 0 {
++            track.pauseLeft -= dt
++            if track.pauseLeft <= 0 { paceTip = nil; walk = w; syncScene() }      // 唞完，起身继续行
++        } else if let p = track.pauseAt, pos.distance(to: p) < 5 {
++            track.pauseAt = nil
++            track.pauseLeft = Self.demoPause
++            walk = w; syncScene()                                    // 喺櫈度坐低
++        } else {
++            w.travelled += dt * Self.walkSpeed
++            pos = point(along: w.route, at: w.travelled).0
++        }
++        w.minutes = Int(track.elapsed)
+         markPassed(&w, at: pos)
++        if let c = track.stops.add(pos, at: w.start.addingTimeInterval(track.elapsed * 60)) { addStop(at: c) }
+         scene.setTrail(prefix(of: w.route, upTo: w.travelled))
+-        if w.minutes == 18 && paceTip == nil, let seat = landmarks.first(where: { $0.hasSeat && !w.passed.contains($0.id) }) ?? landmarks.first(where: \.hasSeat) {
++        // 演示「行慢咗」：指住前面会坐低嗰张櫈（未坐过先讲）
++        let ahead = track.pauseAt != nil ? landmark(track.pauseSeat) : nil
++        if w.minutes == 18 && paceTip == nil,
++           let seat = ahead ?? landmarks.first(where: { $0.hasSeat && !w.passed.contains($0.id) }) ?? landmarks.first(where: \.hasSeat) {
+             paceTip = "行慢咗少少。前面\(seat.name)有櫈，可以唞陣。"
+             speaker.speak(paceTip!)
+         }
+@@ -82,72 +145,204 @@ extension AppStore {
+         if w.travelled >= total { finishWalk() }
+     }
+ 
++    /// 经过地标（26 m 内）：出门状态更新做呢个地标（只发俾开咗提醒嘅街坊）。
++    /// 今日一句唔喺行紧时改：全圈都见到，行紧路时讲会话晒俾人知你出咗門。
+     func markPassed(_ w: inout WalkSession, at pos: Vec2) {
+         for l in landmarks where !w.passed.contains(l.id) && l.pos.distance(to: pos) < 26 {
+             w.passed.append(l.id)
+             community.publishOuting(landmarkID: l.id)
+-            if var meR = residents.first(where: \.isMe), let i = residents.firstIndex(where: \.isMe) {
+-                meR.todayLine = ai.dailyLine(for: meR, passed: w.passed.compactMap(landmark))
+-                residents[i] = meR
+-            }
+         }
+     }
+ 
+-    func finishWalk() {
++    /// 落脚点 → 最近地标（F1：对外只用落脚点对应嘅地标）。
++    func addStop(at c: Vec2) {
++        guard let l = nearestLandmark(to: c), l.pos.distance(to: c) <= Self.stopSnap, !track.stopIDs.contains(l.id) else { return }
++        track.stopIDs.append(l.id)
++        community.publishOuting(landmarkID: l.id)
++    }
++
++    enum WalkEnd { case home, stopped, riding }
++
++    /// 收尾。endAt：真机按几时停低 / 最后定位计分钟。
++    func finishWalk(endAt: Date? = nil, reason: WalkEnd = .home) {
+         guard let w = walk else { return }
+         let live = walkDetector.recording
++        var minutes = w.minutes
++        if live, let end = endAt ?? walkDetector.lastFixAt { minutes = max(0, Int(end.timeIntervalSince(w.start) / 60)) }
++        // 真机：唔够 2 分钟又行唔到 100 m（定位跳咗一下），唔记录（A74）
++        let tooShort = live && minutes < 2 && track.distance < 100
++        let t = track
+         walk = nil
+         walkDetector.reset()
+         scene.followID = nil
+         scene.setTrail([])
+-        recordWalk(minutes: max(w.minutes, 1), landmarks: w.passed, simulated: !live)
++        if !tooShort {
++            // 轮椅唔记步数（按分钟估算）
++            recordWalk(minutes: max(minutes, 1), landmarks: w.passed, simulated: !live, steps: live && !walkDetector.seated ? t.steps : nil, stops: t.stopIDs)
++        }
+         community.publishOuting(landmarkID: nil)
+         paceTip = nil
++        track = WalkTrack()
+         syncScene()
+         scene.resetCamera()
+-        speaker.speak("返到屋企喇。今日行咗 \(max(w.minutes, 1)) 分鐘，經過 \(w.passed.count) 個地方。而家已經隱身。")
++        let m = max(minutes, 1)
++        switch (tooShort, reason) {
++        case (true, _): speaker.speak("行得太短，今次唔記錄。而家已經隱身。")
++        case (_, .home): speaker.speak("返到屋企喇。今日行咗 \(m) 分鐘，經過 \(w.passed.count) 個地方。而家已經隱身。")
++        case (_, .stopped): speaker.speak("停低咗一陣，今次散步記好咗：行咗 \(m) 分鐘。而家已經隱身。")
++        case (_, .riding): speaker.speak("上咗車，今次散步記好咗：行咗 \(m) 分鐘。而家已經隱身。")
++        }
+         Haptics.success()
+     }
+ 
+     // MARK: - F1 真机散步检测（只在真机、关咗演示模式、完成首次使用后；见 WalkDetector）
+ 
+-    static let homeRadius = 40.0    // 我屋企 40 m 内算返到屋企
+-    static let leaveRadius = 55.0   // 离开 55 m 才算出门，防定位在门口抖动
+     static let nearHome = 80.0      // 停低 5 分钟又喺呢个范围内，都算返到屋企
+     static let staleWalk: TimeInterval = 15 * 60
++    static let backgroundKey = "walkBackgroundSince"
+ 
+-    /// 权限框（动作与健身、定位）要等首次使用的同意页之后先弹。
++    /// 权限框（动作与健身、定位、通知）要等首次使用的同意页之后先弹。
+     func startWalkDetection() {
++        requestNotificationsIfReady()
+         guard WalkDetector.isAvailable, !demoMode, phase == .main else { return }
+-        walkDetector.onEvent = { [weak self] e in self?.handleWalkEvent(e) }
+-        walkDetector.start()
+-        // 记录中退咗后台好耐：按最后一个定位点收尾，唔好将喺屋企嘅时间都算落去
+-        if walkDetector.recording, walk != nil,
+-           let t = walkDetector.lastFixAt, Date().timeIntervalSince(t) > Self.staleWalk {
+-            finishLiveWalk()
++        let d = walkDetector
++        d.onEvent = { [weak self] e in self?.handleWalkEvent(e) }
++        d.seated = mobilityChoice == .wheelchair
++        let since = takeBackgroundMark()
++        let resuming = d.recording && walk != nil
++        // 返前台：睇完活动纪录先开定位、判断开始 / 收尾（唔好俾第一个定位抢先收尾或者开始，A55）
++        guard resuming || since != nil else { d.start(); return }
++        if since != nil { d.pendingWalk = nil }     // 由 mark 起重新睇过
++        d.catchUps += 1
++        d.start()
++        Task {
++            if resuming { await resumeLiveWalk() } else if let since { await backfill(from: since, to: Date()) }
++            d.catchUps -= 1
++            if !d.catchingUp, d.running { d.setLocating(d.moving || d.recording) }
+         }
+     }
+ 
+-    /// 真机散步分钟数：开始 → 最后一个定位点。
+-    func finishLiveWalk() {
+-        if let t = walkDetector.lastFixAt, let s = walk?.start { walk?.minutes = max(0, Int(t.timeIntervalSince(s) / 60)) }
+-        finishWalk()
++    /// 退到后台：记低由几时开始冇定位（记录中就由今次散步开始计；未接手嘅最后一段由佢开始计），
++    /// 返前台（或者下次打开）用嚟补记。
++    func markBackground() {
++        let d = walkDetector
++        guard d.running else { return }
++        let mark = d.recording ? (walk?.start ?? Date()) : min(d.pendingWalk?.start ?? Date(), Date())
++        UserDefaults.standard.set(mark, forKey: Self.backgroundKey)
++    }
++
++    func takeBackgroundMark() -> Date? {
++        let d = UserDefaults.standard.object(forKey: Self.backgroundKey) as? Date
++        UserDefaults.standard.removeObject(forKey: Self.backgroundKey)
++        // 系统只留 7 日活动纪录
++        return d.map { max($0, Date().addingTimeInterval(-7 * 86400)) }
++    }
++
++    /// 记录中退过后台（锁屏放入袋）：用 Core Motion 活动纪录睇吓背景期间行到几时。
++    func resumeLiveWalk() async {
++        let d = walkDetector
++        guard let w = walk, d.recording else { return }
++        let now = Date()
++        let seen = d.lastFixAt ?? w.start
++        guard now.timeIntervalSince(seen) > 2 * 60 else { return }      // 只係离开咗一阵：继续跟定位
++        let samples = await d.activities(from: w.start, to: now)
++        guard walk?.start == w.start, d.recording else { return }
++        guard let samples else {
++            // 冇活动纪录：离开好耐就按最后一个定位收尾，唔好将喺屋企嘅时间都算落去
++            if now.timeIntervalSince(seen) > Self.staleWalk { finishLiveWalk(endAt: seen) }
++            return
++        }
++        let segs = WalkBackfill.segments(samples, until: now, minLength: 0)
++        let current = segs.first { $0.start <= seen.addingTimeInterval(120) && $0.end >= seen.addingTimeInterval(-120) }
++        let end = max(seen, current?.end ?? seen)
++        if end >= now.addingTimeInterval(-60) { return }   // 仲行紧：继续跟定位
++        finishLiveWalk(endAt: end)
++        await backfill(from: end, to: now)
++    }
++
++    /// A05：背景 / 锁屏期间冇定位，用 Core Motion 活动纪录补记行路时段（只有分钟、步数，冇地标、冇落脚点）。
++    /// 最后一段（仲行紧 / 2 分钟内啱啱停）先交俾定位接手；接唔到（停低咗、返到屋企、喺 400 m 外）就按停低嘅时间补记。
++    func backfill(from: Date, to: Date) async {
++        let d = walkDetector
++        guard to.timeIntervalSince(from) >= 60, let samples = await d.activities(from: from, to: to) else { return }
++        let (done, tail) = WalkBackfill.split(samples, until: to)
++        var total = 0
++        for s in done { total += await recordBackfill(s) }
++        if total > 0 { toast("App 喺背景嗰陣你行咗 \(total) 分鐘，已經補記低（冇地標）。") }
++        guard let tail, !d.recording else { return }
++        d.pendingWalk = tail
++        // 2 分钟后都未开始真机散步、而家又冇行路：按停低嘅时间补记
++        Task { [weak self] in
++            try? await Task.sleep(for: .seconds(WalkBackfill.mergeGap))
++            guard let self, d.pendingWalk == tail, !d.moving else { return }
++            self.settlePendingWalk(stoppedAt: d.stillSince ?? Date())
++        }
++    }
++
++    /// 补记一段（轮椅唔记步数）。返回分钟数。
++    private func recordBackfill(_ s: DateInterval) async -> Int {
++        let m = Int(s.duration / 60)
++        guard m > 0 else { return 0 }
++        let steps = await walkDetector.steps(from: s.start, to: s.end)
++        recordWalk(minutes: m, landmarks: [], simulated: false, day: s.start, steps: steps)
++        return m
++    }
++
++    /// 最后一段冇接到真机散步：按停低嘅时间补记（少过 5 分钟唔记）。
++    func settlePendingWalk(stoppedAt: Date) {
++        let d = walkDetector
++        guard let p = d.pendingWalk, !d.recording else { return }
++        d.pendingWalk = nil
++        guard let s = p.interval(stoppedAt: stoppedAt) else { return }
++        Task {
++            let m = await recordBackfill(s)
++            if m > 0 { toast("App 喺背景嗰陣你行咗 \(m) 分鐘，已經補記低（冇地標）。") }
++        }
++    }
++
++    /// 最后一个定位喺屋企附近（用嚟决定最后一段即刻补记）。
++    private var lastFixAtHome: Bool {
++        guard let fix = walkDetector.lastFix, let m = map else { return false }
++        return LiveWalkGate.isHome(fromHome: m.scenePoint(fix.0).distance(to: scene.homeTarget), acc: fix.accuracy)
++    }
++
++    /// 真机收尾；之后冇行路就熄定位（A74）。
++    func finishLiveWalk(endAt: Date? = nil, reason: WalkEnd = .home) {
++        finishWalk(endAt: endAt, reason: reason)
++        walkDetector.setLocating(walkDetector.moving)
+     }
+ 
+     func handleWalkEvent(_ e: WalkDetector.Event) {
+         let d = walkDetector
++        // 返前台睇紧活动纪录：只收步数，其他等睇完先算（睇完会按 moving 开返定位）
++        if d.catchingUp, !e.isSteps { return }
+         switch e {
+         case .walking(let on):
+             // 行路时开定位；停低但仲喺外面（记录中）也保持
+             d.setLocating(on || d.recording)
++            // 背景补记嘅最后一段：返到屋企停低就即刻补记
++            if !on, d.pendingWalk != nil, lastFixAtHome { settlePendingWalk(stoppedAt: Date()) }
+         case .riding:
+             // 坐车 / 踩单车唔算散步
+-            if d.recording { finishLiveWalk() }
++            if d.recording { finishLiveWalk(reason: .riding) }
++            settlePendingWalk(stoppedAt: Date())
+             d.setLocating(false)
+-        case .still:
++        case .still(let since):
++            // 停低 2 分钟：未接手嘅最后一段按停低嘅时间补记
++            settlePendingWalk(stoppedAt: since)
++            guard d.recording, let w = walk else { return }
++            // 停低 2 分钟：落脚点（定位企定唔出新点，靠呢度计时）
++            if let c = track.stops.hold(at: Date()) { addStop(at: c) }
++            let stillFor = Date().timeIntervalSince(since)
++            let end = max(since, w.start)
+             // 停低 5 分钟又喺屋企附近（楼里 GPS 差，可能一直收唔到 40 m 内嘅点）
+-            guard d.recording, walk != nil, let fix = d.lastFix, let m = map else { return }
+-            if m.scenePoint(fix.0).distance(to: scene.homeTarget) - fix.accuracy < Self.nearHome { finishLiveWalk() }
++            if stillFor >= 5 * 60 - 5, let fix = d.lastFix, let m = map,
++               m.scenePoint(fix.0).distance(to: scene.homeTarget) - fix.accuracy < Self.nearHome {
++                finishLiveWalk(endAt: end)
++            } else if stillFor >= 10 * 60 - 5 {
++                // 喺外面坐咗 10 分钟（街市、朋友屋企）：今次散步到停低为止，坐嘅时间唔算（A55）
++                finishLiveWalk(endAt: end, reason: .stopped)
++            }
+         case .location(let g, let acc):
+             // 散步被别处清掉（重置演示、重新生成）时同步收尾
+             if d.recording, walk == nil { d.reset() }
+@@ -155,21 +350,47 @@ extension AppStore {
+             let p = m.scenePoint(g)
+             let inside = abs(p.x) <= m.half - 4 && abs(p.y) <= m.half - 4
+             let fromHome = p.distance(to: scene.homeTarget)
+-            // 精度差（屋企楼里）时放宽：扣掉误差仍在 40 m 内，且不超过 100 m
+-            let home = fromHome < Self.homeRadius || (fromHome - acc < Self.homeRadius && fromHome < 100)
+-            if d.recording {
+-                if home { finishLiveWalk() } else if acc <= 30 { liveStep(p, inside: inside) } else { liveMinutes() }
+-            } else if walk == nil, acc <= 30, inside, fromHome > Self.leaveRadius {
++            switch d.gate.decide(fromHome: fromHome, acc: acc, at: d.lastFixAt ?? Date(), recording: d.recording, moving: d.moving) {
++            case .finish: finishLiveWalk()
++            case .step: liveStep(p, inside: inside)
++            case .minutesOnly: liveMinutes()
++            case .start:
++                // 底座外都照样开始（A06）：镜头同起点夹返入底座，轨迹只画底座内
+                 d.recording = true
+-                d.trail = [p]
+-                beginWalk(route: [p])
++                d.trail = inside ? [p] : []
++                let lim = m.half - 4
++                let first = Vec2(x: max(-lim, min(lim, p.x)), y: max(-lim, min(lim, p.y)))
++                // 开始时间：背景补记嘅最后一段（锁屏时已经开始行）；冇就用 Core Motion 判断开始行路嘅时间（10 分钟内先信）
++                let start = d.pendingWalk?.start ?? d.movingSince.flatMap { Date().timeIntervalSince($0) < 600 ? $0 : nil } ?? Date()
++                d.pendingWalk = nil
++                beginWalk(route: [first], start: start, live: true)
++                track.lastPoint = p
++            case .none:
++                // 背景补记嘅最后一段：人已经喺屋企（Core Motion 判咗停低）就即刻补记
++                if let pw = d.pendingWalk, pw.end != nil || !d.moving, LiveWalkGate.isHome(fromHome: fromHome, acc: acc) {
++                    settlePendingWalk(stoppedAt: d.lastFixAt ?? Date())
++                }
++            }
++        case .steps(let n, let cadence):
++            // 轮椅唔计步数、步频（按分钟估算）
++            guard d.recording, !d.seated, let w = walk else { return }
++            track.steps = n
++            // F9：步频明显下降就提示休息，讲一次
++            if let c = cadence, paceTip == nil, track.cadence.add(c, at: Date(), walkStart: w.start) {
++                let here = myPosition()
++                let seat = landmarks.filter(\.hasSeat).min { $0.pos.distance(to: here) < $1.pos.distance(to: here) }
++                paceTip = seat.map { "行慢咗少少。附近\($0.name)有櫈，可以唞陣。" } ?? "行慢咗少少，搵個地方唞陣先。"
++                speaker.speak(paceTip!)
+             }
+         }
+     }
+ 
+-    /// 真机：每个新定位点接到轨迹上；走出底座的点不画，只计时间。
++    /// 真机：每个新定位点接到轨迹上；走出底座的点不画，只计时间、距离、落脚点。
+     func liveStep(_ p: Vec2, inside: Bool) {
+         liveMinutes()
++        if let last = track.lastPoint { track.distance += last.distance(to: p) }
++        track.lastPoint = p
++        if let t = walkDetector.lastFixAt, let c = track.stops.add(p, at: t) { addStop(at: c) }
+         guard var w = walk else { return }
+         let d = walkDetector
+         if inside, d.trail.last.map({ $0.distance(to: p) >= 3 }) ?? true {
+@@ -188,14 +409,111 @@ extension AppStore {
+         walk?.minutes = max(0, Int(t.timeIntervalSince(s) / 60))
+     }
+ 
+-    // MARK: - F4 请假
++    // MARK: - F4 请假（请假日连续天数唔断、唔加）
++
++    /// 请假按钮嘅选项：今日、聽日、由今日起 3 日、7 日。
++    static let leaveChoices = [LeaveRequest(startOffset: 0, days: 1), LeaveRequest(startOffset: 1, days: 1),
++                               LeaveRequest(startOffset: 0, days: 3), LeaveRequest(startOffset: 0, days: 7)]
++
++    /// 由今日起第 startOffset 日开始请 days 日假（0 = 今日）。语音「聽日請假」「請三日假」用 LeaveRequest.parse 再调呢个。
++    func requestLeave(days: Int = 1, startOffset: Int = 0) {
++        let r = LeaveRequest(startOffset: max(0, startOffset), days: max(1, min(LeaveRequest.maxDays, days)))
++        leaveDays.formUnion(leaveKeys(r))
++        refreshMe()
++        speaker.speak("收到，\(leaveTitle(r))。連續 \(me.streakDays) 日會保留。")
++        Haptics.light()
++    }
++
++    /// 撤回某次请假（例如语音复述卡按「唔係」）。
++    func cancelLeave(days: Int = 1, startOffset: Int = 0) {
++        leaveDays.subtract(leaveKeys(LeaveRequest(startOffset: max(0, startOffset), days: max(1, days))))
++        refreshMe()
++    }
+ 
+-    /// 请假：今日算进连续天数（保留不断），排行榜上显示「今日請咗假」。
++    /// 语音请假（语音线喺 handle 嘅 .leave 调）：按原句判断日子（「聽日請假」「請三日假」），请假，返回复述卡标题。
++    @discardableResult
++    func requestLeave(fromVoice text: String) -> String {
++        let r = LeaveRequest.parse(text, today: now)
++        requestLeave(days: r.days, startOffset: r.startOffset)
++        return leaveTitle(r)
++    }
++
++    /// 语音请假卡按「唔係」：按原句撤回同一段。
++    func cancelLeave(fromVoice text: String) {
++        let r = LeaveRequest.parse(text, today: now)
++        cancelLeave(days: r.days, startOffset: r.startOffset)
++    }
++
++    func leaveKeys(_ r: LeaveRequest) -> [String] {
++        let base = now
++        return (0..<r.days).map { LocalStore.dayKey(base.addingTimeInterval(Double(r.startOffset + $0) * 86400)) }
++    }
++
++    /// 「今日請假」「聽日請假」「由今日起請 3 日假（到 10 月 10 號）」。
++    func leaveTitle(_ r: LeaveRequest) -> String {
++        let from = r.startOffset < 4 ? ["今日", "聽日", "後日", "大後日"][r.startOffset] : dateLabel(now.addingTimeInterval(Double(r.startOffset) * 86400))
++        guard r.days > 1 else { return "\(from)請假" }
++        return "由\(from)起請 \(r.days) 日假（到 \(dateLabel(now.addingTimeInterval(Double(r.startOffset + r.days - 1) * 86400)))）"
++    }
++
++    /// 请假选单上嘅字。
++    func leaveMenuLabel(_ r: LeaveRequest) -> String {
++        r.days == 1 ? leaveTitle(r) : "由今日起 \(r.days) 日（到 \(dateLabel(now.addingTimeInterval(Double(r.startOffset + r.days - 1) * 86400)))）"
++    }
++
++    func dateLabel(_ d: Date) -> String {
++        let c = Self.hk.dateComponents([.month, .day], from: d)
++        return "\(c.month ?? 0) 月 \(c.day ?? 0) 號"
++    }
++
++    /// 今日或之后请咗嘅连续一段（用日数，唔好用 Date 比较：now 每次都係新嘅 Date()）。
++    private var upcomingLeave: LeaveRequest? {
++        let base = now
++        func on(_ i: Int) -> Bool { leaveDays.contains(LocalStore.dayKey(base.addingTimeInterval(Double(i) * 86400))) }
++        guard let first = (0...LeaveRequest.maxDays).first(where: on) else { return nil }
++        var days = 1
++        while on(first + days) && days < 366 { days += 1 }
++        return LeaveRequest(startOffset: first, days: days)
++    }
++
++    /// 今日页请假一栏：冇请假时 nil。
++    var leaveSummary: String? {
++        guard let u = upcomingLeave else { return nil }
++        let last = dateLabel(now.addingTimeInterval(Double(u.startOffset + u.days - 1) * 86400))
++        switch (u.startOffset, u.days) {
++        case (0, 1): return "今日已請假，連續日數保留"
++        case (0, _): return "已請假到 \(last)，連續日數保留"
++        case (1, 1): return "聽日請咗假"
++        default: return "\(dateLabel(now.addingTimeInterval(Double(u.startOffset) * 86400)))起請咗假"
++        }
++    }
++
++    /// 今日请咗假就只撤回今日（之后请咗嘅照留；语音复述卡按「唔係」都係行呢度）；冇就请今日。
+     func toggleLeave() {
+-        let key = LocalStore.dayKey(now)
+-        if leaveDays.contains(key) { leaveDays.remove(key) } else { leaveDays.insert(key) }
++        guard leaveDays.contains(LocalStore.dayKey(now)) else { requestLeave(); return }
++        cancelLeave(days: 1, startOffset: 0)
++        speaker.speak("撤回咗今日嘅請假。")
++        Haptics.light()
++    }
++
++    /// 请假选单入面嘅「撤回」（今日未请、之后有假时）：例如「撤回聽日嘅假」「撤回 10 月 12 號起嘅假」。
++    var withdrawLeaveLabel: String? {
++        guard let u = upcomingLeave, u.startOffset > 0 else { return nil }
++        let from = u.startOffset == 1 ? "聽日" : dateLabel(now.addingTimeInterval(Double(u.startOffset) * 86400))
++        return u.days == 1 ? "撤回\(from)嘅假" : "撤回\(from)起嘅 \(u.days) 日假"
++    }
++
++    /// 请假选单嘅选项：已经全部请咗嘅唔再列。
++    var leaveMenuChoices: [LeaveRequest] {
++        Self.leaveChoices.filter { !leaveKeys($0).allSatisfy(leaveDays.contains) }
++    }
++
++    /// 「撤回」：撤回今日或之后最近嗰一段假（连住嗰几日一齐）。
++    func withdrawLeave() {
++        guard let u = upcomingLeave else { return }
++        leaveDays.subtract(leaveKeys(u))
+         refreshMe()
+-        speaker.speak(me.onLeave ? "收到，今日請假。連續 \(me.streakDays) 日會保留。" : "撤回咗請假。")
++        speaker.speak("撤回咗請假。")
+         Haptics.light()
+     }
+ }
+diff --git a/ios/StreetWalk/Store/AppStore.swift b/ios/StreetWalk/Store/AppStore.swift
+index d7b116a..34f4215 100644
+--- a/ios/StreetWalk/Store/AppStore.swift
++++ b/ios/StreetWalk/Store/AppStore.swift
+@@ -91,6 +91,15 @@ final class AppStore: NeighborRegistry {
+     var remindAll = UserDefaults.standard.object(forKey: "remindAll") as? Bool ?? true { didSet { UserDefaults.standard.set(remindAll, forKey: "remindAll") } }
+     var remindFrom = UserDefaults.standard.object(forKey: "remindFrom") as? Int ?? 7 { didSet { UserDefaults.standard.set(remindFrom, forKey: "remindFrom") } }
+     var remindTo = UserDefaults.standard.object(forKey: "remindTo") as? Int ?? 21 { didSet { UserDefaults.standard.set(remindTo, forKey: "remindTo") } }
++    // 散步、数据与服务（A 线追加）
++    /// 今次散步嘅附加状态：演示时钟、落脚点、步数。
++    @ObservationIgnored var track = WalkTrack()
++    /// 约会嘅本地通知（出发前提醒、过期）。
++    @ObservationIgnored let notifier = Notifier()
++    /// 前台时每分钟检查：太阳跟真实时间、过咗午夜刷新「今日」。
++    @ObservationIgnored var dayClock: Task<Void, Never>?
++    /// 喺设置「改我住嘅樓」入嚟嘅首次使用流程（可以「唔改」退返出去）。
++    var changingHome = false
+ 
+     var me: Resident { residents.first { $0.isMe } ?? Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true) }
+     var neighbors: [Resident] { residents.filter { $0.isNeighbor && !$0.isMe } }
+diff --git a/ios/StreetWalk/Store/DemoScript.swift b/ios/StreetWalk/Store/DemoScript.swift
+index df24722..2070c5f 100644
+--- a/ios/StreetWalk/Store/DemoScript.swift
++++ b/ios/StreetWalk/Store/DemoScript.swift
+@@ -9,6 +9,8 @@ extension AppStore {
+         guard !Self.scriptStarted else { return }
+         if LaunchArgs.has("-script2") { Self.scriptStarted = true; runScript2(); return }
+         if LaunchArgs.has("-script3") { Self.scriptStarted = true; runScript3(); return }
++        if LaunchArgs.has("-autoWalk") { Self.scriptStarted = true; runAutoWalk(); return }
++        if LaunchArgs.has("-scriptWalk") { Self.scriptStarted = true; runScriptWalk(); return }
+         guard LaunchArgs.has("-script") else { return }
+         Self.scriptStarted = true
+         Task { @MainActor in
+@@ -41,6 +43,64 @@ extension AppStore {
+     }
+ }
+ 
++extension AppStore {
++    /// 开发用（-autoWalk）：自动行一次演示散步（唔搵人），打印落脚点同记低嘅纪录，检查 F1 落脚点。
++    func runAutoWalk() {
++        Task { @MainActor in
++            while map == nil || residents.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
++            try? await Task.sleep(for: .seconds(1))
++            startWalk()
++            var seen = 0
++            while walk != nil {
++                try? await Task.sleep(for: .milliseconds(250))
++                for id in track.stopIDs.dropFirst(seen) { print("[autoWalk] 落腳點 \(landmark(id)?.name ?? id) t=\(walk?.minutes ?? 0)") }
++                seen = max(seen, track.stopIDs.count)
++            }
++            let l = log(for: now)
++            print("[autoWalk] 完 \(l.minutes) 分鐘 落腳點 \(l.stops.compactMap { landmark($0)?.name }) 一句：\(me.todayLine)")
++        }
++    }
++}
++
++extension AppStore {
++    /// 开发用（-scriptWalk）：请假几日、提醒时段、关演示模式、改楼途中返上一步同「唔改」，逐步截图检查。
++    /// 跑完会还原提醒时段同演示模式（佢哋存喺 UserDefaults）。
++    func runScriptWalk() {
++        Task { @MainActor in
++            while map == nil || residents.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
++            let t0 = Date()
++            @MainActor func step(_ at: Double, _ name: String, _ action: () -> Void) async {
++                let wait = at - Date().timeIntervalSince(t0)
++                if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
++                print("[scriptWalk] t=\(Int(at)) \(name)")
++                action()
++            }
++            let (from, to) = (remindFrom, remindTo)
++            await step(1, "請 3 日假") { tab = .today; requestLeave(days: 3) }
++            await step(4, "聽日請假") { withdrawLeave(); _ = requestLeave(fromVoice: "聽日請假") }
++            await step(7, "演示時間 + 酷熱") { withdrawLeave(); setDemoHour(15); setWeather(.hot) }
++            await step(10, "設定：由、到一樣") { banner = nil; remindFrom = 21; remindTo = 21; showSettings = true }
++            await step(14, "關演示模式") { setDemoMode(false) }
++            await step(17, "返主畫面") { showSettings = false }
++            await step(21, "改樓") { remindFrom = from; remindTo = to; setDemoMode(true); beginChangeHome() }
++            while phase != .onboarding(.pickHome) { try? await Task.sleep(for: .milliseconds(200)) }
++            await step(27, "揀樓") { if let b = residentialBuildings().first(where: { $0.name != nil }) { pickHome(b.id) } }
++            await step(30, "確認") { confirmHome() }
++            await step(34, "返上一步") { backToPickHome() }
++            await step(38, "唔改") { cancelChangeHome() }
++            // 定位一步就按「唔改」（人喺外面时嗰格要上网拉，旧嘅 loadMap 会迟啲先返）：最后要係屋企格、已存嘅楼
++            await step(44, "再改樓") { beginChangeHome() }
++            await step(44.3, "定位中按唔改") { print("[scriptWalk] phase=\(phase) loadingMap=\(loadingMap)"); cancelChangeHome() }
++            await step(56, "檢查底座") {
++                let saved = (UserDefaults.standard.object(forKey: "homeBuilding") as? NSNumber)?.int64Value
++                let tile = UserDefaults.standard.string(forKey: "homeTile") ?? "-"
++                print("[scriptWalk] 底座 \(map.map { "\($0.tile.ix),\($0.tile.iy)" } ?? "-")（屋企格 \(tile)）樓 \(scene.homeBuildingID.map(String.init) ?? "-")（已存 \(saved.map(String.init) ?? "-")）\(phase)")
++            }
++            await step(58, "完") {}
++        }
++    }
++}
++
+ extension AppStore {
+     /// 第二段：街坊页、地标信息卡、揀一句、语音复述卡、时间滑杆、碰一碰等待画面。
+     func runScript2() {
+@@ -95,15 +155,17 @@ extension AppStore {
+ extension AppStore {
+     // MARK: - 演示
+ 
++    /// 演示菜单「重新載入地圖」：清缓存再拉一次（有存过屋企就係屋企嗰格），住嘅楼照用已存嘅（A35）。
+     func regenerateHere() {
+-        walk = nil; find = nil; findFullScreen = false
++        walk = nil; find = nil; findFullScreen = false; track = WalkTrack()
+         TileCache.clear()
+-        Task { await loadMap(home: nil, animated: true) }
++        let home = (UserDefaults.standard.object(forKey: "homeBuilding") as? NSNumber)?.int64Value
++        Task { await loadMap(home: home, animated: true) }
+     }
+ 
+     func resetDemo() {
+         ticker?.cancel()
+-        walk = nil; find = nil; findFullScreen = false; proposal = nil; voiceCard = nil; banner = nil
++        walk = nil; find = nil; findFullScreen = false; proposal = nil; voiceCard = nil; banner = nil; track = WalkTrack()
+         weather = .normal; weatherTip = nil; demoHour = LaunchArgs.hour
+         resetDemoData()
+         scene.setRoute(nil); scene.setTrail([]); scene.highlightLandmark(nil); scene.followID = nil
+diff --git a/ios/StreetWalk/Store/LocalStore.swift b/ios/StreetWalk/Store/LocalStore.swift
+index 4bedcc8..61ab7cb 100644
+--- a/ios/StreetWalk/Store/LocalStore.swift
++++ b/ios/StreetWalk/Store/LocalStore.swift
+@@ -2,6 +2,8 @@ import Foundation
+ 
+ /// 重启后要保留的数据。存在 Application Support/StreetWalk/state.json。
+ /// 上线后街坊关系、约会、反映、地标名以服务器为准，这里只当缓存；散步记录（含原始轨迹）只存在手机。
++/// 读取时缺字段用默认值、坏咗嘅约会 / 反映逐条跳过（见下面 init(from:)）；加字段唔使升 version，
++/// 结构真系改咗（改名、改类型）先升 version，喺 LocalStore.load 做迁移。
+ struct SavedState: Codable, Equatable {
+     var version = 1
+     /// 底座是哪一格、哪座楼。换了地方，跟地图有关的数据（约会地点、反映位置、改过的地标名）就作废。
+@@ -20,12 +22,24 @@ struct NeighborLink: Codable, Equatable {
+     var receive: Bool
+ }
+ 
+-/// 一日的散步记录（只记分钟、次数、经过的地标，不记轨迹）。demo = 演示模式预先放的示範纪录。
++/// 一日的散步记录（只记分钟、次数、经过的地标、落脚点，不记轨迹）。demo = 演示模式预先放的示範纪录。
+ struct DayLog: Codable, Equatable {
+     var minutes = 0
+     var walks = 0
++    /// 经过的地标（只留喺手机）。
+     var landmarks: [String] = []
+     var demo = false
++    /// 落脚点（停 ≥2 分钟）对应的地标：对外（每日一句、上线后上传）只用呢个。
++    var stops: [String] = []
++    /// 计步器量到嘅步数；nil = 冇量（模拟器、演示、轮椅、旧纪录），按分钟估算。
++    var steps: Int?
++    /// 冇量步数嗰几次散步嘅分钟（同日有量、有冇量时，冇量嗰部分照估算）。
++    var unmeasured = 0
++
++    /// 步数：量到嘅，加冇量嘅分钟按每分钟约 100 步估算。
++    var stepEstimate: Int { steps.map { $0 + unmeasured * 100 } ?? minutes * 100 }
++    /// 有冇用到估算（界面写「約」）。
++    var stepsEstimated: Bool { walks > 0 && (steps == nil || unmeasured > 0) }
+ }
+ 
+ enum LocalStore {
+@@ -35,31 +49,81 @@ enum LocalStore {
+         return dir.appendingPathComponent("state.json")
+     }
+ 
+-    static func load() -> SavedState {
+-        guard let data = try? Data(contentsOf: url), let s = try? JSONDecoder().decode(SavedState.self, from: data) else { return SavedState() }
++    /// 读唔到（或者只救返部分）时，原文件先复制一份 state.bad-时间.json，之后写盘都唔会冚咗佢。
++    static func load(from url: URL = url) -> SavedState {
++        guard let data = try? Data(contentsOf: url) else { return SavedState() }
++        let report = DecodeReport()
++        let decoder = JSONDecoder()
++        decoder.userInfo[DecodeReport.key] = report
++        guard let s = try? decoder.decode(SavedState.self, from: data) else {
++            backup(url)
++            return SavedState()
++        }
++        if report.lossy { backup(url) }
+         return s
+     }
+ 
+-    static func save(_ s: SavedState) {
++    static func save(_ s: SavedState, to url: URL = url) {
+         guard let data = try? JSONEncoder().encode(s) else { return }
+         try? data.write(to: url, options: .atomic)
+     }
+ 
+-    static func clear() { try? FileManager.default.removeItem(at: url) }
++    static func clear(_ url: URL = url) { try? FileManager.default.removeItem(at: url) }
+ 
+-    /// 连续天数：从今日（今日未行就从昨日）往回数，行过或请过假都算一日。includeDemo = false 时不计示範纪录。
++    static func backup(_ url: URL) {
++        let f = DateFormatter()
++        f.dateFormat = "yyyyMMdd-HHmmss"
++        let to = url.deletingLastPathComponent().appendingPathComponent("state.bad-\(f.string(from: Date())).json")
++        try? FileManager.default.copyItem(at: url, to: to)
++    }
++
++    /// 连续天数：从今日（今日未行就从昨日）往回数行过的日子。请假日唔断、但唔加（F4：请假期间连续天数保留）。
++    /// includeDemo = false 时不计示範纪录。
+     static func streak(_ log: [String: DayLog], leaves: Set<String>, today: Date, includeDemo: Bool) -> Int {
+-        func counts(_ d: Date) -> Bool {
+-            let k = dayKey(d)
+-            if leaves.contains(k) { return true }
++        streakKeys(log, leaves: leaves, today: today, includeDemo: includeDemo).count
++    }
++
++    /// 计入连续天数嘅日子（日期键）。
++    static func streakKeys(_ log: [String: DayLog], leaves: Set<String>, today: Date, includeDemo: Bool) -> [String] {
++        func walked(_ k: String) -> Bool {
+             guard let l = log[k], includeDemo || !l.demo else { return false }
+             return l.walks > 0
+         }
+         var day = today
+-        if !counts(day) { day = day.addingTimeInterval(-86400) }
+-        var n = 0
+-        while counts(day) && n < 3650 { n += 1; day = day.addingTimeInterval(-86400) }
+-        return n
++        if !walked(dayKey(day)) && !leaves.contains(dayKey(day)) { day = day.addingTimeInterval(-86400) }
++        var keys: [String] = []
++        for _ in 0..<3650 {
++            let k = dayKey(day)
++            if walked(k) { keys.append(k) } else if !leaves.contains(k) { break }
++            day = day.addingTimeInterval(-86400)
++        }
++        return keys
++    }
++
++    /// 记一次散步。演示散步（simulated）算示範纪录，唔会改真实纪录；真实散步盖过当日嘅示範纪录。
++    /// 返回有冇记到。
++    @discardableResult
++    static func record(_ log: inout [String: DayLog], key: String, minutes: Int, landmarks: [String], stops: [String] = [],
++                       steps: Int? = nil, simulated: Bool) -> Bool {
++        var l = log[key] ?? DayLog(demo: simulated)
++        if simulated && !l.demo { return false }
++        if !simulated && l.demo { l = DayLog() }
++        l.minutes += minutes
++        l.walks += 1
++        l.landmarks += landmarks.filter { !l.landmarks.contains($0) }
++        l.stops += stops.filter { !l.stops.contains($0) }
++        if let steps { l.steps = (l.steps ?? 0) + steps } else { l.unmeasured += minutes }
++        log[key] = l
++        return true
++    }
++
++    /// 示範纪录：过去 8 日 + 今日早上，连续 9 日。只填冇纪录嘅日子，真实纪录唔郁。
++    static func seedDemo(_ log: inout [String: DayLog], today: Date) {
++        let mins = [24, 32, 28, 41, 25, 36, 30, 22, 38]
++        for (i, m) in mins.enumerated() {
++            let k = dayKey(today.addingTimeInterval(-Double(i) * 86400))
++            if log[k] == nil { log[k] = DayLog(minutes: m, walks: 1, landmarks: [], demo: true) }
++        }
+     }
+ 
+     /// 香港时区的日期键，例如 "2026-10-07"。
+@@ -70,3 +134,84 @@ enum LocalStore {
+         return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+     }
+ }
++
++// MARK: - 宽松读取（A24：旧存档缺字段、某条坏咗，都唔好成份读唔返）
++
++/// 读取时有冇丢过嘢（丢过就备份原文件）。
++final class DecodeReport {
++    static let key = CodingUserInfoKey(rawValue: "streetwalk.decodeReport")!
++    var lossy = false
++}
++
++private extension Decoder {
++    func markLossy() { (userInfo[DecodeReport.key] as? DecodeReport)?.lossy = true }
++}
++
++private extension KeyedDecodingContainer {
++    /// 缺键用默认值；有键但读唔到都用默认值，并记低有损失。
++    func value<T: Decodable>(_ key: Key, _ fallback: T, _ d: Decoder) -> T {
++        guard contains(key) else { return fallback }
++        if let v = try? decode(T.self, forKey: key) { return v }
++        d.markLossy()
++        return fallback
++    }
++
++    /// 数组逐条读，坏咗嘅跳过。
++    func lossyArray<T: Decodable>(_ key: Key, _ d: Decoder) -> [T] {
++        guard contains(key) else { return [] }
++        guard let items = try? decode([Lossy<T>].self, forKey: key) else { d.markLossy(); return [] }
++        if items.contains(where: { $0.value == nil }) { d.markLossy() }
++        return items.compactMap(\.value)
++    }
++}
++
++private struct Lossy<T: Decodable>: Decodable {
++    let value: T?
++    init(from decoder: Decoder) throws { value = try? T(from: decoder) }
++}
++
++extension SavedState {
++    init(from d: Decoder) throws {
++        let c = try d.container(keyedBy: CodingKeys.self)
++        self.init()
++        version = c.value(.version, 1, d)
++        mapKey = c.value(.mapKey, nil, d)
++        neighbors = c.value(.neighbors, [:], d)
++        appointments = c.lossyArray(.appointments, d)
++        reports = c.lossyArray(.reports, d)
++        landmarkNames = c.value(.landmarkNames, [:], d)
++        walkLog = c.value(.walkLog, [:], d)
++        leaveDays = c.value(.leaveDays, [], d)
++    }
++}
++
++extension DayLog {
++    init(from d: Decoder) throws {
++        let c = try d.container(keyedBy: CodingKeys.self)
++        self.init()
++        minutes = c.value(.minutes, 0, d)
++        walks = c.value(.walks, 0, d)
++        landmarks = c.value(.landmarks, [], d)
++        demo = c.value(.demo, false, d)
++        stops = c.value(.stops, [], d)
++        steps = c.value(.steps, nil, d)
++        unmeasured = c.value(.unmeasured, 0, d)
++    }
++}
++
++/// 约会：旧存档冇 fromPartner、reminded 都读得返。
++extension Appointment {
++    private enum Keys: String, CodingKey { case id, partnerID, date, landmarkID, reason, status, fromPartner, reminded }
++
++    init(from d: Decoder) throws {
++        let c = try d.container(keyedBy: Keys.self)
++        self.init(id: c.value(.id, UUID(), d),
++                  partnerID: try c.decode(String.self, forKey: .partnerID),
++                  date: try c.decode(Date.self, forKey: .date),
++                  landmarkID: try c.decode(String.self, forKey: .landmarkID),
++                  reason: c.value(.reason, "", d),
++                  status: try c.decode(Status.self, forKey: .status),
++                  fromPartner: c.value(.fromPartner, false, d),
++                  reminded: c.value(.reminded, false, d))
++    }
++}
+diff --git a/ios/StreetWalk/UI/Demo.swift b/ios/StreetWalk/UI/Demo.swift
+index 2bfbae9..6a4cc22 100644
+--- a/ios/StreetWalk/UI/Demo.swift
++++ b/ios/StreetWalk/UI/Demo.swift
+@@ -38,7 +38,7 @@ struct DemoMenu: View {
+             Section {
+                 Button { store.showReport = true } label: { Label("月尾報告", systemImage: "doc.text.fill") }
+                 Button { store.simulateFollowUp() } label: { Label("屋邨管理回覆反映", systemImage: "checkmark.seal.fill") }
+-                Button { store.regenerateHere() } label: { Label("喺而家位置重新生成", systemImage: "location.fill") }
++                Button { store.regenerateHere() } label: { Label("重新載入地圖", systemImage: "arrow.clockwise") }
+                 Button(role: .destructive) { store.resetDemo() } label: {
+                     Label("重置演示", systemImage: "arrow.counterclockwise")
+                 }
+diff --git a/ios/StreetWalk/UI/Onboarding.swift b/ios/StreetWalk/UI/Onboarding.swift
+index 8629b6e..3cae04c 100644
+--- a/ios/StreetWalk/UI/Onboarding.swift
++++ b/ios/StreetWalk/UI/Onboarding.swift
+@@ -49,7 +49,7 @@ struct OnboardingFlow: View {
+ 
+     private func goBack(from s: AppStore.Step) {
+         back = true
+-        store.phase = .onboarding(s == .avatar ? .floor : .pickHome)
++        if s == .floor { store.backToPickHome() } else { store.phase = .onboarding(.floor) }
+     }
+ 
+     @ViewBuilder private func stepContent(_ s: AppStore.Step) -> some View {
+@@ -90,7 +90,18 @@ struct OnboardingFlow: View {
+                     if onScene { Capsule().fill(.regularMaterial) }
+                 }
+             Spacer()
+-            Color.clear.frame(width: 48, height: 48)
++            if store.changingHome {
++                // 改楼途中可以退返出去（A80）
++                Button { store.cancelChangeHome() } label: {
++                    Text("唔改").ds(.captionBold).foregroundStyle(.primary)
++                        .padding(.horizontal, 14).frame(minHeight: 48)
++                        .background(.regularMaterial, in: Capsule())
++                }
++                .buttonStyle(OnbPressStyle())
++                .accessibilityLabel("唔改，返主畫面")
++            } else {
++                Color.clear.frame(width: 48, height: 48)
++            }
+         }
+         .padding(.horizontal, DS.side)
+         .padding(.top, 8)
+diff --git a/ios/StreetWalk/UI/Settings.swift b/ios/StreetWalk/UI/Settings.swift
+index 5830f4f..ebf5ec2 100644
+--- a/ios/StreetWalk/UI/Settings.swift
++++ b/ios/StreetWalk/UI/Settings.swift
+@@ -42,7 +42,9 @@ struct SettingsView: View {
+                 } header: {
+                     Text("街坊出門話我知").ds(.caption)
+                 } footer: {
+-                    Text("只喺呢段時間通知你。每個街坊仲可以喺「街坊」頁分開開關。").ds(.caption)
++                    // 由、到一樣當全日（A66）
++                    Text(store.remindFrom == store.remindTo ? "「由」同「到」一樣，即係全日都會通知你。每個街坊仲可以喺「街坊」頁分開開關。"
++                         : "只喺呢段時間通知你\(store.remindFrom > store.remindTo ? "（跨夜）" : "")。每個街坊仲可以喺「街坊」頁分開開關。").ds(.caption)
+                 }
+ 
+                 Section {
+@@ -121,6 +123,8 @@ extension AppStore {
+             residents[i].mobility = mobilityChoice
+             residents[i].colorIndex = colorChoice
+         }
++        // 坐轮椅：散步检测唔靠「行路」判断（A54）
++        walkDetector.seated = mobilityChoice == .wheelchair
+         syncScene()
+         Haptics.select()
+     }
+@@ -130,17 +134,70 @@ extension AppStore {
+         demoMode = on
+         UserDefaults.standard.set(on, forKey: "demoMode")
+         localCommunity?.demoEnabled = on
+-        if on && walkLog.values.allSatisfy({ !$0.demo }) && walkLog.isEmpty { seedDemoHistory() }
++        if on && walkLog.isEmpty { seedDemoHistory() }
+         // 演示模式同真机散步检测唔好同时开
+-        if on { if walkDetector.recording { finishLiveWalk() }; walkDetector.stop() } else { startWalkDetection() }
++        if on {
++            if walkDetector.recording { finishLiveWalk() }
++            walkDetector.stop()
++        } else {
++            // 关演示：演示散步 / 找人、时间滑杆、手选天气全部收返，用返真实时间同天文台（A33）
++            if walk != nil, !walkDetector.recording {
++                ticker?.cancel(); ticker = nil
++                walk = nil; paceTip = nil; track = WalkTrack()
++                scene.followID = nil; scene.setTrail([])
++                community.publishOuting(landmarkID: nil)
++            }
++            if find != nil { endFind() } else { scene.resetCamera() }
++            showTimeSlider = false
++            hko.demoOverride = false
++            setDemoHour(nil)
++            applyLiveWeather()
++            startWalkDetection()
++        }
+         populate()
++        syncNotifications()
+     }
+ 
+-    /// 重新揀我住的楼：回到首次使用的选楼一步，完成后回主界面。
++    /// 重新揀我住的楼：回到首次使用的选楼一步，完成后回主界面。中途可以「唔改」退返出去。
+     func beginChangeHome() {
+         walk = nil; find = nil; findFullScreen = false; proposal = nil; selection = nil
+         pendingHome = nil
++        changingHome = true
+         phase = .onboarding(.locate)
+         Task { await loadMap(home: nil, animated: true) }
+     }
++
++    /// 改楼途中「唔改」：用返已存嘅楼、楼层、小人，返主界面（A80）。
++    func cancelChangeHome() {
++        let d = UserDefaults.standard
++        changingHome = false
++        pendingHome = nil
++        floorChoice = d.object(forKey: "floor") as? Int ?? floorChoice
++        mobilityChoice = Mobility(rawValue: d.string(forKey: "mobility") ?? "") ?? mobilityChoice
++        colorChoice = d.object(forKey: "color") as? Int ?? colorChoice
++        highlightResidential(false)
++        scene.highlightBuildings([], color: nil)
++        phase = .main
++        Task {
++            // 定位一步嘅 loadMap 可能仲未返（人喺外面、嗰格要上网拉）：等佢完咗先装返屋企格，
++            // 唔係旧结果后返嚟会将底座换成外面嗰格、屋企变默认楼
++            while loadingMap { try? await Task.sleep(for: .milliseconds(200)) }
++            await loadMap(home: (d.object(forKey: "homeBuilding") as? NSNumber)?.int64Value, animated: true)
++            scene.resetCamera()
++        }
++    }
++
++    /// 由楼层页返上一步：底座已经收窄咗，要换返选楼用嘅大底座、亮返住宅楼（A80）。
++    func backToPickHome() {
++        phase = .onboarding(.pickHome)
++        guard let full = fullMap else { return }
++        let id = pendingHome
++        let v = full.pickView(near: id.flatMap { full.building(id: $0)?.centroid })
++        install(v, home: nil, animated: false)
++        // 同 loadMap 选楼一步一样嘅全屏镜头（按 300 m 调，再按边长缩放）
++        let k = v.size / 300
++        scene.setCamera(target: Vec2(x: -65 * k, y: 65 * k), distance: Float(2.85 * k), animated: false)
++        highlightResidential(true)
++        if let id, v.building(id: id) != nil { pickHome(id) } else { pendingHome = nil }
++    }
+ }
+diff --git a/ios/StreetWalk/UI/Tabs.swift b/ios/StreetWalk/UI/Tabs.swift
+index ea59c45..8f2f96c 100644
+--- a/ios/StreetWalk/UI/Tabs.swift
++++ b/ios/StreetWalk/UI/Tabs.swift
+@@ -164,8 +164,8 @@ struct TodayTab: View {
+ 
+     private func leaveRow(_ me: Resident) -> some View {
+         HStack(spacing: 12) {
+-            if me.onLeave {
+-                Label("今日已請假，連續日數保留", systemImage: "moon.zzz.fill")
++            if let leave = store.leaveSummary {
++                Label(leave, systemImage: "moon.zzz.fill")
+                     .ds(.caption)
+                     .foregroundStyle(.secondary)
+                     .fixedSize(horizontal: false, vertical: true)
+@@ -177,9 +177,19 @@ struct TodayTab: View {
+                     .transition(.opacity)
+             }
+             Spacer(minLength: 0)
+-            Button(me.onLeave ? "撤回" : "請假") { store.toggleLeave() }
+-                .buttonStyle(.dsSecondary)
+-                .fixedSize()
++            if me.onLeave {
++                Button("撤回") { store.withdrawLeave() }.buttonStyle(.dsSecondary).fixedSize()
++            } else {
++                // 今日 / 聽日 / 幾日（A56）；之后请咗假：选单入面撤回
++                Menu {
++                    ForEach(store.leaveMenuChoices, id: \.self) { r in Button(store.leaveMenuLabel(r)) { store.requestLeave(days: r.days, startOffset: r.startOffset) } }
++                    if let w = store.withdrawLeaveLabel {
++                        Divider()
++                        Button(w, role: .destructive) { store.withdrawLeave() }
++                    }
++                } label: { Text("請假") }
++                .menuStyle(.button).buttonStyle(.dsSecondary).fixedSize()
++            }
+         }
+     }
+ 
+@@ -395,7 +405,7 @@ struct BoardTab: View {
+         let share = CGFloat(race.ourSteps) / CGFloat(total)
+         let diff = race.ourSteps - race.rivalSteps
+         return VStack(alignment: .leading, spacing: 12) {
+-            Text(race.rivalSteps == 0 ? "本月 \(race.ourName) 行咗 \(Self.steps(race.ourSteps))"
++            Text(race.rivalSteps == 0 ? "本月 \(race.ourName) 行咗 \(store.myMonthStepsEstimated ? "約 " : "")\(Self.steps(race.ourSteps))"
+                  : "本月 \(race.ourName) \(diff >= 0 ? "領先" : "落後")\(race.rivalName) \(Self.steps(abs(diff)))")
+                 .ds(.caption)
+                 .foregroundStyle(.secondary)
+diff --git a/ios/StreetWalkTests/CoreTests.swift b/ios/StreetWalkTests/CoreTests.swift
+index 338e106..a9ac1e2 100644
+--- a/ios/StreetWalkTests/CoreTests.swift
++++ b/ios/StreetWalkTests/CoreTests.swift
+@@ -134,7 +134,7 @@ struct StoreTests {
+         #expect(LocalStore.streak(log, leaves: [], today: today, includeDemo: true) == 5)
+         log[key(2)] = nil
+         #expect(LocalStore.streak(log, leaves: [], today: today, includeDemo: true) == 2, "中间断咗")
+-        #expect(LocalStore.streak(log, leaves: [key(2)], today: today, includeDemo: true) == 5, "请假唔会断")
++        #expect(LocalStore.streak(log, leaves: [key(2)], today: today, includeDemo: true) == 4, "请假唔会断（但唔加）")
+     }
+ 
+     @Test func 示範纪录可以唔计() {
+diff --git a/ios/StreetWalkTests/WalkTests.swift b/ios/StreetWalkTests/WalkTests.swift
+new file mode 100644
+index 0000000..c84ef66
+--- /dev/null
++++ b/ios/StreetWalkTests/WalkTests.swift
+@@ -0,0 +1,260 @@
++import Foundation
++import Testing
++@testable import StreetWalk
++
++// 散步、数据与服务：落脚点、真机开始 / 收尾、背景补记、步频、请假、示範数据唔盖真实纪录、旧存档、本地通知。
++
++struct WalkLogicTests {
++    let t0 = SunShadeTests.hk("2026-10-07 10:00")
++    func at(_ s: Double) -> Date { t0.addingTimeInterval(s) }
++
++    @Test func 落脚点要停够两分钟() {
++        var d = StopDetector()
++        var found: [Vec2] = []
++        // 1.2 m/s 行 60 秒：唔算
++        for i in 0...60 { if let c = d.add(Vec2(x: Double(i) * 1.2, y: 0), at: at(Double(i))) { found.append(c) } }
++        #expect(found.isEmpty)
++        // 喺 (80, 0) 附近 10 m 内郁来郁去 150 秒：一个落脚点
++        for i in 0...30 {
++            if let c = d.add(Vec2(x: 80 + Double(i % 5) * 2, y: Double(i % 3) * 3), at: at(70 + Double(i) * 5)) { found.append(c) }
++        }
++        #expect(found.count == 1)
++        #expect(found.first.map { $0.distance(to: Vec2(x: 84, y: 3)) < 15 } == true)
++    }
++
++    @Test func 企定冇新定位都计到落脚点() {
++        var d = StopDetector()
++        let first = d.add(Vec2(x: 0, y: 0), at: at(0)), h1 = d.hold(at: at(60)), h2 = d.hold(at: at(125)), h3 = d.hold(at: at(200))
++        #expect(first == nil && h1 == nil)
++        #expect(h2 != nil)
++        #expect(h3 == nil, "每段只报一次")
++    }
++
++    @Test func 定位跳一下唔会开始() {
++        var gate = LiveWalkGate()
++        func g_decide(fromHome: Double, acc: Double, at t: Date, recording: Bool, moving: Bool) -> LiveWalkGate.Action {
++            gate.decide(fromHome: fromHome, acc: acc, at: t, recording: recording, moving: moving)
++        }
++        #expect(g_decide(fromHome: 90, acc: 10, at: at(0), recording: false, moving: true) == .none)
++        #expect(g_decide(fromHome: 10, acc: 10, at: at(3), recording: false, moving: true) == .none)
++        #expect(g_decide(fromHome: 90, acc: 10, at: at(6), recording: false, moving: true) == .none, "要重新数")
++        #expect(g_decide(fromHome: 95, acc: 10, at: at(12), recording: false, moving: true) == .start)
++    }
++
++    @Test func 开始条件() {
++        var gate = LiveWalkGate()
++        func g_decide(fromHome: Double, acc: Double, at t: Date, recording: Bool, moving: Bool) -> LiveWalkGate.Action {
++            gate.decide(fromHome: fromHome, acc: acc, at: t, recording: recording, moving: moving)
++        }
++        // 冇行路（Core Motion）唔开始
++        _ = g_decide(fromHome: 90, acc: 10, at: at(0), recording: false, moving: false)
++        #expect(g_decide(fromHome: 90, acc: 10, at: at(10), recording: false, moving: false) == .none)
++        // 底座外（150 m）照样开始
++        _ = g_decide(fromHome: 150, acc: 10, at: at(20), recording: false, moving: true)
++        #expect(g_decide(fromHome: 160, acc: 10, at: at(30), recording: false, moving: true) == .start)
++        // 400 m 外唔算出门
++        _ = g_decide(fromHome: 500, acc: 10, at: at(40), recording: false, moving: true)
++        #expect(g_decide(fromHome: 510, acc: 10, at: at(50), recording: false, moving: true) == .none)
++        // 55–70 m、精度 25：扣埋误差未够 55 m，唔开始（唔会同返屋企一开一收）
++        _ = g_decide(fromHome: 65, acc: 25, at: at(60), recording: false, moving: true)
++        #expect(g_decide(fromHome: 68, acc: 25, at: at(70), recording: false, moving: true) == .none)
++    }
++
++    @Test func 精度差唔会提早收尾() {
++        var gate = LiveWalkGate()
++        func g_decide(fromHome: Double, acc: Double, at t: Date, recording: Bool, moving: Bool) -> LiveWalkGate.Action {
++            gate.decide(fromHome: fromHome, acc: acc, at: t, recording: recording, moving: moving)
++        }
++        #expect(g_decide(fromHome: 99, acc: 60, at: at(0), recording: true, moving: true) == .minutesOnly)
++        #expect(g_decide(fromHome: 65, acc: 25, at: at(5), recording: true, moving: true) == .step)
++        #expect(g_decide(fromHome: 70, acc: 45, at: at(10), recording: true, moving: true) == .finish, "扣误差喺 40 m 内、精度 ≤50")
++        #expect(g_decide(fromHome: 30, acc: 80, at: at(15), recording: true, moving: false) == .finish)
++    }
++
++    @Test func 背景补记行路时段() {
++        typealias S = WalkBackfill.Sample
++        let samples = [S(start: at(0), moving: false), S(start: at(60), moving: true), S(start: at(20 * 60), moving: false),
++                       S(start: at(21 * 60), moving: true), S(start: at(30 * 60), moving: false),
++                       S(start: at(60 * 60), moving: true), S(start: at(63 * 60), moving: false),
++                       S(start: at(90 * 60), moving: true)]
++        let segs = WalkBackfill.segments(samples, until: at(100 * 60))
++        #expect(segs.count == 2, "等过马路嗰 1 分钟合并；3 分钟嗰段太短")
++        #expect(segs.first == DateInterval(start: at(60), end: at(30 * 60)))
++        #expect(segs.last == DateInterval(start: at(90 * 60), end: at(100 * 60)), "仲行紧：到而家")
++    }
++
++    @Test func 最后一段啱啱停都会补记() {
++        typealias S = WalkBackfill.Sample
++        let to = at(60 * 60)
++        // 锁屏行咗 20 分钟返到屋企，停低 30 秒就开 App
++        let home = [S(start: at(0), moving: false), S(start: at(10 * 60), moving: true), S(start: at(30 * 60), moving: false),
++                    S(start: at(40 * 60), moving: true), S(start: to.addingTimeInterval(-30), moving: false)]
++        let (done, tail) = WalkBackfill.split(home, until: to)
++        #expect(done == [DateInterval(start: at(10 * 60), end: at(30 * 60))], "早啲嗰段即刻补记")
++        #expect(tail == PendingWalk(start: at(40 * 60), end: to.addingTimeInterval(-30)))
++        #expect(tail?.interval(stoppedAt: to.addingTimeInterval(120)) == DateInterval(start: at(40 * 60), end: to.addingTimeInterval(-30)),
++                "冇接到真机散步：按停低嘅时间补记，唔计之后坐低嘅时间")
++
++        // 开 App 时仲行紧（行咗 25 分钟，可能喺 400 m 外）：交俾定位接手，开始时间唔受 10 分钟限制
++        let walking = [S(start: at(0), moving: false), S(start: to.addingTimeInterval(-25 * 60), moving: true)]
++        let (done2, tail2) = WalkBackfill.split(walking, until: to)
++        #expect(done2.isEmpty)
++        #expect(tail2 == PendingWalk(start: to.addingTimeInterval(-25 * 60), end: nil))
++        #expect(tail2?.interval(stoppedAt: to.addingTimeInterval(10 * 60))?.duration == 35 * 60, "之后停低：行到停低为止")
++
++        // 屋企入面行 3 分钟：唔记
++        let short = [S(start: to.addingTimeInterval(-4 * 60), moving: true), S(start: to.addingTimeInterval(-60), moving: false)]
++        #expect(WalkBackfill.split(short, until: to).tail?.interval(stoppedAt: to) == nil)
++        // 停咗好耐先开 App：唔係最后一段，直接补记
++        let old = [S(start: at(0), moving: true), S(start: at(15 * 60), moving: false)]
++        let (done3, tail3) = WalkBackfill.split(old, until: to)
++        #expect(done3.count == 1 && tail3 == nil)
++    }
++
++    @Test func 轮椅补记唔当唔知做郁紧() {
++        func moving(walking: Bool = false, stationary: Bool = false, automotive: Bool = false, unknown: Bool = false, seated: Bool) -> Bool {
++            WalkBackfill.isMoving(walking: walking, running: false, stationary: stationary, automotive: automotive, cycling: false, unknown: unknown, seated: seated)
++        }
++        #expect(moving(seated: true), "推轮椅：冇一样认到，但唔係停低")
++        #expect(!moving(unknown: true, seated: true), "手机拎喺手 / 放袋：唔知唔算")
++        #expect(!moving(stationary: true, seated: true))
++        #expect(!moving(automotive: true, seated: true))
++        #expect(moving(walking: true, seated: false))
++        #expect(!moving(seated: false))
++    }
++
++    @Test func 步频持续下降先提示一次() {
++        var w = CadenceWatch()
++        var fired = 0
++        for i in 0..<24 { if w.add(2.0, at: at(Double(i) * 30), walkStart: t0) { fired += 1 } }       // 12 分钟正常
++        for i in 0..<3 { if w.add(1.2, at: at(720 + Double(i) * 30), walkStart: t0) { fired += 1 } }  // 慢咗 1 分钟：未够
++        #expect(fired == 0)
++        for i in 3..<8 { if w.add(1.2, at: at(720 + Double(i) * 30), walkStart: t0) { fired += 1 } }
++        #expect(fired == 1)
++        let again = w.add(1.0, at: at(1200), walkStart: t0)
++        #expect(!again, "提示过就唔再讲")
++    }
++
++    @Test func 请假日子() {
++        #expect(LeaveRequest.parse("今日請假") == LeaveRequest(startOffset: 0, days: 1))
++        #expect(LeaveRequest.parse("聽日請假") == LeaveRequest(startOffset: 1, days: 1))
++        #expect(LeaveRequest.parse("請三日假") == LeaveRequest(startOffset: 0, days: 3))
++        #expect(LeaveRequest.parse("聽日起請一個禮拜假") == LeaveRequest(startOffset: 1, days: 7))
++        #expect(LeaveRequest.parse("後日請兩日假") == LeaveRequest(startOffset: 2, days: 2))
++        #expect(LeaveRequest.parse("我想請十日假") == LeaveRequest(startOffset: 0, days: 10))
++        #expect(LeaveRequest.parse("請 30 日假").days == LeaveRequest.maxDays)
++        // 2026-10-07 係星期三：「下星期」由 10 月 12 號（星期一）開始；講咗幾日就照幾日
++        #expect(LeaveRequest.parse("下星期去旅行請三日假", today: t0) == LeaveRequest(startOffset: 5, days: 3))
++        #expect(LeaveRequest.parse("下個禮拜請假", today: t0) == LeaveRequest(startOffset: 5, days: 1))
++        #expect(LeaveRequest.parse("請一個星期假", today: t0) == LeaveRequest(startOffset: 0, days: 7))
++    }
++}
++
++struct WalkStoreTests {
++    let today = SunShadeTests.hk("2026-10-07 10:00")
++    func key(_ daysAgo: Int) -> String { LocalStore.dayKey(today.addingTimeInterval(-Double(daysAgo) * 86400)) }
++
++    @Test func 请假保留但唔加连续天数() {
++        var log: [String: DayLog] = [:]
++        for d in 1...9 { log[key(d)] = DayLog(minutes: 30, walks: 1) }
++        #expect(LocalStore.streak(log, leaves: [], today: today, includeDemo: true) == 9)
++        #expect(LocalStore.streak(log, leaves: [key(0)], today: today, includeDemo: true) == 9, "今日请假：保留 9 日，唔会变 10")
++        // 天天请假唔会升
++        let leaves = Set((0...5).map(key))
++        #expect(LocalStore.streak([:], leaves: leaves, today: today, includeDemo: true) == 0)
++        // 请假中间隔开都唔断
++        log[key(3)] = nil
++        #expect(LocalStore.streak(log, leaves: [key(3)], today: today, includeDemo: true) == 8)
++    }
++
++    @Test func 重置演示唔盖真实纪录() {
++        var log: [String: DayLog] = [:]
++        for d in 1...3 { log[key(d)] = DayLog(minutes: 40, walks: 1, landmarks: ["park-0"]) }
++        // 重置演示：删示範纪录、再放示範纪录
++        log = log.filter { !$0.value.demo }
++        LocalStore.seedDemo(&log, today: today)
++        for d in 1...3 { #expect(log[key(d)] == DayLog(minutes: 40, walks: 1, landmarks: ["park-0"])) }
++        #expect(log[key(0)]?.demo == true)
++        #expect(log[key(5)]?.demo == true)
++        #expect(LocalStore.streak(log, leaves: [], today: today, includeDemo: false) == 3, "关演示：真实连续 3 日")
++    }
++
++    @Test func 演示散步唔改真实纪录() {
++        var log = [key(0): DayLog(minutes: 30, walks: 1, landmarks: ["a"])]
++        let recorded = LocalStore.record(&log, key: key(0), minutes: 20, landmarks: ["b"], simulated: true)
++        #expect(!recorded)
++        #expect(log[key(0)] == DayLog(minutes: 30, walks: 1, landmarks: ["a"]))
++        // 真实散步盖过示範纪录；步数、落脚点记低
++        var demo = [key(0): DayLog(minutes: 24, walks: 1, demo: true)]
++        LocalStore.record(&demo, key: key(0), minutes: 12, landmarks: ["a", "b"], stops: ["b"], steps: 1500, simulated: false)
++        #expect(demo[key(0)] == DayLog(minutes: 12, walks: 1, landmarks: ["a", "b"], demo: false, stops: ["b"], steps: 1500))
++    }
++
++    @Test func 冇量步数嘅散步照估算() {
++        var log: [String: DayLog] = [:]
++        // 真机量到 1500 步，同日再有一次冇量（轮椅 / 补记查唔到步数）12 分钟
++        LocalStore.record(&log, key: key(0), minutes: 15, landmarks: [], steps: 1500, simulated: false)
++        #expect(log[key(0)]?.stepEstimate == 1500 && log[key(0)]?.stepsEstimated == false)
++        LocalStore.record(&log, key: key(0), minutes: 12, landmarks: [], steps: nil, simulated: false)
++        #expect(log[key(0)]?.stepEstimate == 1500 + 1200, "冇量嗰次唔会被量到嘅盖过")
++        #expect(log[key(0)]?.stepsEstimated == true)
++        // 轮椅成日都冇量：全部按分钟估算
++        LocalStore.record(&log, key: key(1), minutes: 30, landmarks: [], steps: nil, simulated: false)
++        #expect(log[key(1)]?.stepEstimate == 3000 && log[key(1)]?.stepsEstimated == true)
++        // 旧纪录（冇 steps、冇 unmeasured）
++        #expect(DayLog(minutes: 20, walks: 1).stepEstimate == 2000)
++    }
++
++    @Test func 旧存档缺字段都读得返() throws {
++        let json = """
++        {"version":1,"mapKey":"0_0|1","neighbors":{"chan":{"since":800000000,"send":true,"receive":false}},
++         "appointments":[{"id":"6F1C5C3A-1D7A-4F55-9A0B-0C1D2E3F4A5B","partnerID":"chan","date":800100000,"landmarkID":"park-0","reason":"有櫈","status":"accepted"}],
++         "reports":[],"landmarkNames":{"park-0":"大樹底"},
++         "walkLog":{"2026-10-06":{"minutes":30,"walks":1,"landmarks":["park-0"]}}}
++        """
++        let s = try JSONDecoder().decode(SavedState.self, from: Data(json.utf8))
++        #expect(s.appointments.count == 1)
++        #expect(s.appointments.first?.reminded == false && s.appointments.first?.fromPartner == false)
++        #expect(s.walkLog["2026-10-06"]?.demo == false)
++        #expect(s.walkLog["2026-10-06"]?.minutes == 30)
++        #expect(s.leaveDays.isEmpty)
++        #expect(s.landmarkNames["park-0"] == "大樹底")
++    }
++
++    @Test func 读唔到唔会冚咗原文件() throws {
++        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("walktests-\(UUID().uuidString)")
++        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
++        defer { try? FileManager.default.removeItem(at: dir) }
++        let url = dir.appendingPathComponent("state.json")
++        try Data("{ 壞咗".utf8).write(to: url)
++        #expect(LocalStore.load(from: url) == SavedState())
++        let files = try FileManager.default.contentsOfDirectory(atPath: dir.path)
++        #expect(files.contains { $0.hasPrefix("state.bad-") }, "原文件留咗备份")
++
++        // 一个约会坏咗：其他照读，都留备份
++        let url2 = dir.appendingPathComponent("b").appendingPathExtension("json")
++        let json = """
++        {"appointments":[{"partnerID":"chan","date":800100000,"landmarkID":"a","reason":"","status":"唔識"},
++                         {"partnerID":"wong","date":800100000,"landmarkID":"a","reason":"","status":"waiting"}],
++         "leaveDays":["2026-10-07"]}
++        """
++        try Data(json.utf8).write(to: url2)
++        let s = LocalStore.load(from: url2)
++        #expect(s.appointments.map(\.partnerID) == ["wong"])
++        #expect(s.leaveDays == ["2026-10-07"])
++    }
++
++    @Test func 约会通知() {
++        let now = today
++        let acc = Appointment(partnerID: "chan", date: now.addingTimeInterval(2 * 3600), landmarkID: "a", reason: "", status: .accepted)
++        var reminded = acc; reminded.id = UUID(); reminded.reminded = true
++        let waiting = Appointment(partnerID: "wong", date: now.addingTimeInterval(20 * 60), landmarkID: "a", reason: "", status: .waiting)
++        let cancelled = Appointment(partnerID: "lee", date: now.addingTimeInterval(3 * 3600), landmarkID: "a", reason: "", status: .cancelled)
++        let past = Appointment(partnerID: "ho", date: now.addingTimeInterval(-2 * 3600), landmarkID: "a", reason: "", status: .accepted)
++        let items = NotificationPlan.items([acc, reminded, waiting, cancelled, past], now: now, partner: { $0 == "chan" ? "陳太" : "街坊" }, place: { _ in "涼亭" })
++        #expect(items.filter { $0.id.hasSuffix("-remind") }.map(\.at) == [acc.date.addingTimeInterval(-1800)])
++        #expect(items.first?.body == "30 分鐘後約咗陳太喺涼亭。")
++        #expect(items.filter { $0.id.hasSuffix("-expire") }.count == 3, "未完成嘅：到期提醒")
++        #expect(!items.contains { $0.id.contains(cancelled.id.uuidString) || $0.id.contains(past.id.uuidString) })
++    }
++}
+diff --git a/ios/tools/test.sh b/ios/tools/test.sh
+index 0f4c354..de63a59 100755
+--- a/ios/tools/test.sh
++++ b/ios/tools/test.sh
+@@ -1,7 +1,8 @@
+-#!/bin/sh
+-# Xcode 单元测试（StreetWalkTests）：地图解析与风格化、地标、太阳与遮荫、寻路、语音意图、连续天数、持久化、示範数据。
+-set -e
++#!/bin/bash
++# Xcode 单元测试（StreetWalkTests）：地图解析与风格化、地标、太阳与遮荫、寻路、语音意图、连续天数、持久化、示範数据、散步逻辑。
++# 编译或测试失败时返回非零（pipefail：取 xcodebuild 的退出码，grep 冇输出都唔会当失败）。
++set -eo pipefail
+ cd "$(dirname "$0")/.."
+ SIM=${SIM:-iPhone 17}
+ xcodebuild test -project StreetWalk.xcodeproj -scheme StreetWalk -destination "platform=iOS Simulator,name=$SIM,OS=26.5" -derivedDataPath build/DD 2>&1 \
+-  | grep -E "error:|✘|Test run with|passed after|failed after" | grep -vE "^✔ Test [^r]" || true
++  | { grep -E "error:|✘|Test run with|passed after|failed after" | grep -vE "^✔ Test [^r]"; true; }
