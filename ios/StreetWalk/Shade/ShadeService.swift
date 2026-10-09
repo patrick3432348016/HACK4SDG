@@ -34,6 +34,7 @@ final class ShadeService: ShadeProviding {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = SolarPosition.hongKong
         let start = cal.startOfDay(for: day)
+        guard hour <= 18 else { return nil }   // 夜晚（19 点后）冇得计，唔好越界闪退
         for h in hour...18 {
             if shade(landmarkID: landmarkID, at: start.addingTimeInterval(Double(h) * 3600)) >= 0.6 { return h }
         }
