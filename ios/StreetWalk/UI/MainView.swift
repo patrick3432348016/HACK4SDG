@@ -578,7 +578,9 @@ private struct BottomCardDim: View {
 }
 
 /// 卡片本身：顶部圆角 24、系统底色、拉手；从底部弹上来，一次一张。
-/// 有没有卡、是哪张卡都直接跟 card（store.uiActiveCard，已校验数据），不再留"上一张"的镜像状态。
+/// 出唔出卡直接跟 card（store.uiActiveCard，已校验数据）。卡槽常驻、只做位移 / 透明度动画：
+/// 插入 / 移除转场偶尔会卡住（合并时横幅实测三次有两次冇出；以前亦试过暗层 + 空白卡留喺度），
+/// 所以内容换卡时用 .identity（即刻换、冇转场状态），滑上滑落靠整个卡槽嘅位移。
 private struct BottomCardSlot: View {
     @Environment(AppStore.self) private var store
     let card: MainBottomCard?
@@ -589,17 +591,31 @@ private struct BottomCardSlot: View {
     @State private var heights: [MainBottomCard: CGFloat] = [:]
     /// 新卡出现时读屏焦点跳到卡顶（审核 A43）。
     @AccessibilityFocusState private var focus: MainBottomCard?
+    /// 滑走途中仍然画住上一张卡（滑出屏幕后先清走）。
+    @State private var shown: MainBottomCard?
 
     var body: some View {
+        let visible = card ?? shown
         ZStack(alignment: .bottom) {
-            if let card {
-                container(card)
-                    .id(card)
-                    .transition(DS.slide(.bottom))
+            if let visible {
+                container(visible)
+                    .id(visible)
+                    .transition(.identity)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .bottom)
+        .offset(y: card == nil && !DS.reduceMotion ? size.height : 0)
+        .opacity(card == nil && DS.reduceMotion ? 0 : 1)
+        .allowsHitTesting(card != nil)
+        .accessibilityHidden(card == nil)
         .animation(DS.motion(DS.spring), value: card)
+        .onChange(of: card) { _, new in
+            if let new { shown = new; return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                if store.uiActiveCard == nil { shown = nil }
+            }
+        }
         .task(id: card) {
             drag = 0
             guard let card else { return }

@@ -182,21 +182,26 @@ private struct SceneLabel: View {
 
 /// 出门提醒、约会应承、天气提示。从顶部胶囊（传感器位置）弹性展开成大卡片，收起时缩回胶囊。
 /// 点卡片或向上扫 = 关掉；有按钮时按钮执行动作。
-/// 直接由 store.banner 驱动（审核 A10）：有就画、没有就移走，展开 / 收起就是转场本身，不再有镜像状态和完成回调，
-/// 所以不会卡在"已经没了但还展开"。
+/// 直接由 store.banner 驱动（审核 A10）：不再有镜像状态和完成回调。
+/// 常驻视图 + 按状态缩放（同底部卡片一样）：插入 / 移除转场偶尔会卡住（合并后实测三次有两次横幅冇出），
+/// 改成一直在、只按 store.banner 有冇改展开程度，收起时继续画上一个横幅嘅内容。
 struct BannerView: View {
     @Environment(AppStore.self) private var store
+    /// 收起动画期间仍然画上一个横幅（内容唔好一下变空）。
+    @State private var last: BannerItem?
+    private static let blank = BannerItem(symbol: "bell.fill", text: " ")
 
     var body: some View {
-        ZStack(alignment: .top) {
-            if let b = store.banner {
-                BannerIsland(item: b, isDemo: isDemo(b))
-                    .id(b.id)
-                    .transition(DS.reduceMotion ? .opacity : .island)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .animation(DS.motion(DS.bouncy), value: store.banner?.id)
+        let current = store.banner
+        let shown = current != nil
+        let item = current ?? last ?? Self.blank
+        BannerIsland(item: item, isDemo: isDemo(item))
+            .modifier(IslandEffect(progress: shown ? 1 : 0, scales: !DS.reduceMotion))
+            .allowsHitTesting(shown)
+            .accessibilityHidden(!shown)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .animation(DS.reduceMotion ? .easeInOut(duration: 0.2) : (shown ? DS.bouncy : DS.spring), value: shown)
+            .onChange(of: current) { _, new in if let new { last = new } }
     }
 
     /// 示範数据的横幅都标「示範」：有对象就看对象；没有对象的（示範街坊答应了、屋邨管理示範回覆、手选天气）看句子。
@@ -252,7 +257,7 @@ private struct BannerIsland: View {
             .environment(\.colorScheme, .dark)
             .accessibilityElement(children: .contain)
             .accessibilityAction(named: "關閉") { store.banner = nil }
-            .task {
+            .task(id: item.id) {
                 try? await Task.sleep(for: .milliseconds(200))
                 bounce += 1
             }
@@ -292,19 +297,15 @@ private struct BannerIsland: View {
     }
 }
 
-private extension AnyTransition {
-    /// 灵动岛：由顶部胶囊处放大展开、收起时缩回去（模糊 + 淡出）。
-    static var island: AnyTransition {
-        .modifier(active: IslandEffect(progress: 0), identity: IslandEffect(progress: 1))
-    }
-}
-
+/// 灵动岛：由顶部胶囊处放大展开、收起时缩回去（模糊 + 淡出）。减少动态效果时只淡入淡出。
 private struct IslandEffect: ViewModifier {
     var progress: CGFloat
+    var scales = true
     func body(content: Content) -> some View {
+        let p = scales ? progress : 1
         content
-            .scaleEffect(x: 0.32 + 0.68 * progress, y: 0.1 + 0.9 * progress, anchor: .top)
-            .blur(radius: (1 - progress) * 8)
+            .scaleEffect(x: 0.32 + 0.68 * p, y: 0.1 + 0.9 * p, anchor: .top)
+            .blur(radius: (1 - p) * 8)
             .opacity(Double(min(1, progress * 1.6)))
     }
 }
@@ -314,11 +315,15 @@ private struct IslandEffect: ViewModifier {
 /// 一句话的轻提示（位置由外层决定：主界面在标签栏之上）。
 struct ToastView: View {
     @Environment(AppStore.self) private var store
+    /// 淡出途中仍然显示上一句。常驻视图、只改透明度和位移：插入 / 移除转场偶尔会卡住（同横幅、底部卡片）。
+    @State private var last: String?
 
     var body: some View {
+        let t = store.toast
+        let on = t != nil
         ZStack {
-            if let t = store.toast {
-                Text(t)
+            if let text = t ?? last {
+                Text(text)
                     .ds(.caption)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.primary)
@@ -329,13 +334,15 @@ struct ToastView: View {
                     .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Color.primary.opacity(0.08)))
                     .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
                     .padding(.horizontal, DS.side)
-                    .id(t)
-                    .transition(DS.reduceMotion
-                                ? .opacity
-                                : .opacity.combined(with: .scale(scale: 0.9)).combined(with: .offset(y: 16)))
+                    .transition(.identity)
+                    .opacity(on ? 1 : 0)
+                    .scaleEffect(on || DS.reduceMotion ? 1 : 0.9)
+                    .offset(y: on || DS.reduceMotion ? 0 : 16)
+                    .accessibilityHidden(!on)
             }
         }
-        .animation(DS.motion(DS.spring), value: store.toast)
+        .animation(DS.motion(DS.spring), value: t)
+        .onChange(of: t) { _, new in if let new { last = new } }
     }
 }
 
