@@ -12,6 +12,8 @@ struct StreetWalkApp: App {
                 // 启动和回到前台：拉天文台天气、开真机散步检测；后台才停（控制中心、来电等 .inactive 不理）
                 .onChange(of: scenePhase, initial: true) { _, p in if p != .inactive { store.appActive(p == .active) } }
         }
+        // 后台刷新（真后端）：系统叫醒时拉一次街坊出门、约会、找人询问，有新嘢出本地通知（AppStore+Backend）
+        .backgroundTask(.appRefresh(BackgroundRefresh.taskID)) { [store] in await store.backgroundRefresh() }
     }
 }
 

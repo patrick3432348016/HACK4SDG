@@ -179,8 +179,11 @@ extension AppStore {
         adoptMapKey()
         applyLandmarkNames()
         let blocks = m.buildings.filter { $0.kind == .residential && $0.name != nil }.compactMap(\.name)
+        community.setLandmarks(landmarks, originals: originalLandmarkNames)
         var list = community.circleMembers(blocks: blocks, landmarks: landmarks)
         for i in list.indices {
+            // 真后端：今日一句、街坊关系由服务器嚟（只有街坊先有今日一句）；示範街坊先用模板生成
+            guard list[i].isDemo || !community.ownsNeighborLinks else { continue }
             let passed = [landmark(list[i].homeLandmarkID)].compactMap { $0 }
             list[i].todayLine = ai.dailyLine(for: list[i], passed: list[i].id == "cheung" ? [] : passed)
             if let link = savedNeighbors[list[i].id] {
@@ -193,6 +196,7 @@ extension AppStore {
         var meR = Resident(id: "me", name: "你", floor: floorChoice, blockName: scene.homeBuildingID.flatMap(m.homeLabel),
                            colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 0, todayLine: "", isMe: true)
         meR.homeLandmarkID = nearestLandmark(to: scene.homeTarget)?.id
+        meR.nickname = nickname
         list.append(meR)
         applyLooks(&list)
         residents = list
@@ -202,6 +206,7 @@ extension AppStore {
         refreshMe()
         syncScene()
         checkAppointments()
+        uploadProfile()     // 真后端：座数、连续天数跟返而家（一样就唔再传）
         runScriptIfNeeded()
     }
 
@@ -213,6 +218,7 @@ extension AppStore {
         if let p = proposal, !neighbor(p.partnerID) { cancelProposal() }
         if case .person(let id) = selection, resident(id) == nil { select(nil) }
         if let id = remindPromptFor, resident(id) == nil { remindPromptFor = nil }
+        if let ask = incomingFind, !neighbor(ask.fromID) { incomingFind = nil }
         switch voiceCard?.intent {
         case .invite(let id, _, _)?, .goFind(let id)?: if !neighbor(id) { voiceCard = nil }
         default: break

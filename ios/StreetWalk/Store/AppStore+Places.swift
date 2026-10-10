@@ -32,7 +32,7 @@ extension AppStore {
         }
         if me.todayLine.contains(name) { uploadDay(now) }   // 今日一句跟住新名，再传一次
         renaming = nil
-        say(community.isSimulated ? "改咗。\(old)而家叫\(name)，同圈嘅街坊都會見到。" : "改咗。\(old)而家叫\(name)。暫時只喺你部手機。")
+        say(community.sharesLandmarkNames ? "改咗。\(old)而家叫\(name)，同圈嘅街坊都會見到。" : "改咗。\(old)而家叫\(name)。暫時只喺你部手機。")
         Haptics.success()
     }
 
@@ -59,7 +59,7 @@ extension AppStore {
         reports.append(r)
         community.submitReport(r)
         syncScene()
-        say(community.isSimulated
+        say(community.hasServer
             ? "記低咗：\(lm?.name ?? "呢度")\(kind.rawValue)。月尾會同其他街坊嘅反映一齊交俾屋邨管理。"
             : "記低咗：\(lm?.name ?? "呢度")\(kind.rawValue)。暫時只存喺你部手機。")
         Haptics.light()

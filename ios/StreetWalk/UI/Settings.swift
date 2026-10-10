@@ -6,12 +6,20 @@ struct SettingsView: View {
     @Environment(AppStore.self) private var store
     @State private var confirmClear = false
     @State private var confirmMove = false
+    @State private var editingNickname = false
 
     var body: some View {
         @Bindable var store = store
         NavigationStack {
             Form {
                 Section {
+                    Button { editingNickname = true } label: {
+                        LabeledContent("網名") {
+                            Text(store.nickname.isEmpty ? "未有" : store.nickname).foregroundStyle(.secondary)
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                    .accessibilityHint("改排行榜上用嘅網名")
                     LabeledContent("住喺") {
                         Text(store.me.blockName ?? store.map?.placeName ?? "—").foregroundStyle(.secondary)
                     }
@@ -27,6 +35,10 @@ struct SettingsView: View {
                     colorRow
                 } header: {
                     Text("我").ds(.caption)
+                } footer: {
+                    if !store.demoMode {
+                        Text("同區嘅人見到你嘅網名、小人同連續日數；座數同樓層只有碰過一碰嘅街坊見到。").ds(.caption)
+                    }
                 }
 
                 Section {
@@ -49,7 +61,7 @@ struct SettingsView: View {
                         .disabled(LaunchArgs.has("-demo"))
                 } footer: {
                     Text(LaunchArgs.has("-demo") ? "而家用演示參數開啟，唔可以喺度關。"
-                         : "演示模式會加入示範街坊、示範紀錄同右上角嘅演示選單。關咗之後，圈入面暫時只有你（未接伺服器）。").ds(.caption)
+                         : "演示模式會加入示範街坊、示範紀錄同右上角嘅演示選單。關咗之後用真伺服器：排行榜係附近真人，要兩部手機碰一碰先做到街坊。").ds(.caption)
                 }
 
                 Section {
@@ -62,7 +74,8 @@ struct SettingsView: View {
                 Section {
                     Button("清除我嘅紀錄", role: .destructive) { confirmClear = true }
                 } footer: {
-                    Text("街坊關係、約會、反映、改過嘅地標名、散步紀錄都只存喺你部手機。地圖資料 © OpenStreetMap；天氣：香港天文台。").ds(.caption)
+                    Text(store.demoMode ? "演示模式：街坊關係、約會、反映、改過嘅地標名、散步紀錄都只存喺你部手機。地圖資料 © OpenStreetMap；天氣：香港天文台。"
+                         : "行過嘅路線、屋企位置只存喺你部手機。伺服器（新加坡）只有網名、小人、屋企附近嘅格子、連續日數、每日分鐘同落腳地標、街坊關係同約會；清除會一齊刪走。地圖資料 © OpenStreetMap；天氣：香港天文台。").ds(.caption)
                 }
             }
             .ds(.body)
@@ -76,11 +89,15 @@ struct SettingsView: View {
                     Button { store.showSettings = false } label: { Text("完成").ds(.bodyBold) }.foregroundStyle(DS.accent)
                 }
             }
+            .sheet(isPresented: $editingNickname) {
+                NicknameSheet().environment(store)
+            }
             .confirmationDialog("清除全部紀錄？", isPresented: $confirmClear, titleVisibility: .visible) {
                 Button("清除", role: .destructive) { store.clearAllData(); store.populate() }
                 Button("唔清", role: .cancel) {}
             } message: {
-                Text("街坊、約會、反映同散步紀錄都會刪走，冇得還原。")
+                Text(store.demoMode ? "街坊、約會、反映同散步紀錄都會刪走，冇得還原。"
+                     : "街坊、約會、反映同散步紀錄都會刪走（連伺服器上嘅），冇得還原。")
             }
             .confirmationDialog("改我住嘅樓？", isPresented: $confirmMove, titleVisibility: .visible) {
                 Button("揀過座樓") { store.showSettings = false; store.beginChangeHome() }
@@ -161,7 +178,7 @@ extension AppStore {
     func setDemoMode(_ on: Bool) {
         demoMode = on
         UserDefaults.standard.set(on, forKey: "demoMode")
-        localCommunity?.demoEnabled = on
+        installCommunity()      // 演示 → 示範街坊；真 → Supabase（AppStore+Backend）
         if on && walkLog.isEmpty { seedDemoHistory() }
         // 演示模式同真机散步检测唔好同时开
         if on {

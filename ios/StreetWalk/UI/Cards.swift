@@ -151,7 +151,7 @@ struct InfoCard: View {
 
             if renaming {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(store.community.isSimulated ? "揀個新名，同圈街坊都會見到" : "揀個新名（暫時只喺你部手機）")
+                    Text(store.community.sharesLandmarkNames ? "揀個新名，同圈街坊都會見到" : "揀個新名（暫時只喺你部手機）")
                         .ds(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -264,16 +264,13 @@ struct InfoCard: View {
         }
     }
 
-    /// 非街坊只出楼层，永远不出名字。
-    private func title(for r: Resident) -> String {
-        if r.isMe { return "\(r.floorLabel) · 你" }
-        return r.isNeighbor ? "\(r.floorLabel)\(r.name)" : r.floorLabel
-    }
+    /// 网名；街坊加座数楼层（非街坊永远唔出座数楼层，2026-10-10 定）。
+    private func title(for r: Resident) -> String { r.listName }
 
     private func whereText(for r: Resident) -> String {
         if r.isMe { return store.walk != nil ? "行緊" : "喺屋企 · 已隱身" }
         guard r.isNeighbor else { return "仲未係你街坊" }
-        if r.isOut, let lm = store.landmark(r.atLandmarkID) { return "喺\(lm.name)附近" }
+        if r.isOut, let place = store.placeName(r.atLandmarkID) { return "喺\(place)附近" }
         return "冇出門消息"   // 不断言「喺屋企」
     }
 }

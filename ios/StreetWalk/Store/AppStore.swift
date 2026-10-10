@@ -6,7 +6,7 @@ import UIKit
 @Observable
 final class AppStore: NeighborRegistry {
     enum Phase: Equatable { case onboarding(Step), main }
-    enum Step: Int { case consent, locate, pickHome, floor, avatar }
+    enum Step: Int { case consent, locate, pickHome, floor, avatar, nickname }
     enum Tab: Hashable { case today, board, neighbors }
     enum BumpStage: Equatable { case idle, searching, found(String) }
     enum Selection: Equatable { case landmark(String), person(String) }
@@ -18,7 +18,8 @@ final class AppStore: NeighborRegistry {
     @ObservationIgnored let listener = Listener()
     @ObservationIgnored let mapService = MapService()
     @ObservationIgnored let scene = DioramaController()
-    @ObservationIgnored let community: CommunityService
+    /// 演示模式：LocalCommunityService（示範街坊）；关咗：SupabaseCommunityService（真后端）。见 AppStore+Backend.installCommunity。
+    @ObservationIgnored var community: CommunityService
     @ObservationIgnored let hko = HKOWeatherService()
     @ObservationIgnored let walkDetector = WalkDetector()
     @ObservationIgnored var shade: ShadeService?
@@ -122,7 +123,13 @@ final class AppStore: NeighborRegistry {
     /// 改楼前嘅肤色、年纪（佢哋一改就存，「唔改」要还原）。
     @ObservationIgnored var lookBeforeChange: (skin: Int, age: AgeGroup)?
 
-    var me: Resident { residents.first { $0.isMe } ?? Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true) }
+    // 真后端追加（AppStore+Backend）
+    /// 网名（排行榜上同区嘅人见到；1–20 字）。即时存盘。
+    var nickname = UserDefaults.standard.string(forKey: "nickname") ?? "" { didSet { UserDefaults.standard.set(nickname, forKey: "nickname") } }
+    /// F8：街坊问「想過嚟搵你，方唔方便？」，等我撳「好 / 唔方便」。
+    var incomingFind: IncomingFindAsk?
+
+    var me: Resident { residents.first { $0.isMe } ?? Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true, nickname: nickname) }
     var neighbors: [Resident] { residents.filter { $0.isNeighbor && !$0.isMe } }
     var outNeighbors: [Resident] { neighbors.filter(\.isOut) }
     var todayMinutes: Int { log(for: now).minutes }
@@ -149,7 +156,7 @@ final class AppStore: NeighborRegistry {
         let d = UserDefaults.standard
         community = LocalCommunityService(demoEnabled: LaunchArgs.has("-demo") || d.object(forKey: "demoMode") as? Bool ?? true)
         restoreSaved()
-        community.onEvent = { [weak self] e in self?.receive(e) }
+        installCommunity()
         community.resume(appointments)
         startClock()
         if LaunchArgs.has("-resetOnboarding") { ["onboarded", "homeBuilding", "homeTile", "floor", "mobility", "color"].forEach { d.removeObject(forKey: $0) } }

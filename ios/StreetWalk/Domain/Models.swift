@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// 圈里的一个居民。非街坊只在排行榜出现（只显示楼层），永远不进场景。
+/// 圈里的一个居民。非街坊只在排行榜出现（只显示网名、小人、连续日数），永远不进场景。
 struct Resident: Identifiable, Equatable {
     let id: String
-    var name: String            // 例如"陳太"；只有成为街坊后才显示
+    var name: String            // 网名，例如"陳太"（真后端：profiles.nickname；示範街坊：示範名）
     var floor: Int
     var blockName: String?
     var colorIndex: Int
@@ -26,17 +26,26 @@ struct Resident: Identifiable, Equatable {
     var ageGroup: AgeGroup = .adult
     /// 上个月圈对圈赢了：头像加小奖牌（F4）。
     var hasMedal = false
+    /// 我的网名（只用喺「我」嗰行；其他人嘅网名就系 name）。
+    var nickname: String? = nil
 
-    var floorLabel: String { "\(floor) 樓" }
+    /// 楼层：0 = 唔知（非街坊睇唔到楼层）。
+    var floorLabel: String { floor > 0 ? "\(floor) 樓" : "" }
     /// 座名只留中文部分（"皇滙樓 Wong Wui House" → "皇滙樓"）；没有名就不显示。
     var blockShort: String? {
         guard let b = blockName?.split(separator: " ").first.map(String.init), !b.isEmpty else { return nil }
         return b
     }
-    /// 排行榜：座数 + 楼层；街坊加名字；非街坊永远不出名字、不出门牌。
+    /// 座数 + 楼层（例如「皇滙樓 8 樓」）；冇就空。
+    var placeLabel: String { [blockShort, floor > 0 ? floorLabel : nil].compactMap { $0 }.joined(separator: " ") }
+    /// 排行榜（2026-10-10 定）：人人都系网名；街坊先加座数楼层（地址私隐：非街坊永远唔出座数楼层）。
     var listName: String {
-        let place = [blockShort, floorLabel].compactMap { $0 }.joined(separator: " ")
-        return isMe ? "\(place) · 你" : (isNeighbor ? "\(place) \(name)" : place)
+        if isMe {
+            let nick = nickname.flatMap { $0.isEmpty ? nil : $0 }
+            return nick.map { "\($0) · 你" } ?? "你"
+        }
+        let place = placeLabel
+        return isNeighbor && !place.isEmpty ? "\(name) · \(place)" : name
     }
     var color: Color { Palette.person(colorIndex) }
     var uiColor: UIColor { Palette.personUI(colorIndex) }

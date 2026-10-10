@@ -6,6 +6,11 @@ extension AppStore {
 
     func startBump() {
         renaming = nil
+        // 真后端：模拟碰一碰唔可以当真（会将排行榜上一个陌生人当咗街坊）。真碰一碰由碰一碰模块经 addLinkedNeighbor 加。
+        if !community.isSimulated, bump is SimulatedBumpService {
+            toast("碰一碰要兩部 iPhone 都開住街坊行，靠埋一齊。呢個版本仲未接好真嘅碰一碰。")
+            return
+        }
         // 先讲清楚点解碰唔到：圈入面冇其他人，同"都係街坊"係两回事（A38）。
         guard residents.contains(where: { !$0.isMe }) else {
             toast(community.isSimulated ? "圈入面暫時只有你。" : "圈入面暫時只有你。單機版碰唔到其他手機，要兩部 iPhone 先得。")
@@ -115,8 +120,8 @@ extension AppStore {
         residents[i].atLandmarkID = landmarkID
         let r = residents[i]
         syncScene()
-        guard remindAll, r.receiveRemind, inRemindWindow, let lm = landmark(r.atLandmarkID) else { return }
-        let text = "\(r.floorLabel)\(r.name)啱啱出門，應該喺\(lm.name)嗰邊。"
+        guard remindAll, r.receiveRemind, inRemindWindow, let place = placeName(r.atLandmarkID) else { return }
+        let text = "\(r.floorLabel)\(r.name)啱啱出門，應該喺\(place)嗰邊。"
         showBanner(BannerItem(symbol: "figure.walk", text: text, action: walk != nil ? .goFind(r.id) : .invite(r.id), actionTitle: walk != nil ? "過去搵佢" : "約佢"))
         say(text)
     }

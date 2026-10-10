@@ -95,13 +95,20 @@ struct BoardNameTests {
         return r
     }
 
-    @Test func 排行榜显示座数同楼层() {
-        #expect(resident(neighbor: false, block: "皇滙樓 Wong Wui House").listName == "皇滙樓 8 樓", "非街坊：座 + 楼，不出名字")
-        #expect(resident(neighbor: true, block: "皇滙樓 Wong Wui House").listName == "皇滙樓 8 樓 陳太")
-        #expect(resident(neighbor: false, block: nil).listName == "8 樓", "没有座名就只出楼层")
+    /// 2026-10-10 定：人人显示网名；座数楼层只有街坊先见到（地址私隐）。
+    @Test func 排行榜人人网名_街坊先有座数楼层() {
+        #expect(resident(neighbor: false, block: "皇滙樓 Wong Wui House").listName == "陳太", "非街坊：只有网名，唔出座数楼层")
+        #expect(resident(neighbor: true, block: "皇滙樓 Wong Wui House").listName == "陳太 · 皇滙樓 8 樓")
+        #expect(resident(neighbor: true, block: nil).listName == "陳太 · 8 樓", "街坊冇座名就只出楼层")
+        var unknown = resident(neighbor: true, block: nil)
+        unknown.floor = 0
+        #expect(unknown.listName == "陳太", "街坊冇填楼层：唔出「0 樓」")
+        #expect(unknown.floorLabel == "")
         var me = resident(neighbor: false, block: "皇樂樓")
         me.isMe = true
-        #expect(me.listName == "皇樂樓 8 樓 · 你")
+        #expect(me.listName == "你")
+        me.nickname = "阿明"
+        #expect(me.listName == "阿明 · 你")
     }
 }
 

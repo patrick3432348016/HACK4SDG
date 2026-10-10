@@ -1,18 +1,27 @@
 import Foundation
 
 /// 成员 A：要和别人同步的数据——圈成员、街坊关系、约会、出门状态、反映、地标改名、全邨匿名汇总。
-/// 上线时用 Supabase 实现同一协议（表结构见 docs/backend_supabase.md）；
-/// 现在是 LocalCommunityService：数据只在本机，对方由「示範街坊」模拟。
-/// 只上传地标级信息：出门状态是地标 id，反映挂在地标上，原始轨迹永远不离开手机。
+/// 两个实现：演示模式用 LocalCommunityService（数据只在本机，对方由「示範街坊」模拟）；
+/// 关咗演示模式用 SupabaseCommunityService（Backend/，真后端，表结构见 supabase/migrations/001_init.sql）。
+/// 只上传地标级信息：出门状态是地标名，反映挂在地标上，原始轨迹永远不离开手机。
 @MainActor
 protocol CommunityService: AnyObject {
     /// 别人那边发生的事（街坊出门、应承约会、约你、反映有回覆）。
     var onEvent: ((CommunityEvent) -> Void)? { get set }
     /// 单机演示：圈里其他人都是模拟的。
     var isSimulated: Bool { get }
+    /// 有服务器（真后端，或者演示时模拟嘅服务器）：反映会交出去、排行榜有其他人。
+    var hasServer: Bool { get }
+    /// 改地标名同圈都会见到（真后端未有地标改名表：只喺本机）。
+    var sharesLandmarkNames: Bool { get }
+    /// 街坊关系以服务器为准（唔用本机存档嘅关系表）。
+    var ownsNeighborLinks: Bool { get }
 
     /// F2 圈成员（不含我）。blocks 是附近有名字的住宅楼，landmarks 是这个底座的地标。
+    /// 真后端：返回缓存，背景刷新，有变就发 .membersChanged（AppStore 重新 populate）。
     func circleMembers(blocks: [String], landmarks: [Landmark]) -> [Resident]
+    /// 底座嘅地标（而家嘅名 + 改名前嘅原名）：上传 / 收到地标名时对返本机地标 id。
+    func setLandmarks(_ landmarks: [Landmark], originals: [String: String])
 
     // F5 / F6 街坊关系
     func linkNeighbor(_ id: String, send: Bool, receive: Bool)
@@ -49,6 +58,8 @@ protocol CommunityService: AnyObject {
     func askToFind(partnerID: String, landmarkID: String, answer: @escaping (_ accepted: Bool) -> Void)
     /// 我取消 / 结束咗：撤回仲未答嘅询问。
     func cancelFindAsk(partnerID: String)
+    /// 收到街坊问「方唔方便」（.findAsked），我撳「好 / 唔方便」。
+    func answerFindAsk(_ ask: IncomingFindAsk, accepted: Bool)
     /// 播送一句俾对方（「我喺X」「我就到X」）。
     func broadcast(to partnerID: String, text: String)
     /// 约会当日我出发：话俾对方知我大约几分钟到。对方出门、途中、到达都经 partnerUpdate 送返（可以多次；
@@ -63,8 +74,8 @@ protocol CommunityService: AnyObject {
     func uploadDay(day: String, minutes: Int, steps: Int, landmarkIDs: [String], stopLandmarkIDs: [String], line: String)
     /// 请假（leaves 表）：连续天数唔断。
     func setLeave(day: String, on: Bool)
-    /// 个人资料（users 表）：座数、楼层、小人（行动方式、颜色、肤色、年纪）。名只俾街坊睇。
-    func updateProfile(block: String?, floor: Int, mobility: Mobility, colorIndex: Int, skinTone: Int, ageGroup: AgeGroup)
+    /// 个人资料（profiles 表）：网名、小人（行动方式、颜色、肤色、年纪）、屋企格子、屋邨名、座数楼层（只俾街坊睇）、连续天数。
+    func updateProfile(_ p: CommunityProfile)
     /// 撤回自己的一条反映。
     func retractReport(_ id: UUID)
 }
@@ -82,6 +93,23 @@ enum CommunityEvent {
     case inviteAnswered(appointmentID: UUID, accepted: Bool)
     case invited(Appointment)
     case reportFollowUp(reportID: UUID, text: String, isDemo: Bool)
+    // 2026-10-10 真后端追加
+    /// 圈成员（排行榜、街坊、出门地标）变咗：AppStore 重新 populate。
+    case membersChanged
+    /// 对方改咗约会时间 / 地点（要我再确认）。
+    case meetupChanged(Appointment)
+    /// 对方取消咗约会。
+    case meetupCancelled(appointmentID: UUID)
+    /// 街坊散步中想過嚟搵我：问我方唔方便。
+    case findAsked(IncomingFindAsk)
+    /// 佢撤回咗个询问（我未答）。
+    case findAskCancelled(askID: String)
+    /// 我问街坊方唔方便：问唔到（未连线）或者佢一直冇回覆。
+    case findAskUnanswered(partnerID: String, offline: Bool)
+    /// 找人时对方播送一句（「我喺涼亭」）。
+    case partnerSaid(partnerID: String, text: String)
+    /// 约会当日对方出门 / 到达 / 放弃（我未撳出发，冇人接 partnerUpdate 时）。
+    case partnerTrip(appointmentID: UUID, partnerID: String, trip: PartnerTrip, ended: Bool)
 }
 
 /// 圈对圈：本月圈内总步数。
@@ -98,7 +126,10 @@ struct CircleRace: Equatable {
 final class LocalCommunityService: CommunityService {
     var onEvent: ((CommunityEvent) -> Void)?
     var isSimulated: Bool { demoEnabled }
-    /// 关掉演示模式后，圈里只有你（还没接后端）。
+    var hasServer: Bool { demoEnabled }
+    var sharesLandmarkNames: Bool { demoEnabled }
+    var ownsNeighborLinks: Bool { false }
+    /// 演示模式用：圈里系示範街坊。（关咗演示模式 AppStore 会换 SupabaseCommunityService。）
     var demoEnabled: Bool
     /// 演示菜单「陳太唔方便（下一次）」：下一次邀请 / 询问会被拒绝。
     var declineNext = false
@@ -131,6 +162,7 @@ final class LocalCommunityService: CommunityService {
         }
     }
 
+    func setLandmarks(_ landmarks: [Landmark], originals: [String: String]) {}
     func linkNeighbor(_ id: String, send: Bool, receive: Bool) {}
     func unlinkNeighbor(_ id: String) {}
     func updateRemind(_ id: String, send: Bool, receive: Bool) {}
@@ -188,6 +220,9 @@ final class LocalCommunityService: CommunityService {
         findAsks[partnerID] = nil
     }
 
+    /// 单机：示範街坊唔会问你（冇对方部手机）。
+    func answerFindAsk(_ ask: IncomingFindAsk, accepted: Bool) {}
+
     /// 单机：冇对方部手机，播送只喺本机显示。
     func broadcast(to partnerID: String, text: String) {}
 
@@ -211,7 +246,7 @@ final class LocalCommunityService: CommunityService {
 
     func uploadDay(day: String, minutes: Int, steps: Int, landmarkIDs: [String], stopLandmarkIDs: [String], line: String) {}
     func setLeave(day: String, on: Bool) {}
-    func updateProfile(block: String?, floor: Int, mobility: Mobility, colorIndex: Int, skinTone: Int, ageGroup: AgeGroup) {}
+    func updateProfile(_ p: CommunityProfile) {}
     func retractReport(_ id: UUID) {}
 
     // MARK: 演示触发（演示菜单 / 自动脚本）
