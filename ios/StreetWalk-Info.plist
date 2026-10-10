@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 和自动生成的 Info.plist 合并。只放 INFOPLIST_KEY_* 表达唔到的键（数组、后台模式）同真功能要用的权限说明。
+     放喺 StreetWalk/ 文件夹外面：文件夹同步会把里面的 plist 当资源复制，同生成的 Info.plist 撞名。 -->
+<plist version="1.0">
+<dict>
+	<!-- F1 真机自动记录、出门检测：离开屋企时系统喺后台叫醒 App，散步期间继续用定位。 -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>hk.hack4sdg.streetwalk.refresh</string>
+	</array>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>揀「始終允許」，你出門散步時就算手機鎖咗都會自動記錄，街坊亦會收到你出門嘅提醒。你屋企喺邊只會留喺呢部手機，對外只講地標。</string>
+	<!-- F5 碰一碰：两部手机经本地网络搵到对方，再用超宽带量距离。 -->
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_jiefong._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>碰一碰加街坊時，用嚟搵到身邊另一部手機。</string>
+	<key>NSNearbyInteractionUsageDescription</key>
+	<string>碰一碰時量度兩部手機有幾近；搵街坊時喺附近指出佢喺邊個方向。</string>
+	<key>NSCameraUsageDescription</key>
+	<string>手機唔支援碰一碰時，用鏡頭掃街坊嘅二維碼加街坊。</string>
+</dict>
+</plist>

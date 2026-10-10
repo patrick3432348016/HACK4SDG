@@ -256,6 +256,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "StreetWalk-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "街坊行";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "用你附近嘅街道同樓宇砌出屋邨模型；散步時用定位畫出你行過嘅路。路線只留喺呢部手機，唔會上傳，對外只講地標。";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "聽你講嘢，例如「約陳太聽日一齊行」。";
@@ -287,6 +288,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "StreetWalk-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "街坊行";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "用你附近嘅街道同樓宇砌出屋邨模型；散步時用定位畫出你行過嘅路。路線只留喺呢部手機，唔會上傳，對外只講地標。";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "聽你講嘢，例如「約陳太聽日一齊行」。";
