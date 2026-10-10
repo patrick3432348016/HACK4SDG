@@ -445,7 +445,8 @@ struct BumpStoreTests {
         let s = makeStore()
         s.startBump()
         #expect(s.bumpStage == .searching, "真机：圈入面冇人都照开碰一碰")
-        #expect(s.bumpProgress == .failed(.unsupported))
+        // 有啲模拟器（例如 iPhone 17）报自己有超宽带：嗰度测唔到「唔支援」，只测转二维码。
+        if !NearbyBumpService.deviceSupported { #expect(s.bumpProgress == .failed(.unsupported)) }
         s.bumpUseQR()
         #expect(s.bumpQR?.mode == .choose)
         s.cancelBump()

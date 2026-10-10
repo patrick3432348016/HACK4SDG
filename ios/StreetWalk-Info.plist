@@ -15,7 +15,7 @@
 		<string>hk.hack4sdg.streetwalk.refresh</string>
 	</array>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>揀「始終允許」，你出門散步時就算手機鎖咗都會自動記錄，街坊亦會收到你出門嘅提醒。你屋企喺邊只會留喺呢部手機，對外只講地標。</string>
+	<string>揀「始終允許」，你出門散步時就算手機鎖咗都會自動記錄，亦可以話俾你嘅街坊知你出咗門。你屋企喺邊只會留喺呢部手機，對外只講地標。</string>
 	<!-- F5 碰一碰：两部手机经本地网络搵到对方，再用超宽带量距离。 -->
 	<key>NSBonjourServices</key>
 	<array>
