@@ -24,7 +24,7 @@ extension AppStore {
                 action()
             }
             // 字幕（-captions）：中文一句 + 英文一句，配合录屏。
-            @MainActor func cap(_ zh: String, _ en: String) { if LaunchArgs.has("-captions") { withAnimation(DS.motion(DS.snappy)) { caption = (zh, en) } } }
+            @MainActor func cap(_ zh: String, _ en: String) { if LaunchArgs.has("-captions") { caption = (zh, en) } }   // 唔包 withAnimation（见 showBanner）
             await step(1, "開場") { cap("北都新屋邨：每日行嘅路，就係認識街坊嘅地方", "New estates in the Northern Metropolis: your daily walk is where neighbours meet") }
             await step(4, "排行榜") { tab = .board; cap("排行榜：同區常行嘅人；未係街坊只見座數同樓層", "Circle board: regular walkers nearby — strangers show only block and floor") }
             await step(9, "街坊 · 碰一碰") { tab = .neighbors; startBump(); cap("碰一碰：兩部手機貼近，就成為街坊", "Bump phones to become neighbours — the only way to connect") }

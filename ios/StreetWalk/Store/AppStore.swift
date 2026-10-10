@@ -161,13 +161,16 @@ final class AppStore: NeighborRegistry {
 
     // MARK: - 横幅与提示
 
+    // 横幅、提示直接改值，唔好包 withAnimation（动画由 BannerView / ToastView 自己按值做）：
+    // 同一刻仲有其他改动未刷新时，withAnimation 会令 SwiftUI 喺 willSet 嗰刻同步重画，读到旧值，
+    // 之后呢次改动就冇再通知（合并时用日志实测：横幅已经设好但画面冇出，三次有两次）。
     func showBanner(_ b: BannerItem) {
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.78)) { banner = b }
+        banner = b
         Haptics.warning()
         bannerTask?.cancel()
         bannerTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(UIAccessibility.isVoiceOverRunning ? 30 : 8))   // 读屏开着：30 秒，留时间找按钮（A43）
-            if !Task.isCancelled { withAnimation(.spring(response: 0.4, dampingFraction: 0.9)) { self.banner = nil } }
+            if !Task.isCancelled { self.banner = nil }
         }
     }
 
@@ -185,11 +188,11 @@ final class AppStore: NeighborRegistry {
     }
 
     func toast(_ s: String) {
-        withAnimation(.snappy) { toast = s }
+        toast = s
         say(s)
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(3.5))
-            if self.toast == s { withAnimation(.snappy) { self.toast = nil } }
+            if self.toast == s { self.toast = nil }
         }
     }
 
