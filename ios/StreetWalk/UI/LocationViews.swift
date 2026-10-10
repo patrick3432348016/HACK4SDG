@@ -256,7 +256,7 @@ enum LocationStatusText {
         switch lm.auth {
         case .denied, .restricted: return "定位已經拒絕咗：唔會記錄路線同地標，亦唔知你幾時返到屋企。"
         case .notDetermined: return "未允許定位：散步唔會自動記錄。"
-        case .authorizedWhenInUse: return "定位只係「用緊 App 時」先開：鎖咗機出門，要等你打開 App 先補返分鐘同步數（冇地標），街坊亦唔會即時知道你出咗門。"
+        case .authorizedWhenInUse: return "定位只係「用緊 App 時」先開：鎖咗機出門唔會即時記錄，要等你打開 App 先補返分鐘同步數（冇地標）。"
         default: break
         }
         if !lm.precise { return "「精確位置」關咗：認唔到你行過邊個地標，亦唔知你幾時出門。" }

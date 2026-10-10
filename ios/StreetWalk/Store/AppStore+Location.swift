@@ -22,6 +22,7 @@ extension AppStore {
 
     static func launch() -> AppStore {
         if let s = instance { return s }
+        WalkDetector.rememberSimWalk()
         let s = AppStore()
         instance = s
         s.attachLocation()
@@ -29,11 +30,14 @@ extension AppStore {
     }
 
     var isInBackground: Bool { UIApplication.shared.applicationState == .background }
+    /// App 用紧嘅嗰个 store（单元测试自己 new 嘅唔好改 LocationMonitor 嘅屋企同纪录）。
+    var isMainStore: Bool { Self.instance === self }
 
     func attachLocation() {
         let lm = LocationMonitor.shared
         lm.enabled = phase == .main
         lm.onTrigger = { [weak self] t in self?.locationTriggered(t) }
+        if LaunchArgs.has("-resetOnboarding") { lm.resetAll() }
         lm.activate()
         if let s = LaunchArgs.value("-simNights"), let g = Self.parseGeo(s) { lm.simulateNights(at: g) }
         if UIPreview.is("alwaysAsk") { lm.showAlwaysAsk = true }
@@ -48,6 +52,7 @@ extension AppStore {
 
     /// 返到前台（appActive）。
     func locationAppActive() {
+        guard isMainStore else { return }
         // 改楼途中（phase 係首次使用）唔好停监察
         if phase == .main { LocationMonitor.shared.enabled = true }
         LocationMonitor.shared.appBecameActive()
@@ -56,6 +61,7 @@ extension AppStore {
 
     /// 完成首次使用 / 改完楼（finishOnboarding）。
     func locationOnboarded() {
+        guard isMainStore else { return }
         UserDefaults.standard.set(mapSource == .fallback, forKey: Self.homeFromSampleKey)
         LocationMonitor.shared.enabled = true
         syncHomeLocation()
@@ -64,7 +70,7 @@ extension AppStore {
 
     /// 装好地图（populate）：屋企位置交俾 LocationMonitor 登记屋企范围。
     func syncHomeLocation() {
-        guard phase == .main, let m = map, let id = scene.homeBuildingID, let b = m.building(id: id) else { return }
+        guard isMainStore, phase == .main, let m = map, let id = scene.homeBuildingID, let b = m.building(id: id) else { return }
         let d = UserDefaults.standard
         let picked = d.object(forKey: "homeBuilding") != nil && !d.bool(forKey: Self.homeFromSampleKey)
         LocationMonitor.shared.setHome(m.geoPoint(b.centroid), picked: picked)
@@ -143,8 +149,15 @@ extension AppStore {
     }
 
     /// 记录中返到屋企范围：收尾（walkEnded 负责存盘、熄定位）。
+    /// 仲行紧路又未入 40 m（例如绕圈经过屋企附近）就唔收，交返 LiveWalkGate（40 m）同「停低 5 分钟喺屋企附近」判断。
     func arriveHomeWhileRecording() {
-        guard walkDetector.recording, walk != nil else { return }
+        let d = walkDetector
+        guard d.recording, walk != nil else { return }
+        if d.moving, let fix = d.lastFix, let m = map,
+           m.scenePoint(fix.0).distance(to: scene.homeTarget) - fix.accuracy > LiveWalkGate.homeRadius {
+            LocationMonitor.shared.record(.note, "經過屋企附近，仲行緊：繼續記錄")
+            return
+        }
         holdBackgroundTime("arrive")
         finishLiveWalk(endAt: Date(), reason: .home)
     }
@@ -176,10 +189,11 @@ extension AppStore {
 
     /// beginWalk 之后。
     func walkBegan(live: Bool) {
-        guard live, let w = walk else { return }
+        guard live, isMainStore, let w = walk else { return }
         let d = walkDetector
         d.watchTask?.cancel()
         d.watchTask = nil
+        d.keepAlive = false      // 记录中一直用准确定位（停低都唔熄），唔使粗略档
         let bg = isInBackground
         LocationMonitor.shared.record(.walkStart, "\(bg ? "鎖咗機 / 背景" : "App 開住")，由 \(Self.clock(w.start)) 計")
         guard bg else { return }
@@ -190,7 +204,7 @@ extension AppStore {
 
     /// finishWalk 之后。
     func walkEnded(live: Bool, minutes: Int, places: Int, reason: WalkEnd, recorded: Bool) {
-        guard live else { return }
+        guard live, isMainStore else { return }
         let why: String
         switch reason {
         case .home: why = "返到屋企"
@@ -232,7 +246,7 @@ extension AppStore {
 
     /// recordWalk 之后：补记嘅（背景期间行嘅）写入定位纪录；实时散步由 walkEnded 写。
     func noteWalkRecorded(minutes: Int, simulated: Bool, backfilled: Bool, steps: Int?) {
-        guard !simulated, backfilled else { return }
+        guard !simulated, backfilled, isMainStore else { return }
         LocationMonitor.shared.record(.backfill, "用手機步行紀錄補記：\(minutes) 分鐘\(steps.map { "、\($0) 步" } ?? "")（冇地標）")
     }
 

@@ -97,6 +97,7 @@ extension AppStore {
         restoring = false
         restoreOriginalNames()
         saveNow()
+        if isMainStore { LocationMonitor.shared.clearRecords() }   // 夜晚位置、定位纪录一齐清
     }
 
     func restoreOriginalNames() {

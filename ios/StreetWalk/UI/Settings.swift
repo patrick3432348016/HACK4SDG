@@ -82,7 +82,7 @@ struct SettingsView: View {
                 Button("清除", role: .destructive) { store.clearAllData(); store.populate() }
                 Button("唔清", role: .cancel) {}
             } message: {
-                Text("街坊、約會、反映同散步紀錄都會刪走，冇得還原。")
+                Text("街坊、約會、反映、散步紀錄同過夜位置都會刪走，冇得還原。")
             }
             .confirmationDialog("改我住嘅樓？", isPresented: $confirmMove, titleVisibility: .visible) {
                 Button("揀過座樓") { store.showSettings = false; store.beginChangeHome() }

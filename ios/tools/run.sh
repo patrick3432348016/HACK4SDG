@@ -1,6 +1,7 @@
 #!/bin/sh
 # 编译、安装并启动到 iPhone 17（iOS 26.5）模拟器。参数原样传给 App，例如 ./tools/run.sh -hour 15 -stats
 # 换模拟器：SIM="iPhone 17 Pro" ./tools/run.sh ...（并行开发时各用一台）
+# 测真机定位流程：ALWAYS=1 ./tools/run.sh -skipOnboarding -simWalk，再用 xcrun simctl location 模拟行出屋企
 set -e
 cd "$(dirname "$0")/.."
 SIM=${SIM:-iPhone 17}
@@ -19,7 +20,12 @@ UDID=$(xcrun simctl list devices available | grep -A20 -- "-- iOS 26.5 --" | gre
 xcrun simctl boot "$UDID" 2>/dev/null || true
 xcrun simctl location "$UDID" set 22.5044,114.1563 >/dev/null 2>&1 || true
 xcrun simctl install "$UDID" "$APP"
-xcrun simctl privacy "$UDID" grant location hk.hack4sdg.streetwalk >/dev/null 2>&1 || true
+# NOGRANT=1：唔预先俾定位权限（测试首次使用嘅权限框）；ALWAYS=1：预先俾「始终允许」（测试后台出门检测，配 -simWalk）
+if [ -n "$ALWAYS" ]; then
+  xcrun simctl privacy "$UDID" grant location-always hk.hack4sdg.streetwalk >/dev/null 2>&1 || true
+elif [ -z "$NOGRANT" ]; then
+  xcrun simctl privacy "$UDID" grant location hk.hack4sdg.streetwalk >/dev/null 2>&1 || true
+fi
 xcrun simctl terminate "$UDID" hk.hack4sdg.streetwalk >/dev/null 2>&1 || true
 xcrun simctl launch "$UDID" hk.hack4sdg.streetwalk "$@"
 echo "UDID=$UDID"

@@ -85,18 +85,28 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
     }
 
     /// 只靠定位速度判断行路（模拟器 + 启动参数 -simWalk；冇 Core Motion、冇计步器）。只供开发测试。
+    /// iOS 喺背景重新开 App（离开屋企）时冇启动参数：沿用上次用参数启动时记低嘅设定。
     static var locationOnly: Bool {
         #if targetEnvironment(simulator)
-        return LaunchArgs.has("-simWalk")
+        let args = ProcessInfo.processInfo.arguments
+        return args.contains("-simWalk") || (args.count == 1 && UserDefaults.standard.bool(forKey: "simWalk"))
         #else
         return false
+        #endif
+    }
+
+    /// 模拟器：用参数启动时记低有冇 -simWalk（俾之后冇参数嘅背景重开用）。
+    static func rememberSimWalk() {
+        #if targetEnvironment(simulator)
+        let args = ProcessInfo.processInfo.arguments
+        if args.count > 1 { UserDefaults.standard.set(args.contains("-simWalk"), forKey: "simWalk") }
         #endif
     }
 
     /// 演示模式嘅默认值：模拟器开（-simWalk 测真机流程时关），真机关（真机装好就检测散步；设置里改过就按改过的）。
     static var demoByDefault: Bool {
         #if targetEnvironment(simulator)
-        return !LaunchArgs.has("-simWalk")
+        return !locationOnly
         #else
         return false
         #endif

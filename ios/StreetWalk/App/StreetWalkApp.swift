@@ -20,7 +20,10 @@ struct StreetWalkApp: App {
 /// 一启动（包括 iOS 喺背景为定位事件开 App）就建好 AppStore 同 LocationMonitor，事件先唔会冇人接。
 final class StreetWalkAppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        // 系统喺背景开（定位事件）：SwiftUI App 未必带 .location，所以都睇埋而家係唔係喺背景
+        let background = launchOptions?[.location] != nil || application.applicationState == .background
         _ = AppStore.launch()
+        if background { LocationMonitor.shared.noteLocationLaunch() }
         return true
     }
 }

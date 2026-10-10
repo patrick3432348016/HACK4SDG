@@ -66,6 +66,8 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         static let askedAlways = "loc.askedAlways"
         static let alwaysOffered = "loc.alwaysOffered"
         static let cardHidden = "loc.cardHiddenUntil"
+        static let lastSignificant = "loc.lastSignificant"
+        static let monitoring = "loc.monitoring"
     }
 
     private struct SavedHome: Codable {
@@ -89,12 +91,14 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         auth = m.authorizationStatus
         precise = m.accuracyAuthorization == .fullAccuracy
         motionAuth = CMMotionActivityManager.authorizationStatus()
-        if isBackground {
-            record(.launch, "iOS 喺背景開咗街坊行")
-            wake(.launch)
-        }
         reevaluate()
         refreshMonitoring()
+    }
+
+    /// AppDelegate：系统喺背景开 App（App 之前冇开住，例如俾系统收咗；多数係定位事件）。
+    func noteLocationLaunch() {
+        record(.launch, "App 冇開住，iOS 喺背景重新開咗街坊行")
+        wake(.launch)
     }
 
     /// 返到前台：权限可能喺设定改咗；夜晚就攞一个定位做夜晚位置。
@@ -125,15 +129,18 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
             registerHome()
             if !monitoring {
                 monitoring = true
-                record(.monitor, "開始監察：離開 / 返到屋企、到訪、大範圍移動")
+                // 上次（包括之前嘅进程）已经开紧就唔再记，免得每次开 App 都多一行
+                if !UserDefaults.standard.bool(forKey: Keys.monitoring) { record(.monitor, "開始監察：離開 / 返到屋企、到訪、大範圍移動") }
+                UserDefaults.standard.set(true, forKey: Keys.monitoring)
             }
         } else if servicesOn || monitoring || !m.monitoredRegions.isEmpty {
             servicesOn = false
             m.stopMonitoringSignificantLocationChanges()
             m.stopMonitoringVisits()
             for r in m.monitoredRegions { m.stopMonitoring(for: r) }
-            if monitoring {
+            if monitoring || UserDefaults.standard.bool(forKey: Keys.monitoring) {
                 monitoring = false
+                UserDefaults.standard.set(false, forKey: Keys.monitoring)
                 record(.monitor, enabled ? "停咗監察：定位唔係「始終允許」" : "停咗監察")
             }
         }
@@ -323,6 +330,21 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         record(.night, "模擬：加咗 \(count) 晚過夜位置（\(Self.describe(home.map { HomeLearner.distance($0, p) }))）")
     }
 
+    /// 开发用 -resetOnboarding：连屋企、问过「始终允许」都清走，当新装。
+    func resetAll() {
+        [Keys.log, Keys.learner, Keys.home, Keys.snooze, Keys.askedAlways, Keys.alwaysOffered, Keys.cardHidden, Keys.lastSignificant, Keys.monitoring]
+            .forEach(UserDefaults.standard.removeObject(forKey:))
+        log = LocationLog()
+        learner = HomeLearner()
+        home = nil
+        homePicked = false
+        snoozeUntil = nil
+        askedAlways = false
+        alwaysOffered = false
+        cardHiddenUntil = nil
+        reevaluate()
+    }
+
     /// 「定位紀錄」页：清走事件同夜晚位置。
     func clearRecords() {
         log = LocationLog()
@@ -429,8 +451,13 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
             if mine { record(.night, "夜晚位置（\(Self.describe(d))）") }
         }
         guard !mine else { return }
-        // 啱啱开始监察时系统会即刻俾一个位置：前台嗰个唔当移动
-        if !isBackground, Date().timeIntervalSince(servicesSince) < 20 { return }
+        // 开始监察（每次启动）时系统会即刻俾一个位置：同上次大范围移动差唔多就唔当移动
+        let prev = UserDefaults.standard.data(forKey: Keys.lastSignificant).flatMap { try? JSONDecoder().decode(GeoPoint.self, from: $0) }
+        if let data = try? JSONEncoder().encode(GeoPoint(lat: HomeLearner.round(p.lat), lon: HomeLearner.round(p.lon))) {
+            UserDefaults.standard.set(data, forKey: Keys.lastSignificant)
+        }
+        if let prev, HomeLearner.distance(prev, p) < 300 { return }
+        if prev == nil, Date().timeIntervalSince(servicesSince) < 20 { return }
         record(.significant, "大範圍移動（\(Self.describe(d))）")
         deliver(.significantChange(fromHome: d))
         wake(.significantChange)
