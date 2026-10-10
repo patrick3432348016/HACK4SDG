@@ -164,8 +164,8 @@ struct TodayTab: View {
 
     private func leaveRow(_ me: Resident) -> some View {
         HStack(spacing: 12) {
-            if me.onLeave {
-                Label("今日已請假，連續日數保留", systemImage: "moon.zzz.fill")
+            if let leave = store.leaveSummary {
+                Label(leave, systemImage: "moon.zzz.fill")
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -177,9 +177,19 @@ struct TodayTab: View {
                     .transition(.opacity)
             }
             Spacer(minLength: 0)
-            Button(me.onLeave ? "撤回" : "請假") { store.toggleLeave() }
-                .buttonStyle(.dsSecondary)
-                .fixedSize()
+            if me.onLeave {
+                Button("撤回") { store.withdrawLeave() }.buttonStyle(.dsSecondary).fixedSize()
+            } else {
+                // 今日 / 聽日 / 幾日（A56）；之后请咗假：选单入面撤回
+                Menu {
+                    ForEach(store.leaveMenuChoices, id: \.self) { r in Button(store.leaveMenuLabel(r)) { store.requestLeave(days: r.days, startOffset: r.startOffset) } }
+                    if let w = store.withdrawLeaveLabel {
+                        Divider()
+                        Button(w, role: .destructive) { store.withdrawLeave() }
+                    }
+                } label: { Text("請假") }
+                .menuStyle(.button).buttonStyle(.dsSecondary).fixedSize()
+            }
         }
     }
 
@@ -395,7 +405,7 @@ struct BoardTab: View {
         let share = CGFloat(race.ourSteps) / CGFloat(total)
         let diff = race.ourSteps - race.rivalSteps
         return VStack(alignment: .leading, spacing: 12) {
-            Text(race.rivalSteps == 0 ? "本月 \(race.ourName) 行咗 \(Self.steps(race.ourSteps))"
+            Text(race.rivalSteps == 0 ? "本月 \(race.ourName) 行咗 \(store.myMonthStepsEstimated ? "約 " : "")\(Self.steps(race.ourSteps))"
                  : "本月 \(race.ourName) \(diff >= 0 ? "領先" : "落後")\(race.rivalName) \(Self.steps(abs(diff)))")
                 .ds(.caption)
                 .foregroundStyle(.secondary)

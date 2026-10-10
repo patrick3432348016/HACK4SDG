@@ -143,8 +143,11 @@ extension AppStore {
             showConfirm(VoiceCard(heard: text, title: "過去搵\(p.name)", detail: "會先問\(p.name)方唔方便", needsConfirm: true, intent: intent),
                         spoken: "過去搵\(p.name)，會先問佢方唔方便")
         case .leave:
-            voiceCard = VoiceCard(heard: text, title: "今日請假", detail: "連續日數會保留", needsConfirm: false, intent: intent)
-            if !me.onLeave { toggleLeave() }
+            // 按原句判断日子（「聽日請假」「請三日假」）；已经请咗就唔再出卡（免得「撤回」撤咗之前请嘅假）。
+            let r = LeaveRequest.parse(text, today: now)
+            guard !leaveKeys(r).allSatisfy(leaveDays.contains) else { toast("你已經\(leaveTitle(r))喇。"); return }
+            let title = requestLeave(fromVoice: text)
+            voiceCard = VoiceCard(heard: text, title: title, detail: "連續日數會保留", needsConfirm: false, intent: intent)
         case .rename(let id, let name):
             // 改名全圈生效（F3）：影响别人，先复述，撳「好」先改（A02）。
             let old = landmark(id)?.name ?? ""
@@ -233,7 +236,9 @@ extension AppStore {
         voiceCard = nil
         switch card.intent {
         case .invite: cancelProposal()
-        case .leave: if me.onLeave { toggleLeave() }
+        case .leave:
+            cancelLeave(fromVoice: card.heard)
+            say("撤回咗請假。")
         case .report: if let id = card.reportID { retractReport(id) }
         case .changeMeetup: scene.highlightLandmark(nil)
         default: break

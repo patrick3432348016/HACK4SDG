@@ -38,7 +38,7 @@ struct DemoMenu: View {
             Section {
                 Button { store.showReport = true } label: { Label("月尾報告", systemImage: "doc.text.fill") }
                 Button { store.simulateFollowUp() } label: { Label("屋邨管理回覆反映", systemImage: "checkmark.seal.fill") }
-                Button { store.regenerateHere() } label: { Label("喺而家位置重新生成", systemImage: "location.fill") }
+                Button { store.regenerateHere() } label: { Label("重新載入地圖", systemImage: "arrow.clockwise") }
                 Button(role: .destructive) { store.resetDemo() } label: {
                     Label("重置演示", systemImage: "arrow.counterclockwise")
                 }

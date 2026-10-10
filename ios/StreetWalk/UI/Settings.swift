@@ -42,7 +42,9 @@ struct SettingsView: View {
                 } header: {
                     Text("街坊出門話我知").ds(.caption)
                 } footer: {
-                    Text("只喺呢段時間通知你。每個街坊仲可以喺「街坊」頁分開開關。").ds(.caption)
+                    // 由、到一樣當全日（A66）
+                    Text(store.remindFrom == store.remindTo ? "「由」同「到」一樣，即係全日都會通知你。每個街坊仲可以喺「街坊」頁分開開關。"
+                         : "只喺呢段時間通知你\(store.remindFrom > store.remindTo ? "（跨夜）" : "")。每個街坊仲可以喺「街坊」頁分開開關。").ds(.caption)
                 }
 
                 Section {
@@ -112,6 +114,7 @@ extension AppStore {
         floorChoice = f
         UserDefaults.standard.set(f, forKey: "floor")
         if let i = residents.firstIndex(where: \.isMe) { residents[i].floor = f; refreshMe() }
+        uploadProfile()
     }
 
     func setAvatar(mobility: Mobility? = nil, color: Int? = nil) {
@@ -121,6 +124,9 @@ extension AppStore {
             residents[i].mobility = mobilityChoice
             residents[i].colorIndex = colorChoice
         }
+        // 坐轮椅：散步检测唔靠「行路」判断（A54）
+        walkDetector.seated = mobilityChoice == .wheelchair
+        uploadProfile()
         syncScene()
         Haptics.select()
     }
@@ -130,17 +136,70 @@ extension AppStore {
         demoMode = on
         UserDefaults.standard.set(on, forKey: "demoMode")
         localCommunity?.demoEnabled = on
-        if on && walkLog.values.allSatisfy({ !$0.demo }) && walkLog.isEmpty { seedDemoHistory() }
+        if on && walkLog.isEmpty { seedDemoHistory() }
         // 演示模式同真机散步检测唔好同时开
-        if on { if walkDetector.recording { finishLiveWalk() }; walkDetector.stop() } else { startWalkDetection() }
+        if on {
+            if walkDetector.recording { finishLiveWalk() }
+            walkDetector.stop()
+        } else {
+            // 关演示：演示散步 / 找人、时间滑杆、手选天气全部收返，用返真实时间同天文台（A33）
+            if walk != nil, !walkDetector.recording {
+                ticker?.cancel(); ticker = nil
+                walk = nil; paceTip = nil; track = WalkTrack()
+                scene.followID = nil; scene.setTrail([])
+                community.publishOuting(landmarkID: nil)
+            }
+            if find != nil { endFind() } else { scene.resetCamera() }
+            showTimeSlider = false
+            hko.demoOverride = false
+            setDemoHour(nil)
+            applyLiveWeather()
+            startWalkDetection()
+        }
         populate()
+        syncNotifications()
     }
 
-    /// 重新揀我住的楼：回到首次使用的选楼一步，完成后回主界面。
+    /// 重新揀我住的楼：回到首次使用的选楼一步，完成后回主界面。中途可以「唔改」退返出去。
     func beginChangeHome() {
-        walk = nil; find = nil; findFullScreen = false; proposal = nil; selection = nil
+        walk = nil; if find != nil { endFind() }; findFullScreen = false; proposal = nil; selection = nil
         pendingHome = nil
+        changingHome = true
         phase = .onboarding(.locate)
         Task { await loadMap(home: nil, animated: true) }
+    }
+
+    /// 改楼途中「唔改」：用返已存嘅楼、楼层、小人，返主界面（A80）。
+    func cancelChangeHome() {
+        let d = UserDefaults.standard
+        changingHome = false
+        pendingHome = nil
+        floorChoice = d.object(forKey: "floor") as? Int ?? floorChoice
+        mobilityChoice = Mobility(rawValue: d.string(forKey: "mobility") ?? "") ?? mobilityChoice
+        colorChoice = d.object(forKey: "color") as? Int ?? colorChoice
+        highlightResidential(false)
+        scene.highlightBuildings([], color: nil)
+        phase = .main
+        Task {
+            // 定位一步嘅 loadMap 可能仲未返（人喺外面、嗰格要上网拉）：等佢完咗先装返屋企格，
+            // 唔係旧结果后返嚟会将底座换成外面嗰格、屋企变默认楼
+            while loadingMap { try? await Task.sleep(for: .milliseconds(200)) }
+            await loadMap(home: (d.object(forKey: "homeBuilding") as? NSNumber)?.int64Value, animated: true)
+            scene.resetCamera()
+        }
+    }
+
+    /// 由楼层页返上一步：底座已经收窄咗，要换返选楼用嘅大底座、亮返住宅楼（A80）。
+    func backToPickHome() {
+        phase = .onboarding(.pickHome)
+        guard let full = fullMap else { return }
+        let id = pendingHome
+        let v = full.pickView(near: id.flatMap { full.building(id: $0)?.centroid })
+        install(v, home: nil, animated: false)
+        // 同 loadMap 选楼一步一样嘅全屏镜头（按 300 m 调，再按边长缩放）
+        let k = v.size / 300
+        scene.setCamera(target: Vec2(x: -65 * k, y: 65 * k), distance: Float(2.85 * k), animated: false)
+        highlightResidential(true)
+        if let id, v.building(id: id) != nil { pickHome(id) } else { pendingHome = nil }
     }
 }

@@ -134,7 +134,7 @@ struct StoreTests {
         #expect(LocalStore.streak(log, leaves: [], today: today, includeDemo: true) == 5)
         log[key(2)] = nil
         #expect(LocalStore.streak(log, leaves: [], today: today, includeDemo: true) == 2, "中间断咗")
-        #expect(LocalStore.streak(log, leaves: [key(2)], today: today, includeDemo: true) == 5, "请假唔会断")
+        #expect(LocalStore.streak(log, leaves: [key(2)], today: today, includeDemo: true) == 4, "请假唔会断（但唔加）")
     }
 
     @Test func 示範纪录可以唔计() {

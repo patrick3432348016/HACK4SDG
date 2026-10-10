@@ -91,6 +91,15 @@ final class AppStore: NeighborRegistry {
     var remindAll = UserDefaults.standard.object(forKey: "remindAll") as? Bool ?? true { didSet { UserDefaults.standard.set(remindAll, forKey: "remindAll") } }
     var remindFrom = UserDefaults.standard.object(forKey: "remindFrom") as? Int ?? 7 { didSet { UserDefaults.standard.set(remindFrom, forKey: "remindFrom") } }
     var remindTo = UserDefaults.standard.object(forKey: "remindTo") as? Int ?? 21 { didSet { UserDefaults.standard.set(remindTo, forKey: "remindTo") } }
+    // 散步、数据与服务（A 线追加）
+    /// 今次散步嘅附加状态：演示时钟、落脚点、步数。
+    @ObservationIgnored var track = WalkTrack()
+    /// 约会嘅本地通知（出发前提醒、过期）。
+    @ObservationIgnored let notifier = Notifier()
+    /// 前台时每分钟检查：太阳跟真实时间、过咗午夜刷新「今日」。
+    @ObservationIgnored var dayClock: Task<Void, Never>?
+    /// 喺设置「改我住嘅樓」入嚟嘅首次使用流程（可以「唔改」退返出去）。
+    var changingHome = false
 
     // 语音与社交流程（A 线追加）
     /// 播报排队、读屏兼容、聆听时先收起（AppStore+Voice 的 say()）。

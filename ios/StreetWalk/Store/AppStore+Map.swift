@@ -98,6 +98,7 @@ extension AppStore {
         d.set(floorChoice, forKey: "floor")
         d.set(mobilityChoice.rawValue, forKey: "mobility")
         d.set(colorChoice, forKey: "color")
+        uploadProfile()
         highlightResidential(false)
         scene.highlightBuildings([], color: nil)
         phase = .main

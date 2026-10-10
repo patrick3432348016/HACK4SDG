@@ -90,6 +90,7 @@ extension AppStore {
     /// 而家喺唔喺接收提醒嘅时段。
     var inRemindWindow: Bool {
         let h = Self.hk.component(.hour, from: now)
+        if remindFrom == remindTo { return true }   // 由、到一樣當全日（A66）
         return remindFrom <= remindTo ? (remindFrom..<remindTo).contains(h) : (h >= remindFrom || h < remindTo)
     }
 

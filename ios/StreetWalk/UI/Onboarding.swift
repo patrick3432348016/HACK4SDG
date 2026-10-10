@@ -49,7 +49,7 @@ struct OnboardingFlow: View {
 
     private func goBack(from s: AppStore.Step) {
         back = true
-        store.phase = .onboarding(s == .avatar ? .floor : .pickHome)
+        if s == .floor { store.backToPickHome() } else { store.phase = .onboarding(.floor) }
     }
 
     @ViewBuilder private func stepContent(_ s: AppStore.Step) -> some View {
@@ -90,7 +90,18 @@ struct OnboardingFlow: View {
                     if onScene { Capsule().fill(.regularMaterial) }
                 }
             Spacer()
-            Color.clear.frame(width: 48, height: 48)
+            if store.changingHome {
+                // 改楼途中可以退返出去（A80）
+                Button { store.cancelChangeHome() } label: {
+                    Text("唔改").ds(.captionBold).foregroundStyle(.primary)
+                        .padding(.horizontal, 14).frame(minHeight: 48)
+                        .background(.regularMaterial, in: Capsule())
+                }
+                .buttonStyle(OnbPressStyle())
+                .accessibilityLabel("唔改，返主畫面")
+            } else {
+                Color.clear.frame(width: 48, height: 48)
+            }
         }
         .padding(.horizontal, DS.side)
         .padding(.top, 8)

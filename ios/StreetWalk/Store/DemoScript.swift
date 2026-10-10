@@ -9,6 +9,8 @@ extension AppStore {
         guard !Self.scriptStarted else { return }
         if LaunchArgs.has("-script2") { Self.scriptStarted = true; runScript2(); return }
         if LaunchArgs.has("-script3") { Self.scriptStarted = true; runScript3(); return }
+        if LaunchArgs.has("-autoWalk") { Self.scriptStarted = true; runAutoWalk(); return }
+        if LaunchArgs.has("-scriptWalk") { Self.scriptStarted = true; runScriptWalk(); return }
         guard LaunchArgs.has("-script") else { return }
         Self.scriptStarted = true
         Task { @MainActor in
@@ -37,6 +39,64 @@ extension AppStore {
             await step(87, "反映：呢度好曬") { banner = nil; report(.sunny); cap("講一句「呢度好曬」，記低喺最近嘅地標", "Say \"too sunny here\" — it's pinned to the nearest landmark") }
             await step(92, "月尾報告") { showReport = true; cap("月報：只出 10 人以上嘅匿名匯總，交社工同屋邨管理", "Monthly report: anonymous, 10+ residents only, for social workers & estate management") }
             await step(101, "完") { showReport = false; caption = nil }
+        }
+    }
+}
+
+extension AppStore {
+    /// 开发用（-autoWalk）：自动行一次演示散步（唔搵人），打印落脚点同记低嘅纪录，检查 F1 落脚点。
+    func runAutoWalk() {
+        Task { @MainActor in
+            while map == nil || residents.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+            try? await Task.sleep(for: .seconds(1))
+            startWalk()
+            var seen = 0
+            while walk != nil {
+                try? await Task.sleep(for: .milliseconds(250))
+                for id in track.stopIDs.dropFirst(seen) { print("[autoWalk] 落腳點 \(landmark(id)?.name ?? id) t=\(walk?.minutes ?? 0)") }
+                seen = max(seen, track.stopIDs.count)
+            }
+            let l = log(for: now)
+            print("[autoWalk] 完 \(l.minutes) 分鐘 落腳點 \(l.stops.compactMap { landmark($0)?.name }) 一句：\(me.todayLine)")
+        }
+    }
+}
+
+extension AppStore {
+    /// 开发用（-scriptWalk）：请假几日、提醒时段、关演示模式、改楼途中返上一步同「唔改」，逐步截图检查。
+    /// 跑完会还原提醒时段同演示模式（佢哋存喺 UserDefaults）。
+    func runScriptWalk() {
+        Task { @MainActor in
+            while map == nil || residents.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+            let t0 = Date()
+            @MainActor func step(_ at: Double, _ name: String, _ action: () -> Void) async {
+                let wait = at - Date().timeIntervalSince(t0)
+                if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+                print("[scriptWalk] t=\(Int(at)) \(name)")
+                action()
+            }
+            let (from, to) = (remindFrom, remindTo)
+            await step(1, "請 3 日假") { tab = .today; requestLeave(days: 3) }
+            await step(4, "聽日請假") { withdrawLeave(); _ = requestLeave(fromVoice: "聽日請假") }
+            await step(7, "演示時間 + 酷熱") { withdrawLeave(); setDemoHour(15); setWeather(.hot) }
+            await step(10, "設定：由、到一樣") { banner = nil; remindFrom = 21; remindTo = 21; showSettings = true }
+            await step(14, "關演示模式") { setDemoMode(false) }
+            await step(17, "返主畫面") { showSettings = false }
+            await step(21, "改樓") { remindFrom = from; remindTo = to; setDemoMode(true); beginChangeHome() }
+            while phase != .onboarding(.pickHome) { try? await Task.sleep(for: .milliseconds(200)) }
+            await step(27, "揀樓") { if let b = residentialBuildings().first(where: { $0.name != nil }) { pickHome(b.id) } }
+            await step(30, "確認") { confirmHome() }
+            await step(34, "返上一步") { backToPickHome() }
+            await step(38, "唔改") { cancelChangeHome() }
+            // 定位一步就按「唔改」（人喺外面时嗰格要上网拉，旧嘅 loadMap 会迟啲先返）：最后要係屋企格、已存嘅楼
+            await step(44, "再改樓") { beginChangeHome() }
+            await step(44.3, "定位中按唔改") { print("[scriptWalk] phase=\(phase) loadingMap=\(loadingMap)"); cancelChangeHome() }
+            await step(56, "檢查底座") {
+                let saved = (UserDefaults.standard.object(forKey: "homeBuilding") as? NSNumber)?.int64Value
+                let tile = UserDefaults.standard.string(forKey: "homeTile") ?? "-"
+                print("[scriptWalk] 底座 \(map.map { "\($0.tile.ix),\($0.tile.iy)" } ?? "-")（屋企格 \(tile)）樓 \(scene.homeBuildingID.map(String.init) ?? "-")（已存 \(saved.map(String.init) ?? "-")）\(phase)")
+            }
+            await step(58, "完") {}
         }
     }
 }
@@ -95,15 +155,17 @@ extension AppStore {
 extension AppStore {
     // MARK: - 演示
 
+    /// 演示菜单「重新載入地圖」：清缓存再拉一次（有存过屋企就係屋企嗰格），住嘅楼照用已存嘅（A35）。
     func regenerateHere() {
-        walk = nil; find = nil; findFullScreen = false
+        walk = nil; if find != nil { endFind() }; findFullScreen = false; track = WalkTrack()
         TileCache.clear()
-        Task { await loadMap(home: nil, animated: true) }
+        let home = (UserDefaults.standard.object(forKey: "homeBuilding") as? NSNumber)?.int64Value
+        Task { await loadMap(home: home, animated: true) }
     }
 
     func resetDemo() {
         ticker?.cancel()
-        walk = nil; find = nil; findFullScreen = false; proposal = nil; voiceCard = nil; banner = nil
+        walk = nil; if find != nil { endFind() }; findFullScreen = false; proposal = nil; voiceCard = nil; banner = nil; track = WalkTrack()
         weather = .normal; weatherTip = nil; demoHour = LaunchArgs.hour
         resetDemoData()
         scene.setRoute(nil); scene.setTrail([]); scene.highlightLandmark(nil); scene.followID = nil

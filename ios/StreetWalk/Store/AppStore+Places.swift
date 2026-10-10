@@ -30,6 +30,7 @@ extension AppStore {
         for j in residents.indices where residents[j].todayLine.contains(old) {
             residents[j].todayLine = Self.renamed(residents[j].todayLine, names: names, old: old, new: name)
         }
+        if me.todayLine.contains(name) { uploadDay(now) }   // 今日一句跟住新名，再传一次
         renaming = nil
         say(community.isSimulated ? "改咗。\(old)而家叫\(name)，同圈嘅街坊都會見到。" : "改咗。\(old)而家叫\(name)。暫時只喺你部手機。")
         Haptics.success()
