@@ -242,11 +242,11 @@ create policy "own reports" on reports for all using (user_id = auth.uid()) with
 | `departForMeetup` / `endMeetupTrip` | `meetup:<id>` 频道：我出门 + 大约几分钟；对方出门、途中、到达时回传 `PartnerTrip(etaMinutes, arrived)`（可以多次），不落表、不传坐标 |
 | `uploadDay` | `upsert walks (user_id, day, minutes, steps, landmark_ids, stop_landmark_ids, daily_line)` |
 | `setLeave` | `insert` / `delete from leaves` |
-| `updateProfile` | `update users set floor, avatar`（avatar 存 mobility、color） |
+| `updateProfile` | `update users set block, floor, avatar`（avatar 存 mobility、color、skin、age） |
 | `passersToday` / `circleRace` / `monthlyStats` / `othersReports` | 上面第 4 节的视图和函数 |
 | `onEvent` | Realtime：订阅 `outings`（街坊出门）、`meetups`（约会变化）、`reports.follow_up`（反映回覆） |
 
-未接调用点（接口和单机实现已有，调用由「散步与数据」一边加）：`uploadDay`（`finishWalk` 里 `recordWalk` 之后；改名后当日一句变了也要再传一次）、`setLeave`（`toggleLeave`）、`updateProfile`（`finishOnboarding`、设置页 `setFloor` / `setAvatar`）。
+调用点（2026-10-10 合并时接上）：`uploadDay` 在每次 `recordWalk` 之后（含锁屏补记；示範纪录不传；经过的地标只留手机，`landmark_ids` 暂时传空，只传落脚点），改名令今日一句变了再传一次；`setLeave` 在请假、撤回时逐日传真正变了的日子（含语音「聽日請假」）；`updateProfile` 在完成首次使用、设置页改楼层 / 小人 / 年纪 / 肤色之后。
 
 ## 6. 上线步骤（估计）
 
