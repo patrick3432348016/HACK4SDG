@@ -6,3 +6,4 @@ build/
 ios/build/
 Secrets.*
 Local.xcconfig
+.build/
