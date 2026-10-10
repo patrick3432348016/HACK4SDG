@@ -170,7 +170,8 @@ extension AppStore {
 
     /// 个人资料上传（users 表）：完成首次使用、设置页改楼层或小人之后调。
     func uploadProfile() {
-        community.updateProfile(floor: floorChoice, mobility: mobilityChoice, colorIndex: colorChoice)
+        community.updateProfile(block: me.blockName, floor: floorChoice, mobility: mobilityChoice, colorIndex: colorChoice,
+                                skinTone: skinChoice, ageGroup: ageChoice)
     }
 
     /// 当日汇总上传（walks 表，一人一日一行）：散步记完、改名令今日一句变咗时调。

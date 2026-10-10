@@ -172,14 +172,14 @@ private struct OnbBottomPrimary: View {
 /// 「谁能看到什么」：按受众逐行讲（规格 §4 知情同意）。设置页「私隱說明」也可以用 PrivacyRows 重看。
 struct PrivacyRows: View {
     static let rows: [(symbol: String, text: String)] = [
-        ("figure.walk", "你行街嘅時候自動記錄，唔使撳掣；行過嘅路線只留喺你部手機。"),
+        ("figure.walk", "你行街嘅時候自動記錄，唔使撳掣；鎖咗機嗰段，打開 App 時用手機嘅步行紀錄補返分鐘同步數。行過嘅路線只留喺你部手機。"),
         ("building.2", "同圈嘅人（未碰過）：見到你嘅小人、邊座幾樓、連續日數，同一句「今日行到邊個地標」；唔會見到你個名。"),
         ("person.2.fill", "碰過一碰嘅街坊：仲會見到你個名，同埋你出門時喺邊個地標附近。對外只講地標，唔顯示地圖坐標。"),
         ("doc.text.magnifyingglass", "你嘅反映會匿名，夠 10 人先交俾社工同屋邨管理。"),
         ("network", "地圖資料向 OpenStreetMap 攞你附近一格；講嘢可能要經 Apple 辨認。"),
     ]
     /// 读出来的一段（和上面几行内容一致）。
-    static let spoken = "歡迎嚟到街坊行。你行街會自動記錄，路線只留喺你部手機。同圈嘅人見到你嘅小人、邊座幾樓、連續日數同今日行到邊個地標，唔見到你個名。碰過一碰嘅街坊先見到你個名，同你出門時喺邊個地標附近。反映會匿名，夠十個人先交俾社工同屋邨管理。"
+    static let spoken = "歡迎嚟到街坊行。你行街會自動記錄，鎖咗機嗰段打開 App 時補返，路線只留喺你部手機。同圈嘅人見到你嘅小人、邊座幾樓、連續日數同今日行到邊個地標，唔見到你個名。碰過一碰嘅街坊先見到你個名，同你出門時喺邊個地標附近。反映會匿名，夠十個人先交俾社工同屋邨管理。"
 
     var appeared = true
 
@@ -233,7 +233,7 @@ private struct OnbConsentStep: View {
 
                 PrivacyRows(appeared: appeared)
 
-                Button { store.say(PrivacyRows.spoken) } label: {
+                Button { store.sayAgain(PrivacyRows.spoken) } label: {
                     Label("再聽一次", systemImage: "speaker.wave.2.fill").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsSecondary)
@@ -326,10 +326,27 @@ private struct OnbConsentStep: View {
 
 private struct OnbLocateStep: View {
     @Environment(AppStore.self) private var store
+    /// 等咗 10 秒仲未有地图：讲明等紧网络，俾个「用示例屋邨」出路（A28；地图最多等 30 秒、定位最多 120 秒）。
+    @State private var waitedLong = false
 
     var body: some View {
-        VStack {
+        VStack(spacing: 12) {
             Spacer(minLength: 0)
+            if waitedLong && !store.changingHome && (store.loadingMap || store.map == nil) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("網絡慢，仲搵緊。可以再等等，或者先用示例屋邨睇吓。")
+                        .ds(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("用示例屋邨") { store.useSampleMap() }
+                        .buttonStyle(.dsSecondary)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
+                .padding(.horizontal, DS.side)
+                .transition(.opacity)
+            }
             HStack(spacing: 16) {
                 Image(systemName: "location.fill")
                     .font(.system(size: 26, weight: .semibold))
@@ -356,6 +373,11 @@ private struct OnbLocateStep: View {
             .accessibilityElement(children: .combine)
             .padding(.horizontal, DS.side)
             .padding(.bottom, 16)
+        }
+        .animation(DS.motion(DS.spring), value: waitedLong)
+        .task {
+            try? await Task.sleep(for: .seconds(10))
+            waitedLong = true
         }
     }
 }

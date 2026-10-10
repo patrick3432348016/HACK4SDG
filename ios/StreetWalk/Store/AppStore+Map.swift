@@ -160,13 +160,14 @@ extension AppStore {
         d.set(floorChoice, forKey: "floor")
         d.set(mobilityChoice.rawValue, forKey: "mobility")
         d.set(colorChoice, forKey: "color")
-        uploadProfile()
+        lookBeforeChange = nil
         highlightResidential(false)
         scene.highlightBuildings([], color: nil)
         mapNotice = nil
         phase = .main
         homeChanged()
         populate()
+        uploadProfile()     // populate 之后：座数跟新屋企
         scene.resetCamera()
         say("搞掂。你行街嘅時候我會自動記錄，唔使撳任何掣。")
         startWalkDetection()   // 同意之后先问动作 / 定位权限

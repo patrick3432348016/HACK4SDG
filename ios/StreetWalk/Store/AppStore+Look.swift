@@ -40,6 +40,8 @@ extension AppStore {
             residents[i].skinTone = skinChoice
             residents[i].ageGroup = ageChoice
         }
+        // 首次使用 / 改楼途中唔上传（完成时一次过传；「唔改」会还原）
+        if phase == .main { uploadProfile() }
         syncScene()
     }
 }

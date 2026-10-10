@@ -75,13 +75,17 @@ extension AppStore {
         community.unlinkNeighbor(id)
         storeLink(residents[i])
         // 未完成的约会一并取消（会通知对方约会取消，但唔会讲解除街坊）。
+        var cancelled = 0
         for k in appointments.indices where appointments[k].partnerID == id && appointments[k].isOpen {
             appointments[k].status = .cancelled
             community.updateMeetup(appointments[k])
+            cancelled += 1
         }
         if case .person(id) = selection { select(nil) }
         syncScene()
-        say("已經同\(name)解除街坊。佢唔會收到通知。")
+        // 同确认框讲法一致（A70）：解除本身唔通知；有约会就讲明对方会收到「約會取消」。
+        say(cancelled == 0 ? "已經同\(name)解除街坊，佢唔會收到解除通知。"
+            : "已經同\(name)解除街坊，佢唔會收到解除通知；\(cancelled) 個約會已經取消，佢會收到約會取消。")
         Haptics.light()
     }
 

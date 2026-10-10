@@ -12,6 +12,14 @@ extension AppStore {
         announcer.say(s, kind: prompt ? .prompt : .info, via: speaker, holding: listening)
     }
 
+    /// 「再聽一次」：停低而家讲紧嘅，即刻由头讲（排队嘅话，长句讲紧时再撳会排到过期、静静鸡唔讲）。
+    func sayAgain(_ s: String) {
+        guard !listening else { say(s); return }
+        announcer.hold(speaker)
+        _ = announcer.release()
+        say(s, prompt: true)
+    }
+
     /// 聆听结束：讲返聆听期间收起嘅提示（排喺对用户嗰句嘅回应之后；排得太耐嘅资讯句唔再讲）。
     func flushHeldSpeech(_ held: [Announcer.Line]) {
         held.forEach { announcer.enqueue($0, via: speaker, holding: listening) }

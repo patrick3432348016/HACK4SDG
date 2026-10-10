@@ -259,7 +259,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "街坊行";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "用你附近嘅街道同樓宇砌出屋邨模型；散步時用定位畫出你行過嘅路。路線只留喺呢部手機，唔會上傳，對外只講地標。";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "聽你講嘢，例如「約陳太聽日一齊行」。";
-				INFOPLIST_KEY_NSMotionUsageDescription = "偵測你行緊路，自動記錄散步，唔使撳任何掣。";
+				INFOPLIST_KEY_NSMotionUsageDescription = "偵測你行緊路，自動記錄散步，唔使撳任何掣；鎖咗機時行嘅路，打開 App 時補返分鐘同步數。";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "將你講嘅廣東話轉成文字，等 App 明白你想做乜。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -290,7 +290,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "街坊行";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "用你附近嘅街道同樓宇砌出屋邨模型；散步時用定位畫出你行過嘅路。路線只留喺呢部手機，唔會上傳，對外只講地標。";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "聽你講嘢，例如「約陳太聽日一齊行」。";
-				INFOPLIST_KEY_NSMotionUsageDescription = "偵測你行緊路，自動記錄散步，唔使撳任何掣。";
+				INFOPLIST_KEY_NSMotionUsageDescription = "偵測你行緊路，自動記錄散步，唔使撳任何掣；鎖咗機時行嘅路，打開 App 時補返分鐘同步數。";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "將你講嘅廣東話轉成文字，等 App 明白你想做乜。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

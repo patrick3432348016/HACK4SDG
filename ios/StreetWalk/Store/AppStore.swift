@@ -118,6 +118,10 @@ final class AppStore: NeighborRegistry {
     /// 碰一碰时两个人见面的位置（碰面期间固定）。
     @ObservationIgnored var bumpSpot: Vec2?
 
+    // 合并时追加
+    /// 改楼前嘅肤色、年纪（佢哋一改就存，「唔改」要还原）。
+    @ObservationIgnored var lookBeforeChange: (skin: Int, age: AgeGroup)?
+
     var me: Resident { residents.first { $0.isMe } ?? Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true) }
     var neighbors: [Resident] { residents.filter { $0.isNeighbor && !$0.isMe } }
     var outNeighbors: [Resident] { neighbors.filter(\.isOut) }

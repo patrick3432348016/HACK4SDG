@@ -203,7 +203,7 @@ private struct MainLayout: View {
 
             // 录视频字幕（-captions）：顶部胶囊行之下（找人全屏时在顶卡之下）；横幅出现时让开
             CaptionView()
-                .padding(.top, safe.top + (full ? 104 : 56))
+                .padding(.top, safe.top + (full ? 140 : 56))   // 找人顶卡加咗「示範」一行，字幕要再低啲
                 .frame(width: size.width, height: size.height, alignment: .top)
                 .allowsHitTesting(false)
 

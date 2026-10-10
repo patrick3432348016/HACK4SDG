@@ -63,8 +63,8 @@ protocol CommunityService: AnyObject {
     func uploadDay(day: String, minutes: Int, steps: Int, landmarkIDs: [String], stopLandmarkIDs: [String], line: String)
     /// 请假（leaves 表）：连续天数唔断。
     func setLeave(day: String, on: Bool)
-    /// 个人资料（users 表）：楼层、行动方式、颜色。名只俾街坊睇。
-    func updateProfile(floor: Int, mobility: Mobility, colorIndex: Int)
+    /// 个人资料（users 表）：座数、楼层、小人（行动方式、颜色、肤色、年纪）。名只俾街坊睇。
+    func updateProfile(block: String?, floor: Int, mobility: Mobility, colorIndex: Int, skinTone: Int, ageGroup: AgeGroup)
     /// 撤回自己的一条反映。
     func retractReport(_ id: UUID)
 }
@@ -211,7 +211,7 @@ final class LocalCommunityService: CommunityService {
 
     func uploadDay(day: String, minutes: Int, steps: Int, landmarkIDs: [String], stopLandmarkIDs: [String], line: String) {}
     func setLeave(day: String, on: Bool) {}
-    func updateProfile(floor: Int, mobility: Mobility, colorIndex: Int) {}
+    func updateProfile(block: String?, floor: Int, mobility: Mobility, colorIndex: Int, skinTone: Int, ageGroup: AgeGroup) {}
     func retractReport(_ id: UUID) {}
 
     // MARK: 演示触发（演示菜单 / 自动脚本）

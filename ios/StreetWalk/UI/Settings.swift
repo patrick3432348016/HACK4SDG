@@ -21,6 +21,9 @@ struct SettingsView: View {
                     }
                     DSMenuPicker(title: "小人", selection: Binding(get: { store.mobilityChoice }, set: { store.setAvatar(mobility: $0) }),
                                  options: Mobility.allCases, label: \.label)
+                    DSMenuPicker(title: "年紀", selection: Binding(get: { store.ageChoice }, set: { store.setLook(age: $0) }),
+                                 options: AgeGroup.allCases, label: \.label)
+                    skinRow
                     colorRow
                 } header: {
                     Text("我").ds(.caption)
@@ -47,6 +50,13 @@ struct SettingsView: View {
                 } footer: {
                     Text(LaunchArgs.has("-demo") ? "而家用演示參數開啟，唔可以喺度關。"
                          : "演示模式會加入示範街坊、示範紀錄同右上角嘅演示選單。關咗之後，圈入面暫時只有你（未接伺服器）。").ds(.caption)
+                }
+
+                Section {
+                    PrivacyRows().padding(.vertical, 8)
+                    Button("讀出嚟") { store.sayAgain(PrivacyRows.spoken) }
+                } header: {
+                    Text("私隱：邊個見到乜").ds(.caption)
                 }
 
                 Section {
@@ -77,6 +87,27 @@ struct SettingsView: View {
                 Button("唔改", role: .cancel) {}
             } message: {
                 Text("會重新揀樓。之前嘅約會地點同反映位置會清走，街坊同散步紀錄保留。")
+            }
+        }
+    }
+
+    /// 肤色（A50）：同颜色一行一样，圆点 + 剔号，读屏读肤色名。
+    private var skinRow: some View {
+        HStack(spacing: 0) {
+            ForEach(0..<Palette.skins.count, id: \.self) { i in
+                let on = store.skinChoice == i
+                Button { store.setLook(skin: i); Haptics.select() } label: {
+                    Circle()
+                        .fill(Palette.skin(i))
+                        .overlay(Circle().strokeBorder(Color.primary.opacity(0.15)))
+                        .frame(width: 30, height: 30)
+                        .overlay { if on { Image(systemName: "checkmark").font(.system(size: 14, weight: .bold)).foregroundStyle(.primary) } }
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Palette.skinName(i))
+                .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
     }
@@ -159,6 +190,7 @@ extension AppStore {
     func beginChangeHome() {
         walk = nil; if find != nil { endFind() }; findFullScreen = false; proposal = nil; selection = nil
         pendingHome = nil
+        lookBeforeChange = (skinChoice, ageChoice)
         changingHome = true
         phase = .onboarding(.locate)
         Task { await loadMap(home: nil, animated: true) }
@@ -172,6 +204,8 @@ extension AppStore {
         floorChoice = d.object(forKey: "floor") as? Int ?? floorChoice
         mobilityChoice = Mobility(rawValue: d.string(forKey: "mobility") ?? "") ?? mobilityChoice
         colorChoice = d.object(forKey: "color") as? Int ?? colorChoice
+        if let l = lookBeforeChange { skinChoice = l.skin; ageChoice = l.age }   // 肤色、年纪一改就存，要还原
+        lookBeforeChange = nil
         highlightResidential(false)
         scene.highlightBuildings([], color: nil)
         phase = .main
