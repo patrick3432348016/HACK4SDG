@@ -175,12 +175,12 @@ final class AppStore: NeighborRegistry {
 
     // MARK: - 横幅与提示
 
-    // 横幅、提示直接改值，唔好包 withAnimation（动画由 BannerView / ToastView 自己按值做）：
+    // 横幅、提示直接改值，唔好包 withAnimation（动画由 IslandBanner / ToastView 自己按值做）：
     // 同一刻仲有其他改动未刷新时，withAnimation 会令 SwiftUI 喺 willSet 嗰刻同步重画，读到旧值，
     // 之后呢次改动就冇再通知（合并时用日志实测：横幅已经设好但画面冇出，三次有两次）。
-    func showBanner(_ b: BannerItem) {
+    func showBanner(_ b: BannerItem, haptic: Bool = true) {
         banner = b
-        Haptics.warning()
+        if haptic { Haptics.warning() }
         bannerTask?.cancel()
         bannerTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(UIAccessibility.isVoiceOverRunning ? 30 : 8))   // 读屏开着：30 秒，留时间找按钮（A43）

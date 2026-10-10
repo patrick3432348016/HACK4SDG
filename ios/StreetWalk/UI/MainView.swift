@@ -150,6 +150,7 @@ private struct MainLayout: View {
         let sceneH = full ? size.height : (size.height * DS.sceneFraction).rounded()
         let tabH = max(DS.tabBarHeight, safe.bottom + 49)
         let micCenter = CGPoint(x: size.width - DS.side - DS.micSize / 2, y: sceneH)
+        let island = IslandGeometry.make(screen: size, safeTop: safe.top, isPhone: UIDevice.current.userInterfaceIdiom == .phone)
 
         ZStack(alignment: .topLeading) {
             Color(.systemGroupedBackground)
@@ -166,7 +167,7 @@ private struct MainLayout: View {
             MainScene(width: size.width, height: sceneH, safe: safe, micCenter: micCenter, full: full)
 
             // 左上 / 右上胶囊
-            MainTopChips(safeTop: safe.top)
+            MainTopChips(safeTop: safe.top, hasIsland: island.hasIsland)
                 .frame(width: size.width, alignment: .topLeading)
                 .opacity(full ? 0 : 1)
                 .allowsHitTesting(!full)
@@ -207,9 +208,8 @@ private struct MainLayout: View {
                 .frame(width: size.width, height: size.height, alignment: .top)
                 .allowsHitTesting(false)
 
-            // 灵动岛式横幅（最上层）
-            BannerView()
-                .frame(width: size.width, height: size.height, alignment: .top)
+            // 灵动岛（最上层）：横幅由岛长出嚟、收埋后两侧显示进行紧嘅事（Island.swift）
+            IslandLayer(geo: island)
         }
         .frame(width: size.width, height: size.height)
         .animation(DS.motion(DS.spring), value: full)
@@ -289,10 +289,11 @@ private struct MainScene: View {
 private struct MainTopChips: View {
     @Environment(AppStore.self) private var store
     let safeTop: CGFloat
+    let hasIsland: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: DS.gap) {
-            HomeChip()
+            HomeChip(hasIsland: hasIsland)
             Spacer(minLength: DS.gap)
             if store.demoMode { DemoMenu() }
         }
@@ -368,11 +369,13 @@ private struct MainContent: View {
 // MARK: - 左上胶囊
 
 /// 场景不可操作，所以只在散步中显示状态：「行緊 N 分鐘」（数字滚动）；在家时不显示。
+/// 有灵动岛嘅机：散步分钟数喺岛两侧显示（IslandLayer），呢度一直係设置齿轮（散步中都改得设定）。
 private struct HomeChip: View {
     @Environment(AppStore.self) private var store
+    let hasIsland: Bool
 
     var body: some View {
-        if let m = store.walk?.minutes {
+        if !hasIsland, let m = store.walk?.minutes {
             HStack(spacing: 6) {
                 Image(systemName: "figure.walk")
                     .foregroundStyle(DS.accent)

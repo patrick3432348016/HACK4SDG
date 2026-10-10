@@ -13,6 +13,7 @@ extension AppStore {
         if LaunchArgs.has("-scriptWalk") { Self.scriptStarted = true; runScriptWalk(); return }
         #if DEBUG
         if LaunchArgs.has("-scriptBump") { Self.scriptStarted = true; runScriptBump(); return }   // DemoScript+Bump
+        if LaunchArgs.has("-scriptIsland") { Self.scriptStarted = true; runScriptIsland(); return }   // DemoScript+Island
         #endif
         guard LaunchArgs.has("-script") else { return }
         Self.scriptStarted = true
