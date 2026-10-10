@@ -11,6 +11,9 @@ extension AppStore {
         if LaunchArgs.has("-script3") { Self.scriptStarted = true; runScript3(); return }
         if LaunchArgs.has("-autoWalk") { Self.scriptStarted = true; runAutoWalk(); return }
         if LaunchArgs.has("-scriptWalk") { Self.scriptStarted = true; runScriptWalk(); return }
+        #if DEBUG
+        if LaunchArgs.has("-scriptBump") { Self.scriptStarted = true; runScriptBump(); return }   // DemoScript+Bump
+        #endif
         guard LaunchArgs.has("-script") else { return }
         Self.scriptStarted = true
         Task { @MainActor in
