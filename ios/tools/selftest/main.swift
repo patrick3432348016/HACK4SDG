@@ -182,5 +182,21 @@ let showers = HKOReport.parse(rhrread: Data(rhrText.replacingOccurrences(of: "[5
 check(showers?.isRain == true && showers?.line == "天文台話打鼓嶺而家 34 度，有雨。", "雨圖標 63 → 落雨，句子要講有雨：\(showers?.line ?? "")")
 check(HKOReport.parse(rhrread: Data("oops".utf8), warnsum: nil, fnd: nil, near: qh, today: today) == nil, "坏数据 → 冇天气（唔會編）")
 
+print("香港以外天气（Open-Meteo）")
+check(HongKongArea.contains(qh), "皇后山邨喺香港")
+check(HongKongArea.contains(GeoPoint(lat: 22.505, lon: 114.07)), "落馬洲（香港那边）喺香港")
+check(!HongKongArea.contains(GeoPoint(lat: 22.566, lon: 114.046)), "深圳梅林唔喺香港")
+check(!HongKongArea.contains(GeoPoint(lat: 22.48, lon: 113.91)), "深圳蛇口唔喺香港（纬度比皇后山低都唔算）")
+check(!HongKongArea.contains(GeoPoint(lat: 22.54, lon: 114.05)), "深圳福田唔喺香港")
+check(OpenMeteo.url(near: GeoPoint(lat: 22.5661, lon: 114.0463))?.absoluteString.contains("latitude=22.6&longitude=114.0") == true, "只送约 10 公里精度嘅位置")
+let om = #"{"utc_offset_seconds":28800,"current":{"time":"2026-10-10T17:00","temperature_2m":33.6,"precipitation":0.0,"weather_code":2},"daily":{"temperature_2m_max":[34.2,31.0],"precipitation_probability_max":[15,65]}}"#.data(using: .utf8)!
+let sz = HKOReport.parseOpenMeteo(om)
+check(sz?.temperature == 34 && sz?.todayMax == 34 && sz?.isHot == true && sz?.isRain == false, "深圳 34 度 → 熱")
+check(sz?.todayPSR == "低" && sz?.tomorrowPSR == "中高", "降雨概率 15% → 低，65% → 中高")
+check(sz?.line == "天氣預報話而家 34 度。", "唔冒认天文台：\(sz?.line ?? "")")
+let omRain = HKOReport.parseOpenMeteo(Data(String(data: om, encoding: .utf8)!.replacingOccurrences(of: "\"weather_code\":2", with: "\"weather_code\":95").utf8))
+check(omRain?.isRain == true, "雷暴代码 95 → 落雨")
+check(HKOReport.parseOpenMeteo(Data("{}".utf8)) == nil, "坏数据 → 冇天气")
+
 print(failures == 0 ? "ALL PASSED" : "\(failures) FAILED")
 exit(failures == 0 ? 0 : 1)

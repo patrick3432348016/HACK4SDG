@@ -1,6 +1,7 @@
 import Foundation
 
 /// 拉香港天文台开放数据（本港地区天气、警告、九天预报）。只发请求，不带任何位置；最近测站在手机上挑。
+/// 屋企喺香港以外（例如深圳）就改用 Open-Meteo 天气预报（OpenMeteo.swift），只送约 10 公里精度嘅位置。
 /// 失败就保留上一份，但读数超过 75 分钟（rhrread 每小时更新）就作废，离线时 report 为 nil，不显示假天气。
 @MainActor
 @Observable
@@ -11,6 +12,8 @@ final class HKOWeatherService {
     @ObservationIgnored private var fetchedAt: Date?
     @ObservationIgnored private var loading = false
     @ObservationIgnored private var loop: Task<Void, Never>?
+    /// 上次拉嘅系唔系香港：搬咗去深圳要即刻换来源，唔好等 10 分钟。
+    @ObservationIgnored private var lastInHK: Bool?
 
     static let maxAge: TimeInterval = 75 * 60
 
@@ -28,9 +31,19 @@ final class HKOWeatherService {
     func refresh(near p: GeoPoint, force: Bool = false) async -> HKOReport? {
         if LaunchArgs.has("-offline") { report = nil; return nil }
         if loading { return report }
+        let inHK = HongKongArea.contains(p)
+        if lastInHK != inHK { report = nil; fetchedAt = nil; lastInHK = inHK }
         if !force, let t = fetchedAt, Date().timeIntervalSince(t) < 600 { return report }
         loading = true
         defer { loading = false }
+        guard inHK else {
+            if let url = OpenMeteo.url(near: p), let data = await fetch(url), let parsed = HKOReport.parseOpenMeteo(data) {
+                report = parsed
+                fetchedAt = Date()
+            }
+            if let old = report, Date().timeIntervalSince(old.updated ?? fetchedAt ?? .distantPast) > Self.maxAge { report = nil }
+            return report
+        }
         async let now = get("rhrread")
         async let warn = get("warnsum")
         async let fnd = get("fnd")
@@ -60,6 +73,10 @@ final class HKOWeatherService {
 
     private func get(_ type: String) async -> Data? {
         guard let url = URL(string: "\(Self.base)?dataType=\(type)&lang=tc") else { return nil }
+        return await fetch(url)
+    }
+
+    private func fetch(_ url: URL) async -> Data? {
         guard let (data, resp) = try? await session.data(from: url),
               (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
         return data

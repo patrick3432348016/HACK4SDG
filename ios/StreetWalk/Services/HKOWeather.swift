@@ -3,6 +3,9 @@ import Foundation
 /// 香港天文台开放数据整理后的结果：只留散步用得上的（警告、最近测站气温、最近分区雨量、九天预报）。
 /// 纯解析，不联网（联网在 HKOWeatherService）；selftest 直接测这里。
 struct HKOReport: Equatable {
+    /// 数据来源：香港用天文台；香港以外（例如深圳）用 Open-Meteo 天气预报（OpenMeteo.swift），冇官方警告。
+    enum Source: Equatable { case hko, forecast }
+
     struct Warning: Equatable {
         var code: String        // 例如 WHOT、WRAINA、WTS
         var name: String        // 例如 "黃色暴雨警告信號"
@@ -17,6 +20,7 @@ struct HKOReport: Equatable {
     var todayPSR: String?
     var tomorrowPSR: String?    // 降雨概率：低 / 中低 / 中 / 中高 / 高
     var updated: Date?
+    var source: Source = .hko
 
     /// 酷熱天氣警告，或气温 / 今日最高 33 度以上。
     var isHot: Bool {
@@ -36,6 +40,7 @@ struct HKOReport: Equatable {
     private var rainIcon: Bool { (63...65).contains(icon ?? 0) }
 
     /// 句首讲明来源和读数，例如"天文台話打鼓嶺而家 27 度，黃色暴雨警告信號生效。"；冇读数时为空。
+    /// 香港以外讲"天氣預報話"，唔好冒认天文台。
     var line: String {
         var parts: [String] = []
         if let t = temperature { parts.append((station == "香港天文台" ? "" : station ?? "") + "而家 \(t) 度") }
@@ -43,8 +48,10 @@ struct HKOReport: Equatable {
         else if (rainMM ?? 0) >= 0.5 { parts.append("附近落緊雨") }
         else if rainIcon { parts.append("有雨") }
         else if let psr = todayPSR, ["中高", "高"].contains(psr) { parts.append("今日降雨機會\(psr)") }
-        return parts.isEmpty ? "" : "天文台話" + parts.joined(separator: "，") + "。"
+        return parts.isEmpty ? "" : sourcePrefix + parts.joined(separator: "，") + "。"
     }
+
+    var sourcePrefix: String { source == .hko ? "天文台話" : "天氣預報話" }
 
     /// 跟散步有关的警告（風球、山泥、水浸、酷熱、暴雨、雷暴），用来拼句；危险的排前面。
     var walkWarnings: [String] {

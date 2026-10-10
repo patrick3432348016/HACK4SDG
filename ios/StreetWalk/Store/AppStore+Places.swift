@@ -182,6 +182,8 @@ extension AppStore {
         if r.walkWarnings.contains(where: { $0.contains("酷熱") }) {
             rest = rest.replacingOccurrences(of: "今日好熱。", with: "").replacingOccurrences(of: "今日好熱，", with: "")
         }
+        // 香港以外：模板句讲「天文台話」唔啱，改讲天气预报。
+        if r.source != .hko { rest = rest.replacingOccurrences(of: "天文台話", with: "天氣預報話") }
         let line = Self.oneSentence([r.line, rest])
         weatherTip = line.isEmpty ? nil : line
     }
