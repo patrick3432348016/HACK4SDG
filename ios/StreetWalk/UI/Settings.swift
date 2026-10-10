@@ -43,6 +43,8 @@ struct SettingsView: View {
                          : "只喺呢段時間通知你\(store.remindFrom > store.remindTo ? "（跨夜）" : "")。每個街坊仲可以喺「街坊」頁分開開關。").ds(.caption)
                 }
 
+                LocationSettingsSection()
+
                 Section {
                     Toggle("演示模式", isOn: Binding(get: { store.demoMode }, set: { store.setDemoMode($0) }))
                         .tint(DS.accent)
@@ -80,7 +82,7 @@ struct SettingsView: View {
                 Button("清除", role: .destructive) { store.clearAllData(); store.populate() }
                 Button("唔清", role: .cancel) {}
             } message: {
-                Text("街坊、約會、反映同散步紀錄都會刪走，冇得還原。")
+                Text("街坊、約會、反映、散步紀錄同過夜位置都會刪走，冇得還原。")
             }
             .confirmationDialog("改我住嘅樓？", isPresented: $confirmMove, titleVisibility: .visible) {
                 Button("揀過座樓") { store.showSettings = false; store.beginChangeHome() }

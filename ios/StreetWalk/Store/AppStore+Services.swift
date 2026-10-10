@@ -14,6 +14,7 @@ extension AppStore {
             refreshMe()
             if map != nil { checkAppointments() }   // 启动时地图未装好，等 populate 再查（唔好出冇名嘅提醒）
             startDayClock()
+            locationAppActive()     // 权限、屋企范围、夜晚位置、「始终允许」解释页（AppStore+Location）
         } else {
             // 退后台即刻写盘（唔等 0.5 秒），之后被系统收咗都唔会冇咗最后一次改动（A76）
             saveTask?.cancel()
@@ -22,7 +23,8 @@ extension AppStore {
             dayClock?.cancel()
             hko.keepFresh(false) {}
             markBackground()
-            walkDetector.stop()
+            // 记录紧散步 / 等紧开始行路：锁机放袋都继续（背景定位）；否则停，等系统喺离开屋企时叫醒（AppStore+Location）
+            if !walkDetector.staysAwakeInBackground { walkDetector.stop() }
         }
     }
 

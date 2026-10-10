@@ -97,6 +97,7 @@ extension AppStore {
         restoring = false
         restoreOriginalNames()
         saveNow()
+        if isMainStore { LocationMonitor.shared.clearRecords() }   // 夜晚位置、定位纪录一齐清
     }
 
     func restoreOriginalNames() {
@@ -166,6 +167,7 @@ extension AppStore {
                           steps: steps, simulated: simulated)
         refreshMe()
         uploadDay(day ?? now)
+        noteWalkRecorded(minutes: minutes, simulated: simulated, backfilled: day != nil, steps: steps)   // 定位纪录（AppStore+Location）
     }
 
     /// 个人资料上传（users 表）：完成首次使用、设置页改楼层或小人之后调。

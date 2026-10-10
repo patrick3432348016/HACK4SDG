@@ -59,13 +59,15 @@ struct LiveWalkGate {
     }
 
     /// moving：Core Motion 而家判断喺行路（轮椅：唔係停低）。
-    mutating func decide(fromHome d: Double, acc: Double, at t: Date, recording: Bool, moving: Bool) -> Action {
+    /// maxStart：几远以内开始都算出门（由屋企行出去、区域监察迟报时放宽，见 TriggerRules.maxStart）。
+    mutating func decide(fromHome d: Double, acc: Double, at t: Date, recording: Bool, moving: Bool,
+                         maxStart: Double = LiveWalkGate.maxStart) -> Action {
         if recording {
             pendingSince = nil
             if Self.isHome(fromHome: d, acc: acc) { return .finish }
             return acc <= Self.goodAcc ? .step : .minutesOnly
         }
-        guard moving, acc <= Self.goodAcc, d - acc > Self.leaveRadius, d < Self.maxStart else { pendingSince = nil; return .none }
+        guard moving, acc <= Self.goodAcc, d - acc > Self.leaveRadius, d < maxStart else { pendingSince = nil; return .none }
         guard let s = pendingSince else { pendingSince = t; return .none }
         guard t.timeIntervalSince(s) >= Self.confirmGap else { return .none }
         pendingSince = nil

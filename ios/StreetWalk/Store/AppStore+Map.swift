@@ -171,6 +171,7 @@ extension AppStore {
         scene.resetCamera()
         say("搞掂。你行街嘅時候我會自動記錄，唔使撳任何掣。")
         startWalkDetection()   // 同意之后先问动作 / 定位权限
+        locationOnboarded()    // 屋企范围、「始终允许」解释页（AppStore+Location）
     }
 
     /// 圈成员（F2）：由 CommunityService 给（单机演示时是示範街坊），再套回已保存的街坊关系、地标名、我的记录。
@@ -197,6 +198,7 @@ extension AppStore {
         applyLooks(&list)
         residents = list
         if LaunchArgs.has("-withNeighbor"), !list.isEmpty, !list[0].isMe { residents[0].isNeighbor = true; residents[0].neighborSince = Date() }
+        syncHomeLocation()     // 屋企位置交俾后台出门检测（AppStore+Location）
         dropStaleReferences()
         closeOrphanAppointments()
         refreshMe()

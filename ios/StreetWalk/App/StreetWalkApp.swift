@@ -2,7 +2,9 @@ import SwiftUI
 
 @main
 struct StreetWalkApp: App {
-    @State private var store = AppStore()
+    /// 系统喺背景开 App（离开屋企、到访、大范围移动）时冇画面：靠 AppDelegate 一启动就接好定位事件。
+    @UIApplicationDelegateAdaptor(StreetWalkAppDelegate.self) private var appDelegate
+    @State private var store = AppStore.launch()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -12,6 +14,17 @@ struct StreetWalkApp: App {
                 // 启动和回到前台：拉天文台天气、开真机散步检测；后台才停（控制中心、来电等 .inactive 不理）
                 .onChange(of: scenePhase, initial: true) { _, p in if p != .inactive { store.appActive(p == .active) } }
         }
+    }
+}
+
+/// 一启动（包括 iOS 喺背景为定位事件开 App）就建好 AppStore 同 LocationMonitor，事件先唔会冇人接。
+final class StreetWalkAppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        // 系统喺背景开（定位事件）：SwiftUI App 未必带 .location，所以都睇埋而家係唔係喺背景
+        let background = launchOptions?[.location] != nil || application.applicationState == .background
+        _ = AppStore.launch()
+        if background { LocationMonitor.shared.noteLocationLaunch() }
+        return true
     }
 }
 
