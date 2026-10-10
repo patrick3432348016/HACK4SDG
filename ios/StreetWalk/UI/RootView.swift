@@ -3,6 +3,7 @@ import SwiftUI
 /// 根视图：首次使用 → 主界面。两者之间用弹簧做淡入 + 轻微缩放（减少动态效果时只淡入淡出）。
 struct RootView: View {
     @Environment(AppStore.self) private var store
+    @Bindable private var locator = LocationMonitor.shared
 
     private var isOnboarding: Bool {
         if case .onboarding = store.phase { return true }
@@ -21,6 +22,10 @@ struct RootView: View {
             }
         }
         .animation(DS.motion(DS.spring), value: isOnboarding)
+        // 完成首次使用后：点解要「始终允许」定位（LocationViews）
+        .sheet(isPresented: $locator.showAlwaysAsk) {
+            AlwaysAskSheet().environment(store)
+        }
         // 正文基准已经是 24pt：系统字号调小也不缩（下限 .large = 基准）；大过无障碍第 2 档排不下，所以封顶。
         .dynamicTypeSize(.large ... .accessibility2)
     }

@@ -43,6 +43,8 @@ struct SettingsView: View {
                          : "只喺呢段時間通知你\(store.remindFrom > store.remindTo ? "（跨夜）" : "")。每個街坊仲可以喺「街坊」頁分開開關。").ds(.caption)
                 }
 
+                LocationSettingsSection()
+
                 Section {
                     Toggle("演示模式", isOn: Binding(get: { store.demoMode }, set: { store.setDemoMode($0) }))
                         .tint(DS.accent)

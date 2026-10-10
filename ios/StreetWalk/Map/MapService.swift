@@ -30,8 +30,12 @@ final class MapService: NSObject, CLLocationManagerDelegate {
 
     // MARK: - 位置
 
+    /// 下一次 currentLocation 直接用呢个位置（「你係咪搬咗屋」按「係」：喺过夜嘅地方重新揀樓）。用一次就清。
+    var pinnedLocation: GeoPoint?
+
     /// 只在首次选楼 / 重新选楼时调用。权限框未回答前不计时（长者看权限框可能要很久），回答后才等 timeout 秒。
     func currentLocation(timeout: TimeInterval = 8) async -> GeoPoint? {
+        if let p = pinnedLocation { pinnedLocation = nil; return p }
         if LaunchArgs.has("-offline") { return nil }
         let status = manager.authorizationStatus
         if status == .denied || status == .restricted { return nil }

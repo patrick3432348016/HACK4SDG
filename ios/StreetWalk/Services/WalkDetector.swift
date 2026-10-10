@@ -2,9 +2,12 @@ import CoreLocation
 import CoreMotion
 import Foundation
 
-/// 真机散步检测：Core Motion 判断开始 / 停止行路，只在行路（或正在记录）时开定位（使用期间、前台）。
-/// 锁屏 / 背景冇定位：返前台时用 Core Motion 嘅活动纪录同计步器补记（AppStore.backfill）。
-/// 精确位置只在手机上换算成场景坐标，不上传、不存盘。模拟器和演示模式不启用，继续用演示散步。
+/// 真机散步检测：Core Motion 判断开始 / 停止行路，只在行路（或正在记录）时开准确定位。
+/// 记录紧散步时锁机 / 退后台都继续定位（allowsBackgroundLocationUpdates）；有「始终允许」时，
+/// 离开屋企由 LocationMonitor 喺背景叫醒 App 再开（AppStore+Location）。
+/// 其余背景时段（例如 App 被扫走）：返前台时用 Core Motion 嘅活动纪录同计步器补记（AppStore.backfill）。
+/// 精确位置只在手机上换算成场景坐标，不上传、不存盘。模拟器和演示模式不启用，继续用演示散步；
+/// 模拟器加启动参数 -simWalk 就只靠定位速度判断行路（冇 Core Motion，开发测试用）。
 @MainActor
 final class WalkDetector: NSObject, CLLocationManagerDelegate {
     enum Event {
@@ -50,22 +53,50 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
     private var countingSteps = false
     private let location = CLLocationManager()
     private(set) var running = false
-    private var locating = false
     private var stillTask: Task<Void, Never>?
 
-    /// 硬件够（真机、有动作感应）。演示模式由 AppStore.startWalkDetection 判断。
+    // 后台出门检测（AppStore+Location）
+    /// 定位档：关、粗略（只係保持 App 喺背景醒住，等 Core Motion 话行紧路）、准确（行紧路 / 记录紧）。
+    private enum Mode { case off, coarse, fine }
+    private var mode = Mode.off
+    private var wantFine = false
+    private var locating: Bool { mode == .fine }
+    /// 背景保持清醒（粗略定位，几乎唔用 GPS）：离开屋企后等开始行路、喺外面停低咗。
+    /// 背景冇任何定位时 iOS 会暂停 App，Core Motion 都收唔到。
+    var keepAlive = false { didSet { if keepAlive != oldValue { applyMode() } } }
+    /// 区域监察报离开屋企嘅时间（之后冇坐车）：期间放宽「出门」距离（TriggerRules.maxStart）。
+    var leftHomeAt: Date?
+    /// 叫醒后等开始行路 / 喺外面停低嘅计时（AppStore+Location）。
+    var watchTask: Task<Void, Never>?
+    /// 退后台都唔停：记录紧散步、等紧开始行路、喺外面停低等再行。
+    var staysAwakeInBackground: Bool { recording || watchTask != nil }
+    /// 开始散步最远几远（由屋企行出去放宽）。
+    var maxStart: Double { TriggerRules.maxStart(leftHomeAt: leftHomeAt, now: Date()) }
+    /// 模拟器 -simWalk：上一个定位（用嚟计速度）。
+    private var simLast: (GeoPoint, Date)?
+
+    /// 硬件够（真机、有动作感应；或者模拟器加 -simWalk）。演示模式由 AppStore.startWalkDetection 判断。
     static var isAvailable: Bool {
         #if targetEnvironment(simulator)
-        return false
+        return locationOnly
         #else
         return CMMotionActivityManager.isActivityAvailable()
         #endif
     }
 
-    /// 演示模式嘅默认值：模拟器开，真机关（真机装好就检测散步；设置里改过就按改过的）。
+    /// 只靠定位速度判断行路（模拟器 + 启动参数 -simWalk；冇 Core Motion、冇计步器）。只供开发测试。
+    static var locationOnly: Bool {
+        #if targetEnvironment(simulator)
+        return LaunchArgs.has("-simWalk")
+        #else
+        return false
+        #endif
+    }
+
+    /// 演示模式嘅默认值：模拟器开（-simWalk 测真机流程时关），真机关（真机装好就检测散步；设置里改过就按改过的）。
     static var demoByDefault: Bool {
         #if targetEnvironment(simulator)
-        return true
+        return !LaunchArgs.has("-simWalk")
         #else
         return false
         #endif
@@ -84,6 +115,8 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
         guard Self.isAvailable, !running else { return }
         running = true
         if recording && !catchingUp { setLocating(true) }
+        // -simWalk：冇 Core Motion，一直开定位睇速度
+        if Self.locationOnly { setLocating(true); return }
         motion.startActivityUpdates(to: .main) { [weak self] a in
             guard let self, let a, a.confidence != .low || self.seated else { return }
             let stepping = a.walking || a.running
@@ -93,6 +126,7 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
             self.watchStill(still)
             if riding {
                 self.moving = false
+                self.leftHomeAt = nil      // 坐咗车：之后唔再当係由屋企行出去
                 self.onEvent?(.riding)
             } else if moving {
                 if !self.moving { self.movingSince = a.startDate }
@@ -133,26 +167,42 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
     }
 
     func stop() {
+        watchTask?.cancel()
+        watchTask = nil
+        keepAlive = false
         guard running else { return }
         running = false
         moving = false
-        motion.stopActivityUpdates()
+        if !Self.locationOnly { motion.stopActivityUpdates() }
         stillTask?.cancel()
         stillTask = nil
         stillSince = nil
-        setLocating(false)
+        simLast = nil
+        wantFine = false
+        applyMode()
     }
 
-    /// 只在需要时开定位，省电。
+    /// 只在需要时开准确定位，省电（-simWalk 运行期间一直开）。
     func setLocating(_ on: Bool) {
-        guard on != locating else { return }
-        locating = on
-        if on {
-            if location.authorizationStatus == .notDetermined { location.requestWhenInUseAuthorization() }
-            location.startUpdatingLocation()
-        } else {
-            location.stopUpdatingLocation()
-        }
+        wantFine = on || (Self.locationOnly && running)
+        applyMode()
+    }
+
+    /// 准确：行紧路 / 记录紧；粗略：keepAlive（背景醒住等行路）；否则关。
+    /// 两档都容许背景继续（记录紧散步锁机都照记；「始终允许」时可以喺背景开）。
+    private func applyMode() {
+        let m: Mode = wantFine ? .fine : keepAlive ? .coarse : .off
+        guard m != mode else { return }
+        mode = m
+        guard m != .off else { location.stopUpdatingLocation(); return }
+        if location.authorizationStatus == .notDetermined { location.requestWhenInUseAuthorization() }
+        location.desiredAccuracy = m == .fine ? kCLLocationAccuracyBest : kCLLocationAccuracyThreeKilometers
+        location.distanceFilter = m == .fine ? 3 : 500
+        location.pausesLocationUpdatesAutomatically = false
+        location.allowsBackgroundLocationUpdates = true
+        // 记录散步时状态栏显示蓝色定位标记（知道佢喺度记录）；粗略保持清醒时唔显示
+        location.showsBackgroundLocationIndicator = m == .fine
+        location.startUpdatingLocation()
     }
 
     // MARK: - 计步器（A85：真机步数；F9：步频）
@@ -176,7 +226,7 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
 
     /// 背景期间嘅活动纪录（系统保留 7 日）。冇权限 / 冇纪录返回 nil。
     func activities(from: Date, to: Date) async -> [WalkBackfill.Sample]? {
-        guard Self.isAvailable else { return nil }
+        guard Self.isAvailable, !Self.locationOnly else { return nil }
         let seated = seated
         return await withCheckedContinuation { cont in
             motion.queryActivityStarting(from: from, to: to, to: .main) { list, _ in
@@ -198,10 +248,32 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
         guard let l = ok.last else { return }
         let p = GeoPoint(lat: l.coordinate.latitude, lon: l.coordinate.longitude), acc = l.horizontalAccuracy, at = l.timestamp, speed = l.speed
         Task { @MainActor in
+            // 粗略档（keepAlive）只係保持醒住，啲点唔用
+            guard self.mode == .fine else { return }
+            if Self.locationOnly { self.simMotion(p, speed: speed, at: at) }
             self.lastFixAt = at
             self.lastFix = (p, acc)
             self.lastSpeed = speed
             self.onEvent?(.location(p, accuracy: acc))
+        }
+    }
+
+    /// -simWalk：速度 ≥0.5 m/s 当行紧路（冇速度就用两点距离计）；停低就照样计 2、5、10 分钟。
+    private func simMotion(_ p: GeoPoint, speed: Double, at: Date) {
+        var v = speed
+        if v < 0, let (q, t) = simLast, at.timeIntervalSince(t) > 0.5 {
+            v = LocalProjection(origin: q).toLocal(p).length / at.timeIntervalSince(t)
+        }
+        simLast = (p, at)
+        let walking = v >= 0.5
+        watchStill(!walking)
+        if walking {
+            if !moving { movingSince = at }
+            moving = true
+            onEvent?(.walking(true))
+        } else if moving {
+            moving = false
+            onEvent?(.walking(false))
         }
     }
 

@@ -70,6 +70,7 @@ extension AppStore {
         scene.followID = "me"
         scene.setCamera(target: route[0], distance: scene.overviewDistance * 0.85, animated: true)
         syncScene()
+        walkBegan(live: live)      // 定位纪录、背景通知（AppStore+Location）
     }
 
     func remainingRoute(_ w: WalkSession) -> [Vec2] {
@@ -193,6 +194,7 @@ extension AppStore {
         case (_, .riding): say("上咗車，今次散步記好咗：行咗 \(m) 分鐘。而家已經隱身。")
         }
         Haptics.success()
+        walkEnded(live: live, minutes: m, places: w.passed.count, reason: reason, recorded: !tooShort)   // AppStore+Location
     }
 
     // MARK: - F1 真机散步检测（只在真机、关咗演示模式、完成首次使用后；见 WalkDetector）
@@ -350,7 +352,7 @@ extension AppStore {
             let p = m.scenePoint(g)
             let inside = abs(p.x) <= m.half - 4 && abs(p.y) <= m.half - 4
             let fromHome = p.distance(to: scene.homeTarget)
-            switch d.gate.decide(fromHome: fromHome, acc: acc, at: d.lastFixAt ?? Date(), recording: d.recording, moving: d.moving) {
+            switch d.gate.decide(fromHome: fromHome, acc: acc, at: d.lastFixAt ?? Date(), recording: d.recording, moving: d.moving, maxStart: d.maxStart) {
             case .finish: finishLiveWalk()
             case .step: liveStep(p, inside: inside)
             case .minutesOnly: liveMinutes()

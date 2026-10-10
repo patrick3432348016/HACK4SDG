@@ -14,6 +14,7 @@ struct TodayTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            LocationCards()     // 係咪搬咗屋、自动记录未开齐（LocationViews）
             outNowSection
             ForEach(store.todaysAppointments) { a in
                 appointmentCard(a).transition(.tabsInsert)
