@@ -187,6 +187,8 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         let id = id.lowercased()
         guard myID != id else { return }
         myID = id
+        // 换咗身份（旧登录失效、重新匿名登录）：旧频道嘅过滤条件系旧 id，要重开
+        if let ch = channel, ch.name != "sw:\(id)" { realtime.remove(ch); channel = nil }
         if cache.userID != id {
             cache = BackendCache(userID: id)
             lastMembers = []

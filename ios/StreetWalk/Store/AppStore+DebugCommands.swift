@@ -7,7 +7,7 @@ import Foundation
 //   xcrun simctl get_app_container <UDID> hk.hack4sdg.streetwalk data  → 容器路径
 // 指令：tab today|board|neighbors · walk · home · find <网名> · go · endfind · answer yes|no
 //      invite <网名> [日 0/1/2] [钟点] · accept · decline · depart · remind on|off · unlink <网名>
-//      say <一句> · banner off · refresh · link <一次性码>（两部机用同一个码 = 碰咗一碰）
+//      say <一句> · banner off · refresh · settings on|off · link <一次性码>（两部机用同一个码 = 碰咗一碰）
 //      bgrefresh（App 喺后台时叫 backgroundRefresh，睇 debug-events.txt 有冇「notify」）
 extension AppStore {
     private static var debugCommandsStarted = false
@@ -87,6 +87,7 @@ extension AppStore {
         case "banner": banner = nil
         case "refresh": supabase?.scheduleRefresh(Set(SupabaseCommunityService.Part.allCases), delay: 0)
         case "link": if !arg.isEmpty { debugLink(code: arg) }
+        case "settings": showSettings = arg != "off"
         case "bgrefresh": Task { await self.backgroundRefresh() }   // 模拟器排唔到 BGAppRefreshTask：App 喺后台时用呢个试
         default: break
         }
