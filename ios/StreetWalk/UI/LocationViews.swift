@@ -106,7 +106,7 @@ struct LocationCards: View {
             if let p = lm.homePrompt {
                 HomePromptCard(prompt: p).transition(.opacity)
             }
-            if lm.needsAlways, (lm.cardHiddenUntil ?? .distantPast) < Date() {
+            if lm.needsAttention, (lm.cardHiddenUntil ?? .distantPast) < Date() {
                 PermissionCard().transition(.opacity)
             }
         }
@@ -210,7 +210,7 @@ private struct PermissionCard: View {
             Text("遲啲先").frame(maxWidth: stacked ? .infinity : nil)
         }
         .buttonStyle(.dsSecondary)
-        Button { lm.showAlwaysAsk = true } label: {
+        Button { if lm.needsAlways { lm.showAlwaysAsk = true } else { lm.openSettings() } } label: {
             Text("點樣開").frame(maxWidth: .infinity)
         }
         .buttonStyle(.dsPrimary)
@@ -233,7 +233,10 @@ struct LocationSettingsSection: View {
             LabeledContent("動作與健身") {
                 Text(LocationMonitor.motionLabel(lm.motionAuth)).foregroundStyle(lm.motionAuth == .denied ? DS.accent : Color.secondary)
             }
-            if lm.needsAlways || lm.motionAuth == .denied || lm.motionAuth == .restricted {
+            if !lm.backgroundRefreshOK {
+                LabeledContent("背景 App 重新整理") { Text("關咗").foregroundStyle(DS.accent) }
+            }
+            if lm.needsAttention || lm.motionAuth == .denied || lm.motionAuth == .restricted {
                 if lm.auth == .authorizedWhenInUse || lm.auth == .notDetermined, !lm.askedAlways {
                     Button("改做始終允許") { lm.showAlwaysAsk = true }
                 } else {
@@ -261,6 +264,7 @@ enum LocationStatusText {
         }
         if !lm.precise { return "「精確位置」關咗：認唔到你行過邊個地標，亦唔知你幾時出門。" }
         if lm.motionAuth == .denied || lm.motionAuth == .restricted { return "「動作與健身」關咗：認唔到你開始行路。" }
+        if !lm.backgroundRefreshOK { return "「背景 App 重新整理」關咗（或者開咗低耗電模式）：App 俾系統收咗之後，出門唔會被叫醒。去 設定 → 一般 → 背景 App 重新整理 開返。" }
         return nil
     }
 
@@ -345,7 +349,8 @@ struct LocationLogView: View {
         if !WalkDetector.isAvailable { return "呢部機冇動作感應，唔會自動記錄" }
         if let p = LocationStatusText.problem(lm) { return "未開齊。\(p)" }
         if lm.home == nil { return "未有屋企位置（打開一次主畫面）" }
-        return lm.monitoring ? "開咗：離開屋企會自動開始記錄" : "未開始監察（打開一次主畫面）"
+        guard lm.monitoring else { return "未開始監察（打開一次主畫面）" }
+        return lm.lowPower ? "開咗，但低耗電模式開緊：iOS 可能遲啲先叫醒街坊行" : "開咗：離開屋企會自動開始記錄"
     }
 
     private func verdictText(_ v: HomeVerdict) -> String {

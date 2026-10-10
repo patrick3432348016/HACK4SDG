@@ -22,6 +22,9 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
     private(set) var motionAuth: CMAuthorizationStatus = .notDetermined
     /// 区域、到访、大范围移动监察开紧。
     private(set) var monitoring = false
+    /// 「背景 App 重新整理」开咗（关咗 App 俾系统收咗之后唔会被叫醒）、低耗电模式。
+    private(set) var backgroundRefreshOK = true
+    private(set) var lowPower = false
     /// 系统话而家喺唔喺屋企范围内（未知 = nil）。
     private(set) var insideHome: Bool?
     private(set) var log = LocationLog()
@@ -91,8 +94,14 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         auth = m.authorizationStatus
         precise = m.accuracyAuthorization == .fullAccuracy
         motionAuth = CMMotionActivityManager.authorizationStatus()
+        refreshSystemSwitches()
         reevaluate()
         refreshMonitoring()
+    }
+
+    private func refreshSystemSwitches() {
+        backgroundRefreshOK = UIApplication.shared.backgroundRefreshStatus == .available
+        lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
     }
 
     /// AppDelegate：系统喺背景开 App（App 之前冇开住，例如俾系统收咗；多数係定位事件）。
@@ -106,6 +115,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         guard let m = manager else { return }
         authChanged(m.authorizationStatus, precise: m.accuracyAuthorization == .fullAccuracy)
         motionAuth = CMMotionActivityManager.authorizationStatus()
+        refreshSystemSwitches()
         if monitoring, let r = m.monitoredRegions.first(where: { $0.identifier == Self.regionID }) { m.requestState(for: r) }
         sampleNightIfNeeded()
         reevaluate()
@@ -253,6 +263,8 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
 
     /// 自动记录要嘅权限未齐（唔係「始终」、或者精确位置关咗）。
     var needsAlways: Bool { auth != .authorizedAlways || !precise }
+    /// 今日卡 / 设定要提：权限未齐，或者「背景 App 重新整理」关咗。
+    var needsAttention: Bool { needsAlways || !backgroundRefreshOK }
 
     private func authChanged(_ s: CLAuthorizationStatus, precise full: Bool) {
         let changed = s != auth || full != precise
