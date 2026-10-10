@@ -16,6 +16,9 @@ struct ScenePerson: Equatable {
     var motion: Motion
     var label: String?
     var highlighted = false
+    /// 外形：肤色档、年龄段（AppStore.syncScene 按居民资料填）。
+    var skin = 1
+    var age: AgeGroup = .adult
 }
 
 /// 覆盖层上的一个标签（SwiftUI 画，跟随 3D 投影）。
@@ -543,9 +546,9 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         for p in people {
             let old = personState[p.id]
             var node = personNodes[p.id]
-            if node == nil || old?.mobility != p.mobility || old?.color != p.color {
+            if node == nil || old?.mobility != p.mobility || old?.color != p.color || old?.skin != p.skin || old?.age != p.age {
                 node?.removeFromParentNode()
-                let n = Figures.person(color: p.color, mobility: p.mobility)
+                let n = Figures.person(color: p.color, mobility: p.mobility, skin: p.skin, age: p.age)
                 n.name = "person:\(p.id)"
                 n.opacity = 0
                 n.runAction(.fadeIn(duration: 0.35))

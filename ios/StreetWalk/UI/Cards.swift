@@ -17,7 +17,7 @@ struct ProposalCard: View {
             let place = store.landmark(current.landmarkID)?.name ?? ""
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 12) {
-                    if let partner { AvatarBadge(color: partner.color, mobility: partner.mobility) }
+                    if let partner { AvatarBadge(partner) }
                     Text(p.editing == nil ? "約\(partner?.name ?? "街坊")一齊行" : "改約\(partner?.name ?? "街坊")")
                         .ds(.body)
                         .fixedSize(horizontal: false, vertical: true)
@@ -184,7 +184,7 @@ struct InfoCard: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(DS.slide(.bottom))
             } else {
                 Button {
                     taps += 1
@@ -214,7 +214,7 @@ struct InfoCard: View {
         let walking = store.walk != nil
         return VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
-                AvatarBadge(color: r.color, mobility: r.mobility, size: 60)
+                AvatarBadge(r, size: 60)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title(for: r))
                         .ds(.bodyBold)
@@ -274,7 +274,7 @@ struct InfoCard: View {
         if r.isMe { return store.walk != nil ? "行緊" : "喺屋企 · 已隱身" }
         guard r.isNeighbor else { return "仲未係你街坊" }
         if r.isOut, let lm = store.landmark(r.atLandmarkID) { return "喺\(lm.name)附近" }
-        return "喺屋企"
+        return "冇出門消息"   // 不断言「喺屋企」
     }
 }
 
@@ -291,7 +291,7 @@ struct RemindPrompt: View {
         if let id = store.remindPromptFor, let r = store.resident(id) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 16) {
-                    AvatarBadge(color: r.color, mobility: r.mobility, size: 64)
+                    AvatarBadge(r, size: 64)
                         .overlay(alignment: .bottomTrailing) {
                             Image(systemName: "checkmark.circle.fill")
                                 .symbolRenderingMode(.palette)
@@ -364,16 +364,7 @@ private struct CardFact: View {
     }
 }
 
-/// 小小的「AI」标签：表示这句是 AI 写的。
+/// 小小的「AI」标签：表示这句是 AI 写的（共用 AIBadge，辅助字号 20）。
 private struct CardAITag: View {
-    @ScaledMetric(relativeTo: .caption) private var size: CGFloat = 16
-    var body: some View {
-        Text("AI")
-            .font(.system(size: size, weight: .bold, design: .rounded))
-            .foregroundStyle(DS.accent)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 2)
-            .background(DS.accentSoft, in: Capsule())
-            .accessibilityLabel("AI 寫嘅")
-    }
+    var body: some View { AIBadge() }
 }

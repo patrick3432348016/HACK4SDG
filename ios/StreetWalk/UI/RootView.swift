@@ -12,9 +12,8 @@ struct RootView: View {
     var body: some View {
         ZStack {
             if isOnboarding {
+                // 首次使用的提示由 OnboardingFlow 放在进度点下面（选楼页放在说明卡下面），不再叠一层压住进度点。
                 OnboardingFlow()
-                    // 首次使用时也可能有提示（例如"請揀一座住宅樓"），放在顶部，不挡底部大按钮。
-                    .overlay(alignment: .top) { ToastView().padding(.top, DS.gap) }
                     .transition(DS.reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 1.04)))
             } else {
                 MainView()
@@ -22,7 +21,7 @@ struct RootView: View {
             }
         }
         .animation(DS.motion(DS.spring), value: isOnboarding)
-        // 正文基准已经是 24pt；再大过无障碍第 2 档就排唔落，所以封顶。
-        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
+        // 正文基准已经是 24pt：系统字号调小也不缩（下限 .large = 基准）；大过无障碍第 2 档排不下，所以封顶。
+        .dynamicTypeSize(.large ... .accessibility2)
     }
 }

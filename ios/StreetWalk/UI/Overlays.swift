@@ -46,8 +46,11 @@ struct SceneLabelsLayer: View {
         let candidates = items
             .filter { $0.kind != .landmark || $0.highlighted || focus.contains($0.id) }
             .sorted { a, b in
-                // 高亮的人（约的对象、找的人）最重要，其次是焦点地标。
-                func rank(_ x: OverlayItem) -> Int { x.kind == .person && x.highlighted ? 5 : (focus.contains(x.id) ? 4 : x.priority) }
+                // 「你」最重要（只靠橙色不够认，色弱也要找到自己）；其次高亮的人（约的对象、找的人）、焦点地标。
+                func rank(_ x: OverlayItem) -> Int {
+                    if x.id == "p:me" { return 6 }
+                    return x.kind == .person && x.highlighted ? 5 : (focus.contains(x.id) ? 4 : x.priority)
+                }
                 let pa = rank(a), pb = rank(b)
                 return pa != pb ? pa > pb : a.id < b.id
             }
@@ -102,9 +105,12 @@ private struct SceneLabel: View {
     var body: some View {
         Group {
             if let action {
-                Button(action: action) { face }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("撳一下睇詳情")
+                Button(action: action) {
+                    // 可点范围至少 44×44（长者手指、HIG）；画面不变。
+                    face.frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("撳一下睇詳情")
             } else {
                 face
             }
@@ -156,10 +162,10 @@ private struct SceneLabel: View {
 
     private var accessibilityText: String {
         switch item.kind {
-        case .person: return "街坊：\(item.text)"
+        case .person: return item.id == "p:me" ? "你" : "街坊：\(item.text)"
         case .landmark: return "地標：\(item.text)"
         case .home: return item.text
-        case .report: return "街坊反映：\(item.text)"
+        case .report: return "你嘅反映：\(item.text)"   // 场景上的反映标记都是自己的
         }
     }
 
@@ -174,76 +180,56 @@ private struct SceneLabel: View {
 
 // MARK: - 灵动岛式横幅
 
-/// 出门提醒、约会应承、天气提示。从顶部小胶囊（传感器位置）弹性展开成大卡片，收起时缩回胶囊。
+/// 出门提醒、约会应承、天气提示。从顶部胶囊（传感器位置）弹性展开成大卡片，收起时缩回胶囊。
 /// 点卡片或向上扫 = 关掉；有按钮时按钮执行动作。
+/// 直接由 store.banner 驱动（审核 A10）：有就画、没有就移走，展开 / 收起就是转场本身，不再有镜像状态和完成回调，
+/// 所以不会卡在"已经没了但还展开"。
 struct BannerView: View {
     @Environment(AppStore.self) private var store
-    @State private var shown: BannerItem?
-    @State private var expanded = false
-    @State private var drag: CGFloat = 0
-
-    private let pill = CGSize(width: 126, height: 37)
-    private let edge: CGFloat = 11
 
     var body: some View {
         ZStack(alignment: .top) {
-            if let b = shown {
-                island(b)
-                    .transition(.opacity)
+            if let b = store.banner {
+                BannerIsland(item: b, isDemo: isDemo(b))
+                    .id(b.id)
+                    .transition(DS.reduceMotion ? .opacity : .island)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onAppear { sync(store.banner) }
-        .onChange(of: store.banner) { _, new in sync(new) }
+        .animation(DS.motion(DS.bouncy), value: store.banner?.id)
     }
 
-    private func sync(_ new: BannerItem?) {
-        if let new {
-            if shown != nil {
-                withAnimation(DS.motion(DS.snappy)) { shown = new; expanded = true; drag = 0 }
-                return
-            }
-            if DS.reduceMotion {
-                withAnimation(DS.motion(DS.spring)) { shown = new; expanded = true; drag = 0 }
-                return
-            }
-            // 先以胶囊出现（不做动画），下一帧弹开。
-            var t = Transaction()
-            t.disablesAnimations = true
-            withTransaction(t) { shown = new; expanded = false; drag = 0 }
-            DispatchQueue.main.async {
-                guard store.banner?.id == new.id else { return }
-                withAnimation(DS.bouncy) { expanded = true }
-            }
-        } else {
-            guard shown != nil else { return }
-            if DS.reduceMotion {
-                withAnimation(DS.motion(DS.spring)) { shown = nil; expanded = false; drag = 0 }
-                return
-            }
-            withAnimation(DS.spring, completionCriteria: .logicallyComplete) {
-                expanded = false
-                drag = 0
-            } completion: {
-                guard store.banner == nil else { return }
-                withAnimation(DS.snappy) { shown = nil }
-            }
+    /// 示範数据的横幅都标「示範」：有对象就看对象；没有对象的（示範街坊答应了、屋邨管理示範回覆、手选天气）看句子。
+    private func isDemo(_ b: BannerItem) -> Bool {
+        switch b.action {
+        case .invite(let id), .goFind(let id): return store.resident(id)?.isDemo ?? false
+        case .depart(let id): return store.appointments.first { $0.id == id }.flatMap { store.resident($0.partnerID) }?.isDemo ?? false
+        case .openNeighbors: return store.community.isSimulated
+        default: break
         }
+        if store.residents.contains(where: { $0.isDemo && !$0.isMe && b.text.hasPrefix($0.name) }) { return true }
+        if store.hko.demoOverride && b.text == store.weatherTip { return true }   // 演示菜单手选的天气
+        return store.reports.contains { r in r.followUpDemo == true && (r.followUp.map { !$0.isEmpty && b.text.hasSuffix($0) } ?? false) }
     }
+}
 
-    private func island(_ b: BannerItem) -> some View {
-        let shape = RoundedRectangle(cornerRadius: expanded ? 28 : pill.height / 2, style: .continuous)
-        return content(b)
+private struct BannerIsland: View {
+    @Environment(AppStore.self) private var store
+    let item: BannerItem
+    let isDemo: Bool
+    @State private var drag: CGFloat = 0
+    @State private var bounce = 0
+    private let edge: CGFloat = 11
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 28, style: .continuous)
+        content
             .containerRelativeFrame(.horizontal) { w, _ in max(0, w - 2 * edge) }
             .fixedSize(horizontal: false, vertical: true)
-            .opacity(expanded ? 1 : 0)
-            .scaleEffect(expanded ? 1 : 0.4, anchor: .top)
-            .blur(radius: expanded ? 0 : 8)
-            .frame(width: expanded ? nil : pill.width, height: expanded ? nil : pill.height, alignment: .top)
             .background(Color.black, in: shape)
-            .overlay(shape.strokeBorder(Color.white.opacity(expanded ? 0.1 : 0), lineWidth: 1))
+            .overlay(shape.strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
             .clipShape(shape)
-            .shadow(color: .black.opacity(expanded ? 0.28 : 0), radius: 18, y: 8)
+            .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
             .contentShape(shape)
             .onTapGesture { store.banner = nil }
             .gesture(
@@ -262,37 +248,64 @@ struct BannerView: View {
             )
             .offset(y: drag)
             .padding(.top, edge)
+            // 黑底：里面的次按钮、示範标签都按深色画（白字白边）。
+            .environment(\.colorScheme, .dark)
             .accessibilityElement(children: .contain)
             .accessibilityAction(named: "關閉") { store.banner = nil }
+            .task {
+                try? await Task.sleep(for: .milliseconds(200))
+                bounce += 1
+            }
     }
 
-    private func content(_ b: BannerItem) -> some View {
+    private var content: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: b.symbol)
+                Image(systemName: item.symbol)
                     .font(.system(size: 28, weight: .semibold))
                     .foregroundStyle(DS.accent)
-                    .symbolEffect(.bounce, options: .nonRepeating, value: expanded)
+                    .symbolEffect(.bounce, options: .nonRepeating, value: bounce)
                     .frame(width: 36, height: 36)
                     .accessibilityHidden(true)
-                Text(b.text)
-                    .ds(.body)
-                    .foregroundStyle(.white)
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 8) {
+                    // 不限行数、不缩字：大字号时横幅变高，不截断（审核 A41）。
+                    Text(item.text)
+                        .ds(.body)
+                        .foregroundStyle(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if isDemo { DemoBadge() }
+                }
             }
-            if let title = b.actionTitle, b.action != .none {
+            if let title = item.actionTitle, item.action != .none {
+                // 次按钮：今日页的卡已经有同一个主按钮（一屏只一个橙色主按钮）。
                 Button { store.bannerAction() } label: {
                     Text(title).frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.dsPrimary)
+                .buttonStyle(.dsSecondary)
             }
         }
         // 顶部留出摄像头（灵动岛）的位置：黑色外框包住它，文字从它下面开始。
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
         .padding(.top, 46)
+    }
+}
+
+private extension AnyTransition {
+    /// 灵动岛：由顶部胶囊处放大展开、收起时缩回去（模糊 + 淡出）。
+    static var island: AnyTransition {
+        .modifier(active: IslandEffect(progress: 0), identity: IslandEffect(progress: 1))
+    }
+}
+
+private struct IslandEffect: ViewModifier {
+    var progress: CGFloat
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(x: 0.32 + 0.68 * progress, y: 0.1 + 0.9 * progress, anchor: .top)
+            .blur(radius: (1 - progress) * 8)
+            .opacity(Double(min(1, progress * 1.6)))
     }
 }
 
@@ -492,6 +505,7 @@ private struct PhrasePickerCard: View {
 
 private struct HeardCard: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
     let card: VoiceCard
     @State private var appeared = false
 
@@ -507,7 +521,7 @@ private struct HeardCard: View {
                         .accessibilityLabel("做咗")
                 }
                 Text(card.title).ds(.bodyBold)
-                AITag()
+                AIBadge(spoken: "AI 理解")
             }
             if let d = card.detail, !d.isEmpty {
                 Text(d).ds(.caption).foregroundStyle(.secondary)
@@ -540,23 +554,11 @@ private struct HeardCard: View {
         }
         .task(id: card.id) {
             appeared = true
-            guard !card.needsConfirm else { return }
-            try? await Task.sleep(for: .seconds(4))
+            // 读屏开着就不自动收（要时间找「撤回」）；平时 8 秒，长者也来得及按。
+            guard !card.needsConfirm, !voiceOver else { return }
+            try? await Task.sleep(for: .seconds(8))
             if !Task.isCancelled, store.voiceCard?.id == card.id { store.voiceCard = nil }
         }
-    }
-}
-
-/// 标明这段内容由 AI 得出。
-private struct AITag: View {
-    var body: some View {
-        Text("AI")
-            .ds(.captionBold)
-            .foregroundStyle(DS.accent)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 2)
-            .background(DS.accentSoft, in: Capsule())
-            .accessibilityLabel("AI 理解")
     }
 }
 

@@ -193,6 +193,7 @@ extension AppStore {
                            colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 0, todayLine: "", isMe: true)
         meR.homeLandmarkID = nearestLandmark(to: scene.homeTarget)?.id
         list.append(meR)
+        applyLooks(&list)
         residents = list
         if LaunchArgs.has("-withNeighbor"), !list.isEmpty, !list[0].isMe { residents[0].isNeighbor = true; residents[0].neighborSince = Date() }
         dropStaleReferences()
@@ -259,7 +260,7 @@ extension AppStore {
             guard let lm = landmark(n.atLandmarkID) else { continue }
             people.append(ScenePerson(id: n.id, color: n.uiColor, mobility: n.mobility, motion: .wander(around: lm.pos), label: n.name))
         }
-        scene.setPeople(people)
+        scene.setPeople(people.map(withLook))
         scene.homeLabel = (walk == nil && find == nil) ? "你屋企 · 已隱身" : nil
         scene.reportMarks = reports.map { (id: $0.id.uuidString, pos: $0.pos, text: $0.kind.rawValue) }
     }

@@ -128,7 +128,7 @@ struct FindAskCard: View {
             let agreed = store.partnerAgreed && f.stage != .declined
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top, spacing: 12) {
-                    AvatarBadge(color: p.color, mobility: p.mobility, size: 52)
+                    AvatarBadge(p, size: 52)
                     VStack(alignment: .leading, spacing: 4) {
                         Text("問緊\(p.name)").ds(.bodyBold)
                         Text("「\(store.me.floorLabel)想過嚟搵你，喺\(place)等陣？」")
@@ -152,14 +152,14 @@ struct FindAskCard: View {
                     } icon: {
                         Image(systemName: "moon.zzz.fill").foregroundStyle(.secondary)
                     }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(DS.slide(.bottom))
                 } else if agreed {
                     Label {
                         Text("\(p.name)話好：喺\(place)等你").ds(.bodyBold)
                     } icon: {
                         FSPopSymbol(name: "checkmark.circle.fill", size: 26, color: DS.accent)
                     }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(DS.slide(.bottom))
                 }
 
                 HStack(spacing: 8) {
@@ -201,17 +201,18 @@ struct FindOverlay: View {
                         HStack { Spacer(minLength: 0); DemoMenu() }
                     }
                     topCard(f, p, place)
+                    ToastView()   // 提示放在顶卡下面（全屏时 MainView 不画自己那个）
                     Spacer(minLength: 0)
                     if f.latePrompt && f.stage != .met {
                         lateCard(p)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .transition(DS.slide(.bottom))
                     } else if f.stage != .met {
                         if f.stage == .near {
                             nearPill(f, p)
                                 .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
                         }
                         bottomBar(f, place)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .transition(DS.slide(.bottom))
                     }
                 }
                 .padding(.horizontal, DS.side)
@@ -240,7 +241,7 @@ struct FindOverlay: View {
         let eta = max(1, f.etaMinutes)
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                AvatarBadge(color: p.color, mobility: p.mobility, size: 52)
+                AvatarBadge(p, size: 52)
                 Group {
                     if f.stage == .met {
                         Text("見到\(p.name)喇")
@@ -262,6 +263,7 @@ struct FindOverlay: View {
                 .animation(DS.motion(DS.snappy), value: eta)
                 Spacer(minLength: 0)
             }
+            if p.isDemo { DemoBadge(text: "示範：對方位置係模擬") }
             if let b = f.broadcast {
                 Label {
                     Text("已話俾\(p.name)知：\(b)")
@@ -272,7 +274,7 @@ struct FindOverlay: View {
                 }
                 .ds(.caption)
                 .foregroundStyle(.secondary)
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .transition(DS.slide(.top))
             }
         }
         .padding(16)

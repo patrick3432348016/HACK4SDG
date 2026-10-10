@@ -19,11 +19,8 @@ struct SettingsView: View {
                     Stepper(value: Binding(get: { store.floorChoice }, set: { store.setFloor($0) }), in: 1...max(1, store.homeLevels)) {
                         LabeledContent("樓層", value: "\(store.floorChoice) 樓")
                     }
-                    Picker("小人", selection: Binding(get: { store.mobilityChoice }, set: { store.setAvatar(mobility: $0) })) {
-                        ForEach(Mobility.allCases, id: \.self) { m in
-                            Label(m.label, systemImage: AvatarBadge(color: .clear, mobility: m).symbol).tag(m)
-                        }
-                    }
+                    DSMenuPicker(title: "小人", selection: Binding(get: { store.mobilityChoice }, set: { store.setAvatar(mobility: $0) }),
+                                 options: Mobility.allCases, label: \.label)
                     colorRow
                 } header: {
                     Text("我").ds(.caption)
@@ -32,12 +29,8 @@ struct SettingsView: View {
                 Section {
                     Toggle("出門提醒", isOn: $store.remindAll).tint(DS.accent)
                     if store.remindAll {
-                        Picker("由", selection: $store.remindFrom) {
-                            ForEach(5..<24, id: \.self) { Text(TemplateAI.hourLabel($0)).tag($0) }
-                        }
-                        Picker("到", selection: $store.remindTo) {
-                            ForEach(6..<24, id: \.self) { Text(TemplateAI.hourLabel($0)).tag($0) }
-                        }
+                        DSMenuPicker(title: "由", selection: $store.remindFrom, options: Array(5..<24), label: TemplateAI.hourLabel)
+                        DSMenuPicker(title: "到", selection: $store.remindTo, options: Array(6..<24), label: TemplateAI.hourLabel)
                     }
                 } header: {
                     Text("街坊出門話我知").ds(.caption)
@@ -67,8 +60,10 @@ struct SettingsView: View {
             .navigationTitle("設定")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // 标题和「完成」都用设计规范字号（系统默认 17pt 太小）。
+                ToolbarItem(placement: .principal) { Text("設定").ds(.bodyBold).accessibilityAddTraits(.isHeader) }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { store.showSettings = false }.foregroundStyle(DS.accent)
+                    Button { store.showSettings = false } label: { Text("完成").ds(.bodyBold) }.foregroundStyle(DS.accent)
                 }
             }
             .confirmationDialog("清除全部紀錄？", isPresented: $confirmClear, titleVisibility: .visible) {
@@ -99,7 +94,7 @@ struct SettingsView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("顏色 \(i + 1)")
+                .accessibilityLabel(Palette.name(i))
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
         }

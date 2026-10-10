@@ -21,26 +21,74 @@ struct Resident: Identifiable, Equatable {
     var neighborSince: Date?
     /// 示範街坊：单机演示时由 LocalCommunityService 模拟的居民（界面要标明）。
     var isDemo = false
+    /// 外形（规格 §4：不同肤色、年龄）。由 AppStore.applyLooks 填：示範街坊各一套，我用自己选的。
+    var skinTone = 1
+    var ageGroup: AgeGroup = .adult
+    /// 上个月圈对圈赢了：头像加小奖牌（F4）。
+    var hasMedal = false
 
     var floorLabel: String { "\(floor) 樓" }
-    var listName: String { isMe ? "\(floor) 樓 · 你" : (isNeighbor ? "\(floor) 樓 \(name)" : "\(floor) 樓") }
+    /// 座名只留中文部分（"皇滙樓 Wong Wui House" → "皇滙樓"）；没有名就不显示。
+    var blockShort: String? {
+        guard let b = blockName?.split(separator: " ").first.map(String.init), !b.isEmpty else { return nil }
+        return b
+    }
+    /// 排行榜：座数 + 楼层；街坊加名字；非街坊永远不出名字、不出门牌。
+    var listName: String {
+        let place = [blockShort, floorLabel].compactMap { $0 }.joined(separator: " ")
+        return isMe ? "\(place) · 你" : (isNeighbor ? "\(place) \(name)" : place)
+    }
     var color: Color { Palette.person(colorIndex) }
     var uiColor: UIColor { Palette.personUI(colorIndex) }
 }
 
+/// 年龄段（卡通形象用）：長者白头发，後生身形小一点。
+enum AgeGroup: String, Codable, CaseIterable {
+    case elder, adult, young
+    var label: String {
+        switch self {
+        case .elder: return "長者"
+        case .adult: return "中年"
+        case .young: return "後生"
+        }
+    }
+}
+
+/// 人物配色：色弱（红 / 绿 / 蓝色盲模拟）下两两色差 ΔE2000 ≥ 12，
+/// 对浅色、深色地面对比度都 ≥ 2.2（ios/tools/cvd_check.py 计算）。「我」固定橙色。
 enum Palette {
     static let people: [UIColor] = [
-        UIColor(red: 0.114, green: 0.620, blue: 0.459, alpha: 1),  // 绿
-        UIColor(red: 0.498, green: 0.467, blue: 0.867, alpha: 1),  // 紫
-        UIColor(red: 0.216, green: 0.541, blue: 0.867, alpha: 1),  // 蓝
-        UIColor(red: 0.831, green: 0.325, blue: 0.494, alpha: 1),  // 粉
-        UIColor(red: 0.729, green: 0.459, blue: 0.090, alpha: 1),  // 琥珀
-        UIColor(red: 0.373, green: 0.369, blue: 0.353, alpha: 1),  // 灰
-        UIColor(red: 0.847, green: 0.353, blue: 0.188, alpha: 1),  // 橙（我）
+        UIColor(red: 0.322, green: 0.678, blue: 0.639, alpha: 1),  // 青绿 #52ADA3
+        UIColor(red: 0.624, green: 0.518, blue: 0.976, alpha: 1),  // 浅紫 #9F84F9
+        UIColor(red: 0.243, green: 0.467, blue: 0.678, alpha: 1),  // 蓝 #3E77AD
+        UIColor(red: 0.698, green: 0.173, blue: 0.494, alpha: 1),  // 紫红 #B22C7E
+        UIColor(red: 0.894, green: 0.596, blue: 0.000, alpha: 1),  // 黄 #E49800
+        UIColor(red: 0.522, green: 0.478, blue: 0.451, alpha: 1),  // 灰 #857A73
+        UIColor(red: 0.847, green: 0.353, blue: 0.188, alpha: 1),  // 橙（我）#D85A30
     ]
     static let meIndex = 6
-    static func personUI(_ i: Int) -> UIColor { people[((i % people.count) + people.count) % people.count] }
+    private static let names = ["青綠色", "淺紫色", "藍色", "紫紅色", "黃色", "灰色", "橙色"]
+    static func personUI(_ i: Int) -> UIColor { people[wrap(i)] }
     static func person(_ i: Int) -> Color { Color(personUI(i)) }
+    /// 读屏用的颜色名（设置页、首次使用同一套）。
+    static func name(_ i: Int) -> String { names[wrap(i)] }
+    private static func wrap(_ i: Int) -> Int { ((i % people.count) + people.count) % people.count }
+
+    /// 肤色四档（浅 → 深），卡通化、低饱和，配纸雕画风。
+    static let skins: [UIColor] = [
+        UIColor(red: 0.980, green: 0.851, blue: 0.788, alpha: 1),  // #FAD9C9
+        UIColor(red: 0.929, green: 0.741, blue: 0.620, alpha: 1),  // #EDBD9E
+        UIColor(red: 0.776, green: 0.557, blue: 0.408, alpha: 1),  // #C68E68
+        UIColor(red: 0.494, green: 0.329, blue: 0.231, alpha: 1),  // #7E543B
+    ]
+    private static let skinNames = ["淺膚色", "中淺膚色", "中深膚色", "深膚色"]
+    static func skinName(_ i: Int) -> String { skinNames[min(max(i, 0), skinNames.count - 1)] }
+    static func skinUI(_ i: Int) -> UIColor { skins[min(max(i, 0), skins.count - 1)] }
+    static func skin(_ i: Int) -> Color { Color(skinUI(i)) }
+    /// 头发：長者白、其他深啡。
+    static func hairUI(_ age: AgeGroup) -> UIColor {
+        age == .elder ? UIColor(white: 0.93, alpha: 1) : UIColor(red: 0.20, green: 0.15, blue: 0.13, alpha: 1)
+    }
 }
 
 struct Appointment: Identifiable, Equatable, Codable {

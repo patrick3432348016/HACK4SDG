@@ -17,7 +17,8 @@ enum Mobility: String, Codable, CaseIterable {
 /// 场景里的小人、地标标记、树。尺寸以地图米计（会被放大，保证远看也认得出）。
 enum Figures {
     /// 小人高约 14 m（真人的 8 倍左右），远景也看得见。
-    static func person(color: UIColor, mobility: Mobility) -> SCNNode {
+    /// 外形极简：胶囊身 + 圆头（肤色四档）+ 一块发片（長者白发）；後生身形小一号。
+    static func person(color: UIColor, mobility: Mobility, skin: Int = 1, age: AgeGroup = .adult) -> SCNNode {
         let root = SCNNode()
         let body = SCNNode()
         body.name = "body"
@@ -33,10 +34,20 @@ enum Figures {
 
         let head = SCNSphere(radius: 2.6 * s)
         head.segmentCount = 16
-        head.firstMaterial = MeshBuilder.material(SceneStyle.skin)
+        head.firstMaterial = MeshBuilder.material(Palette.skinUI(skin))
         let headNode = SCNNode(geometry: head)
         headNode.position = SCNVector3(0, Float(seated ? 11.4 : 11.9) * SceneStyle.scale, 0)
         body.addChildNode(headNode)
+
+        // 头发：压扁的半球盖住头顶（只做一块，宁少勿杂）。
+        let hair = SCNSphere(radius: 2.75 * s)
+        hair.segmentCount = 16
+        hair.firstMaterial = MeshBuilder.material(Palette.hairUI(age))
+        let hairNode = SCNNode(geometry: hair)
+        hairNode.scale = SCNVector3(1, 0.55, 1)
+        hairNode.position = SCNVector3(0, Float(seated ? 12.5 : 13.0) * SceneStyle.scale, 0.15 * SceneStyle.scale)
+        body.addChildNode(hairNode)
+        if age == .young { body.scale = SCNVector3(0.86, 0.86, 0.86) }
 
         let grey = MeshBuilder.material(UIColor(white: 0.35, alpha: 1))
         switch mobility {

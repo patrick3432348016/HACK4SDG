@@ -84,6 +84,9 @@ final class AppStore: NeighborRegistry {
     var floorChoice = 12
     var mobilityChoice: Mobility = .walk
     var colorChoice = Palette.meIndex
+    /// 我的外形：肤色档、年龄段（首次使用 / 设置里选；即时存盘）。
+    var skinChoice = UserDefaults.standard.object(forKey: "skin") as? Int ?? 1 { didSet { UserDefaults.standard.set(skinChoice, forKey: "skin") } }
+    var ageChoice = AgeGroup(rawValue: UserDefaults.standard.string(forKey: "age") ?? "") ?? .elder { didSet { UserDefaults.standard.set(ageChoice.rawValue, forKey: "age") } }
 
     /// 演示模式：圈里有示範街坊、右上有演示菜单。设置里可以关；启动参数 -demo 强制开。
     var demoMode = LaunchArgs.has("-demo") || UserDefaults.standard.object(forKey: "demoMode") as? Bool ?? true
@@ -163,7 +166,7 @@ final class AppStore: NeighborRegistry {
         Haptics.warning()
         bannerTask?.cancel()
         bannerTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(8))
+            try? await Task.sleep(for: .seconds(UIAccessibility.isVoiceOverRunning ? 30 : 8))   // 读屏开着：30 秒，留时间找按钮（A43）
             if !Task.isCancelled { withAnimation(.spring(response: 0.4, dampingFraction: 0.9)) { self.banner = nil } }
         }
     }

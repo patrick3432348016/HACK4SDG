@@ -4,6 +4,7 @@ import SwiftUI
 
 struct DemoMenu: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         Menu {
@@ -46,7 +47,8 @@ struct DemoMenu: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "sparkles")
-                Text("演示")
+                // 大字号时只留图标，让位给左边「行緊 N 分鐘」。
+                if !typeSize.isAccessibilitySize { Text("演示") }
             }
             .ds(.caption)
             .foregroundStyle(.primary)
@@ -57,6 +59,8 @@ struct DemoMenu: View {
             .contentShape(Capsule())
         }
         .menuOrder(.fixed)
+        // Menu 的 label 不跟 foregroundStyle，会变系统蓝；用中性色，和左边齿轮一致。
+        .tint(.primary)
         .accessibilityLabel("演示選單")
     }
 }
@@ -121,7 +125,7 @@ struct TimeSliderSheet: View {
                     Label("跟返而家時間", systemImage: "clock.arrow.circlepath")
                 }
                 .buttonStyle(.dsSecondary)
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .transition(DS.slide(.top))
             }
 
             Text("地標遮蔭 · 按畫面入面啲樓大約計（唔計樹）")
@@ -140,9 +144,7 @@ struct TimeSliderSheet: View {
         .padding(.top, 24)
         .animation(DS.motion(DS.spring), value: store.demoHour == nil)
         .sensoryFeedback(.selection, trigger: hour)
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+        // 半屏高度、底色由 MainView 的 .sheet 统一设定（以前两处设定不一致）。
         .onAppear { setLocal(Self.clamp(store.demoHour ?? Self.realHour())) }
         .onChange(of: hour) { _, new in
             if syncing { syncing = false } else { store.setDemoHour(new) }
@@ -262,7 +264,7 @@ struct ReportView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if store.monthlyStats.isDemo {
-                    DemoNote(text: "單機演示：全邨人次同其他居民嘅反映係示範數據；你自己嘅散步同反映係真嘅。")
+                    DemoNote(text: "單機演示：全邨人次、你嘅散步紀錄同其他居民嘅反映係示範數據；你自己嘅反映係真嘅。")
                 }
 
                 HStack(spacing: 8) {
@@ -344,4 +346,10 @@ struct ReportView: View {
         .dsCard()
         .accessibilityElement(children: .combine)
     }
+}
+
+/// 截图自检：启动参数 `-uiPreview <名>` 直接摆出要检查的界面（模拟器点不到时用）。
+/// declined = 同意页按了「唔同意」；buildingList = 选楼清单；todayBottom = 今日页滚到底。
+enum UIPreview {
+    static func `is`(_ name: String) -> Bool { LaunchArgs.value("-uiPreview") == name }
 }
