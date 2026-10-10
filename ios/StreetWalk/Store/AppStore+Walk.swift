@@ -28,7 +28,7 @@ extension AppStore {
         community.publishOuting(landmarkID: nearestLandmark(to: route[0])?.id)
         paceTip = nil
         tab = .today
-        speaker.speak("偵測到你出咗門，開始記錄，唔使撳任何掣。")
+        say("偵測到你出咗門，開始記錄，唔使撳任何掣。")
         Haptics.light()
         scene.followID = "me"
         scene.setCamera(target: route[0], distance: scene.overviewDistance * 0.85, animated: true)
@@ -76,7 +76,7 @@ extension AppStore {
         scene.setTrail(prefix(of: w.route, upTo: w.travelled))
         if w.minutes == 18 && paceTip == nil, let seat = landmarks.first(where: { $0.hasSeat && !w.passed.contains($0.id) }) ?? landmarks.first(where: \.hasSeat) {
             paceTip = "行慢咗少少。前面\(seat.name)有櫈，可以唞陣。"
-            speaker.speak(paceTip!)
+            showBanner(BannerItem(symbol: "chair.lounge.fill", text: paceTip!)); say(paceTip!)
         }
         walk = w
         if w.travelled >= total { finishWalk() }
@@ -105,7 +105,7 @@ extension AppStore {
         paceTip = nil
         syncScene()
         scene.resetCamera()
-        speaker.speak("返到屋企喇。今日行咗 \(max(w.minutes, 1)) 分鐘，經過 \(w.passed.count) 個地方。而家已經隱身。")
+        say("返到屋企喇。今日行咗 \(max(w.minutes, 1)) 分鐘，經過 \(w.passed.count) 個地方。而家已經隱身。")
         Haptics.success()
     }
 
@@ -195,7 +195,7 @@ extension AppStore {
         let key = LocalStore.dayKey(now)
         if leaveDays.contains(key) { leaveDays.remove(key) } else { leaveDays.insert(key) }
         refreshMe()
-        speaker.speak(me.onLeave ? "收到，今日請假。連續 \(me.streakDays) 日會保留。" : "撤回咗請假。")
+        say(me.onLeave ? "收到，今日請假。連續 \(me.streakDays) 日會保留。" : "撤回咗請假。")
         Haptics.light()
     }
 }

@@ -2,7 +2,7 @@
 
 状态：**未实现，原型阶段是单机演示**（2026-10-07 定）。App 里所有"要和别人同步"的操作都经过 `CommunityService` 协议（`ios/StreetWalk/Store/Community.swift`）。现在用的是 `LocalCommunityService`：数据只存在手机，圈里的其他人是「示範街坊」，界面上标了「示範」。
 
-上线时新写一个 `SupabaseCommunityService`，实现同一个协议，App 其他部分都不用改。本文是它的表结构、权限规则和对应关系。
+上线时新写一个 `SupabaseCommunityService`，实现同一个协议。2026-10-08 起找人（问对方、对方回覆、播送、出门 / 途中 / 到达）、每日汇总、请假、个人资料、撤回反映也都在协议里了；其中每日汇总、请假、个人资料的调用点还没接上（见 §5 末尾）。本文是它的表结构、权限规则和对应关系。
 
 表以规格 §7 初稿为底（§7 写明"第 1 天两人一起确认"），按隐私原则做了这些改动：
 
@@ -234,9 +234,18 @@ create policy "own reports" on reports for all using (user_id = auth.uid()) with
 | `publishOuting` | `upsert outings`（地标）/ `delete`（回家隐身） |
 | `sendInvite` / `respond` / `updateMeetup` | `insert` / `update meetups`；对方用 Realtime 订阅 `meetups` 收到变化 |
 | `renameLandmark` | `update landmarks set name`（同圈生效；策略限同圈成员、只开放 name 一栏） |
-| `submitReport` | `insert into reports` |
+| `submitReport` | `insert into reports`（`Report.rawText` → `raw_text`；`pos` 不上传，只传 `landmark_id`） |
+| `retractReport` | `delete from reports where id = … and user_id = auth.uid()`（策略 "own reports" 已允许） |
+| `askToFind` / `cancelFindAsk` | Realtime Broadcast（两人私有频道，Realtime Authorization 只放行两个当事人，只传地标 id）；对方撳「好 / 唔方便」后回传，App 按 `answer` 回调处理 |
+| `broadcast` | 同一频道发一句「我喺X」/「我就到X」，不落表 |
+| `departForMeetup` / `endMeetupTrip` | `meetup:<id>` 频道：我出门 + 大约几分钟；对方出门、途中、到达时回传 `PartnerTrip(etaMinutes, arrived)`（可以多次），不落表、不传坐标 |
+| `uploadDay` | `upsert walks (user_id, day, minutes, steps, landmark_ids, stop_landmark_ids, daily_line)` |
+| `setLeave` | `insert` / `delete from leaves` |
+| `updateProfile` | `update users set floor, avatar`（avatar 存 mobility、color） |
 | `passersToday` / `circleRace` / `monthlyStats` / `othersReports` | 上面第 4 节的视图和函数 |
 | `onEvent` | Realtime：订阅 `outings`（街坊出门）、`meetups`（约会变化）、`reports.follow_up`（反映回覆） |
+
+未接调用点（接口和单机实现已有，调用由「散步与数据」一边加）：`uploadDay`（`finishWalk` 里 `recordWalk` 之后；改名后当日一句变了也要再传一次）、`setLeave`（`toggleLeave`）、`updateProfile`（`finishOnboarding`、设置页 `setFloor` / `setAvatar`）。
 
 ## 6. 上线步骤（估计）
 

@@ -41,6 +41,39 @@ protocol CommunityService: AnyObject {
     func monthlyStats(myWalks: Int, myMeetups: Int, estateHomes: Int) -> MonthlyStats
     /// 其他居民的匿名反映（月报用）。
     func othersReports(landmarks: [Landmark]) -> [Report]
+
+    // MARK: F8 找人（2026-10-08 补）
+    // 只传地标 id、分钟数同一句播送；双方位置唔离开手机。
+
+    /// 散步中临时"過去搵佢"：先问对方方唔方便。对方答复经 answer 送返（真后端：对方撳「好 / 唔方便」，Realtime 推返嚟）。
+    func askToFind(partnerID: String, landmarkID: String, answer: @escaping (_ accepted: Bool) -> Void)
+    /// 我取消 / 结束咗：撤回仲未答嘅询问。
+    func cancelFindAsk(partnerID: String)
+    /// 播送一句俾对方（「我喺X」「我就到X」）。
+    func broadcast(to partnerID: String, text: String)
+    /// 约会当日我出发：话俾对方知我大约几分钟到。对方出门、途中、到达都经 partnerUpdate 送返（可以多次；
+    /// 第一次 = 佢出咗门）。真后端双方位置都唔离开手机，App 只靠呢度知道对方几耐到、到咗未。
+    func departForMeetup(_ appointmentID: UUID, etaMinutes: Int, partnerUpdate: @escaping (_ trip: PartnerTrip) -> Void)
+    /// 见到面 / 结束找人：停止通知。
+    func endMeetupTrip(_ appointmentID: UUID, met: Bool)
+
+    // MARK: 每日汇总、请假、个人资料、撤回反映（2026-10-08 补）
+
+    /// 当日汇总（walks 表）：分钟数、步数（圈对圈）、经过的地标、落脚点地标、当日一句。排行榜上别人睇到嘅就係呢啲。
+    func uploadDay(day: String, minutes: Int, steps: Int, landmarkIDs: [String], stopLandmarkIDs: [String], line: String)
+    /// 请假（leaves 表）：连续天数唔断。
+    func setLeave(day: String, on: Bool)
+    /// 个人资料（users 表）：楼层、行动方式、颜色。名只俾街坊睇。
+    func updateProfile(floor: Int, mobility: Mobility, colorIndex: Int)
+    /// 撤回自己的一条反映。
+    func retractReport(_ id: UUID)
+}
+
+/// F8 约会当日对方嘅进度（只有分钟数同到咗未，冇坐标）。
+struct PartnerTrip: Equatable {
+    /// 大约仲要几分钟到约定地方；nil = 对方冇讲（单机由 App 按模拟路线估）。
+    var etaMinutes: Int?
+    var arrived = false
 }
 
 enum CommunityEvent {
@@ -71,6 +104,11 @@ final class LocalCommunityService: CommunityService {
     var declineNext = false
     /// 每个约会只留最新一次模拟回覆（改咗时间地点，旧回覆作废）。
     private var pending: [UUID: Task<Void, Never>] = [:]
+    /// 重启后要接返的约会：等圈成员装好（circleMembers）先排回覆，免得横幅出空名、空地点。
+    private var resumeLater: [UUID] = []
+    /// 找人询问、约会当日对方出门：每个对方 / 约会只留最新一次模拟。
+    private var findAsks: [String: Task<Void, Never>] = [:]
+    private var trips: [UUID: Task<Void, Never>] = [:]
 
     init(demoEnabled: Bool) { self.demoEnabled = demoEnabled }
 
@@ -81,6 +119,7 @@ final class LocalCommunityService: CommunityService {
     ]
 
     func circleMembers(blocks: [String], landmarks: [Landmark]) -> [Resident] {
+        defer { flushResume() }
         guard demoEnabled else { return [] }
         let seatFirst = landmarks.sorted { ($0.hasSeat ? 0 : 1, $0.pos.length) < ($1.hasSeat ? 0 : 1, $1.pos.length) }
         return Self.roster.enumerated().map { i, r in
@@ -108,7 +147,13 @@ final class LocalCommunityService: CommunityService {
     }
 
     func resume(_ appointments: [Appointment]) {
-        for a in appointments where a.status == .waiting && !a.fromPartner && a.date > Date() { answerLater(a.id, after: 3) }
+        resumeLater = appointments.filter { $0.status == .waiting && !$0.fromPartner && $0.date > Date() }.map(\.id)
+    }
+
+    private func flushResume() {
+        let ids = resumeLater
+        resumeLater = []
+        for id in ids { answerLater(id, after: 3) }
     }
 
     private func answerLater(_ id: UUID, after s: Double) {
@@ -122,6 +167,52 @@ final class LocalCommunityService: CommunityService {
             self.onEvent?(.inviteAnswered(appointmentID: id, accepted: accept))
         }
     }
+
+    // MARK: F8 找人（模拟：示範街坊 2.4 秒后答；演示菜单「陳太唔方便（下一次）」会拒绝一次）
+
+    func askToFind(partnerID: String, landmarkID: String, answer: @escaping (Bool) -> Void) {
+        findAsks[partnerID]?.cancel()
+        findAsks[partnerID] = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2.4))
+            guard !Task.isCancelled else { return }
+            self.findAsks[partnerID] = nil
+            // 答嗰陣先用「唔方便」：中途取消唔会用咗佢。
+            let accept = !self.declineNext
+            self.declineNext = false
+            answer(accept)
+        }
+    }
+
+    func cancelFindAsk(partnerID: String) {
+        findAsks[partnerID]?.cancel()
+        findAsks[partnerID] = nil
+    }
+
+    /// 单机：冇对方部手机，播送只喺本机显示。
+    func broadcast(to partnerID: String, text: String) {}
+
+    /// 单机：示範街坊 1.5 秒后出门，只报一次（之后嘅进度、到达由 App 按模拟路线自己行）。
+    func departForMeetup(_ appointmentID: UUID, etaMinutes: Int, partnerUpdate: @escaping (PartnerTrip) -> Void) {
+        trips[appointmentID]?.cancel()
+        trips[appointmentID] = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
+            self.trips[appointmentID] = nil
+            partnerUpdate(PartnerTrip(etaMinutes: nil))
+        }
+    }
+
+    func endMeetupTrip(_ appointmentID: UUID, met: Bool) {
+        trips[appointmentID]?.cancel()
+        trips[appointmentID] = nil
+    }
+
+    // MARK: 每日汇总、请假、个人资料、撤回反映（单机：只存本机，冇嘢要上传）
+
+    func uploadDay(day: String, minutes: Int, steps: Int, landmarkIDs: [String], stopLandmarkIDs: [String], line: String) {}
+    func setLeave(day: String, on: Bool) {}
+    func updateProfile(floor: Int, mobility: Mobility, colorIndex: Int) {}
+    func retractReport(_ id: UUID) {}
 
     // MARK: 演示触发（演示菜单 / 自动脚本）
 

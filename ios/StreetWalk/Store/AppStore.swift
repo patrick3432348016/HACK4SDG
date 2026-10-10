@@ -92,6 +92,12 @@ final class AppStore: NeighborRegistry {
     var remindFrom = UserDefaults.standard.object(forKey: "remindFrom") as? Int ?? 7 { didSet { UserDefaults.standard.set(remindFrom, forKey: "remindFrom") } }
     var remindTo = UserDefaults.standard.object(forKey: "remindTo") as? Int ?? 21 { didSet { UserDefaults.standard.set(remindTo, forKey: "remindTo") } }
 
+    // 语音与社交流程（A 线追加）
+    /// 播报排队、读屏兼容、聆听时先收起（AppStore+Voice 的 say()）。
+    @ObservationIgnored let announcer = Announcer()
+    /// 按咪后等紧权限框：再撳唔会开两次。
+    @ObservationIgnored var micStarting = false
+
     var me: Resident { residents.first { $0.isMe } ?? Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true) }
     var neighbors: [Resident] { residents.filter { $0.isNeighbor && !$0.isMe } }
     var outNeighbors: [Resident] { neighbors.filter(\.isOut) }
@@ -153,13 +159,14 @@ final class AppStore: NeighborRegistry {
         case .goFind(let id): goFind(id)
         case .openNeighbors: tab = .neighbors
         case .depart(let id): if let a = appointments.first(where: { $0.id == id }), a.status == .accepted { departForAppointment(a) }
+        case .call(let id): call(id)
         case .none: break
         }
     }
 
     func toast(_ s: String) {
         withAnimation(.snappy) { toast = s }
-        speaker.speak(s)
+        say(s)
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(3.5))
             if self.toast == s { withAnimation(.snappy) { self.toast = nil } }

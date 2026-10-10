@@ -385,7 +385,7 @@ private struct ListeningCard: View {
                 Spacer(minLength: 0)
                 VoiceBars()
             }
-            Text(listener.transcript.isEmpty ? "講啦，例如「\(phrases.first ?? "今日請假")」" : "「\(listener.transcript)」")
+            Text(listener.transcript.isEmpty ? hint(phrases) : "「\(listener.transcript)」")
                 .ds(.body)
                 .foregroundStyle(listener.transcript.isEmpty ? Color.secondary : Color.primary)
                 .frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
@@ -397,7 +397,7 @@ private struct ListeningCard: View {
             }
             .buttonStyle(.dsPrimary)
             if !phrases.isEmpty {
-                Text("或者揀一句").ds(.caption).foregroundStyle(.secondary)
+                Text(store.renamingNow != nil ? "或者揀一個名" : "或者揀一句").ds(.caption).foregroundStyle(.secondary)
                 ChipFlow(spacing: DS.gap) {
                     ForEach(phrases, id: \.self) { p in
                         Button { store.pickPhrase(p) } label: {
@@ -415,6 +415,14 @@ private struct ListeningCard: View {
                 }
             }
         }
+    }
+}
+
+extension ListeningCard {
+    /// 改名中只要讲新名；其他时候举一句做例子。
+    fileprivate func hint(_ phrases: [String]) -> String {
+        if store.renamingNow != nil { return "講新名，例如「\(phrases.first ?? "大樹底")」" }
+        return "講啦，例如「\(phrases.first ?? "今日請假")」"
     }
 }
 
@@ -454,7 +462,7 @@ private struct PhrasePickerCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center) {
-                Text("揀一句").ds(.title)
+                Text(store.renamingNow != nil ? "揀一個新名" : "揀一句").ds(.title)
                 Spacer(minLength: 0)
                 Button { store.phrasePicker = false } label: {
                     Image(systemName: "xmark")
@@ -466,7 +474,7 @@ private struct PhrasePickerCard: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("關閉")
             }
-            Text("撳一句，等於講咗嗰句").ds(.caption).foregroundStyle(.secondary)
+            Text(store.renamingNow != nil ? "撳一個，等於講咗新名" : "撳一句，等於講咗嗰句").ds(.caption).foregroundStyle(.secondary)
             ForEach(store.suggestedPhrases, id: \.self) { p in
                 Button { store.pickPhrase(p) } label: {
                     HStack(spacing: 12) {

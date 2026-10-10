@@ -55,6 +55,8 @@ struct Appointment: Identifiable, Equatable, Codable {
     var fromPartner = false
     /// 已经提醒过"半個鐘後出發"。
     var reminded = false
+    /// F8：已经问过"過咗 10 分鐘，要唔要打電話"（可选值：旧存档没有这个字段也读得回）。
+    var lateAsked: Bool?
 
     /// 仲有效（未完成、未取消、未過期）。
     var isOpen: Bool { status == .waiting || status == .accepted }
@@ -87,6 +89,10 @@ struct FindSession: Equatable {
     var bearing: Double = 0          // 相对屏幕上方的角度（度）
     var latePrompt = false
     var broadcast: String?
+    /// 每次找人一个记号：延时回覆认返係边一次，旧回覆唔会落到新一次（A22）。
+    var token = UUID()
+    /// 约会找人：对方出咗门未（收到 CommunityService 通知先算）。临时找人对方已经喺地标等。
+    var partnerOut = true
 }
 
 struct WalkSession: Equatable {
@@ -119,10 +125,12 @@ struct Report: Identifiable, Equatable, Codable {
     var followUp: String?
     /// 回覆是演示模拟的（可选值：旧存档没有这个字段也读得回）。
     var followUpDemo: Bool?
+    /// 规格 §7：语音反映的原话（只在汇总前给 AI 分类，不对外）；撳掣反映没有。
+    var rawText: String?
 }
 
 struct BannerItem: Identifiable, Equatable {
-    enum Action: Equatable { case invite(String), goFind(String), openNeighbors, depart(UUID), none }
+    enum Action: Equatable { case invite(String), goFind(String), openNeighbors, depart(UUID), call(String), none }
     let id = UUID()
     var symbol: String
     var text: String
@@ -140,6 +148,8 @@ struct VoiceCard: Identifiable, Equatable {
     var intent: VoiceIntent
     /// 改约 / 取消约时复述的是边一个约会（按「好」就改呢个，唔再重新揀）。
     var appointmentID: UUID? = nil
+    /// 语音反映记低咗边一条（「撤回」就撤呢条，唔会撤错）。
+    var reportID: UUID? = nil
 }
 
 enum Weather: Equatable {

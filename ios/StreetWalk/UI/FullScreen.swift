@@ -45,7 +45,7 @@ struct BumpView: View {
             .padding(.horizontal, DS.side)
             .padding(.bottom, 16)
         }
-        .onAppear { store.speaker.speak("將手機貼近對方手機。") }
+        .onAppear { store.say("將手機貼近對方手機。") }
     }
 }
 
@@ -196,6 +196,10 @@ struct FindOverlay: View {
             let place = store.landmark(f.landmarkID)?.name ?? "約定地方"
             ZStack {
                 VStack(spacing: 8) {
+                    // 演示：约会找人时都撳得到演示菜单（「遲到」= 将时间拨到约定后 11 分钟）。
+                    if store.demoMode && !f.spontaneous {
+                        HStack { Spacer(minLength: 0); DemoMenu() }
+                    }
                     topCard(f, p, place)
                     Spacer(minLength: 0)
                     if f.latePrompt && f.stage != .met {
@@ -241,8 +245,14 @@ struct FindOverlay: View {
                     if f.stage == .met {
                         Text("見到\(p.name)喇")
                     } else if f.spontaneous {
-                        Text("\(p.name)喺\(place)等你 · 大約 \(eta) 分鐘")
+                        Text("\(p.name)喺\(place)等你 · 你大約 \(eta) 分鐘到")
+                    } else if !f.partnerOut {
+                        // 未收到对方出门通知，唔好讲佢出咗门（A19）。
+                        Text("約咗\(p.name)喺\(place) · 等緊佢出門")
+                    } else if f.etaMinutes == 0 {
+                        Text("\(p.name)已經喺\(place)等你")
                     } else {
+                        // 对方仲要几耐到约定地方（按佢剩低嘅路，A67）。
                         Text("\(p.name)出咗門 · 大約 \(eta) 分鐘到\(place)")
                     }
                 }
@@ -332,22 +342,61 @@ struct FindOverlay: View {
         .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
     }
 
+    /// 结束、播送、讲嘢（咪）。放得落就一行；大字号放唔落就播送占一行、其余排第二行（唔截字，A41）。
     private func bottomBar(_ f: FindSession, _ place: String) -> some View {
-        HStack(spacing: 8) {
-            Button { store.endFind() } label: { Text("結束") }
-                .buttonStyle(.dsSecondary)
-            Button { store.broadcastHere() } label: {
-                Label(f.spontaneous ? "我就到" : "我喺\(place)", systemImage: "speaker.wave.2.fill")
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .symbolEffect(.bounce, value: f.broadcast)
-                    .frame(maxWidth: .infinity)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                endButton(expand: false)
+                broadcastButton(f, place)
+                micButton(place)
             }
-            .buttonStyle(.dsPrimary)
+            VStack(spacing: 8) {
+                broadcastButton(f, place)
+                HStack(spacing: 8) {
+                    endButton(expand: true)
+                    micButton(place)
+                }
+            }
         }
         .padding(12)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DS.radius + 4, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: DS.radius + 4, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
+    }
+}
+
+extension FindOverlay {
+    fileprivate func endButton(expand: Bool) -> some View {
+        Button { store.endFind() } label: { Text("結束").frame(maxWidth: expand ? .infinity : nil) }
+            .buttonStyle(.dsSecondary)
+    }
+
+    fileprivate func broadcastButton(_ f: FindSession, _ place: String) -> some View {
+        Button { store.broadcastHere() } label: {
+            Label(f.spontaneous ? "我就到" : "我喺\(place)", systemImage: "speaker.wave.2.fill")
+                .symbolEffect(.bounce, value: f.broadcast)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.dsPrimary)
+    }
+
+    /// 找人途中都可以讲（例如「我喺涼亭」）：同主画面个咪一样，讲完照样复述再撳「好」（A21）。
+    fileprivate func micButton(_ place: String) -> some View {
+        let on = store.listening
+        return Button { store.micTapped() } label: {
+            Image(systemName: on ? "waveform" : "mic.fill")
+                .font(.system(size: 26, weight: .semibold))
+                .foregroundStyle(.white)
+                .contentTransition(.symbolEffect(.replace))
+                .symbolEffect(.variableColor.iterative.reversing, isActive: on)
+                .frame(width: DS.micSize, height: DS.micSize)
+                .background(DS.accent, in: Circle())
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.9), lineWidth: 3))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("講嘢")
+        .accessibilityValue(on ? "聽緊" : "")
+        .accessibilityHint(on ? "再撳一下講完" : "撳一下開始講，例如「我喺\(place)」")
     }
 }
 

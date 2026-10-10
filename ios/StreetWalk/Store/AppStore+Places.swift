@@ -21,30 +21,55 @@ extension AppStore {
     func rename(_ id: String, to name: String) {
         guard let i = landmarks.firstIndex(where: { $0.id == id }) else { return }
         let old = landmarks[i].name
+        let names = landmarks.map(\.name)
         landmarks[i].name = name
         landmarkNames[id] = name
         community.renameLandmark(id, to: name)
         scene.renameLandmark(id, to: name)
+        // 每日一句都用新名（F3 全产品统一，A83）；只换完整嘅地标名，「車站涼亭」唔会因为改「涼亭」而变。
+        for j in residents.indices where residents[j].todayLine.contains(old) {
+            residents[j].todayLine = Self.renamed(residents[j].todayLine, names: names, old: old, new: name)
+        }
         renaming = nil
-        speaker.speak("改咗。\(old)而家叫\(name)，同圈嘅街坊都會見到。")
+        say(community.isSimulated ? "改咗。\(old)而家叫\(name)，同圈嘅街坊都會見到。" : "改咗。\(old)而家叫\(name)。暫時只喺你部手機。")
         Haptics.success()
+    }
+
+    /// 句子入面嘅地标名由长到短先换做记号，再将旧名换新名、其余换返原名：短名唔会误中长名嘅一部分。
+    static func renamed(_ line: String, names: [String], old: String, new: String) -> String {
+        let sorted = Array(Set(names + [old])).filter { !$0.isEmpty }.sorted { $0.count > $1.count }
+        // 记号用私用区字符（一个名一个），唔会撞到地标名。
+        func mark(_ k: Int) -> String { String(Character(UnicodeScalar(0xF0000 + k)!)) }
+        var s = line
+        for (k, n) in sorted.enumerated() { s = s.replacingOccurrences(of: n, with: mark(k)) }
+        for (k, n) in sorted.enumerated() { s = s.replacingOccurrences(of: mark(k), with: n == old ? new : n) }
+        return s
     }
 
     // MARK: - F10 反映
 
-    func report(_ kind: ReportKind) {
+    /// rawText：语音反映的原话（规格 §7），撳掣反映没有。返回记低嗰条的 id（撤回用）。
+    @discardableResult
+    func report(_ kind: ReportKind, rawText: String? = nil) -> UUID {
         let pos = myPosition()
         let lm = nearestLandmark(to: pos)
-        let r = Report(kind: kind, pos: pos, landmarkID: lm?.id, date: now)
+        var r = Report(kind: kind, pos: pos, landmarkID: lm?.id, date: now)
+        r.rawText = rawText
         reports.append(r)
         community.submitReport(r)
         syncScene()
-        speaker.speak("記低咗：\(lm?.name ?? "呢度")\(kind.rawValue)。月尾會同其他街坊嘅反映一齊交俾屋邨管理。")
+        say(community.isSimulated
+            ? "記低咗：\(lm?.name ?? "呢度")\(kind.rawValue)。月尾會同其他街坊嘅反映一齊交俾屋邨管理。"
+            : "記低咗：\(lm?.name ?? "呢度")\(kind.rawValue)。暫時只存喺你部手機。")
         Haptics.light()
+        return r.id
     }
 
-    func undoLastReport() {
-        _ = reports.popLast()
+    /// 撤回一条反映：按 id 撤，唔会撤错；同时撤回已经交出去嘅（A18）。
+    func retractReport(_ id: UUID) {
+        guard let i = reports.firstIndex(where: { $0.id == id }) else { return }
+        reports.remove(at: i)
+        community.retractReport(id)
         syncScene()
     }
 
@@ -74,7 +99,7 @@ extension AppStore {
         let place = landmark(r.landmarkID)?.name ?? "呢度"
         let line = "你反映過「\(place)\(r.kind.rawValue)」。\(text)"
         showBanner(BannerItem(symbol: "checkmark.seal.fill", text: line))
-        speaker.speak(line)
+        say(line)
     }
 
     /// 演示：屋邨管理回覆最早一条未回覆的反映。
@@ -95,7 +120,7 @@ extension AppStore {
         refreshWeatherTip()
         if let tip = weatherTip {
             showBanner(BannerItem(symbol: w == .rain ? "cloud.heavyrain.fill" : "sun.max.fill", text: tip))
-            speaker.speak(tip)
+            say(tip)
         }
     }
 
@@ -113,6 +138,16 @@ extension AppStore {
         guard !hko.demoOverride else { return }
         weather = hko.report.map { $0.isRain ? .rain : $0.isHot ? .hot : .normal } ?? .normal
         refreshWeatherTip()
+        announceWeatherIfNeeded()
+    }
+
+    /// 实时天气转咗热 / 落雨：每日每档只讲一次（F9 唔回应唔重复）；画面喺今日卡。
+    func announceWeatherIfNeeded() {
+        guard phase == .main, weather != .normal, let tip = weatherTip else { return }
+        let key = "\(LocalStore.dayKey(now))|\(weather)"
+        guard UserDefaults.standard.string(forKey: "weatherSpoken") != key else { return }
+        UserDefaults.standard.set(key, forKey: "weatherSpoken")
+        say(tip)
     }
 
     /// 重置演示：回到实时天气。
@@ -132,15 +167,31 @@ extension AppStore {
         guard !hko.demoOverride, let r = hko.report else {
             // "天文台話"只留给真实数据；演示选的天气唔好冒认天文台
             if hko.demoOverride, let a = advice, a.hasPrefix("天文台話") { advice = String(a.dropFirst(4)) }
-            weatherTip = advice
+            weatherTip = advice.map { Self.oneSentence([$0]) }
             return
         }
         // 实时：句首讲明来源和读数；落雨时模板那句"下晝會落大雨"不一定对，改用这边的说法。
-        let rest = r.isDanger ? "今日唔好出門，留喺屋企安全啲。"
-            : weather == .rain
-            ? (["低", "中低"].contains(r.tomorrowPSR ?? "") ? "唔好勉強出門，聽日天氣好啲先行。" : "唔好勉強出門，等雨停先。")
-            : advice ?? ""
-        let line = r.line + rest
+        // 真係落紧雨先讲「等雨停」；只係降雨概率高就讲「可能會落雨」（A81）。
+        let rainingNow = r.warnings.contains { $0.code.hasPrefix("WRAIN") || $0.code == "WTS" }
+            || (r.rainMM ?? 0) >= 0.5 || (63...65).contains(r.icon ?? 0)
+        var rest = r.isDanger ? "今日唔好出門，留喺屋企安全啲"
+            : weather != .rain ? advice ?? ""
+            : !rainingNow ? "可能會落雨，出門記得帶遮，或者聽日先行"
+            : ["低", "中低"].contains(r.tomorrowPSR ?? "") ? "唔好勉強出門，聽日天氣好啲先行" : "唔好勉強出門，等雨停先"
+        // 天文台已经讲咗酷熱警告，就唔再讲一次「今日好熱」。
+        if r.walkWarnings.contains(where: { $0.contains("酷熱") }) {
+            rest = rest.replacingOccurrences(of: "今日好熱。", with: "").replacingOccurrences(of: "今日好熱，", with: "")
+        }
+        let line = Self.oneSentence([r.line, rest])
         weatherTip = line.isEmpty ? nil : line
+    }
+
+    /// F9：每次提示唔超过一句——几段用逗号接埋，只留最尾一个句号。
+    static func oneSentence(_ parts: [String]) -> String {
+        let ends = CharacterSet(charactersIn: "。，, ")
+        let body = parts.map { $0.trimmingCharacters(in: ends) }.filter { !$0.isEmpty }
+            .joined(separator: "，")
+            .replacingOccurrences(of: "。", with: "，")
+        return body.isEmpty ? "" : body + "。"
     }
 }

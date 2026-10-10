@@ -151,7 +151,7 @@ struct InfoCard: View {
 
             if renaming {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("揀個新名，同圈街坊都會見到")
+                    Text(store.community.isSimulated ? "揀個新名，同圈街坊都會見到" : "揀個新名（暫時只喺你部手機）")
                         .ds(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -309,7 +309,7 @@ struct RemindPrompt: View {
                 }
                 .accessibilityElement(children: .combine)
 
-                Text("開唔開出門提醒？佢出門嗰陣會話你知。")
+                Text("開唔開出門提醒？開咗之後，佢出門你會知，你出門佢都會知（只講地標）。")
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

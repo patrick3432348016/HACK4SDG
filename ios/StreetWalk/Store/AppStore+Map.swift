@@ -104,7 +104,7 @@ extension AppStore {
         homeChanged()
         populate()
         scene.resetCamera()
-        speaker.speak("搞掂。你行街嘅時候我會自動記錄，唔使撳任何掣。")
+        say("搞掂。你行街嘅時候我會自動記錄，唔使撳任何掣。")
         startWalkDetection()   // 同意之后先问动作 / 定位权限
     }
 
@@ -152,9 +152,9 @@ extension AppStore {
             people.append(ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility,
                                       motion: f.stage == .asking || f.stage == .declined ? .stand(at: myStart) : .route(findRoute ?? [myStart, lm.pos], speed: Self.findSpeed), label: "你"))
             let spot = scene.nearestWalkable(lm.pos + Vec2(x: 5, y: 3))
-            people.append(ScenePerson(id: p.id, color: p.uiColor, mobility: p.mobility,
+            if f.spontaneous || f.partnerOut { people.append(ScenePerson(id: p.id, color: p.uiColor, mobility: p.mobility,
                                       motion: f.spontaneous ? .stand(at: spot) : .route(partnerRoute ?? [spot], speed: Self.findSpeed * 0.8),
-                                      label: p.name, highlighted: true))
+                                      label: p.name, highlighted: true)) }
         }
         if case .found(let id) = bumpStage, let p = resident(id) {
             let home = scene.nearestWalkable(scene.homeTarget + Vec2(x: 0, y: -18))
