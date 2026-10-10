@@ -177,7 +177,16 @@ returns table (id uuid, nickname text, avatar jsonb, block text, floor int)
   language plpgsql security definer set search_path = public as $$
 declare other_id uuid;
 begin
-  -- 每个码只给两部手机用：已经有两个人提交过（或者已经配过）就拒绝。
+  -- 已经用呢个码配好：两边任何一方再问，都返回对方（二维码出示方靠呢个知道对方扫咗）。
+  select pc.user_id into other_id from pair_codes pc
+   where pc.code = p_code and pc.user_id <> auth.uid() and pc.created_at = 'epoch'
+     and exists (select 1 from pair_codes m where m.code = p_code and m.user_id = auth.uid() and m.created_at = 'epoch')
+   limit 1;
+  if other_id is not null then
+    return query select p.id, p.nickname, p.avatar, p.block, p.floor from profiles p where p.id = other_id;
+    return;
+  end if;
+  -- 每个码只给两部手机用：已经有两个人提交过就拒绝第三个。
   if (select count(*) from pair_codes pc where pc.code = p_code and pc.user_id <> auth.uid()) > 1 then return; end if;
   insert into pair_codes (code, user_id) values (p_code, auth.uid()) on conflict do nothing;
   select pc.user_id into other_id from pair_codes pc
@@ -185,7 +194,7 @@ begin
    limit 1;
   if other_id is null then return; end if;
   insert into neighbors (owner, other) values (auth.uid(), other_id), (other_id, auth.uid()) on conflict do nothing;
-  -- 用过即作废：两行改成过期，之后谁再拿这个码都配不上。
+  -- 用过即作废：两行改成 epoch，第三个人再拿呢个码都配唔上。
   update pair_codes set created_at = 'epoch' where code = p_code;
   return query select p.id, p.nickname, p.avatar, p.block, p.floor from profiles p where p.id = other_id;
 end $$;
