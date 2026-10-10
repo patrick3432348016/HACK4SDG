@@ -105,9 +105,11 @@ extension AppStore {
     /// 60 秒内重复叫只做一次；演示模式唔做嘢。
     func backgroundRefresh() async {
         guard let s = supabase else { return }
+        Self.debugEvent("backgroundRefresh start (background=\(isInBackground))")
         uploadProfile()
         await s.backgroundRefresh()
         BackgroundRefresh.schedule()
+        Self.debugEvent("backgroundRefresh done")
     }
 
     // MARK: - 碰一碰配上（碰一碰模块 / 二维码 / -debugLinkCode 调）
@@ -297,7 +299,7 @@ extension AppStore {
 
     // MARK: - 本地通知（App 喺后台时；前台用横幅）
 
-    var isInBackground: Bool { UIApplication.shared.applicationState != .active }
+    var isInBackground: Bool { UIApplication.shared.applicationState == .background }
 
     func notifyNeighborOut(_ id: String) {
         guard isInBackground, let r = resident(id), r.isNeighbor, r.isOut, r.receiveRemind, remindAll, inRemindWindow else { return }
@@ -306,6 +308,7 @@ extension AppStore {
 
     func notifyIfBackground(id: String, body: String) {
         guard isInBackground else { return }
+        Self.debugEvent("notify \(body)")
         let c = UNMutableNotificationContent()
         c.title = "街坊行"
         c.body = body

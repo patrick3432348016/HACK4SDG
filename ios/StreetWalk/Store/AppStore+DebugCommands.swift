@@ -8,8 +8,18 @@ import Foundation
 // 指令：tab today|board|neighbors · walk · home · find <网名> · go · endfind · answer yes|no
 //      invite <网名> [日 0/1/2] [钟点] · accept · decline · depart · remind on|off · unlink <网名>
 //      say <一句> · banner off · refresh · link <一次性码>（两部机用同一个码 = 碰咗一碰）
+//      bgrefresh（App 喺后台时叫 backgroundRefresh，睇 debug-events.txt 有冇「notify」）
 extension AppStore {
     private static var debugCommandsStarted = false
+
+    /// 记一行去 Documents/debug-events.txt（-debugCommands 先记）：例如后台出咗边啲本地通知。
+    nonisolated static func debugEvent(_ s: String) {
+        guard LaunchArgs.has("-debugCommands") else { return }
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("debug-events.txt")
+        let line = "\(BackendTime.format(Date())) \(s)\n"
+        if let h = try? FileHandle(forWritingTo: url) { h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close() }
+        else { try? line.write(to: url, atomically: true, encoding: .utf8) }
+    }
 
     private var debugDir: URL { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0] }
 
@@ -23,13 +33,8 @@ extension AppStore {
             var tick = 0
             var seenBanner: UUID?
             var seenToast: String?
-            let events = self.debugDir.appendingPathComponent("debug-events.txt")
-            try? FileManager.default.removeItem(at: events)
-            func note(_ s: String) {
-                let line = "\(BackendTime.format(Date())) \(s)\n"
-                if let h = try? FileHandle(forWritingTo: events) { h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close() }
-                else { try? line.write(to: events, atomically: true, encoding: .utf8) }
-            }
+            try? FileManager.default.removeItem(at: self.debugDir.appendingPathComponent("debug-events.txt"))
+            func note(_ s: String) { Self.debugEvent(s) }
             while true {
                 try? await Task.sleep(for: .milliseconds(500))
                 tick += 1
@@ -82,6 +87,7 @@ extension AppStore {
         case "banner": banner = nil
         case "refresh": supabase?.scheduleRefresh(Set(SupabaseCommunityService.Part.allCases), delay: 0)
         case "link": if !arg.isEmpty { debugLink(code: arg) }
+        case "bgrefresh": Task { await self.backgroundRefresh() }   // 模拟器排唔到 BGAppRefreshTask：App 喺后台时用呢个试
         default: break
         }
     }
@@ -110,5 +116,6 @@ extension AppStore {
 #else
 extension AppStore {
     func startDebugCommandsIfNeeded() {}
+    nonisolated static func debugEvent(_ s: String) {}
 }
 #endif

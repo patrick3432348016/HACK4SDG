@@ -1,6 +1,8 @@
 # 后端草案：Supabase 实现 CommunityService
 
-状态：**未实现，原型阶段是单机演示**（2026-10-07 定）。App 里所有"要和别人同步"的操作都经过 `CommunityService` 协议（`ios/StreetWalk/Store/Community.swift`）。现在用的是 `LocalCommunityService`：数据只存在手机，圈里的其他人是「示範街坊」，界面上标了「示範」。
+> **2026-10-10 起已过时**：真后端已经接上，表结构以 `supabase/migrations/001_init.sql` 为准，App 点用见 `supabase/README.md`、`ios/StreetWalk/Backend/`。下面保留做历史参考。
+
+状态（旧）：**未实现，原型阶段是单机演示**（2026-10-07 定）。App 里所有"要和别人同步"的操作都经过 `CommunityService` 协议（`ios/StreetWalk/Store/Community.swift`）。现在用的是 `LocalCommunityService`：数据只存在手机，圈里的其他人是「示範街坊」，界面上标了「示範」。
 
 上线时新写一个 `SupabaseCommunityService`，实现同一个协议。2026-10-08 起找人（问对方、对方回覆、播送、出门 / 途中 / 到达）、每日汇总、请假、个人资料、撤回反映也都在协议里了；其中每日汇总、请假、个人资料的调用点还没接上（见 §5 末尾）。本文是它的表结构、权限规则和对应关系。
 

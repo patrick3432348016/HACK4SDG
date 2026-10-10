@@ -865,8 +865,11 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
     func deleteMyServerData() async -> Bool {
         guard let me = await api.userID?.lowercased() else { resetLocalState(); return true }
         do {
-            for (table, col) in [("walks", "user_id"), ("leaves", "user_id"), ("reports", "user_id"), ("outings", "user_id"), ("neighbors", "owner")] {
-                _ = try await api.request("DELETE", "/rest/v1/\(table)", query: "\(col)=eq.\(me)")
+            // 出门状态改成 null（唔删行，见类说明）；其他逐个表删。某个表唔俾删（权限改咗）就跳过，冇网络先当失败。
+            try await api.upsert("outings", OutingUpsert(user_id: me, landmark_name: nil, started_at: nil, updated_at: Date()), onConflict: "user_id")
+            for (table, col) in [("walks", "user_id"), ("leaves", "user_id"), ("reports", "user_id"), ("neighbors", "owner")] {
+                do { _ = try await api.request("DELETE", "/rest/v1/\(table)", query: "\(col)=eq.\(me)") }
+                catch BackendError.rejected(let code, let msg) { if log { print("[backend] delete \(table) rejected \(code) \(msg)") } }
             }
             let gone = ProfileUpsert(id: me, nickname: "已離開", avatar: AvatarJSON(), tile_x: 1_000_000_000, tile_y: 1_000_000_000,
                                      community_name: nil, block: nil, floor: nil, streak: 0, streak_day: nil)
