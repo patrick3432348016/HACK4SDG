@@ -107,6 +107,14 @@ final class AppStore: NeighborRegistry {
     /// 按咪后等紧权限框：再撳唔会开两次。
     @ObservationIgnored var micStarting = false
 
+    // 地图、场景与性能（A 线追加）
+    /// 地图有状况时的一句说明（示例屋邨、示意楼、拿不到位置），选楼画面可以显示；见 AppStore+Map。
+    var mapNotice: String?
+    /// 第几次装地图：等网络时改用示例屋邨或重新选楼，旧的结果就不要。
+    @ObservationIgnored var mapLoadGen = 0
+    /// 碰一碰时两个人见面的位置（碰面期间固定）。
+    @ObservationIgnored var bumpSpot: Vec2?
+
     var me: Resident { residents.first { $0.isMe } ?? Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true) }
     var neighbors: [Resident] { residents.filter { $0.isNeighbor && !$0.isMe } }
     var outNeighbors: [Resident] { neighbors.filter(\.isOut) }

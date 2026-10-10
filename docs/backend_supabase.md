@@ -49,6 +49,7 @@ create table users (
 
 create table landmarks (
   id text primary key,                -- 由地图要素（OSM id / 类型）推导的稳定 id
+                                      -- 原型按各自屋企 200 m 底座挑；上线前改为按整格挑全邨共用的一组
   estate_id text not null,
   circle_id uuid,
   name text not null,                 -- 当前名字（改名后同圈生效）

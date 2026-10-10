@@ -38,27 +38,73 @@ for i in 0..<picked.count { for j in (i + 1)..<picked.count { minGap = min(minGa
 check(minGap >= 30, "最小间隔 \(Int(minGap)) m")
 
 print("Diorama")
-var worstClear = Double.infinity, maxGreen = 0.0, names: Set<String> = []
+var worstClear = Double.infinity, maxGreen = 0.0, wrongNames: [String] = [], dropped = 0, fewLandmarks = 0
+let estates = map.areas.filter { $0.kind == .residential && $0.name != nil }
 for h in map.buildings where h.kind == .residential {
     let d = map.simplified(around: h.centroid, home: h.id)
-    names.insert(d.placeName)
+    // 地名：屋企所在的屋苑（住宅用地）名，否则是整个邨名。
+    let expected = estates.first { Polygon.contains($0.outline, h.centroid) }?.name ?? "皇后山邨"
+    if d.placeName != expected { wrongNames.append("\(h.name ?? "#\(h.id)")→\(d.placeName)") }
+    if !d.buildings.contains(where: { $0.id == h.id }) { dropped += 1 }
     maxGreen = max(maxGreen, d.areas.map { Polygon.area($0.outline) / (d.size * d.size) }.max() ?? 0)
-    for c in LandmarkDeriver.settle(LandmarkDeriver.pick(LandmarkDeriver.candidates(in: d)), in: d) {
+    let lms = LandmarkDeriver.derive(in: d, home: h.id)
+    if lms.count < 3 || Set(lms.map(\.id)).count != lms.count { fewLandmarks += 1 }
+    for c in lms {
         worstClear = min(worstClear, d.buildings.map { LandmarkDeriver.distance(from: c.pos, to: $0.outline) }.min() ?? .infinity)
     }
 }
-check(names == ["皇后山邨"], "裁切后地名沿用整格：\(names.sorted())")
+check(wrongNames.isEmpty, "底座地名用屋企所在屋苑 / 邨名（错 \(wrongNames)）")
+check(dropped == 0, "每座住宅楼做屋企时都留喺底座（漏 \(dropped)）")
+check(fewLandmarks == 0, "每个底座都有 3 个以上、id 唔重复嘅地标（唔够 \(fewLandmarks)）")
 check(maxGreen <= 0.2001, "单块绿地最多占底座 \(Int(maxGreen * 100))%")
 check(worstClear >= 7.9, "地标离楼最近 \(String(format: "%.1f", worstClear)) m")
 let pickView = map.pickView(near: .zero)
 check(pickView.buildings.filter { $0.kind == .residential }.count <= 10 && pickView.buildings.filter { $0.kind != .residential }.count <= 3,
       "选楼画面 \(pickView.buildings.count) 座楼（住宅 \(pickView.buildings.filter { $0.kind == .residential }.count)）")
-// 站在每座住宅楼：自己那座一定选得到；没有位置时整格的住宅楼都选得到。
-let allHomes = map.simplified(around: .zero, size: map.size, maxBuildings: nil).buildings.filter { $0.kind == .residential }.map(\.id)
-let missing = allHomes.filter { id in !map.pickView(near: map.building(id: id)!.centroid).buildings.contains { $0.id == id } }
-check(missing.isEmpty, "站在 \(allHomes.count) 座住宅楼，自己那座都在选楼画面（漏 \(missing.count)）")
-let noLoc = Set(map.pickView(near: nil).buildings.map(\.id))
+// 站在每座住宅楼：自己那座一定选得到；没有位置时整格的住宅楼都选得到（离格心太远、底座会出界的除外）。
+let allHomes = map.simplified(around: .zero, size: map.size, maxBuildings: nil).buildings
+    .filter { $0.kind == .residential && map.dioramaFits(at: map.building(id: $0.id)!.centroid) }.map(\.id)
+let missing = allHomes.filter { id in !map.pickView(near: map.building(id: id)!.centroid).buildings.contains { $0.id == id && $0.kind == .residential } }
+check(missing.isEmpty, "站在 \(allHomes.count) 座住宅楼，自己那座都可以揀（漏 \(missing.count)）")
+let noLoc = Set(map.pickView(near: nil).buildings.filter { $0.kind == .residential }.map(\.id))
 check(allHomes.allSatisfy(noLoc.contains), "没有位置时 \(allHomes.count) 座住宅楼都选得到（\(allHomes.filter(noLoc.contains).count) 座）")
+// 每座可选的楼，做屋企时都要留在底座（A26：转正角度不同也不能漏）。
+let pickable = map.pickView(near: nil).buildings.filter { $0.kind == .residential }.map(\.id)
+let lost = pickable.filter { id in !map.simplified(around: map.building(id: id)!.centroid, home: id).buildings.contains { $0.id == id } }
+check(lost.isEmpty, "\(pickable.count) 座可揀的楼做屋企都留喺底座（漏 \(lost.count)）")
+
+// 实时拉到的格子（STREETWALK_TILES=放 v1/、v2/ 缓存的目录）：每座可揀的楼做屋企，地名、地标都要合理。
+if let dir = ProcessInfo.processInfo.environment["STREETWALK_TILES"] {
+    print("Live tiles")
+    func name(_ c: LandmarkCandidate) -> String {   // 只模仿模板 AI 的楼下命名（没名叫"大堂"），其他用类型
+        c.kind == .lobby ? (c.osmName.map { "\($0)樓下" } ?? "大堂") : (c.osmName ?? c.kind.rawValue)
+    }
+    for (v, size) in [("v2", 720.0), ("v1", TileKey.plinthSize)] {
+        let d = URL(fileURLWithPath: dir).appendingPathComponent(v)
+        for f in ((try? FileManager.default.contentsOfDirectory(atPath: d.path)) ?? []).sorted() where f.hasSuffix(".json") {
+            let k = f.dropLast(5).split(separator: "_").compactMap { Int($0) }
+            guard k.count == 2, let data = try? Data(contentsOf: d.appendingPathComponent(f)),
+                  let m = try? OSMParser.parse(data, tile: TileKey(ix: k[0], iy: k[1]), size: size, source: "live") else { continue }
+            var homes = m.pickView(near: nil).buildings.filter { $0.kind == .residential }.map(\.id)
+            var full = m
+            if homes.isEmpty { let r = m.addingPlaceholderHome(at: .zero); full = r.map; homes = [r.id] }
+            var bad: [String] = []
+            for h in homes {
+                let dm = full.simplified(around: full.building(id: h)!.centroid, home: h)
+                let lms = LandmarkDeriver.derive(in: dm, home: h).map { Landmark(id: $0.id, name: name($0), kind: $0.kind, pos: $0.pos, hasSeat: $0.hasSeat) }
+                let named = LandmarkDeriver.uniqueNames(lms, in: dm, home: h).map(\.name)
+                let label = "\(full.homeLabel(h) ?? "#\(h)")@\(dm.placeName)"
+                if named.count < 3 || Set(named).count != named.count || named.contains(where: { $0.hasPrefix("大堂") }) { bad.append("\(label) \(named)") }
+                // 地名只用底座里的有名住宅楼（示意楼不借 180 m 外的"第五座"）
+                if let b = dm.buildings.first(where: { $0.name == dm.placeName }), b.kind == .residential,
+                   max(abs(b.centroid.x), abs(b.centroid.y)) > MapModel.dioramaSize / 2 + 1 { bad.append("\(label) 地名用底座外的楼") }
+            }
+            check(bad.isEmpty, "\(v)/\(f)：\(homes.count) 座可揀，地标 ≥3、唔撞名、冇「大堂」\(bad.isEmpty ? "" : "（\(bad.prefix(3))）")")
+        }
+    }
+} else {
+    print("Live tiles（未设 STREETWALK_TILES，跳过）")
+}
 
 print("SolarPosition")
 func hk(_ s: String) -> Date { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm"; f.timeZone = SolarPosition.hongKong; return f.date(from: s)! }

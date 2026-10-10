@@ -56,21 +56,6 @@ enum GroundPainter {
                     }
                 }
             }
-
-
-        }
-    }
-
-    /// 一个开间（3.6 m）× 一层（3 m）的立面贴图：一层一道窗缝（参考图 ② 的画法），远看干净。
-    static func facadeTile(wall: UIColor, lit: Bool = false) -> UIImage {
-        let size = CGSize(width: 72, height: 60)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        return UIGraphicsImageRenderer(size: size, format: format).image { ctx in
-            wall.setFill()
-            ctx.fill(CGRect(origin: .zero, size: size))
-            (lit ? UIColor(red: 1.0, green: 0.86, blue: 0.62, alpha: 1) : UIColor(red: 0.36, green: 0.33, blue: 0.30, alpha: 0.78)).setFill()
-            ctx.fill(CGRect(x: 18, y: 26, width: 36, height: 9))
         }
     }
 }

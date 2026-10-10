@@ -30,7 +30,7 @@ struct ShadeCalculator {
         return pts.filter { p in !solidOutlines.contains { Polygon.contains($0, p) } }
     }
 
-    /// 遮荫比例 0–1。太阳低于 2° 当作全阴。
+    /// 遮荫比例 0–1。太阳低于 2° 当作全阴（只用于排序；文案要分开讲"日落"，见 ShadeService.isSunUp）。
     func shade(at c: Vec2, sun: SolarPosition) -> Double {
         guard sun.elevation > 2 else { return 1 }
         let pts = samplePoints(around: c)

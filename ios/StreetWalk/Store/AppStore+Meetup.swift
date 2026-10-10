@@ -12,11 +12,11 @@ extension AppStore {
         guard p.isNeighbor else { toast("佢仲未係你街坊。見到面碰一碰，先可以約。"); return }
         var options: [MeetProposal] = []
         for (d, h) in candidateTimes(day: day, hour: hour) {
-            if let prop = ai.pickMeetupSpot(me: me, partner: p, date: Self.today(at: Double(h), dayOffset: d), landmarks: landmarks, shade: shade) {
+            if let prop = ai.pickMeetupSpot(me: me, partner: p, date: Self.today(at: Double(h), dayOffset: d), landmarks: landmarks, shade: shade).map(honestReason) {
                 options.append(prop)
             }
         }
-        guard !options.isEmpty else { return }
+        guard !options.isEmpty else { toast("附近未有合適嘅地標，暫時約唔到。"); return }
         proposal = Proposal(partnerID: partnerID, options: options, index: 0)
         scene.highlightLandmark(options[0].landmarkID)
         focus(onLandmark: options[0].landmarkID)
@@ -60,7 +60,8 @@ extension AppStore {
             let a = ($0.hasSeat ? 1 : 0, shade.shade(landmarkID: $0.id, at: cur.date)), b = ($1.hasSeat ? 1 : 0, shade.shade(landmarkID: $1.id, at: cur.date))
             return a != b ? a > b : $0.id < $1.id
         }
-        guard let i = ranked.firstIndex(where: { $0.id == cur.landmarkID }) ?? ranked.indices.first, ranked.count > 1 else { return }
+        guard ranked.count > 1 else { toast("附近只有一個地標，換唔到第二個。"); return }
+        guard let i = ranked.firstIndex(where: { $0.id == cur.landmarkID }) ?? ranked.indices.first else { return }
         let next = ranked[(i + 1) % ranked.count]
         p.options[p.index] = MeetProposal(date: cur.date, landmarkID: next.id, reason: reason(for: next, at: cur.date))
         proposal = p
@@ -72,7 +73,7 @@ extension AppStore {
     /// 地点理由：遮荫按画面上的楼大约计（唔计树荫）。
     func reason(for l: Landmark, at d: Date) -> String {
         let s = shade?.shade(landmarkID: l.id, at: d) ?? 0
-        return (s >= 0.5 ? "嗰陣有樓遮住" : "嗰陣會曬") + (l.hasSeat ? "、有櫈" : "")
+        return (shade?.isSunUp(at: d) == false ? "嗰陣已經日落" : s >= 0.5 ? "嗰陣有樓遮住" : "嗰陣會曬") + (l.hasSeat ? "、有櫈" : "")
     }
 
     func confirmProposal() {
@@ -128,7 +129,7 @@ extension AppStore {
         for (d, h) in candidateTimes(day: nil, hour: nil) {
             let date = Self.today(at: Double(h), dayOffset: d)
             guard abs(date.timeIntervalSince(a.date)) > 1800 else { continue }
-            if let prop = ai.pickMeetupSpot(me: me, partner: p, date: date, landmarks: landmarks, shade: shade) { options.append(prop) }
+            if let prop = ai.pickMeetupSpot(me: me, partner: p, date: date, landmarks: landmarks, shade: shade).map(honestReason) { options.append(prop) }
         }
         proposal = Proposal(partnerID: a.partnerID, options: options, index: 0, editing: id)
         scene.highlightLandmark(a.landmarkID)
@@ -213,7 +214,7 @@ extension AppStore {
         }
         let h = Self.hk.component(.hour, from: now) < 15 ? 16 : 8
         let day = h == 8 ? 1 : 0
-        guard let opt = ai.pickMeetupSpot(me: me, partner: p, date: Self.today(at: Double(h), dayOffset: day), landmarks: landmarks, shade: shade) else { return }
+        guard let opt = ai.pickMeetupSpot(me: me, partner: p, date: Self.today(at: Double(h), dayOffset: day), landmarks: landmarks, shade: shade).map(honestReason) else { return }
         localCommunity?.simulateInvite(Appointment(partnerID: id, date: opt.date, landmarkID: opt.landmarkID, reason: opt.reason, status: .waiting, fromPartner: true))
     }
 

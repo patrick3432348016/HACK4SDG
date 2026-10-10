@@ -1,6 +1,6 @@
 import Foundation
 
-/// 4 m 网格寻路：楼宇不可走，道路和行人路便宜，空地贵一点。用于"我"的散步路线和找人路线。
+/// 4 m 网格寻路：楼宇和水面不可走（有车路经过的水面当桥），道路和行人路便宜，空地贵一点。用于"我"的散步路线和找人路线。
 struct PathGrid {
     let cell = 4.0
     let n: Int
@@ -33,6 +33,16 @@ struct PathGrid {
                 }
             }
         }
+        // 水面（场景里画成浅蓝色块）不可走；路经过的格子已经比 2.5 便宜，留着当桥。
+        for a in map.areas where a.kind == .water {
+            let xs = a.outline.map(\.x), ys = a.outline.map(\.y)
+            for i in range(xs.min()!, xs.max()!) {
+                for j in range(ys.min()!, ys.max()!) where Polygon.contains(a.outline, cellCenter(i, j)) {
+                    let k = j * n + i
+                    if cost[k] >= 2.5 { cost[k] = 0 }
+                }
+            }
+        }
         for b in map.buildings where b.kind != .canopy {
             let xs = b.outline.map(\.x), ys = b.outline.map(\.y)
             for i in range(xs.min()!, xs.max()!) {
@@ -50,8 +60,6 @@ struct PathGrid {
     private func center(_ i: Int, _ j: Int) -> Vec2 {
         Vec2(x: -half + (Double(i) + 0.5) * cell, y: -half + (Double(j) + 0.5) * cell)
     }
-
-    func isWalkable(_ p: Vec2) -> Bool { let (i, j) = index(p); return cost[j * n + i] > 0 }
 
     /// 离 p 最近的可走格子中心。
     func nearestWalkable(_ p: Vec2) -> Vec2 {

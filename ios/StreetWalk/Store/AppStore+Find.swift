@@ -60,7 +60,8 @@ extension AppStore {
 
     func departForAppointment(_ a: Appointment) {
         // 只有约好咗、对方仍然係街坊先可以出发（非街坊永远唔入场景）。
-        guard a.status == .accepted, let p = resident(a.partnerID), p.isNeighbor, let lm = landmark(a.landmarkID) else { return }
+        guard a.status == .accepted, let p = resident(a.partnerID), p.isNeighbor else { return }
+        guard let lm = landmark(a.landmarkID) else { toast("搵唔到約會個地點（地圖更新咗），撳「改時間地點」揀過。"); return }
         if let old = find { community.cancelFindAsk(partnerID: old.partnerID) }
         renaming = nil
         let start = myPosition()

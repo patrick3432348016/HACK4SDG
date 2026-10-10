@@ -5,7 +5,6 @@ import SwiftUI
 struct DioramaView: UIViewRepresentable {
     let controller: DioramaController
     var onTap: ((DioramaController.Hit?) -> Void)?
-    var showStats = false
     /// 跟随系统深浅色，切换时场景重建材质。
     @Environment(\.colorScheme) private var colorScheme
 
@@ -17,10 +16,13 @@ struct DioramaView: UIViewRepresentable {
         v.backgroundColor = SceneStyle.background
         v.antialiasingMode = .multisampling4X
         v.preferredFramesPerSecond = 60
-        v.isPlaying = true
-        v.rendersContinuously = true
+        // 只在有变化时才渲染：人在走、镜头在飞、楼在升起时 60 fps；静止时一帧都不画（省电、不发热）。
+        // isPlaying = true 会令 SCNView 每帧重画（实测静止时 60 fps、约 6% CPU），SCNAction 和过渡动画不需要它。
+        // 静止时标签内容变了由 DioramaController.labelsChanged 补推。
+        v.isPlaying = false
+        v.rendersContinuously = false
         v.allowsCameraControl = false
-        v.showsStatistics = showStats
+        v.showsStatistics = LaunchArgs.has("-stats")
         v.pointOfView = controller.scene.rootNode.childNodes.first { $0.camera != nil }
         if LaunchArgs.has("-tilt") { v.technique = TiltShift.technique() }
         controller.view = v
@@ -35,7 +37,6 @@ struct DioramaView: UIViewRepresentable {
 
     func updateUIView(_ v: SCNView, context: Context) {
         context.coordinator.parent = self
-        v.showsStatistics = showStats
         controller.setDark(colorScheme == .dark)
     }
 

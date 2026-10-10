@@ -21,11 +21,12 @@ enum OSMParser {
 
     enum ParseError: Error { case empty }
 
-    static func parse(_ data: Data, tile: TileKey, source: String) throws -> MapModel {
+    /// size：这份数据拉取时的边长（实时 720 m，内置示例 560 m），超出的部分裁掉。
+    static func parse(_ data: Data, tile: TileKey, size: Double = TileKey.plinthSize, source: String) throws -> MapModel {
         let response = try JSONDecoder().decode(Response.self, from: data)
         let center = tile.center
         let proj = LocalProjection(origin: center)
-        let half = TileKey.plinthSize / 2
+        let half = size / 2
 
         var buildings: [Building] = []
         var roads: [Road] = []
@@ -88,7 +89,8 @@ enum OSMParser {
                 if closed, let kind = areaKind(tags) {
                     let outline = Polygon.normalized(Polygon.clip(Polygon.normalized(raw), half: half))
                     guard outline.count >= 3, Polygon.area(outline) >= 10 else { continue }
-                    areas.append(Area(kind: kind, outline: outline, name: name))
+                    // 保留 OSM 编号：地标 id 用它，换楼、缓存刷新后同一块地仍然是同一个 id。relation 用负数免得同 way 撞。
+                    areas.append(Area(kind: kind, outline: outline, name: name, osmID: e.type == "relation" ? -e.id : e.id))
                     // 面状的巴士总站、商场、街市也当作兴趣点。
                     if let pk = poiKind(tags) {
                         let c = Polygon.centroid(outline)
@@ -114,7 +116,7 @@ enum OSMParser {
 
         areas.sort { $0.kind.drawOrder < $1.kind.drawOrder }
         guard !buildings.isEmpty || !roads.isEmpty else { throw ParseError.empty }
-        return MapModel(tile: tile, center: center, size: TileKey.plinthSize, buildings: buildings, roads: roads,
+        return MapModel(tile: tile, center: center, size: size, buildings: buildings, roads: roads,
                         areas: areas, pois: pois, trees: trees, fetchedAt: Date(), source: source)
     }
 
@@ -146,8 +148,10 @@ enum OSMParser {
             kind = .residential; levels = 3
         case "school", "university", "college", "kindergarten":
             kind = .school; levels = 6
-        case "commercial", "retail", "office", "supermarket":
+        // 酒店、医院、政府楼这类高楼明确不是住宅：归商业 / 公共，不会被当成"只标 building=yes 的住宅高楼"选做屋企。
+        case "commercial", "retail", "office", "supermarket", "hotel", "hospital", "public", "civic", "government", "train_station", "transportation":
             kind = .commercial; levels = area > 2000 ? 4 : 5
+        // 工厦、货仓就算标了 10 层以上也不当住宅（tag 不是 yes，见 MapModel.markHomeCandidates）。
         case "industrial", "warehouse":
             kind = .other; levels = 3
         case "construction":
@@ -160,6 +164,8 @@ enum OSMParser {
             kind = .other; levels = area > 2500 ? 5 : area > 400 ? 3 : 2
         }
         if tags["amenity"] == "school" { kind = .school }
+        // 标成 building=yes 的公厕不算一般建筑（不能选做屋企，也不拿来做地名）。
+        if tags["amenity"] == "toilets" { kind = .small }
         if let l = tags["building:levels"].flatMap({ Int($0.filter(\.isNumber)) }), l > 0 { levels = l }
         var height = Double(levels) * 3.0 + (levels > 10 ? 2 : 0.6)
         if let h = tags["height"].flatMap(parseMeters) { height = h }
@@ -170,7 +176,7 @@ enum OSMParser {
             height = max(height, minHeight + 0.6)
             if tags["height"] == nil { height = minHeight + 0.6 }
         }
-        return Building(id: id, name: name, outline: outline, minHeight: minHeight, height: height, levels: levels, kind: kind)
+        return Building(id: id, name: name, outline: outline, minHeight: minHeight, height: height, levels: levels, kind: kind, tag: type)
     }
 
     static func parseMeters(_ s: String) -> Double? {

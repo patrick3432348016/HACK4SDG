@@ -22,7 +22,7 @@ extension AppStore {
             self.bumpStage = .found(r.id)
             self.say("你同\(r.floorLabel)\(r.name)而家係街坊。")
             self.syncScene()
-            self.scene.setCamera(target: self.scene.homeTarget + Vec2(x: 0, y: -18), distance: self.scene.overviewDistance * 0.7, animated: true, duration: 1.0)
+            self.scene.setCamera(target: self.bumpMeetSpot(), distance: self.scene.overviewDistance * 0.7, animated: true, duration: 1.0)
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(2.6))
                 guard self.bumpStage == .found(r.id) else { return }

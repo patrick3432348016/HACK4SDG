@@ -158,7 +158,7 @@ struct TimeSliderSheet: View {
     }
 
     private func shadeRow(_ lm: Landmark, _ h: Double) -> some View {
-        let v = store.shade?.shade(landmarkID: lm.id, at: AppStore.today(at: h))
+        let v = store.shadeValue(lm.id, at: AppStore.today(at: h))
         let pct = Int(((v ?? 0) * 100).rounded())
         return HStack(spacing: 12) {
             Image(systemName: "mappin.circle.fill")

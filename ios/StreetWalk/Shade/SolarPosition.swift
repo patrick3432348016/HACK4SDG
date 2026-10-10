@@ -13,8 +13,6 @@ struct SolarPosition {
         return (cos(el) * sin(az), cos(el) * cos(az), sin(el))
     }
 
-    var isDaytime: Bool { elevation > 0 }
-
     static let hongKong = TimeZone(identifier: "Asia/Hong_Kong")!
 
     static func at(_ date: Date, lat: Double, lon: Double, timeZone: TimeZone = hongKong) -> SolarPosition {

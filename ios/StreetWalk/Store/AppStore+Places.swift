@@ -161,9 +161,8 @@ extension AppStore {
         var advice: String?
         if let shade {
             let hour = Self.hk.component(.hour, from: now)
-            let seat = landmarks.first(where: \.hasSeat)
-            let tip = seat.map { ($0, shade.shadedFromHour(landmarkID: $0.id, day: now, after: max(hour, 14))) }
-            advice = ai.walkAdvice(weather: weather, now: now, shadeTip: tip.map { (landmark: $0.0, shadedFrom: $0.1) })
+            let tip = shade.shadeTip(landmarks, day: now, after: max(hour, 14))
+            advice = ai.walkAdvice(weather: weather, now: now, shadeTip: tip)
         }
         guard !hko.demoOverride, let r = hko.report else {
             // "天文台話"只留给真实数据；演示选的天气唔好冒认天文台

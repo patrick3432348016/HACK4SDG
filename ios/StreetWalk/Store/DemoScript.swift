@@ -16,7 +16,8 @@ extension AppStore {
         Task { @MainActor in
             while map == nil || residents.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
             let t0 = Date()
-            func step(_ at: Double, _ name: String, _ action: () -> Void) async {
+            // 必须 @MainActor：否则 sleep 之后在后台线程恢复，脚本动作会在后台改 store 和场景（界面不刷新、数据竞争）。
+            @MainActor func step(_ at: Double, _ name: String, _ action: () -> Void) async {
                 let wait = at - Date().timeIntervalSince(t0)
                 if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
                 print("[script] t=\(Int(at)) \(name)")
@@ -139,7 +140,7 @@ extension AppStore {
             print("[script] 同意"); consent()
             while map == nil || loadingMap { try? await Task.sleep(for: .milliseconds(200)) }
             try? await Task.sleep(for: .seconds(4))
-            if let b = residentialBuildings().first(where: { $0.name != nil }) { print("[script] 揀樓"); pickHome(b.id) }
+            if let b = residentialBuildings().first(where: { $0.name != nil }) ?? residentialBuildings().first { print("[script] 揀樓"); pickHome(b.id) }
             try? await Task.sleep(for: .seconds(4))
             print("[script] 確認"); confirmHome()
             try? await Task.sleep(for: .seconds(4))
