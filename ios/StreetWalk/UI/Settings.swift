@@ -10,6 +10,7 @@ struct SettingsView: View {
     var body: some View {
         @Bindable var store = store
         NavigationStack {
+          ScrollViewReader { proxy in
             Form {
                 Section {
                     LabeledContent("住喺") {
@@ -43,6 +44,8 @@ struct SettingsView: View {
                          : "只喺呢段時間通知你\(store.remindFrom > store.remindTo ? "（跨夜）" : "")。每個街坊仲可以喺「街坊」頁分開開關。").ds(.caption)
                 }
 
+                VoiceSettingsSection()
+
                 LocationSettingsSection()
 
                 Section {
@@ -69,6 +72,26 @@ struct SettingsView: View {
             }
             .ds(.body)
             .tint(DS.accent)
+            .onAppear {
+                // 截图用：-voiceSettings voiceList 打开就捲去「聲音」嗰段（voiceGuideEnd = 指引卡底）
+                guard LaunchArgs.has("-voiceSettings") else { return }
+                let id = LaunchArgs.value("-voiceSettings").flatMap { $0.hasPrefix("voice") ? $0 : nil } ?? "voice"
+                Task { @MainActor in
+                    for _ in 0..<2 {   // 第一次未必捲到（列表仲未排好），隔阵再捲一次
+                        try? await Task.sleep(for: .seconds(0.8))
+                        if id.hasSuffix("End") { proxy.scrollTo(String(id.dropLast(3)), anchor: .bottom) } else { proxy.scrollTo(id, anchor: .top) }
+                    }
+                }
+            }
+            // 由 iPhone 设定下载完声音返嚟：下载指引变咗「裝好咗」（矮咗），捲返去声音列表，见到新声音已经剔咗
+            .onChange(of: VoiceSettings.shared.upgradedAt) { _, at in
+                guard at != nil else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(0.3))
+                    proxy.scrollTo("voiceList", anchor: .top)
+                }
+            }
+          }
             .navigationTitle("設定")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

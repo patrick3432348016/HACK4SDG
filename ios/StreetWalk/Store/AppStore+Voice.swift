@@ -8,16 +8,17 @@ extension AppStore {
 
     /// 所有播报都经呢度：排队唔互相截断、读屏开着改用公告、聆听中先收起、过期唔讲（见 Announcer）。
     /// prompt：要用户回应嘅句子（复述确认、问题），优先讲、唔会被挤走。
-    func say(_ s: String, prompt: Bool = false) {
-        announcer.say(s, kind: prompt ? .prompt : .info, via: speaker, holding: listening)
+    /// force：用户亲手要求（「再聽一次」），设定入面「語音播報」关咗都读。
+    func say(_ s: String, prompt: Bool = false, force: Bool = false) {
+        announcer.say(s, kind: prompt ? .prompt : .info, force: force, via: speaker, holding: listening)
     }
 
     /// 「再聽一次」：停低而家讲紧嘅，即刻由头讲（排队嘅话，长句讲紧时再撳会排到过期、静静鸡唔讲）。
     func sayAgain(_ s: String) {
-        guard !listening else { say(s); return }
+        guard !listening else { say(s, force: true); return }
         announcer.hold(speaker)
         _ = announcer.release()
-        say(s, prompt: true)
+        say(s, prompt: true, force: true)
     }
 
     /// 聆听结束：讲返聆听期间收起嘅提示（排喺对用户嗰句嘅回应之后；排得太耐嘅资讯句唔再讲）。
