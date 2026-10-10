@@ -13,7 +13,9 @@ final class AppStore: NeighborRegistry {
 
     // 服务
     @ObservationIgnored let ai: AIService = TemplateAI()
-    @ObservationIgnored let bump: BumpService = SimulatedBumpService()
+    /// 碰一碰：演示模式用模拟（碰到示範街坊），关咗演示模式用真机超宽带。选边个见 AppStore+Bump 嘅 bump。
+    @ObservationIgnored let simulatedBump = SimulatedBumpService()
+    @ObservationIgnored let nearbyBump = NearbyBumpService()
     @ObservationIgnored let speaker = Speaker()
     @ObservationIgnored let listener = Listener()
     @ObservationIgnored let mapService = MapService()
@@ -121,6 +123,14 @@ final class AppStore: NeighborRegistry {
     // 合并时追加
     /// 改楼前嘅肤色、年纪（佢哋一改就存，「唔改」要还原）。
     @ObservationIgnored var lookBeforeChange: (skin: Int, age: AgeGroup)?
+
+    // 真机碰一碰、二维码（2026-10-10 追加，流程见 AppStore+Bump）
+    /// 碰一碰全屏画面显示嘅进度（距离、够近、配对中、失败原因）。
+    var bumpProgress: BumpUpdate = .searching
+    /// 改用二维码时嘅状态；nil = 碰一碰画面。
+    var bumpQR: BumpQRState?
+    /// 二维码配对 / 成功后交接嘅任务（取消时一齐停）。
+    @ObservationIgnored var bumpTask: Task<Void, Never>?
 
     var me: Resident { residents.first { $0.isMe } ?? Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true) }
     var neighbors: [Resident] { residents.filter { $0.isNeighbor && !$0.isMe } }

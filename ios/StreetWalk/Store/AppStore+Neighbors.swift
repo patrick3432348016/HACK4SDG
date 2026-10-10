@@ -6,35 +6,42 @@ extension AppStore {
 
     func startBump() {
         renaming = nil
-        // 先讲清楚点解碰唔到：圈入面冇其他人，同"都係街坊"係两回事（A38）。
-        guard residents.contains(where: { !$0.isMe }) else {
-            toast(community.isSimulated ? "圈入面暫時只有你。" : "圈入面暫時只有你。單機版碰唔到其他手機，要兩部 iPhone 先得。")
-            return
-        }
-        guard residents.contains(where: { !$0.isMe && !$0.isNeighbor }) else {
-            toast("圈入面嘅人都已經係你街坊。")
-            return
+        // 演示模式先讲清楚点解碰唔到：圈入面冇其他人，同"都係街坊"係两回事（A38）。
+        // 真机（2026-10-10）：对方唔使喺圈入面，照碰；过程同二维码后备见 AppStore+Bump。
+        if community.isSimulated {
+            guard residents.contains(where: { !$0.isMe }) else {
+                toast("圈入面暫時只有你。")
+                return
+            }
+            guard residents.contains(where: { !$0.isMe && !$0.isNeighbor }) else {
+                toast("圈入面嘅人都已經係你街坊。")
+                return
+            }
         }
         bumpStage = .searching
-        bump.startSearching(candidates: residents) { [weak self] r in
-            guard let self else { return }
-            Haptics.success()
-            self.bumpStage = .found(r.id)
-            self.say("你同\(r.floorLabel)\(r.name)而家係街坊。")
-            self.syncScene()
-            self.scene.setCamera(target: self.bumpMeetSpot(), distance: self.scene.overviewDistance * 0.7, animated: true, duration: 1.0)
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(2.6))
-                guard self.bumpStage == .found(r.id) else { return }
-                self.remindPromptFor = r.id
-                // 问题都要讲出嚟（§4），讲明係双向（F6，A15）。
-                self.say("開唔開出門提醒？開咗之後，佢出門你會知，你出門佢都會知。", prompt: true)
-            }
+        beginBumpSearch()
+    }
+
+    /// 碰到咗（演示：示範街坊；真机：addLinkedNeighbor 插好对方之后可以用）：
+    /// 两人喺场景并排、语音讲成为街坊、2.6 秒后问开唔开出门提醒。
+    func bumpMet(_ r: Resident) {
+        Haptics.success()
+        bumpStage = .found(r.id)
+        say("你同\(r.floor > 0 ? r.floorLabel : "")\(r.name)而家係街坊。")
+        syncScene()
+        scene.setCamera(target: bumpMeetSpot(), distance: scene.overviewDistance * 0.7, animated: true, duration: 1.0)
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2.6))
+            guard self.bumpStage == .found(r.id) else { return }
+            self.remindPromptFor = r.id
+            // 问题都要讲出嚟（§4），讲明係双向（F6，A15）。
+            self.say("開唔開出門提醒？開咗之後，佢出門你會知，你出門佢都會知。", prompt: true)
         }
     }
 
     func cancelBump() {
-        bump.cancel()
+        stopBumpWork()
+        bumpQR = nil
         bumpStage = .idle
         syncScene()
     }

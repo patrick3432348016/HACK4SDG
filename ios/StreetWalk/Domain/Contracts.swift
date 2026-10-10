@@ -42,9 +42,12 @@ protocol ShadeProviding {
     func shade(landmarkID: String, at date: Date) -> Double
 }
 
-/// 成员 B 提供：碰一碰配对。现在是模拟实现，真机超宽带由组员实现同一协议。
-protocol BumpService {
-    func startSearching(candidates: [Resident], onFound: @escaping (Resident) -> Void)
+/// 成员 B 提供：碰一碰配对。演示模式用模拟实现（SimulatedBumpService），真机用超宽带（NearbyBumpService，移植自组员 B 嘅 UWBMeetDemo）。
+/// 2026-10-10 改（真机碰一碰）：加 onUpdate 报进度（界面显示距离、失败原因）；onFound 由 Resident 改成 BumpMatch
+/// （演示 = 示範居民，真机 = 后端返回嘅 LinkedPeer）。新类型喺 Domain/BumpEvents.swift。
+@MainActor
+protocol BumpService: AnyObject {
+    func startSearching(candidates: [Resident], onUpdate: @escaping (BumpUpdate) -> Void, onFound: @escaping (BumpMatch) -> Void)
     func cancel()
 }
 

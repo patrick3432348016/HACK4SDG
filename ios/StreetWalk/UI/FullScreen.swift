@@ -1,51 +1,230 @@
 import SwiftUI
 
-// MARK: - 碰一碰等待画面
+// MARK: - 碰一碰全屏画面
 
 /// MainView 在 bumpStage == .searching 时全屏显示；找到对方后由 MainView 关掉。
+/// 真机（2026-10-10）：搵緊身邊部手機 → 靠近啲 → 再近啲 → 成功，中间一个进度环显示距离（组员 B 原型嘅进度环）；
+/// 失败讲清楚原因，提供「用二維碼」「再試」「去設定」。二维码画面见 BumpQRViews.swift。
 struct BumpView: View {
     @Environment(AppStore.self) private var store
 
     var body: some View {
+        let progress = store.bumpProgress
+        let qr = store.bumpQR
+        let demo = store.community.isSimulated
         ZStack {
             Color(.systemBackground).ignoresSafeArea()
             LinearGradient(colors: [Color(.systemBackground), DS.accent.opacity(0.10)],
                            startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
 
-            VStack(spacing: 32) {
-                Spacer(minLength: 0)
+            if let qr {
+                BumpQRContent(qr: qr, demo: demo)
+                    .transition(.opacity)
+            } else {
+                bumpContent(progress, demo: demo)
+                    .transition(.opacity)
+            }
+        }
+        .animation(DS.motion(DS.spring), value: qr == nil)
+    }
 
-                FSBumpIllustration()
-                    .frame(height: 280)
-                    .accessibilityElement()
-                    .accessibilityLabel("碰一碰：將你部手機貼近對方部手機，就會加做街坊")
+    private func bumpContent(_ p: BumpUpdate, demo: Bool) -> some View {
+        VStack(spacing: 24) {
+            if demo {
+                DemoBadge(text: "示範：距離係模擬")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Spacer(minLength: 0)
 
-                VStack(spacing: 16) {
-                    Text("將手機貼近對方手機")
-                        .ds(.title)
-                        .multilineTextAlignment(.center)
-                        .accessibilityAddTraits(.isHeader)
-                    HStack(spacing: 12) {
-                        ProgressView()
-                        Text("搵緊附近嘅人…")
-                            .ds(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .accessibilityElement(children: .combine)
+            BumpRing(progress: p)
+                .frame(height: 280)
+
+            VStack(spacing: 12) {
+                Text(Self.title(p))
+                    .ds(.title)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .contentTransition(.opacity)
+                    .accessibilityAddTraits(.isHeader)
+                Text(Self.hint(p))
+                    .ds(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .animation(DS.motion(DS.snappy), value: Self.title(p))
+
+            Spacer(minLength: 0)
+
+            buttons(p)
+        }
+        .padding(.horizontal, DS.side)
+        .padding(.bottom, 16)
+    }
+
+    @ViewBuilder
+    private func buttons(_ p: BumpUpdate) -> some View {
+        switch p {
+        case .paired:
+            Color.clear.frame(height: 56)   // 成功：等画面自己关，唔好俾人撳取消
+        case .failed(let f):
+            VStack(spacing: 8) {
+                Button { store.bumpUseQR() } label: {
+                    Label("用二維碼", systemImage: "qrcode").frame(maxWidth: .infinity)
                 }
-
-                Spacer(minLength: 0)
-
-                Button { store.cancelBump() } label: {
-                    Text("取消").frame(maxWidth: .infinity)
+                .buttonStyle(.dsPrimary)
+                HStack(spacing: 8) {
+                    if f.needsSettings {
+                        Button { openSettings() } label: { Text("去設定").frame(maxWidth: .infinity) }
+                            .buttonStyle(.dsSecondary)
+                    } else if f.canRetry {
+                        Button { store.beginBumpSearch() } label: { Text("再試").frame(maxWidth: .infinity) }
+                            .buttonStyle(.dsSecondary)
+                    }
+                    Button { store.cancelBump() } label: { Text("取消").frame(maxWidth: .infinity) }
+                        .buttonStyle(.dsSecondary)
+                }
+            }
+        case .linking:
+            Button { store.cancelBump() } label: { Text("取消").frame(maxWidth: .infinity) }
+                .buttonStyle(.dsSecondary)
+        default:
+            VStack(spacing: 8) {
+                Button { store.bumpUseQR() } label: {
+                    Label("用二維碼", systemImage: "qrcode").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsSecondary)
+                Button { store.cancelBump() } label: { Text("取消").frame(maxWidth: .infinity) }
+                    .buttonStyle(.dsSecondary)
             }
-            .padding(.horizontal, DS.side)
-            .padding(.bottom, 16)
         }
-        .onAppear { store.say("將手機貼近對方手機。") }
+    }
+
+    static func title(_ p: BumpUpdate) -> String {
+        switch p {
+        case .searching: return "搵緊身邊部手機…"
+        case .needsLocalNetwork: return "要允許「本地網絡」"
+        case .ranging(let d): return BumpTuning.hint(d)
+        case .nearMe: return "等緊對方部手機…"
+        case .linking: return "配對緊…"
+        case .paired: return "成功！"
+        case .failed(let f): return f.title
+        }
+    }
+
+    static func hint(_ p: BumpUpdate) -> String {
+        switch p {
+        case .searching: return "兩部手機都要開住呢頁，慢慢貼埋一齊。"
+        case .needsLocalNetwork: return "彈出問你嗰陣撳「允許」。撳錯咗就去「設定」打開，或者用二維碼。"
+        case .ranging: return "兩部手機慢慢貼埋，拎穩一陣。"
+        case .nearMe: return "你部已經夠近，等對方部都量到。"
+        case .linking: return "唔好走開，就快好。"
+        case .paired: return "你哋而家係街坊。"
+        case .failed(let f): return f.hint
+        }
+    }
+}
+
+/// 进度环（组员 B 原型嘅意念）：越近填得越满，中间大字显示距离（厘米）。
+/// 未连上时显示原本两部手机慢慢靠近、一圈圈涟漪嘅插图。
+private struct BumpRing: View {
+    var progress: BumpUpdate
+
+    var body: some View {
+        let fill = Self.fill(progress)
+        ZStack {
+            switch progress {
+            case .searching, .needsLocalNetwork:
+                FSBumpIllustration()
+                    .accessibilityElement()
+                    .accessibilityLabel("碰一碰：將你部手機貼近對方部手機，就會加做街坊")
+            default:
+                Circle()
+                    .stroke(DS.accent.opacity(0.15), lineWidth: 16)
+                Circle()
+                    .trim(from: 0, to: fill)
+                    .stroke(DS.accent, style: StrokeStyle(lineWidth: 16, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(DS.motion(.easeOut(duration: 0.25)), value: fill)
+                center
+                    .padding(36)
+            }
+        }
+        .frame(width: 260, height: 260)
+    }
+
+    @ViewBuilder private var center: some View {
+        switch progress {
+        case .ranging(let d?):
+            let cm = max(0, Int((d * 100).rounded()))
+            VStack(spacing: 0) {
+                Text("\(cm)")
+                    .font(.system(size: 72, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .contentTransition(.numericText(value: Double(cm)))
+                    .animation(DS.motion(DS.snappy), value: cm)
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+                Text("厘米").ds(.bodyBold).foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("相距 \(cm) 厘米")
+        case .ranging(nil):
+            ProgressView().controlSize(.large)
+                .accessibilityLabel("量緊距離")
+        case .nearMe, .linking:
+            ProgressView().controlSize(.large)
+                .accessibilityLabel(progress == .linking ? "配對緊" : "等緊對方")
+        case .paired:
+            BumpPopSymbol(name: "checkmark.circle.fill", size: 110, color: DS.accent)
+                .accessibilityLabel("成功")
+        case .failed(let f):
+            Image(systemName: Self.symbol(f))
+                .font(.system(size: 76, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+        default:
+            EmptyView()
+        }
+    }
+
+    static func fill(_ p: BumpUpdate) -> Double {
+        switch p {
+        case .ranging(let d): return BumpTuning.progress(d)
+        case .nearMe, .linking, .paired: return 1
+        default: return 0
+        }
+    }
+
+    static func symbol(_ f: BumpFailure) -> String {
+        switch f {
+        case .unsupported: return "iphone.slash"
+        case .localNetworkDenied, .network, .noServer: return "wifi.exclamationmark"
+        case .nearbyDenied: return "hand.raised.fill"
+        case .timeout: return "clock.badge.exclamationmark"
+        default: return "exclamationmark.triangle.fill"
+        }
+    }
+}
+
+/// 出现时弹一下的 SF Symbol（成功剔号）。
+struct BumpPopSymbol: View {
+    var name: String
+    var size: CGFloat
+    var color: Color
+    @State private var pop = 0
+
+    var body: some View {
+        Image(systemName: name)
+            .font(.system(size: size, weight: .semibold))
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(.white, color)
+            .symbolEffect(.bounce, value: pop)
+            .task {
+                try? await Task.sleep(for: .milliseconds(120))
+                pop += 1
+            }
     }
 }
 
