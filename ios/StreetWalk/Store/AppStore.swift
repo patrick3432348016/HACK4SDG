@@ -140,7 +140,7 @@ final class AppStore: NeighborRegistry {
     }
 
     /// 全部日期、钟点都按香港时间（约会、提醒、每日记录用同一个日历）。
-    static let hk: Calendar = { var c = Calendar(identifier: .gregorian); c.timeZone = SolarPosition.hongKong; return c }()
+    nonisolated static let hk: Calendar = { var c = Calendar(identifier: .gregorian); c.timeZone = SolarPosition.hongKong; return c }()
 
     // MARK: - 启动
 

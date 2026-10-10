@@ -1,5 +1,5 @@
 import Foundation
-import UserNotifications
+@preconcurrency import UserNotifications
 
 /// A58 本地通知：约会出发前 30 分钟提醒、过咗期。App 锁屏 / 喺背景都收到。
 /// App 喺前台时唔弹系统通知，照用 App 自己嘅横幅（checkAppointments）。
