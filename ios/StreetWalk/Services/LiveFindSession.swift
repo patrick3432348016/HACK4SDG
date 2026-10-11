@@ -139,9 +139,9 @@ final class LiveFindSession: NSObject, CLLocationManagerDelegate, NISessionDeleg
 
     // MARK: - 位置
 
-    /// 传我而家嘅位置（只传 15 秒内嘅定位）。
+    /// 传我而家嘅位置（企定唔郁时定位唔会更新：2 分钟内嘅最后定位照传，对方先知我仲喺度）。
     private func sendLocation() {
-        guard !stopped, foreground, channelJoined, let f = myFix, Date().timeIntervalSince(f.at) < 15 else { return }
+        guard !stopped, foreground, channelJoined, let f = myFix, Date().timeIntervalSince(f.at) < 120 else { return }
         channel?.broadcast("loc", Self.locPayload(f))
         sentCount += 1
     }

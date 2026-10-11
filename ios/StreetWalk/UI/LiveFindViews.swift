@@ -11,7 +11,8 @@ struct LiveFindOverlay: View {
             let place = store.placeName(f.landmarkID) ?? "附近"
             ZStack {
                 VStack(spacing: 8) {
-                    sharingPill(p)
+                    // 見到之后已经停咗分享：唔再显示「分享緊位置」
+                    if f.stage != .met { sharingPill(p) }
                     ToastView()
                     Spacer(minLength: 0)
                     if f.stage != .met {
