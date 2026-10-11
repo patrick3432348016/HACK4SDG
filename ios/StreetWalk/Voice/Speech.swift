@@ -10,14 +10,94 @@ final class Speaker: ObservableObject {
     /// 声音对象只查一次（有些模拟器每次查都会卡住主线程）。
     private var voiceCache: [String: AVSpeechSynthesisVoice] = [:]
 
-    var isSpeaking: Bool { synth.isSpeaking }
-    func stop() { synth.stopSpeaking(at: .immediate) }
+    /// Mac 语音服务器（粤语真人声）。nil = 唔用（单元测试）。见 Voice/VoiceServer.swift、ServerSpeech.swift。
+    var server: VoiceServer?
+    /// 登录 token（只经 HTTPS 送；局域网唔使）。
+    var token: (() async -> String?)?
+    private lazy var serverPlayer = ServerSpeechPlayer()
+    /// 而家呢句点讲（debug-state、测试）。
+    private(set) var lastRoute: TTSRoute = .system
+    /// 自动演示脚本：冇缓存就唔等服务器（画面同声音要对得准）。
+    static let scripted = ProcessInfo.processInfo.arguments.contains { $0.hasPrefix("-script") }
 
-    /// 播报一句：用设定入面而家嘅语言同声音。开关由 Announcer 管（关咗唔会叫到呢度，除非用户亲手撳「再聽一次」）。
+    /// 每次 speak / stop 加一：等 token 嗰阵被打断就唔再开始。
+    private var speakGeneration = 0
+    var isSpeaking: Bool { synth.isSpeaking || serverPlayer.isActive }
+    func stop() {
+        speakGeneration += 1
+        serverPlayer.stop()
+        synth.stopSpeaking(at: .immediate)
+    }
+
+    /// 播报一句：粤语有 Mac 服务器（或者手机存咗呢句）就用真人声，否则 / 太慢（6 秒）就用系统声音。
+    /// 开关由 Announcer 管（关咗唔会叫到呢度，除非用户亲手撳「再聽一次」）。
     func speak(_ text: String) {
+        speakGeneration += 1
         lastSpoken = text
         settings.ensureScanned()
-        play(text, voice: settings.active, language: settings.language)
+        let language = settings.language
+        let speed = TTSRoute.speed(settings.pace)
+        let voiceID = server?.voiceID
+        let key = voiceID.map { SpeechAudioCache.key(text: text, voiceID: $0, speed: speed) }
+        let cached = key.flatMap { SpeechAudioCache.file(for: $0) }
+        let route = TTSRoute.decide(language: language, server: server?.speechURL, cached: cached, scripted: Self.scripted)
+        lastRoute = route
+        switch route {
+        case .system:
+            AppStore.debugEvent("tts system: \(text)")
+            playSystem(text, language: language)
+        case .cached(let file):
+            activateSession()
+            synth.stopSpeaking(at: .immediate)
+            AppStore.debugEvent("tts phone-cache: \(text)")
+            serverPlayer.play(file: file) { [weak self] outcome in
+                if outcome == .failedBeforeAudio { self?.playSystem(text, language: language) }
+            }
+        case .server(let url):
+            activateSession()
+            synth.stopSpeaking(at: .immediate)
+            let gen = speakGeneration
+            if url.scheme == "https", let token {
+                // 隧道（公网 HTTPS）要登录：攞 token 期间被 stop / 换咗句就唔好再开始
+                Task { @MainActor [weak self] in
+                    let t = await token()
+                    guard let self, self.speakGeneration == gen else { return }
+                    self.startStream(text, url: url, speed: speed, token: t, key: key, language: language)
+                }
+            } else {
+                startStream(text, url: url, speed: speed, token: nil, key: key, language: language)
+            }
+        }
+    }
+
+    private func startStream(_ text: String, url: URL, speed: Double, token: String?, key: String?, language: SpokenLanguage) {
+        let started = Date()
+        serverPlayer.stream(text: text, server: url, speed: speed, token: token, cacheKey: key) { [weak self] outcome in
+            guard let self else { return }
+            switch outcome {
+            case .failedBeforeAudio:
+                print("[voice] server failed after \(String(format: "%.1f", Date().timeIntervalSince(started)))s → system voice")
+                AppStore.debugEvent("tts fallback after \(String(format: "%.1f", Date().timeIntervalSince(started)))s → system: \(text)")
+                self.server?.noteFailure()
+                self.playSystem(text, language: language)
+            case .finished:
+                self.server?.noteSuccess()
+                if let t = self.serverPlayer.lastFirstAudio {
+                    print("[voice] server first audio \(String(format: "%.2f", t))s")
+                    AppStore.debugEvent("tts server first-audio \(String(format: "%.2f", t))s total \(String(format: "%.1f", Date().timeIntervalSince(started)))s: \(text)")
+                }
+            case .stopped: break
+            }
+        }
+    }
+
+    private func activateSession() {
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+        try? AVAudioSession.sharedInstance().setActive(true)
+    }
+
+    private func playSystem(_ text: String, language: SpokenLanguage) {
+        play(text, voice: settings.active, language: language)
     }
 
     /// 设定页「試聽」：用指定嘅声音讲试听句子（唔理开关）。
@@ -26,6 +106,7 @@ final class Speaker: ObservableObject {
     }
 
     private func play(_ text: String, voice v: VoiceInfo?, language: SpokenLanguage) {
+        serverPlayer.stop()
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
         try? AVAudioSession.sharedInstance().setActive(true)
         synth.stopSpeaking(at: .immediate)

@@ -715,6 +715,13 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
                          body: json(JSONValue.object(f)), prefer: "return=minimal"))
     }
 
+    /// 语音助手（Mac 服务器）用我嘅登录代我插入咗呢个约会：记低系我自己约嘅（之后对方应承 / 拒绝先认得），唔再上传。
+    func adoptServerInvite(_ a: Appointment) {
+        rememberOwn(MeetupRow(id: a.id.uuidString.lowercased(), inviter: OutboxOp.me, invitee: a.partnerID, at: a.date,
+                              landmark_name: index.publishName(a.landmarkID), reason: a.reason, status: "waiting",
+                              updated_by: OutboxOp.me, updated_at: Date()))
+    }
+
     private func rememberOwn(_ row: MeetupRow) {
         var r = row
         if let me = myID { r.inviter = r.inviter == OutboxOp.me ? me : r.inviter; r.updated_by = me }

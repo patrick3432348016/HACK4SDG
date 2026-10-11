@@ -136,6 +136,12 @@ final class AppStore: NeighborRegistry {
     // 真后端追加（AppStore+Backend）
     /// 网名（排行榜上同区嘅人见到；1–20 字）。即时存盘。
     var nickname = UserDefaults.standard.string(forKey: "nickname") ?? "" { didSet { UserDefaults.standard.set(nickname, forKey: "nickname") } }
+    /// 组员 B 嘅语音助手（Mac 语音服务器，见 AppStore+Assistant）：对话、待查操作。
+    @ObservationIgnored let assistant = AssistantSession()
+    /// 而家等紧边一次助手请求（旧嘅答覆返嚟就唔理）。
+    @ObservationIgnored var assistantGen = UUID()
+    /// 撳咗「好」但未知结果嗰个动作（查到做好咗之后加约会用）。
+    @ObservationIgnored var pendingAssistantAction: AssistantCard.Action?
     /// F8：街坊问「想過嚟搵你，方唔方便？」，等我撳「好 / 唔方便」。
     var incomingFind: IncomingFindAsk?
 
