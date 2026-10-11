@@ -168,15 +168,16 @@ extension AppStore {
         return scene.nearestWalkable(Vec2(x: min(h, max(-h, v.x)), y: min(h, max(-h, v.y))))
     }
 
-    /// 有新定位先重画场景入面两个人；第一次见到对方就将镜头移去两人中间。
+    /// 有新定位先重画场景入面两个人；第一次见到对方就拉远镜头睇晒两个人。
     private func refreshLiveScene(_ lf: LiveFindSession) {
         let stamp = max(lf.myFix?.at ?? .distantPast, lf.partnerFix?.at ?? .distantPast)
         guard stamp != liveSceneStamp, stamp != .distantPast else { return }
         liveSceneStamp = stamp
         syncScene()
-        if !liveCameraDone, let a = liveScenePoint(lf.myFix), let b = liveScenePoint(lf.partnerFix) {
+        // 两个人都喺底座（约 300 m）入面：用总览镜头，两个都睇到
+        if !liveCameraDone, liveScenePoint(lf.myFix) != nil, liveScenePoint(lf.partnerFix) != nil {
             liveCameraDone = true
-            scene.setCamera(target: (a + b) * 0.5, distance: scene.overviewDistance * 0.8, animated: true, duration: 1.0)
+            scene.resetCamera()
         }
     }
 
