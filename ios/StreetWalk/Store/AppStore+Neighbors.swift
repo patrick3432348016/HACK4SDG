@@ -122,8 +122,8 @@ extension AppStore {
         residents[i].atLandmarkID = landmarkID
         let r = residents[i]
         syncScene()
-        guard remindAll, r.receiveRemind, inRemindWindow, let lm = landmark(r.atLandmarkID) else { return }
-        let text = "\(r.floorLabel)\(r.name)啱啱出門，應該喺\(lm.name)嗰邊。"
+        guard remindAll, r.receiveRemind, inRemindWindow, let place = placeName(r.atLandmarkID) else { return }
+        let text = "\(r.floorLabel)\(r.name)啱啱出門，應該喺\(place)嗰邊。"
         showBanner(BannerItem(symbol: "figure.walk", text: text, action: walk != nil ? .goFind(r.id) : .invite(r.id), actionTitle: walk != nil ? "過去搵佢" : "約佢"))
         say(text)
     }

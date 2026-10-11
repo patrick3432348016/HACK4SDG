@@ -201,8 +201,8 @@ extension AppStore {
     }
 
     /// 改名、反映嘅说明：未接伺服器时唔好讲成已经同步咗（A69）。
-    var renameNote: String { community.isSimulated ? "同圈街坊都會見到" : "暫時只喺你部手機（未接伺服器）" }
-    var reportNote: String { community.isSimulated ? "月尾匿名交俾屋邨管理" : "暫時只喺你部手機，接咗伺服器之後先會交俾屋邨管理" }
+    var renameNote: String { community.sharesLandmarkNames ? "同圈街坊都會見到" : "暫時只喺你部手機" }
+    var reportNote: String { community.hasServer ? "月尾匿名交俾屋邨管理（夠 10 人先會出）" : "暫時只喺你部手機" }
 
     /// 改名中只讲新名：去掉「改名做」「叫」之类同标点；太长（超过 10 个字）当听错。
     static func spokenName(_ text: String) -> String? {

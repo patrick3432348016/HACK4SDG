@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 首次使用：5 步，每步一个大按钮。顶部进度点固定，内容按方向滑入淡出。
+/// 首次使用：6 步（同意、定位、揀樓、樓層、小人、網名），每步一个大按钮。顶部进度点固定，内容按方向滑入淡出。
 struct OnboardingFlow: View {
     @Environment(AppStore.self) private var store
     /// 往回走时新内容从左边进来。
@@ -60,7 +60,7 @@ struct OnboardingFlow: View {
 
     private func goBack(from s: AppStore.Step) {
         back = true
-        if s == .floor { store.backToPickHome() } else { store.phase = .onboarding(.floor) }
+        if s == .floor { store.backToPickHome() } else if s == .nickname { store.phase = .onboarding(.avatar) } else { store.phase = .onboarding(.floor) }
     }
 
     @ViewBuilder private func stepContent(_ s: AppStore.Step) -> some View {
@@ -69,12 +69,13 @@ struct OnboardingFlow: View {
         case .locate: OnbLocateStep()
         case .pickHome: OnbPickHomeStep(onNext: { forward { store.confirmHome() } })
         case .floor: OnbFloorStep(onNext: { forward { store.phase = .onboarding(.avatar) } })
-        case .avatar: OnbAvatarStep(onNext: { forward { store.finishOnboarding() } })
+        case .avatar: OnbAvatarStep(onNext: { forward { store.phase = .onboarding(.nickname) } })
+        case .nickname: OnbNicknameStep(onNext: { forward { store.finishOnboarding() } })
         }
     }
 
     private func topBar(_ s: AppStore.Step) -> some View {
-        let canGoBack = s == .floor || s == .avatar
+        let canGoBack = s == .floor || s == .avatar || s == .nickname
         let onScene = s == .locate || s == .pickHome
         return HStack {
             ZStack {
@@ -94,7 +95,7 @@ struct OnboardingFlow: View {
             }
             .frame(width: 48, height: 48)
             Spacer()
-            OnbProgressDots(current: s.rawValue, total: 5)
+            OnbProgressDots(current: s.rawValue, total: 6)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background {
@@ -173,13 +174,13 @@ private struct OnbBottomPrimary: View {
 struct PrivacyRows: View {
     static let rows: [(symbol: String, text: String)] = [
         ("figure.walk", "你行街嘅時候自動記錄，唔使撳掣；定位揀「始終允許」，鎖咗機出門都會記。行過嘅路線同屋企位置只留喺你部手機。"),
-        ("building.2", "同圈嘅人（未碰過）：見到你嘅小人、邊座幾樓、連續日數，同一句「今日行到邊個地標」；唔會見到你個名。"),
-        ("person.2.fill", "碰過一碰嘅街坊：仲會見到你個名，同埋你出門時喺邊個地標附近。對外只講地標，唔顯示地圖坐標。"),
+        ("building.2", "同區嘅人（未碰過）：只見到你嘅網名、小人同連續日數；唔會見到你住邊座、幾樓。"),
+        ("person.2.fill", "碰過一碰嘅街坊：仲會見到你住邊座幾樓、今日一句，同埋你出門時喺邊個地標附近。對外只講地標，唔顯示地圖坐標。"),
         ("doc.text.magnifyingglass", "你嘅反映會匿名，夠 10 人先交俾社工同屋邨管理。"),
         ("network", "地圖資料向 OpenStreetMap 攞你附近一格；講嘢可能要經 Apple 辨認。"),
     ]
     /// 读出来的一段（和上面几行内容一致）。
-    static let spoken = "歡迎嚟到街坊行。你行街會自動記錄，定位揀始終允許，鎖咗機出門都會記，路線同屋企位置只留喺你部手機。同圈嘅人見到你嘅小人、邊座幾樓、連續日數同今日行到邊個地標，唔見到你個名。碰過一碰嘅街坊先見到你個名，同你出門時喺邊個地標附近。反映會匿名，夠十個人先交俾社工同屋邨管理。"
+    static let spoken = "歡迎嚟到街坊行。你行街會自動記錄，定位揀始終允許，鎖咗機出門都會記，路線同屋企位置只留喺你部手機。同區嘅人只見到你嘅網名、小人同連續日數，唔見到你住邊座幾樓。碰過一碰嘅街坊先見到你住邊座幾樓、今日一句，同你出門時喺邊個地標附近。反映會匿名，夠十個人先交俾社工同屋邨管理。"
 
     var appeared = true
 
@@ -574,7 +575,7 @@ private struct OnbFloorStep: View {
                 Text(subtitle)
                     .ds(.caption)
                     .foregroundStyle(.secondary)
-                Label("同圈嘅人會見到你住邊座、幾樓（唔會見到門牌）", systemImage: "eye")
+                Label("只有碰過一碰嘅街坊先見到你住邊座、幾樓（唔會見到門牌）", systemImage: "eye")
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -619,7 +620,7 @@ private struct OnbFloorStep: View {
         .onAppear {
             if store.floorChoice > top { store.floorChoice = top }
             if store.floorChoice < 1 { store.floorChoice = 1 }
-            store.say("你住幾樓？轉個轆揀。同圈嘅人會見到你住邊座、幾樓。")
+            store.say("你住幾樓？轉個轆揀。只有碰過一碰嘅街坊先見到。")
         }
     }
 
@@ -712,7 +713,7 @@ private struct OnbAvatarStep: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            OnbBottomPrimary(title: "完成", action: onNext)
+            OnbBottomPrimary(title: "下一步", action: onNext)
         }
         .sensoryFeedback(.selection, trigger: store.mobilityChoice)
         .sensoryFeedback(.selection, trigger: store.colorChoice)

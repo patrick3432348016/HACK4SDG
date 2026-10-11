@@ -29,7 +29,7 @@ extension AppStore {
             // 字幕（-captions）：中文一句 + 英文一句，配合录屏。
             @MainActor func cap(_ zh: String, _ en: String) { if LaunchArgs.has("-captions") { caption = (zh, en) } }   // 唔包 withAnimation（见 showBanner）
             await step(1, "開場") { cap("北都新屋邨：每日行嘅路，就係認識街坊嘅地方", "New estates in the Northern Metropolis: your daily walk is where neighbours meet") }
-            await step(4, "排行榜") { tab = .board; cap("排行榜：同區常行嘅人；未係街坊只見座數同樓層", "Circle board: regular walkers nearby — strangers show only block and floor") }
+            await step(4, "排行榜") { tab = .board; cap("排行榜：同區常行嘅人；未係街坊只見網名同小人", "Circle board: regular walkers nearby — strangers show only a nickname and avatar") }
             await step(9, "街坊 · 碰一碰") { tab = .neighbors; startBump(); cap("碰一碰：兩部手機貼近，就成為街坊", "Bump phones to become neighbours — the only way to connect") }
             await step(19, "開出門提醒") { createNeighbor("chan", remind: true); cap("成為街坊時問一次：開唔開出門提醒", "Opt in to going-out alerts, once") }
             await step(22, "今日 · 陳太出門") { tab = .today; neighborGoesOut("chan"); cap("街坊出門：只講地標，唔顯示地圖坐標", "A neighbour heads out — shown by landmark, never coordinates") }
@@ -151,6 +151,10 @@ extension AppStore {
             try? await Task.sleep(for: .seconds(2))
             mobilityChoice = .cane
             try? await Task.sleep(for: .seconds(3))
+            print("[script] 網名"); phase = .onboarding(.nickname)
+            try? await Task.sleep(for: .seconds(2))
+            setNickname(nickname.isEmpty ? "行路友" : nickname)   // -debugNickname 已经喺启动时填咗
+            try? await Task.sleep(for: .seconds(2))
             print("[script] 完成"); finishOnboarding()
         }
     }

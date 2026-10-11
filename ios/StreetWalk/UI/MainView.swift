@@ -4,16 +4,17 @@ import SwiftUI
 
 /// 底部卡片槽里显示哪一类卡。卡片内容由各自的视图提供，MainView 只提供容器。
 enum MainBottomCard: Hashable {
-    case voice, remind, proposal, findAsk, info
+    case voice, incomingFind, remind, proposal, findAsk, info
 
-    /// 语音、出门提醒是"要先答"的卡，整个屏幕变暗；
+    /// 语音、街坊问「方唔方便」、出门提醒是"要先答"的卡，整个屏幕变暗；
     /// 约人、找人、地标/街坊信息要配合场景看，只把场景以下变暗。
-    var coversScene: Bool { self == .voice || self == .remind }
+    var coversScene: Bool { self == .voice || self == .remind || self == .incomingFind }
 
     /// 读屏：新卡出现时先读卡名。
     var spokenName: String {
         switch self {
         case .voice: return "語音卡"
+        case .incomingFind: return "街坊想過嚟搵你"
         case .remind: return "出門提醒"
         case .proposal: return "約人卡"
         case .findAsk: return "搵人卡"
@@ -23,11 +24,12 @@ enum MainBottomCard: Hashable {
 }
 
 extension AppStore {
-    /// 优先级：语音 > 出门提醒 > 约人提议 > 找人询问 > 信息卡。找人全屏时只保留语音卡。
+    /// 优先级：语音 > 街坊问「方唔方便」> 出门提醒 > 约人提议 > 找人询问 > 信息卡。找人全屏时只保留语音卡。
     /// 卡的数据有效才出卡（否则会出一张只有拉手的空白卡和暗层）。
     var uiActiveCard: MainBottomCard? {
         if listening || phrasePicker || voiceCard != nil { return .voice }
         if findFullScreen { return nil }
+        if let ask = incomingFind, resident(ask.fromID) != nil { return .incomingFind }
         if let id = remindPromptFor, resident(id) != nil { return .remind }
         if let p = proposal, p.options.indices.contains(p.index) { return .proposal }
         if let f = find, resident(f.partnerID) != nil { return .findAsk }
@@ -50,7 +52,7 @@ extension AppStore {
         switch c {
         case .voice: return !listening
         case .proposal, .info: return true
-        case .remind, .findAsk: return false
+        case .remind, .findAsk, .incomingFind: return false
         }
     }
 
@@ -65,7 +67,7 @@ extension AppStore {
             }
         case .proposal: cancelProposal()
         case .info: select(nil)
-        case .remind, .findAsk: break
+        case .remind, .findAsk, .incomingFind: break
         }
     }
 }
@@ -124,6 +126,10 @@ struct MainView: View {
         }
         .sheet(isPresented: $store.showSettings) {
             SettingsView().environment(store)
+        }
+        // 真后端要网名先上得排行榜：旧用户关咗演示模式、未有网名就补填一次
+        .sheet(isPresented: Binding(get: { store.needsNickname && !store.showSettings && store.bumpStage == .idle }, set: { _ in })) {
+            NicknameSheet().environment(store)
         }
         .sheet(isPresented: $store.showTimeSlider) {
             TimeSliderSheet()
@@ -293,9 +299,11 @@ private struct MainTopChips: View {
     var body: some View {
         HStack(alignment: .top, spacing: DS.gap) {
             HomeChip()
+            if store.backendOffline { OfflineChip().transition(.opacity) }
             Spacer(minLength: DS.gap)
             if store.demoMode { DemoMenu() }
         }
+        .animation(DS.motion(DS.spring), value: store.backendOffline)
         .padding(.horizontal, DS.side)
         .padding(.top, safeTop + DS.gap)
     }
@@ -692,6 +700,7 @@ private struct BottomCardSlot: View {
     private func content(_ card: MainBottomCard) -> some View {
         switch card {
         case .voice: VoiceOverlay()
+        case .incomingFind: IncomingFindCard()
         case .remind: RemindPrompt()
         case .proposal: ProposalCard()
         case .findAsk: FindAskCard()

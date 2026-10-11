@@ -98,6 +98,7 @@ extension AppStore {
         restoreOriginalNames()
         saveNow()
         if isMainStore { LocationMonitor.shared.clearRecords() }   // 夜晚位置、定位纪录一齐清
+        clearServerData()
     }
 
     func restoreOriginalNames() {
@@ -121,8 +122,10 @@ extension AppStore {
     }
 
     /// 关咗演示模式 / 对方已经唔喺圈入面：未完成的约会收埋（对方都唔存在，唔使通知）。
+    /// 只收示範街坊嘅约（真后端嘅约以服务器为准：圈成员未拉到唔等于对方唔存在）。
     func closeOrphanAppointments() {
-        for i in appointments.indices where appointments[i].isOpen && resident(appointments[i].partnerID) == nil {
+        for i in appointments.indices where appointments[i].isOpen && resident(appointments[i].partnerID) == nil
+            && UUID(uuidString: appointments[i].partnerID) == nil {
             appointments[i].status = .cancelled
         }
     }
@@ -170,10 +173,9 @@ extension AppStore {
         noteWalkRecorded(minutes: minutes, simulated: simulated, backfilled: day != nil, steps: steps)   // 定位纪录（AppStore+Location）
     }
 
-    /// 个人资料上传（users 表）：完成首次使用、设置页改楼层或小人之后调。
+    /// 个人资料上传（profiles 表）：完成首次使用、设置页改网名 / 楼层 / 小人、返前台时调（一样就唔再传）。
     func uploadProfile() {
-        community.updateProfile(block: me.blockName, floor: floorChoice, mobility: mobilityChoice, colorIndex: colorChoice,
-                                skinTone: skinChoice, ageGroup: ageChoice)
+        if let p = communityProfile() { community.updateProfile(p) }
     }
 
     /// 当日汇总上传（walks 表，一人一日一行）：散步记完、改名令今日一句变咗时调。
@@ -223,11 +225,12 @@ extension AppStore {
 
     func receive(_ e: CommunityEvent) {
         switch e {
-        case .neighborOut(let id, let lm): neighborWentOut(id, at: lm)
+        case .neighborOut(let id, let lm): neighborWentOut(id, at: lm); notifyNeighborOut(id)
         case .neighborHome(let id): neighborWentHome(id)
         case .inviteAnswered(let id, let accepted): partnerAnswered(id, accepted: accepted)
-        case .invited(let a): invitedBy(a)
+        case .invited(let a): receiveInvite(a)
         case .reportFollowUp(let id, let text, let isDemo): reportFollowedUp(id, text: text, isDemo: isDemo)
+        default: receiveBackend(e)
         }
     }
 

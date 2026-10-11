@@ -5,7 +5,12 @@ extension AppStore {
     // MARK: - F8 找人（约好的当天 / 散步中临时）
 
     func goFind(_ partnerID: String) {
-        guard let p = resident(partnerID), p.isNeighbor, let lm = landmark(p.atLandmarkID ?? p.homeLandmarkID) else { return }
+        guard let p = resident(partnerID), p.isNeighbor else { return }
+        guard let lm = landmark(p.atLandmarkID ?? p.homeLandmarkID) else {
+            // 真后端：佢喺我地图外面嘅地标（只有名），带唔到路
+            if let place = placeName(p.atLandmarkID) { toast("\(p.name)喺\(place)附近，唔喺你附近嘅地圖入面。可以約佢或者打電話。") }
+            return
+        }
         // 换人 / 再问：撤回上一个询问，清走上次留低嘅「話好」同约会路线（A22）。
         if let old = find { community.cancelFindAsk(partnerID: old.partnerID) }
         banner = nil

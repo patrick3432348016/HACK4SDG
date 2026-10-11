@@ -4,6 +4,7 @@ import UIKit
 extension AppStore {
     /// 回到前台 / 退到后台（StreetWalkApp 按 scenePhase 调用，启动时也会来一次；.inactive 不调）。
     func appActive(_ active: Bool) {
+        backendAppActive(active)   // 真后端：前台开 Realtime、补拉；后台断线、排后台刷新（AppStore+Backend）
         if active {
             ensureMeBeforeMap()
             refreshLiveWeather()

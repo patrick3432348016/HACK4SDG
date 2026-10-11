@@ -310,7 +310,8 @@ struct FindAskCard: View {
                     AvatarBadge(p, size: 52)
                     VStack(alignment: .leading, spacing: 4) {
                         Text("問緊\(p.name)").ds(.bodyBold)
-                        Text("「\(store.me.floorLabel)想過嚟搵你，喺\(place)等陣？」")
+                        // 真后端对方见到我嘅网名（演示模式冇网名就照用楼层）
+                        Text("「\(store.nickname.isEmpty ? store.me.floorLabel : store.nickname)想過嚟搵你，喺\(place)等陣？」")
                             .ds(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
