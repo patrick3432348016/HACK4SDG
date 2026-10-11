@@ -26,6 +26,7 @@ extension AppStore {
         let s = AppStore()
         instance = s
         s.attachLocation()
+        s.attachVoice()     // 装咗更好嘅系统声音就讲一声（Voice/VoiceSettingsSection）
         return s
     }
 

@@ -262,9 +262,23 @@ struct VoiceFlowTests {
         s.announcer.hold(s.speaker)   // 停咗排队循环
     }
 
-    @Test func 读得到B嘅合成器状态() {
-        // Speaker 归 B；佢改咗内部名，播报排队会退回按字数估时。呢个测试失败就要改 Speaker.announcerSynth。
-        #expect(Speaker().announcerSynth != nil)
+    @Test func 播报关咗唔自动读_再听一次照读() {
+        let s = makeStore()
+        let suite = "voice-off-\(UUID())"
+        let v = VoiceSettings(defaults: UserDefaults(suiteName: suite)!, scanner: { [] }, watch: false)
+        s.speaker.settings = v
+        s.announcer.busy = { false }   // 当成合成器得闲，每句即刻讲
+        v.enabled = false
+        s.say("陳太出咗門")
+        #expect(s.speaker.lastSpoken != "陳太出咗門", "关咗唔自动读")
+        s.sayAgain("再聽一次呢句")
+        #expect(s.speaker.lastSpoken == "再聽一次呢句", "亲手撳「再聽一次」照读")
+        s.announcer.hold(s.speaker)
+        v.enabled = true
+        s.say("開返就讀")
+        #expect(s.speaker.lastSpoken == "開返就讀")
+        s.announcer.hold(s.speaker)
+        UserDefaults().removePersistentDomain(forName: suite)
     }
 
     @Test func 未接伺服器唔讲同圈见到() {
