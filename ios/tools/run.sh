@@ -27,5 +27,6 @@ elif [ -z "$NOGRANT" ]; then
   xcrun simctl privacy "$UDID" grant location hk.hack4sdg.streetwalk >/dev/null 2>&1 || true
 fi
 xcrun simctl terminate "$UDID" hk.hack4sdg.streetwalk >/dev/null 2>&1 || true
-xcrun simctl launch "$UDID" hk.hack4sdg.streetwalk "$@"
+# --terminate-running-process：iOS 可能喺背景（定位事件）冇参数咁自己开咗 App，普通 launch 只会将嗰个冇参数嘅拎上前（-skipOnboarding 失效）
+xcrun simctl launch --terminate-running-process "$UDID" hk.hack4sdg.streetwalk "$@"
 echo "UDID=$UDID"
