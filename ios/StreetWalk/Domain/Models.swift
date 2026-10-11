@@ -150,6 +150,24 @@ struct FindSession: Equatable {
     var token = UUID()
     /// 约会找人：对方出咗门未（收到 CommunityService 通知先算）。临时找人对方已经喺地标等。
     var partnerOut = true
+
+    // 「查找」式找人（真街坊，2026-10-11）：两部手机经私有频道临时共享即时位置，见 AppStore+LiveFind。
+    /// 真街坊：用即时位置（唔係模拟路线）。
+    var live = false
+    /// 我係被搵嗰个（对方问「過嚟搵你」我答咗好）。
+    var incoming = false
+    /// 远（GPS + 指南针）/ 近（超宽带）/ 等紧对方位置。
+    var liveMode: LiveFindMath.Mode = .waiting
+    /// 箭咀用紧超宽带方向（精确）。
+    var precise = false
+    /// 指南针唔准：叫用户将手机放平。
+    var headingPoor = false
+    /// 箭咀差唔多向前（转绿）。
+    var facing = false
+    /// 镜头辅助未收敛：叫用户慢慢左右移动手机。
+    var sweep = false
+    /// 对方位置暂时收唔到（旧过 30 秒）。
+    var partnerStale = false
 }
 
 struct WalkSession: Equatable {

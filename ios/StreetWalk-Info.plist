@@ -35,6 +35,6 @@
 	<key>NSNearbyInteractionUsageDescription</key>
 	<string>碰一碰時量度兩部手機有幾近；搵街坊時喺附近指出佢喺邊個方向。</string>
 	<key>NSCameraUsageDescription</key>
-	<string>手機唔支援碰一碰時，用鏡頭掃街坊嘅二維碼加街坊。</string>
+	<string>手機唔支援碰一碰時，用鏡頭掃街坊嘅二維碼加街坊；搵街坊時喺好近嘅距離，用鏡頭幫手指出佢喺邊個方向。</string>
 </dict>
 </plist>

@@ -372,7 +372,9 @@ struct FindOverlay: View {
     @State private var arrowAngle: Double = 0
 
     var body: some View {
-        if let f = store.find, let p = store.resident(f.partnerID) {
+        if let f = store.find, f.live {
+            LiveFindOverlay()
+        } else if let f = store.find, let p = store.resident(f.partnerID) {
             let place = store.landmark(f.landmarkID)?.name ?? "約定地方"
             ZStack {
                 VStack(spacing: 8) {
@@ -583,7 +585,7 @@ extension FindOverlay {
 }
 
 /// 相遇：对勾弹一下 + "見到喇！"。store 3 秒后自动结束。
-private struct FSMetCelebration: View {
+struct FSMetCelebration: View {
     var name: String
     var place: String
     @State private var pop = 0

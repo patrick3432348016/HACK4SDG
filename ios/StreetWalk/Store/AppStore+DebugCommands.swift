@@ -72,7 +72,8 @@ extension AppStore {
         case "home": finishWalk()
         case "find": if let r = debugResident(arg) { goFind(r.id) }
         case "go": startGoing()
-        case "endfind": endFind()
+        case "endfind", "stopshare": endFind()
+        case "met": liveMetTapped()
         case "answer": answerIncomingFind(arg == "yes")
         case "invite":
             guard let r = debugResident(parts.count > 1 ? parts[1] : "") else { return }
@@ -118,6 +119,12 @@ extension AppStore {
         }
         out.append("incomingFind=\(incomingFind.map { "\(resident($0.fromID)?.name ?? "?") @\(placeName($0.landmarkID) ?? "?")" } ?? "-")")
         out.append("find=\(find.map { "\(resident($0.partnerID)?.name ?? "?") \($0.stage) agreed=\(partnerAgreed) partnerOut=\($0.partnerOut)" } ?? "-")")
+        if let f = find, f.live {
+            let lf = liveFind
+            out.append("live=mode:\(f.liveMode) stage:\(f.stage) dist:\(Int(f.distance))m eta:\(f.etaMinutes) arrow:\(Int(f.bearing)) precise:\(f.precise) headingPoor:\(f.headingPoor) stale:\(f.partnerStale) joined:\(lf?.channelJoined ?? false) refused:\(lf?.channelRefused ?? "-") sent:\(lf?.sentCount ?? 0) recv:\(lf?.receivedCount ?? 0) ni:\(lf.map { "\($0.niState)" } ?? "-") me:\(lf?.myFix.map { "\($0.geo.lat),\($0.geo.lon)" } ?? "-") partner:\(lf?.partnerFix.map { "\($0.geo.lat),\($0.geo.lon)" } ?? "-")")
+        } else {
+            out.append("live=-")
+        }
         out.append("walk=\(walk.map { "\($0.minutes)min" } ?? "-") bump=\(bumpStage) remindPrompt=\(remindPromptFor ?? "-")")
         out.append("banner=\(banner?.text ?? "-")")
         out.append("toast=\(toast ?? "-")")

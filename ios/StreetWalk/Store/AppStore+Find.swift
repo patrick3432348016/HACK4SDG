@@ -46,6 +46,13 @@ extension AppStore {
             }
             return
         }
+        if canShareLive(with: f.partnerID) {
+            // 真街坊：即刻一齐分享位置、跟箭咀去搵佢（唔使再撳「去」）
+            Haptics.success()
+            say("\(p.name)話好。而家同\(p.name)分享緊位置，跟住箭咀行。")
+            startGoing()
+            return
+        }
         say("\(p.name)話好，喺\(landmark(f.landmarkID)?.name ?? "")等你。撳「去」就出發。", prompt: true)
         Haptics.success()
         partnerAgreed = true
@@ -54,6 +61,7 @@ extension AppStore {
     func startGoing() {
         guard var f = find else { return }
         f.stage = .going
+        if canShareLive(with: f.partnerID) { startLiveFind(&f) }
         find = f
         findFullScreen = true
         partnerAgreed = false
@@ -78,7 +86,8 @@ extension AppStore {
         partnerTravelled = 0
         partnerAgreed = false
         findAppointment = a.id
-        let session = FindSession(partnerID: p.id, landmarkID: lm.id, spontaneous: false, stage: .going, partnerOut: false)
+        var session = FindSession(partnerID: p.id, landmarkID: lm.id, spontaneous: false, stage: .going, partnerOut: false)
+        startLiveFind(&session)
         find = session
         findFullScreen = true
         scene.setRoute(findRoute)
@@ -86,7 +95,7 @@ extension AppStore {
         syncScene()
         startTicker()
         scene.setCamera(target: lm.pos + Vec2(x: -10, y: -10), distance: scene.overviewDistance * 0.8, animated: true, duration: 1.0)
-        say("今日約咗\(p.name)喺\(lm.name)。等緊\(p.name)出門。")
+        say(session.live ? "今日約咗\(p.name)喺\(lm.name)。而家同\(p.name)分享緊位置。" : "今日約咗\(p.name)喺\(lm.name)。等緊\(p.name)出門。")
         let myMinutes = max(1, Int((pathLength(findRoute ?? []) / 70).rounded(.up)))
         let token = session.token
         community.departForMeetup(a.id, etaMinutes: myMinutes) { [weak self] trip in
@@ -122,6 +131,7 @@ extension AppStore {
     }
 
     func tickFind(_ f: inout FindSession, _ dt: Double) {
+        if f.live { tickLiveFind(&f); return }
         guard f.stage == .going || f.stage == .near, let route = findRoute else { return }
         findTravelled = min(pathLength(route), findTravelled + dt * Self.findSpeed)
         if !f.spontaneous, f.partnerOut, let pr = partnerRoute { partnerTravelled = min(pathLength(pr), partnerTravelled + dt * Self.findSpeed * 0.8) }
@@ -183,8 +193,9 @@ extension AppStore {
 
     /// 「我喺X」播送。text 係语音复述过嘅原话；撳掣时：约会讲「我喺X」，临时找人讲「我就到X」（A11）。
     func broadcastHere(_ text: String? = nil) {
-        guard var f = find, let lm = landmark(f.landmarkID) else { return }
-        let msg = text ?? (f.spontaneous ? "我就到\(lm.name)" : "我喺\(lm.name)")
+        guard var f = find else { return }
+        // 真街坊嘅找人可能冇本机地标（被搵嗰边、对方喺地图外）：照传原话
+        guard let msg = text ?? landmark(f.landmarkID).map({ f.spontaneous ? "我就到\($0.name)" : "我喺\($0.name)" }) else { return }
         f.broadcast = msg
         find = f
         community.broadcast(to: f.partnerID, text: msg)
@@ -194,6 +205,7 @@ extension AppStore {
 
     func endFind() {
         if let f = find {
+            if f.live { stopLiveFind(notify: true, met: f.stage == .met) }
             community.cancelFindAsk(partnerID: f.partnerID)
             if let id = findAppointment { community.endMeetupTrip(id, met: f.stage == .met) }
         }

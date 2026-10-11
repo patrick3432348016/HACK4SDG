@@ -145,6 +145,14 @@ final class AppStore: NeighborRegistry {
     /// F8：街坊问「想過嚟搵你，方唔方便？」，等我撳「好 / 唔方便」。
     var incomingFind: IncomingFindAsk?
 
+    // 「查找」式找人（AppStore+LiveFind）
+    /// 同真街坊临时共享即时位置（找人期间先有；结束即刻停）。
+    @ObservationIgnored var liveFind: LiveFindSession?
+    /// 场景上次按边个对方定位画人（新定位先重画）。
+    @ObservationIgnored var liveSceneStamp: Date?
+    /// 第一次见到对方位置：镜头移去两人之间（只做一次）。
+    @ObservationIgnored var liveCameraDone = false
+
     var me: Resident { residents.first { $0.isMe } ?? Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true, nickname: nickname) }
     var neighbors: [Resident] { residents.filter { $0.isNeighbor && !$0.isMe } }
     var outNeighbors: [Resident] { neighbors.filter(\.isOut) }

@@ -246,7 +246,9 @@ extension AppStore {
             }
             people.append(ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility, motion: motion, label: "你"))
         }
-        if let f = find, let p = resident(f.partnerID), p.isNeighbor, let lm = landmark(f.landmarkID) {
+        if let f = find, f.live, let p = resident(f.partnerID), p.isNeighbor {
+            people += livePeople(f, partner: p)
+        } else if let f = find, let p = resident(f.partnerID), p.isNeighbor, let lm = landmark(f.landmarkID) {
             let myStart = myPosition()
             people.append(ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility,
                                       motion: f.stage == .asking || f.stage == .declined ? .stand(at: myStart) : .route(findRoute ?? [myStart, lm.pos], speed: Self.findSpeed), label: "你"))
