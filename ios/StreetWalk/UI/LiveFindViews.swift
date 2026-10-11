@@ -84,37 +84,30 @@ struct LiveFindOverlay: View {
                 Text(f.spontaneous ? "等緊\(p.name)嘅位置…" : "等緊\(p.name)出門…")
                     .ds(.body)
                     .foregroundStyle(.secondary)
-            } else {
-                Image(systemName: "location.north.fill")
-                    .font(.system(size: near ? 120 : 96, weight: .bold))
-                    .foregroundStyle(color)
-                    .rotationEffect(.degrees(arrowAngle))
-                    .frame(width: 160, height: 160)
-                    .background(color.opacity(0.12), in: Circle())
-                    .animation(DS.motion(DS.snappy), value: f.facing)
-                    .accessibilityHidden(true)
-                Text("\(meters) 米")
-                    .font(.system(size: 56, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .contentTransition(.numericText(value: Double(meters)))
-                    .animation(DS.motion(DS.snappy), value: meters)
+            } else if near {
+                // 近：大箭咀放中间（同苹果「查找」一样），对正咗转绿
+                arrow(color, size: 120, frame: 160)
+                distanceText(meters, size: 56)
                 Text(subtitle(f, p))
                     .ds(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                if f.headingPoor && !f.precise {
-                    Label("請將手機放平", systemImage: "iphone.gen3")
-                        .ds(.captionBold)
-                        .foregroundStyle(DS.accentInk)
-                } else if f.sweep {
-                    Label("慢慢左右移動手機", systemImage: "arrow.left.and.right")
-                        .ds(.captionBold)
-                        .foregroundStyle(DS.accentInk)
+                hints(f, p)
+            } else {
+                // 远：箭咀同距离并排，留返位睇场景入面对方大概喺边
+                HStack(spacing: 16) {
+                    arrow(color, size: 64, frame: 104)
+                    VStack(alignment: .leading, spacing: 2) {
+                        distanceText(meters, size: 48)
+                        Text(subtitle(f, p))
+                            .ds(.body)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
                 }
-                if f.partnerStale {
-                    Text("暫時收唔到\(p.name)嘅最新位置").ds(.caption).foregroundStyle(.secondary)
-                }
+                hints(f, p)
             }
         }
         .frame(maxWidth: .infinity)
@@ -123,6 +116,41 @@ struct LiveFindOverlay: View {
         .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(p.name)，大約 \(meters) 米。\(subtitle(f, p))")
+    }
+
+    private func arrow(_ color: Color, size: CGFloat, frame: CGFloat) -> some View {
+        Image(systemName: "location.north.fill")
+            .font(.system(size: size, weight: .bold))
+            .foregroundStyle(color)
+            .rotationEffect(.degrees(arrowAngle))
+            .frame(width: frame, height: frame)
+            .background(color.opacity(0.12), in: Circle())
+            .animation(DS.motion(DS.snappy), value: color)
+            .accessibilityHidden(true)
+    }
+
+    private func distanceText(_ meters: Int, size: CGFloat) -> some View {
+        Text("\(meters) 米")
+            .font(.system(size: size, weight: .bold, design: .rounded))
+            .monospacedDigit()
+            .contentTransition(.numericText(value: Double(meters)))
+            .animation(DS.motion(DS.snappy), value: meters)
+    }
+
+    @ViewBuilder
+    private func hints(_ f: FindSession, _ p: Resident) -> some View {
+        if f.headingPoor && !f.precise {
+            Label("請將手機放平", systemImage: "iphone.gen3")
+                .ds(.captionBold)
+                .foregroundStyle(DS.accentInk)
+        } else if f.sweep {
+            Label("慢慢左右移動手機", systemImage: "arrow.left.and.right")
+                .ds(.captionBold)
+                .foregroundStyle(DS.accentInk)
+        }
+        if f.partnerStale {
+            Text("暫時收唔到\(p.name)嘅最新位置").ds(.caption).foregroundStyle(.secondary)
+        }
     }
 
     private func subtitle(_ f: FindSession, _ p: Resident) -> String {
