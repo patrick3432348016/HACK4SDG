@@ -4,14 +4,43 @@
 
 北都新屋邨的街坊天天在同一条路上擦肩而过。这个 App 让大家在每天本来就会走的那段路上认识彼此：在排行榜上认出面孔，碰一碰手机成为街坊，说一句话就约好一起走。
 
-- **成员 A 当前进度（做了什么、缺什么、已知 bug、手动验证清单）：[docs/PROGRESS_member_A.md](docs/PROGRESS_member_A.md)**
+## 现状（2026-10-11）
+
+**全部功能都是真的，两部 iPhone（iPhone 15、iPhone Air）实测装好，碰一碰已在真机成功。** 「示範」角色只在演示模式（录视频、脚本）出现。
+
+| 功能 | 怎么实现 |
+|---|---|
+| 实时地图、3D 纸雕场景、地标、楼影遮荫、寻路 | 定位 → 400 m 网格 → OpenStreetMap；SceneKit |
+| 认家、出门自动记录散步、搬家提示 | 「始终允许」定位 + 夜间学家 + 离家地理围栏（`Services/HomeLearner` `LocationMonitor`） |
+| 网名、附近真人排行榜、街坊、约会、出门提醒、反映 | Supabase 后端（新加坡，匿名登录，`supabase/`）；服务器上没有坐标和门牌，只有地标名 |
+| 碰一碰加街坊 | 超宽带测距（移植组员 B 的 `ios/UWBMeetDemo/`），两机 20 cm 内停 0.4 秒 → 服务器配对；旧机型用二维码（`Bump/`） |
+| 找人（像「查找」） | 私有频道互传 GPS + 指南针箭头；30 m 内切超宽带精确箭头（`Services/LiveFindSession`） |
+| 灵动岛横幅 + Live Activity | 小组件扩展 `StreetWalkWidgets` |
+| 天气 | 香港天文台；香港以外（如深圳）用 Open-Meteo |
+| 语音助手 | 组员 B 的助手（`server/`）+ Mac 当场生成粤语声（GPT-SoVITS，`tools/voice_server.sh`）；连不上 Mac 时用手机系统声音和模板理解 |
+| 语言 | 粤语繁体 / 普通话简体，设定里即时切换 |
+
+## 装到自己的 iPhone
+
+看 **[ios/真机安装说明.md](ios/真机安装说明.md)**：装 Xcode、登录自己的 Apple ID（免费即可）、插线后跑 `cd ios && zsh tools/install_device.sh`。免费账号装的 App 7 天过期，重跑即可。
+
+## 剩下要做的
+
+- [ ] **真机实测**（两台两账号）：找人箭头和超宽带近距离、出门提醒（App 要先在家过一晚认家）、后台散步记录、灵动岛
+- [ ] **清理服务器测试用户**、执行后端建议的 3 条 SQL（见 `supabase/README.md`），否则测试用户会出现在真人排行榜
+- [ ] 普通话版收尾：iOS 菜单名「阅读与朗读」「朗读内容」未核对；`Info.plist` 权限说明仍是粤语
+- [ ] **Pitch deck**（10/18 交；要队名、队伍编号、成员姓名和大学）、WorkBuddy 报告
+- [ ] 宣传片：`video/`（Remotion 工程，英文旁白约 3 分钟，见 `video/README.md`）
+- [ ] AI 换真模型（组员 B，国内模型如智谱 GLM）
+- [ ] 10/17 晚前用 `install_device.sh` 重装两台演示机（免费签名到期）
+- [ ] 可选：开苹果付费开发者账号 → TestFlight 发链接 + 真推送
+
+其他文档（部分内容是 10/10 前写的，以本页为准）：
 - 产品规格：[docs/产品定稿_康乐社交App_v1.0.md](docs/产品定稿_康乐社交App_v1.0.md)
 - 排版草图：[docs/design/layout_sketch.html](docs/design/layout_sketch.html)（浏览器直接打开）
-- 演示视频：[docs/demo/streetwalk_demo.mp4](docs/demo/streetwalk_demo.mp4)（约 107 秒，中英字幕）
-- 原型完成度（哪些是真的、哪些是模拟）：[docs/prototype_status.md](docs/prototype_status.md)
-- 后端草案（Supabase，未实现）：[docs/backend_supabase.md](docs/backend_supabase.md)
-
-**原型是单机演示**：圈里的其他居民（陳太等 6 人）是「示範街坊」，界面上标「示範」；碰一碰的另一部手机、全邨匿名汇总也是模拟的。真的在跑的：实时地图与 3D 场景、地标、楼影遮荫、寻路、香港天文台天气、粤语语音（模板理解）、本机持久化、约会全流程、真机步行检测（App 打开时用定位，锁屏期间的散步回到前台时补记分钟；真机默认关闭演示模式）。
+- 演示视频：[docs/demo/streetwalk_demo.mp4](docs/demo/streetwalk_demo.mp4)
+- 成员 A 旧进度与手动验证清单：[docs/PROGRESS_member_A.md](docs/PROGRESS_member_A.md)
+- 后端表结构、权限规则、权限测试：[supabase/README.md](supabase/README.md)
 
 ## iOS 原型（`ios/`）
 
@@ -20,7 +49,8 @@
 ```sh
 cd ios
 ./tools/selftest.sh      # 在 Mac 上跑核心逻辑自测：地图解析、地标、太阳位置、遮荫、天文台数据
-./tools/test.sh          # Xcode 单元测试（33 个）：地图、遮荫、寻路、语音意图、连续天数、持久化、示範数据、散步逻辑；失败返回非零（SIM="iPhone Air" 换模拟器）
+./tools/test.sh          # Xcode 单元测试（207 个）；失败返回非零（SIM="iPhone Air" 换模拟器）
+./tools/install_device.sh # 编译并装到插着线的 iPhone（见 真机安装说明.md）
 ./tools/run.sh -demo     # 编译、装到 iPhone 17 模拟器并启动（定位设在皇后山邨）；编译失败会停下
 ./tools/record_demo.sh   # 录演示视频（先关掉其他模拟器）
 ```
@@ -36,7 +66,7 @@ cd ios
 | 目录 | 负责 | 内容 |
 |---|---|---|
 | `App/` `Design/` `Store/` `UI/` | A | App 骨架、设计规范、状态与流程（`AppStore` 按功能分成多个扩展文件）、全部界面、设置页 |
-| `Store/Community.swift` | A | `CommunityService`：要和别人同步的数据（街坊、约会、出门状态、反映）。现为 `LocalCommunityService` 单机模拟，上线换 Supabase |
+| `Store/Community.swift` `Backend/` | A | `CommunityService`：要和别人同步的数据（街坊、约会、出门状态、反映）。真机用 `SupabaseCommunityService`，演示模式用 `LocalCommunityService` |
 | `Store/LocalStore.swift` | A | 本机持久化（街坊关系、约会、反映、地标名、每日散步纪录、请假） |
 | `Services/` | A | 香港天文台天气、真机步行检测（Core Motion + 定位 + 计步器）、散步纯逻辑（落脚点、补记、请假）、本地通知、电话 |
 | `Map/` | A | 定位 → 400 m 网格 → Overpass 实时地图 → 缓存/兜底、地标选取、寻路 |
@@ -44,7 +74,7 @@ cd ios
 | `Shade/` | A | 太阳位置（NOAA）、楼宇射线遮荫 |
 | `AI/` | B | `TemplateAI`：AIService 的模板实现（之后换真模型） |
 | `Voice/` | B | 粤语语音识别与播报 |
-| `Bump/` | B | `SimulatedBumpService`：碰一碰的模拟实现（真机用超宽带） |
+| `Bump/` | A + B | 碰一碰：真机 `NearbyBumpService`（超宽带，移植自 B 的 `UWBMeetDemo`）+ 二维码；演示模式用 `SimulatedBumpService` |
 | `Domain/Contracts.swift` | A + B | 规格 §8 的接口，改动需两人同意（2026-10-07 加了改约 / 取消约意图和月报 `stats` 参数，待 B 确认） |
 | `StreetWalkTests/` | A | Xcode 单元测试 |
 

@@ -1,0 +1,7 @@
+node_modules/
+out/
+footage/raw/
+footage/sheets/
+public/clips/
+public/music.wav
+narration/samples/

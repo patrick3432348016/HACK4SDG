@@ -1,0 +1,353 @@
+<title>街坊行宣传片组员意见</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+/* Layout: one reading column — video on top, chapter strip, then a form built from the film's ten feature chapters; responses below. Same paper + street-orange world as the app and the film. */
+:root {
+  --paper: #FAFAF8;
+  --sheet: #FFFFFF;
+  --well: #F4F3EF;
+  --line: #E4E2DC;
+  --ink: #1F1E1C;
+  --ink-2: #6B6A66;
+  --orange: #D85A30;
+  --orange-ink: #A9441F;
+  --orange-tint: #FAECE7;
+  --green: #1D9E75;
+  --green-tint: #E1F5EE;
+  --green-ink: #085041;
+  --display: "Fraunces", Georgia, "Songti SC", serif;
+  --body: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
+  --shadow: 0 1px 2px rgba(60,40,20,.06), 0 10px 28px rgba(60,40,20,.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #1B1A18; --sheet: #252320; --well: #2C2A27; --line: #3A3733; --ink: #F1EEE8; --ink-2: #A9A59E;
+    --orange: #EE7A50; --orange-ink: #FF9A6E; --orange-tint: #3A2419; --green: #3CC08F; --green-tint: #17332A; --green-ink: #9FE1CB;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.35); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #1B1A18; --sheet: #252320; --well: #2C2A27; --line: #3A3733; --ink: #F1EEE8; --ink-2: #A9A59E;
+  --orange: #EE7A50; --orange-ink: #FF9A6E; --orange-tint: #3A2419; --green: #3CC08F; --green-tint: #17332A; --green-ink: #9FE1CB;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.35); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font: 16px/1.7 var(--body); margin: 0; }
+.wrap { max-width: 860px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px; display: grid; gap: 40px; }
+h1, h2 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.15; }
+h1 .zh { font-family: var(--body); font-weight: 700; color: var(--orange); }
+h2 { font-size: 26px; }
+.eyebrow { font-size: 13px; letter-spacing: .14em; color: var(--orange); font-weight: 700; display: flex; align-items: center; gap: 12px; }
+.eyebrow::before { content: ""; width: 36px; height: 2px; background: var(--orange); }
+.lede { color: var(--ink-2); margin: 10px 0 0; max-width: 62ch; }
+.player { border-radius: 18px; overflow: hidden; background: #000; box-shadow: var(--shadow); aspect-ratio: 16 / 9; max-width: 100%; }
+.player video { width: 100%; height: 100%; display: block; }
+.chapters { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.chip { font: 500 14px var(--body); border: 1px solid var(--line); background: var(--sheet); color: var(--ink); border-radius: 999px; padding: 5px 12px; cursor: pointer; display: inline-flex; gap: 6px; align-items: baseline; }
+.chip:hover { border-color: var(--orange); }
+.chip:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+.chip .t { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 12px; }
+form { display: grid; gap: 28px; }
+.field { display: grid; gap: 8px; }
+label, .q { font-weight: 500; }
+.hint { color: var(--ink-2); font-size: 14px; }
+input[type=text], textarea { width: 100%; font: 16px/1.5 var(--body); color: var(--ink); background: var(--sheet); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+textarea { min-height: 84px; resize: vertical; }
+.stars { display: flex; gap: 6px; flex-wrap: wrap; }
+.stars button, .seg button { font: 500 15px var(--body); border: 1px solid var(--line); background: var(--sheet); color: var(--ink); border-radius: 10px; padding: 7px 14px; cursor: pointer; }
+.stars button[aria-pressed=true] { background: var(--orange); border-color: var(--orange); color: #fff; }
+.ratings { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+.features { display: grid; gap: 0; border-top: 1px solid var(--line); }
+.feat { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.feat-head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.feat-n { font-family: var(--display); color: var(--orange); font-size: 20px; font-variant-numeric: tabular-nums; min-width: 1.6em; }
+.feat-name { font-weight: 700; }
+.feat-desc { color: var(--ink-2); font-size: 14px; flex-basis: 100%; padding-left: calc(1.6em + 12px); margin-top: -4px; }
+.feat-body { display: grid; gap: 10px; padding-left: calc(1.6em + 12px); }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg button[aria-pressed=true][data-v=useful] { background: var(--green-tint); border-color: var(--green); color: var(--green-ink); }
+.seg button[aria-pressed=true][data-v=ok] { background: var(--well); border-color: var(--ink-2); }
+.seg button[aria-pressed=true][data-v=drop] { background: var(--orange-tint); border-color: var(--orange); color: var(--orange-ink); }
+.seek { font: 500 13px var(--body); color: var(--orange-ink); background: none; border: none; cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 3px; }
+.actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.primary { font: 700 17px var(--body); background: var(--orange); color: #fff; border: none; border-radius: 12px; padding: 12px 26px; cursor: pointer; }
+.secondary { font: 500 15px var(--body); background: var(--sheet); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 11px 18px; cursor: pointer; }
+.status { font-size: 14px; color: var(--ink-2); min-height: 1.5em; }
+.status.ok { color: var(--green-ink); }
+.status.warn { color: var(--orange-ink); }
+.err { color: var(--orange-ink); font-size: 14px; }
+.responses { display: grid; gap: 16px; }
+.resp { background: var(--sheet); border-radius: 16px; box-shadow: var(--shadow); padding: 20px 22px; display: grid; gap: 10px; min-width: 0; }
+.resp-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.resp-name { font-weight: 700; }
+.resp-meta { color: var(--ink-2); font-size: 14px; font-variant-numeric: tabular-nums; }
+.resp dl { margin: 0; display: grid; grid-template-columns: minmax(0, 9em) minmax(0, 1fr); gap: 6px 14px; font-size: 15px; }
+.resp dt { color: var(--ink-2); }
+.resp dd { margin: 0; overflow-wrap: anywhere; }
+.empty { border: 1.5px dashed var(--line); border-radius: 16px; padding: 22px; color: var(--ink-2); }
+@media (max-width: 520px) {
+  .feat-desc, .feat-body { padding-left: 0; }
+  .resp dl { grid-template-columns: minmax(0, 1fr); }
+  .resp dt { margin-top: 6px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">HACK4SDG 2026 · 赛道 2 · 组内评审</div>
+    <h1 style="margin-top:14px">StreetWalk <span class="zh">街坊行</span> 宣传片</h1>
+    <p class="lede">先看完 3 分钟的英文讲解片，再按功能给产品提意见。重点是<strong>产品还能怎么改</strong>，视频本身哪里看不懂也可以写。大约 5 分钟。</p>
+  </header>
+
+  <section aria-labelledby="watch">
+    <h2 id="watch" class="sr" style="position:absolute;left:-9999px">观看视频</h2>
+    <div class="player"><video id="video" src="streetwalk_pitch_720.mp4" controls playsinline preload="metadata"></video></div>
+    <div class="chapters" id="chapters"></div>
+  </section>
+
+  <section aria-labelledby="give">
+    <div class="eyebrow">你的意见</div>
+    <h2 id="give" style="margin-top:10px">逐个功能提改进</h2>
+    <p class="lede">每个功能先选「有没有用」，有想法再写一句。没想法的可以跳过。</p>
+    <form id="form" novalidate style="margin-top:22px">
+      <div class="field">
+        <label for="name">你的名字</label>
+        <input type="text" id="name" maxlength="30" placeholder="例如：阿明" autocomplete="name">
+        <div class="err" id="name-err" hidden>先填名字，方便我们知道是谁的意见</div>
+      </div>
+      <div class="ratings">
+        <div class="field"><span class="q" id="q-product">产品整体打几分？</span><div class="stars" role="group" aria-labelledby="q-product" data-key="productScore"></div></div>
+        <div class="field"><span class="q" id="q-video">视频整体打几分？</span><div class="stars" role="group" aria-labelledby="q-video" data-key="videoScore"></div></div>
+      </div>
+      <div class="features" id="features"></div>
+      <div class="field">
+        <label for="add">最想加的功能，或最想改的一件事</label>
+        <textarea id="add" maxlength="800" placeholder="例如：约人之后希望能一键打电话给对方"></textarea>
+      </div>
+      <div class="field">
+        <label for="video-note">视频哪里看不懂、太快或太长？</label>
+        <textarea id="video-note" maxlength="800" placeholder="例如：碰一碰那段看不出是两部真手机"></textarea>
+      </div>
+      <div class="field">
+        <label for="other">其他想说的</label>
+        <textarea id="other" maxlength="800"></textarea>
+      </div>
+      <div class="actions">
+        <button type="submit" class="primary" id="submit">提交意见</button>
+        <button type="button" class="secondary" id="copy">复制文字版</button>
+      </div>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
+    </form>
+  </section>
+
+  <section aria-labelledby="all">
+    <div class="eyebrow">大家的意见</div>
+    <h2 id="all" style="margin-top:10px">已收到的意见</h2>
+    <div class="responses" id="responses" style="margin-top:18px">
+      <div class="empty">还没有人提交。提交后，你和队友的意见会出现在这里，可以互相看。</div>
+    </div>
+  </section>
+</div>
+
+<script>
+const CHAPTERS = [
+  ["开场：北都新屋邨", 0], ["问题", 13], ["洞察与产品", 48],
+  ["首次设置", 59], ["自动记录散步", 68], ["排行榜", 78], ["碰一碰", 90], ["出门提醒", 103],
+  ["语音约人", 113], ["找人", 125], ["天气与遮荫", 133], ["居民反映与月报", 140], ["语音与双语", 152],
+  ["隐私设计", 160], ["真功能", 171], ["结尾", 182],
+];
+const FEATURES = [
+  ["onboard", "首次设置", "选楼、选小人（拐杖、轮椅）、语音讲清楚谁看到什么", 59],
+  ["walk", "自动记录散步", "出门自动开始记录，夜间学出「家」，家永远隐身", 68],
+  ["board", "排行榜", "同区常走的人按连续天数排名，陌生人只见网名和小人", 78],
+  ["bump", "碰一碰", "只能当面碰手机加街坊（超宽带，旧机用二维码）", 90],
+  ["alert", "出门提醒", "街坊出门时收到一句话，只讲地标；从灵动岛长出来", 103],
+  ["book", "语音约人", "说一句就约好，AI 选有遮荫、有凳的地点并说明理由", 113],
+  ["find", "找人", "50 米内震动 + 大箭头，不用看地图，见到喇", 125],
+  ["shade", "天气与遮荫", "热天按楼影建议几点出门", 133],
+  ["report", "居民反映与月报", "说「呢度好晒」挂到地标，每月匿名汇总给社工和管理处", 140],
+  ["voice", "语音与双语", "粤语 / 普通话随时切换，每个语音操作都有大按钮", 152],
+];
+const USE = [["useful", "很有用"], ["ok", "一般"], ["drop", "可以不要"]];
+const $ = (id) => document.getElementById(id);
+const video = $("video");
+const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+const jump = (s) => { video.currentTime = s; video.play().catch(() => {}); video.scrollIntoView({ behavior: "smooth", block: "center" }); };
+
+const state = { productScore: 0, videoScore: 0, features: {} };
+FEATURES.forEach(([k]) => (state.features[k] = { use: "", note: "" }));
+
+for (const [name, t] of CHAPTERS) {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "chip";
+  b.innerHTML = `<span class="t">${fmt(t)}</span><span></span>`;
+  b.lastChild.textContent = name;
+  b.addEventListener("click", () => jump(t));
+  $("chapters").append(b);
+}
+
+document.querySelectorAll(".stars").forEach((g) => {
+  const key = g.dataset.key;
+  for (let i = 1; i <= 5; i++) {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = `${i} 分`; b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", () => { state[key] = i; paintStars(); });
+    g.append(b);
+  }
+});
+function paintStars() {
+  document.querySelectorAll(".stars").forEach((g) => {
+    [...g.children].forEach((b, i) => b.setAttribute("aria-pressed", String(i + 1 === state[g.dataset.key])));
+  });
+}
+
+FEATURES.forEach(([k, name, desc, t], i) => {
+  const row = document.createElement("div");
+  row.className = "feat";
+  row.innerHTML = `
+    <div class="feat-head">
+      <span class="feat-n">${String(i + 1).padStart(2, "0")}</span>
+      <span class="feat-name"></span>
+      <button type="button" class="seek">在视频里看（${fmt(t)}）</button>
+      <span class="feat-desc"></span>
+    </div>
+    <div class="feat-body">
+      <div class="seg" role="group" aria-label="${name}有没有用"></div>
+      <input type="text" id="note-${k}" maxlength="300" placeholder="怎么改会更好？（可不填）">
+    </div>`;
+  row.querySelector(".feat-name").textContent = name;
+  row.querySelector(".feat-desc").textContent = desc;
+  row.querySelector(".seek").addEventListener("click", () => jump(t));
+  const seg = row.querySelector(".seg");
+  for (const [v, label] of USE) {
+    const b = document.createElement("button");
+    b.type = "button"; b.dataset.v = v; b.textContent = label; b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", () => {
+      state.features[k].use = state.features[k].use === v ? "" : v;
+      [...seg.children].forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.v === state.features[k].use)));
+    });
+    seg.append(b);
+  }
+  row.querySelector("input").addEventListener("input", (e) => (state.features[k].note = e.target.value));
+  $("features").append(row);
+});
+
+$("name").addEventListener("input", () => ($("name-err").hidden = true));
+
+function collect() {
+  return {
+    name: $("name").value.trim(),
+    productScore: state.productScore,
+    videoScore: state.videoScore,
+    features: JSON.parse(JSON.stringify(state.features)),
+    add: $("add").value.trim(),
+    videoNote: $("video-note").value.trim(),
+    other: $("other").value.trim(),
+  };
+}
+const useLabel = Object.fromEntries(USE);
+function asText(d) {
+  const lines = [`【街坊行宣传片意见】${d.name || "（未填名字）"}`, `产品 ${d.productScore || "-"} 分 · 视频 ${d.videoScore || "-"} 分`];
+  FEATURES.forEach(([k, name]) => {
+    const f = d.features?.[k] || {};
+    if (f.use || f.note) lines.push(`${name}：${useLabel[f.use] || "未选"}${f.note ? "；" + f.note : ""}`);
+  });
+  if (d.add) lines.push(`最想加/改：${d.add}`);
+  if (d.videoNote) lines.push(`视频：${d.videoNote}`);
+  if (d.other) lines.push(`其他：${d.other}`);
+  return lines.join("\n");
+}
+function setStatus(msg, kind = "") { const s = $("status"); s.textContent = msg; s.className = "status " + kind; }
+
+$("copy").addEventListener("click", async () => {
+  const text = asText(collect());
+  try { await navigator.clipboard.writeText(text); setStatus("已复制，可以直接贴到微信群。", "ok"); }
+  catch {
+    const ta = document.createElement("textarea"); ta.value = text; ta.style.minHeight = "180px";
+    $("status").replaceChildren(ta); ta.focus(); ta.select();
+  }
+});
+
+let db = null, myRef = null, readOnly = false;
+
+$("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const d = collect();
+  if (!d.name) { $("name-err").hidden = false; $("name").focus(); return; }
+  if (!db || !myRef || readOnly) {
+    setStatus("这个链接只能看，不能直接保存。请按「复制文字版」，贴到微信群。", "warn");
+    return;
+  }
+  $("submit").disabled = true;
+  setStatus("正在保存…");
+  try {
+    await myRef.set({ ...d, updatedAt: new Date().toISOString() });
+    setStatus("已提交。之后想改，改完再按一次「提交意见」就会覆盖。", "ok");
+  } catch (err) {
+    if (err && err.code === "invalid_argument") readOnly = true;
+    setStatus("没能保存（你的账号在这页只有查看权限）。请按「复制文字版」，贴到微信群。", "warn");
+  } finally { $("submit").disabled = false; }
+});
+
+function fill(d) {
+  $("name").value = d.name || "";
+  state.productScore = d.productScore || 0; state.videoScore = d.videoScore || 0; paintStars();
+  FEATURES.forEach(([k]) => {
+    const f = (d.features && d.features[k]) || { use: "", note: "" };
+    state.features[k] = { use: f.use || "", note: f.note || "" };
+    const inp = $("note-" + k); if (inp) inp.value = state.features[k].note;
+  });
+  document.querySelectorAll(".seg").forEach((seg, i) => {
+    const k = FEATURES[i][0];
+    [...seg.children].forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.v === state.features[k].use)));
+  });
+  $("add").value = d.add || ""; $("video-note").value = d.videoNote || ""; $("other").value = d.other || "";
+}
+
+function renderResponses(docs) {
+  const box = $("responses");
+  if (!docs.length) {
+    box.innerHTML = '<div class="empty">还没有人提交。提交后，你和队友的意见会出现在这里，可以互相看。</div>';
+    return;
+  }
+  docs.sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+  box.replaceChildren(...docs.map((d) => {
+    const card = document.createElement("article");
+    card.className = "resp";
+    const head = document.createElement("div"); head.className = "resp-head";
+    const n = document.createElement("span"); n.className = "resp-name"; n.textContent = d.name || "未署名";
+    const m = document.createElement("span"); m.className = "resp-meta";
+    m.textContent = `产品 ${d.productScore || "-"} · 视频 ${d.videoScore || "-"}` + (d.updatedAt ? ` · ${new Date(d.updatedAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : "");
+    head.append(n, m);
+    const dl = document.createElement("dl");
+    const add = (k, v) => { if (!v) return; const dt = document.createElement("dt"); dt.textContent = k; const dd = document.createElement("dd"); dd.textContent = v; dl.append(dt, dd); };
+    FEATURES.forEach(([k, name]) => {
+      const f = d.features?.[k] || {};
+      if (f.use || f.note) add(name, `${useLabel[f.use] || "未选"}${f.note ? "：" + f.note : ""}`);
+    });
+    add("最想加/改", d.add); add("视频", d.videoNote); add("其他", d.other);
+    card.append(head, dl);
+    return card;
+  }));
+}
+
+(async () => {
+  try { const saved = localStorage.getItem("draft-name"); if (saved && !$("name").value) $("name").value = saved; } catch {}
+  $("name").addEventListener("change", () => { try { localStorage.setItem("draft-name", $("name").value); } catch {} });
+  if (!window.claude || !window.claude.use) return;
+  db = await window.claude.use("db");
+  const user = await window.claude.use("user");
+  if (!db) return;
+  db.collection("feedback").onSnapshot(
+    (snap) => renderResponses(snap.docs.map((s) => ({ id: s.id, ...(s.data() || {}) }))),
+    () => {},
+  );
+  const id = user ? await user.id() : null;
+  if (!id) { readOnly = true; return; }
+  myRef = db.doc("feedback/" + id);
+  try { const mine = await myRef.get(); if (mine.exists) { fill(mine.data()); setStatus("这是你上次提交的内容，可以修改后再提交。"); } } catch {}
+})();
+</script>

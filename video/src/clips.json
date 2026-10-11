@@ -1,0 +1,88 @@
+{
+ "script2": {
+  "dur": 39.5,
+  "ev": {
+   "t=2 街坊頁": 7.96,
+   "t=2 陳太約你": 8.55,
+   "t=7 地標資料卡": 12.96,
+   "t=11 改名": 16.95,
+   "t=15 揀一句": 20.95,
+   "t=19 語音複述卡": 24.96,
+   "t=23 時間滑杆": 28.96,
+   "t=28 碰一碰等待": 33.96,
+   "t=31 完": 36.95
+  }
+ },
+ "script3": {
+  "dur": 71.93,
+  "ev": {
+   "t=1 做街坊 + 約陳太": 3.6,
+   "t=4 好": 6.6,
+   "t=10 應承咗 · 今日頁": 12.74,
+   "t=13 語音：改做下晝五點": 15.78,
+   "t=17 好": 19.6,
+   "t=23 改地標名 + 反映": 25.68,
+   "t=26 屋邨管理回覆": 28.72,
+   "t=33 陳太約你（街坊頁）": 35.6,
+   "t=38 改約卡": 40.86,
+   "t=42 排行榜": 44.6,
+   "t=46 下晝 4:36 · 出發提醒": 48.69,
+   "t=52 夜晚 6:12 · 過期": 54.6,
+   "t=57 解除街坊": 59.86,
+   "t=62 設定": 64.86,
+   "t=68 完": 70.86
+  }
+ },
+ "onboarding": {
+  "dur": 29.67,
+  "ev": {}
+ },
+ "bump": {
+  "dur": 47.13,
+  "ev": {
+   "t=1.0 街坊頁 progress=searching qr=nil stage=idle": 3.07,
+   "t=3.0 碰一碰（模擬器冇超寬頻） progress=searching qr=nil stage=idle": 5.12,
+   "t=7.0 用二維碼 progress=searching qr=nil stage=searching": 9.16,
+   "t=10.0 出示二維碼 progress=searching qr=Optional(StreetWalk.BumpQRState(mode: StreetWalk.BumpQRState.Mode.choose, linking: false, paired: false, note: nil, rejected: nil)) stage=searching": 12.23,
+   "t=20.0 開出門提醒 progress=searching qr=Optional(StreetWalk.BumpQRState(mode: StreetWalk.BumpQRState.Mode.show(\"a0a409e03b394214923cc81fad0f5739\"), linking: false, paired: false, note: nil, rejected: nil)) stage=searching": 22.24,
+   "t=23.0 再碰一碰 progress=searching qr=Optional(StreetWalk.BumpQRState(mode: StreetWalk.BumpQRState.Mode.show(\"a0a409e03b394214923cc81fad0f5739\"), linking: false, paired: false, note: nil, rejected: nil)) stage=searching": 25.24,
+   "t=25.0 掃二維碼 progress=searching qr=nil stage=searching": 27.19,
+   "t=37.0 唔開提醒 progress=searching qr=Optional(StreetWalk.BumpQRState(mode: StreetWalk.BumpQRState.Mode.scan, linking: true, paired: false, note: nil, rejected: nil)) stage=searching": 39.26,
+   "t=40.0 完 progress=searching qr=Optional(StreetWalk.BumpQRState(mode: StreetWalk.BumpQRState.Mode.scan, linking: true, paired: false, note: nil, rejected: nil)) stage=searching": 42.17
+  }
+ },
+ "island_banner": {
+  "dur": 29.1,
+  "ev": {
+   "t=0.5 做街坊": 3.25,
+   "t=2.0 橫幅 0": 4.76,
+   "t=6.0 橫幅 1": 8.79,
+   "t=10.0 橫幅 2": 12.81,
+   "t=16.0 收埋": 18.84,
+   "t=18.0 出門": 20.84,
+   "t=22.0 出門時有橫幅": 24.73
+  }
+ },
+ "island_find": {
+  "dur": 23.2,
+  "ev": {
+   "t=0.5 做街坊": 2.54,
+   "t=2.0 出門": 4.04,
+   "t=5.0 過去搵陳太": 7.04,
+   "t=9.0 去": 11.04,
+   "t=14.0 返主畫面": 16.04
+  }
+ },
+ "cmn": {
+  "dur": 41.07,
+  "ev": {
+   "t=1 開場": 3.12,
+   "t=4 排行榜": 6.2,
+   "t=9 街坊 · 碰一碰": 11.27,
+   "t=19 開出門提醒": 21.12,
+   "t=22 今日 · 陳太出門": 24.24,
+   "t=28 出門散步": 30.11,
+   "t=36 過去搵陳太": 38.12
+  }
+ }
+}

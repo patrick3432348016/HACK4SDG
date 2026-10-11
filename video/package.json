@@ -1,0 +1,25 @@
+{
+  "name": "streetwalk-pitch-video",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Pitch out/streetwalk_pitch_en.mp4",
+    "still": "remotion still src/index.ts"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.12",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.534",
+    "@remotion/google-fonts": "^4.0.534",
+    "@remotion/media-utils": "^4.0.534",
+    "@remotion/paths": "^4.0.534",
+    "@remotion/shapes": "^4.0.534",
+    "@remotion/transitions": "^4.0.534",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "remotion": "^4.0.534"
+  }
+}
