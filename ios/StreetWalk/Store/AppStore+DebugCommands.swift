@@ -9,6 +9,8 @@ import Foundation
 //      invite <网名> [日 0/1/2] [钟点] · accept · decline · depart · remind on|off · unlink <网名>
 //      say <一句> · banner off · refresh · settings on|off · link <一次性码>（两部机用同一个码 = 碰咗一碰）
 //      bgrefresh（App 喺后台时叫 backgroundRefresh，睇 debug-events.txt 有冇「notify」）
+//      语音助手（Mac 语音服务器）：voice <一句>（等于讲咗）· vpick <第几个>（揀人 / 地点）· vchip <第几个> · vok（撳「好」）
+//      · vno（撳「唔係」）· vcheck（即刻重新搵语音服务器）· speak <一句>（播报，测真人声）
 extension AppStore {
     private static var debugCommandsStarted = false
 
@@ -89,6 +91,15 @@ extension AppStore {
         case "link": if !arg.isEmpty { debugLink(code: arg) }
         case "settings": showSettings = arg != "off"
         case "bgrefresh": Task { await self.backgroundRefresh() }   // 模拟器排唔到 BGAppRefreshTask：App 喺后台时用呢个试
+        case "voice": if !arg.isEmpty { handle(arg) }
+        case "vpick":
+            if let a = voiceCard?.assistant, let i = Int(arg), a.options.indices.contains(i - 1) { assistantChoose(a.options[i - 1]) }
+        case "vchip":
+            if let a = voiceCard?.assistant, let i = Int(arg), a.chips.indices.contains(i - 1) { assistantChip(a.chips[i - 1]) }
+        case "vok": confirmVoice()
+        case "vno": rejectVoice()
+        case "vcheck": VoiceServer.shared.recheckSoon()
+        case "speak": if !arg.isEmpty { say(arg, force: true) }
         default: break
         }
     }
@@ -111,6 +122,12 @@ extension AppStore {
         out.append("banner=\(banner?.text ?? "-")")
         out.append("toast=\(toast ?? "-")")
         out.append("card=\(uiActiveCard.map { "\($0)" } ?? "-")")
+        out.append("voiceServer=\(VoiceServer.shared.status.label) url=\(VoiceServer.shared.status.url?.absoluteString ?? "-") voice=\(VoiceServer.shared.voiceID ?? "-") assistant=\(assistantURL != nil) route=\(speaker.lastRoute)")
+        if let c = voiceCard {
+            out.append("voiceCard=\(c.title) | \(c.detail ?? "") confirm=\(c.needsConfirm) assistant=\(c.assistant.map { "\($0.kind) options=\($0.options.map(\.label)) chips=\($0.chips)" } ?? "-")")
+        } else {
+            out.append("voiceCard=-")
+        }
         return out.joined(separator: "\n") + "\n"
     }
 }

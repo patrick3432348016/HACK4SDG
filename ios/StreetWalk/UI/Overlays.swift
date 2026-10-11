@@ -521,7 +521,7 @@ private struct HeardCard: View {
             Text("我聽到").ds(.caption).foregroundStyle(.secondary)
             Text("「\(card.heard)」").ds(.body)
             HStack(alignment: .firstTextBaseline, spacing: DS.gap) {
-                if !card.needsConfirm {
+                if !card.needsConfirm && (card.assistant == nil || card.assistant?.kind == .done) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(DS.accent)
                         .symbolEffect(.bounce, options: .nonRepeating, value: appeared)
@@ -533,7 +533,9 @@ private struct HeardCard: View {
             if let d = card.detail, !d.isEmpty {
                 Text(d).ds(.caption).foregroundStyle(.secondary)
             }
-            if card.needsConfirm {
+            if let a = card.assistant, !card.needsConfirm {
+                AssistantStepView(card: a)
+            } else if card.needsConfirm {
                 HStack(spacing: 12) {
                     Button("唔係") { store.rejectVoice() }
                         .buttonStyle(.dsSecondary)
@@ -561,10 +563,81 @@ private struct HeardCard: View {
         }
         .task(id: card.id) {
             appeared = true
-            // 读屏开着就不自动收（要时间找「撤回」）；平时 8 秒，长者也来得及按。
-            guard !card.needsConfirm, !voiceOver else { return }
+            // 读屏开着就不自动收（要时间找「撤回」）；平时 8 秒，长者也来得及按。语音助手要用户揀 / 补嘢嘅卡唔自动收。
+            guard !card.needsConfirm, !voiceOver, card.assistant?.waitsForUser != true else { return }
             try? await Task.sleep(for: .seconds(8))
             if !Task.isCancelled, store.voiceCard?.id == card.id { store.voiceCard = nil }
+        }
+    }
+}
+
+/// 组员 B 语音助手嘅一步（Mac 语音服务器）：揀街坊 / 揀地点（大掣）、补资料嘅建议说法、查结果、收起。
+private struct AssistantStepView: View {
+    @Environment(AppStore.self) private var store
+    let card: AssistantCard
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if card.kind == .thinking {
+                HStack(spacing: 12) {
+                    ProgressView().controlSize(.large)
+                    Text("問緊語音伺服器").ds(.caption).foregroundStyle(.secondary)
+                }
+            }
+            ForEach(card.options) { o in
+                Button { store.assistantChoose(o) } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(o.label).ds(.bodyBold).multilineTextAlignment(.leading)
+                        if let d = o.detail, !d.isEmpty {
+                            Text(d).ds(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.dsSecondary)
+                .accessibilityHint(card.kind == .choosePlace ? "撳兩下揀呢度" : "撳兩下揀呢個街坊")
+            }
+            if !card.chips.isEmpty {
+                Text("撳一句，或者對住咪講").ds(.caption).foregroundStyle(.secondary)
+                ChipFlow(spacing: DS.gap) {
+                    ForEach(card.chips, id: \.self) { p in
+                        Button { store.assistantChip(p) } label: {
+                            Text(p)
+                                .ds(.caption)
+                                .foregroundStyle(.primary)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .frame(minHeight: 44)
+                                .background(DS.accentSoft, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            if card.kind == .uncertain {
+                Button { store.assistantReconcile() } label: {
+                    Label("查結果", systemImage: "arrow.clockwise").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.dsPrimary)
+            }
+            if card.kind != .thinking {
+                HStack {
+                    Spacer(minLength: 0)
+                    Button {
+                        store.voiceCard = nil
+                        if card.waitsForUser { store.assistantReject(VoiceCard(heard: "", title: "", needsConfirm: false, intent: .unknown, assistant: card)) }
+                    } label: {
+                        Text("收起")
+                            .ds(.captionBold)
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: 44)
+                            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.22)))
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 }

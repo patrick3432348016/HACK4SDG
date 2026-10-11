@@ -16,13 +16,22 @@
 	</array>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>揀「始終允許」，你出門散步時就算手機鎖咗都會自動記錄，亦可以話俾你嘅街坊知你出咗門。你屋企喺邊只會留喺呢部手機，對外只講地標。</string>
-	<!-- F5 碰一碰：两部手机经本地网络搵到对方，再用超宽带量距离。 -->
+	<!-- F5 碰一碰：两部手机经本地网络搵到对方，再用超宽带量距离。
+	     _jiefongvoice._tcp：同一个 Wi-Fi 入面自动搵 Mac 语音服务器（粤语真人声 + 语音助手，tools/voice_server.sh）。 -->
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_jiefong._tcp</string>
+		<string>_jiefongvoice._tcp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>碰一碰加街坊時，用嚟搵到身邊另一部手機。</string>
+	<string>碰一碰加街坊時，用嚟搵到身邊另一部手機；亦用嚟搵同一個 Wi-Fi 入面讀粵語嘅 Mac。</string>
+	<!-- Mac 语音服务器喺局域网用 HTTP（http://192.168.x.x:8765）：只放行本地网络（NSAllowsLocalNetworking），
+	     公网照样要 HTTPS（--tunnel 嘅 trycloudflare 地址系 HTTPS）。见 server/README.md。 -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSNearbyInteractionUsageDescription</key>
 	<string>碰一碰時量度兩部手機有幾近；搵街坊時喺附近指出佢喺邊個方向。</string>
 	<key>NSCameraUsageDescription</key>

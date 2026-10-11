@@ -36,6 +36,8 @@ struct VoiceSettingsSection: View {
         }
         .id("voice")
 
+        VoiceServerSection()
+
         Section {
             if v.voices.isEmpty {
                 Text(v.scanned ? "部手機未有\(v.language.label)聲音。" : "搵緊手機入面嘅聲音⋯").foregroundStyle(.secondary)
@@ -260,6 +262,12 @@ extension AppStore {
     /// 启动时接好：装咗更好嘅声音就讲俾用户知（launch() 调用，只係主 store）。
     func attachVoice() {
         VoiceSettings.shared.onUpgrade = { [weak self] v in self?.voiceUpgraded(v) }
+        // Mac 语音服务器（粤语真人声 + 组员 B 嘅助手）：自动搵；搵唔到照用系统声音（Voice/VoiceServer.swift）
+        let server = VoiceServer.shared
+        speaker.server = server
+        speaker.token = { [weak self] in try? await self?.supabase?.api.accessToken() }
+        server.onConnected = { [weak self] _ in self?.voiceServerConnected() }
+        server.start()
         // 截图用：-voiceSettings [voice|voiceList|voiceGuide] 直接打开设定页嘅「聲音」
         if LaunchArgs.has("-voiceSettings") {
             Task { @MainActor in
@@ -267,6 +275,14 @@ extension AppStore {
                 showSettings = true
             }
         }
+    }
+
+    /// 连上语音服务器：常用句子叫服务器先合成好（之后即刻出声），上次未知嘅助手操作查一次。
+    func voiceServerConnected() {
+        if let url = VoiceServer.shared.speechURL, let v = VoiceServer.shared.voiceID {
+            VoicePrewarm.run(server: url, speed: TTSRoute.speed(VoiceSettings.shared.pace), voiceID: v)
+        }
+        assistantConnected()
     }
 
     /// 由 iPhone 设定下载完返嚟：已经自动转用，讲一声（用新把声讲）。
@@ -288,5 +304,56 @@ extension AppStore {
         } else {
             speaker.preview(v, language: language)
         }
+    }
+}
+
+
+/// 「語音伺服器」：Mac 上嘅粵語真人聲（tools/voice_server.sh）。自動搵；搵唔到可以親手填地址。
+private struct VoiceServerSection: View {
+    @Environment(AppStore.self) private var store
+    @State private var draft = VoiceServer.shared.manualURL
+    @FocusState private var editing: Bool
+
+    var body: some View {
+        let server = VoiceServer.shared
+        Section {
+            HStack(spacing: 12) {
+                Text("語音伺服器")
+                Spacer(minLength: 0)
+                Label(server.status.label, systemImage: server.status.isConnected ? "checkmark.circle.fill" : "wifi.slash")
+                    .foregroundStyle(server.status.isConnected ? DS.accentInk : Color.secondary)
+            }
+            .frame(minHeight: 52)
+            .accessibilityElement(children: .combine)
+            if let u = server.status.url {
+                Text(u.host() ?? u.absoluteString).ds(.caption).foregroundStyle(.secondary)
+            }
+            TextField("自動搵（或者填地址）", text: $draft)
+                .keyboardType(.URL)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($editing)
+                .submitLabel(.done)
+                .onSubmit { server.manualURL = draft }
+                .frame(minHeight: 52)
+            if editing || draft != server.manualURL {
+                Button("用呢個地址") { server.manualURL = draft; editing = false }
+                    .buttonStyle(.dsSecondary)
+            }
+            if server.speechURL != nil {
+                Button { store.sayAgain("你好，我係街坊行嘅廣東話聲，由你部 Mac 讀出嚟。") } label: {
+                    Label("試聽真人聲", systemImage: "play.fill")
+                }
+                .buttonStyle(.dsSecondary)
+            }
+        } header: {
+            Text("真人聲（Mac）").ds(.caption)
+        } footer: {
+            Text(server.status.isConnected
+                 ? "粵語提示用 Mac 上嘅真人聲讀；Mac 閂咗會自動轉返手機聲音。"
+                 : "Mac 開咗語音伺服器、同一個 Wi-Fi 就會自動搵到；搵唔到可以填 Mac 顯示嘅地址。冇都照用手機聲音。")
+                .ds(.caption)
+        }
+        .id("voiceServer")
     }
 }

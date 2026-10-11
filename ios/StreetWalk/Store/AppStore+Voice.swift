@@ -137,6 +137,14 @@ extension AppStore {
                 intent = .rename(landmarkID: id, newName: name)
             }
         }
+        // 约人 / 听唔明：有 Mac 语音服务器就交俾组员 B 嘅助手（AppStore+Assistant）；冇就照旧用手机模板。
+        let heard = intent
+        if renamingNow == nil, handleWithAssistant(text, local: heard, fallback: { [weak self] in self?.handleLocally(text, heard) }) { return }
+        handleLocally(text, heard)
+    }
+
+    /// 手机模板（TemplateAI）嘅流程：离线、演示模式、服务器连唔到时都系呢个。
+    func handleLocally(_ text: String, _ intent: VoiceIntent) {
         switch intent {
         case .invite(let id, let day, let hour):
             guard let p = resident(id), p.isNeighbor else { toast("你講嘅人仲未係你街坊。見到面碰一碰，先可以約。"); return }
@@ -224,6 +232,7 @@ extension AppStore {
 
     func confirmVoice() {
         guard let card = voiceCard else { return }
+        if card.assistant != nil { assistantConfirm(card); return }
         voiceCard = nil
         switch card.intent {
         case .invite: confirmProposal()
@@ -243,6 +252,7 @@ extension AppStore {
     func rejectVoice() {
         guard let card = voiceCard else { return }
         voiceCard = nil
+        if card.assistant != nil { assistantReject(card); return }
         switch card.intent {
         case .invite: cancelProposal()
         case .leave:
