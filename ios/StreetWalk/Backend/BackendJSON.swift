@@ -42,6 +42,7 @@ enum JSONValue: Codable, Equatable, Sendable {
     var string: String? { if case .string(let s) = self { return s }; return nil }
     var int: Int? { if case .number(let n) = self { return Int(n) }; if case .string(let s) = self { return Int(s) }; return nil }
     var bool: Bool? { if case .bool(let b) = self { return b }; return nil }
+    var double: Double? { if case .number(let n) = self { return n }; if case .string(let s) = self { return Double(s) }; return nil }
     var isNull: Bool { self == .null }
 
     /// 将 JSON 值解成某个 Decodable（Realtime 的 record → 行）。

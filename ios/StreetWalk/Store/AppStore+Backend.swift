@@ -283,7 +283,11 @@ extension AppStore {
         incomingFind = nil
         community.answerFindAsk(ask, accepted: accepted)
         let name = resident(ask.fromID)?.name ?? "街坊"
-        if accepted {
+        if accepted && canShareLive(with: ask.fromID) {
+            beginIncomingLiveFind(ask)
+            say("好，話咗俾\(name)知。而家同\(name)分享緊位置，佢會過嚟搵你。")
+            Haptics.success()
+        } else if accepted {
             say("好，話咗俾\(name)知。佢會過嚟\(placeName(ask.landmarkID).map { "\($0)附近" } ?? "")搵你。")
             Haptics.success()
         } else {
