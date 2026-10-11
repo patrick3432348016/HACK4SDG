@@ -43,7 +43,7 @@ final class AssistantSession {
     }
 
     private func use() throws -> AssistantClient {
-        guard let client else { throw AssistantAPIError(code: "NOT_CONFIGURED", message: "未連到語音伺服器。") }
+        guard let client else { throw AssistantAPIError(code: "NOT_CONFIGURED", message: L.t("未連到語音伺服器。", "未连接语音服务器。")) }
         return client
     }
 
@@ -55,13 +55,13 @@ final class AssistantSession {
 
     func turn(_ text: String) async throws -> AssistantReply {
         guard unresolvedDraftID == nil else {
-            throw AssistantAPIError(code: "ACTION_UNRESOLVED", message: "上次操作結果未知，請先查結果。")
+            throw AssistantAPIError(code: "ACTION_UNRESOLVED", message: L.t("上次操作結果未知，請先查結果。", "上次操作结果未知，请先查结果。"))
         }
-        return try await run { try await $0.turn(text: text, locale: .cantonese, conversationID: self.conversationID) }
+        return try await run { try await $0.turn(text: text, locale: L.isCmn ? .mandarin : .cantonese, conversationID: self.conversationID) }
     }
 
     func choose(kind: String, value: String) async throws -> AssistantReply {
-        guard let id = conversationID else { throw AssistantAPIError(code: "SESSION_NOT_FOUND", message: "對話已經完咗。") }
+        guard let id = conversationID else { throw AssistantAPIError(code: "SESSION_NOT_FOUND", message: L.t("對話已經完咗。", "对话已经结束了。")) }
         return try await run { try await $0.choose(conversationID: id, kind: kind, value: value) }
     }
 

@@ -20,13 +20,13 @@ struct OnboardingFlow: View {
                 DioramaView(controller: store.scene, onTap: { hit in
                     guard store.phase == .onboarding(.pickHome) else { return }
                     // 点空了也要有回应（以前没反应）。
-                    guard case .building(let id)? = hit else { store.toast("撳近啲你住嗰座樓，或者用下面嘅清單揀"); return }
+                    guard case .building(let id)? = hit else { store.toast(L.t("撳近啲你住嗰座樓，或者用下面嘅清單揀", "点近一点你住的那栋楼，或者用下面的清单选")); return }
                     store.pickHome(id)
                 })
                 .ignoresSafeArea()
                 .transition(.opacity)
-                .accessibilityLabel("你附近嘅立體地圖")
-                .accessibilityHint("用下面「用清單揀」都揀得到你住嗰座樓")
+                .accessibilityLabel(L.t("你附近嘅立體地圖", "你附近的立体地图"))
+                .accessibilityHint(L.t("用下面「用清單揀」都揀得到你住嗰座樓", "用下面「用清单选」也能选到你住的那栋楼"))
             }
 
             stepContent(s)
@@ -89,7 +89,7 @@ struct OnboardingFlow: View {
                             .overlay(Circle().strokeBorder(Color.primary.opacity(0.08)))
                     }
                     .buttonStyle(OnbPressStyle())
-                    .accessibilityLabel("返上一步")
+                    .accessibilityLabel(L.t("返上一步", "返回上一步"))
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
                 }
             }
@@ -105,12 +105,12 @@ struct OnboardingFlow: View {
             if store.changingHome {
                 // 改楼途中可以退返出去（A80）
                 Button { store.cancelChangeHome() } label: {
-                    Text("唔改").ds(.captionBold).foregroundStyle(.primary)
+                    Text(L.t("唔改", "不改")).ds(.captionBold).foregroundStyle(.primary)
                         .padding(.horizontal, 14).frame(minHeight: 48)
                         .background(.regularMaterial, in: Capsule())
                 }
                 .buttonStyle(OnbPressStyle())
-                .accessibilityLabel("唔改，返主畫面")
+                .accessibilityLabel(L.t("唔改，返主畫面", "不改，回主画面"))
             } else {
                 Color.clear.frame(width: 48, height: 48)
             }
@@ -172,15 +172,15 @@ private struct OnbBottomPrimary: View {
 
 /// 「谁能看到什么」：按受众逐行讲（规格 §4 知情同意）。设置页「私隱說明」也可以用 PrivacyRows 重看。
 struct PrivacyRows: View {
-    static let rows: [(symbol: String, text: String)] = [
-        ("figure.walk", "你行街嘅時候自動記錄，唔使撳掣；定位揀「始終允許」，鎖咗機出門都會記。行過嘅路線同屋企位置只留喺你部手機。"),
-        ("building.2", "同區嘅人（未碰過）：只見到你嘅網名、小人同連續日數；唔會見到你住邊座、幾樓。"),
-        ("person.2.fill", "碰過一碰嘅街坊：仲會見到你住邊座幾樓、今日一句，同埋你出門時喺邊個地標附近。對外只講地標，唔顯示地圖坐標。"),
-        ("doc.text.magnifyingglass", "你嘅反映會匿名，夠 10 人先交俾社工同屋邨管理。"),
-        ("network", "地圖資料向 OpenStreetMap 攞你附近一格；講嘢可能要經 Apple 辨認。"),
-    ]
+    static var rows: [(symbol: String, text: String)] { [
+        ("figure.walk", L.t("你行街嘅時候自動記錄，唔使撳掣；定位揀「始終允許」，鎖咗機出門都會記。行過嘅路線同屋企位置只留喺你部手機。", "你散步时自动记录，不用按按钮；定位选「始终允许」，锁屏出门也会记。走过的路线和家的位置只留在你的手机里。")),
+        ("building.2", L.t("同區嘅人（未碰過）：只見到你嘅網名、小人同連續日數；唔會見到你住邊座、幾樓。", "同区的人（没碰过）：只看到你的网名、形象和连续天数；看不到你住哪栋、几楼。")),
+        ("person.2.fill", L.t("碰過一碰嘅街坊：仲會見到你住邊座幾樓、今日一句，同埋你出門時喺邊個地標附近。對外只講地標，唔顯示地圖坐標。", "碰过一碰的邻居：还能看到你住哪栋几楼、今日一句，以及你出门时在哪个地标附近。对外只说地标，不显示地图坐标。")),
+        ("doc.text.magnifyingglass", L.t("你嘅反映會匿名，夠 10 人先交俾社工同屋邨管理。", "你的反馈会匿名，满 10 人才交给社工和屋邨管理。")),
+        ("network", L.t("地圖資料向 OpenStreetMap 攞你附近一格；講嘢可能要經 Apple 辨認。", "地图数据从 OpenStreetMap 获取你附近一格；说话可能要经 Apple 识别。")),
+    ] }
     /// 读出来的一段（和上面几行内容一致）。
-    static let spoken = "歡迎嚟到街坊行。你行街會自動記錄，定位揀始終允許，鎖咗機出門都會記，路線同屋企位置只留喺你部手機。同區嘅人只見到你嘅網名、小人同連續日數，唔見到你住邊座幾樓。碰過一碰嘅街坊先見到你住邊座幾樓、今日一句，同你出門時喺邊個地標附近。反映會匿名，夠十個人先交俾社工同屋邨管理。"
+    static var spoken: String { L.t("歡迎嚟到街坊行。你行街會自動記錄，定位揀始終允許，鎖咗機出門都會記，路線同屋企位置只留喺你部手機。同區嘅人只見到你嘅網名、小人同連續日數，唔見到你住邊座幾樓。碰過一碰嘅街坊先見到你住邊座幾樓、今日一句，同你出門時喺邊個地標附近。反映會匿名，夠十個人先交俾社工同屋邨管理。", "欢迎来到街坊行。你散步会自动记录，定位选始终允许，锁屏出门也会记，路线和家的位置只留在你的手机里。同区的人只看到你的网名、形象和连续天数，看不到你住哪栋几楼。碰过一碰的邻居才能看到你住哪栋几楼、今日一句，和你出门时在哪个地标附近。反馈会匿名，满十个人才交给社工和屋邨管理。") }
 
     var appeared = true
 
@@ -224,18 +224,18 @@ private struct OnbConsentStep: View {
                     .opacity(appeared ? 1 : 0)
                     .animation(DS.motion(DS.bouncy), value: appeared)
 
-                Text("歡迎嚟到街坊行")
+                Text(L.t("歡迎嚟到街坊行", "欢迎来到街坊行"))
                     .ds(.title)
                     .accessibilityAddTraits(.isHeader)
 
-                Text("用之前，講清楚邊個睇到乜：")
+                Text(L.t("用之前，講清楚邊個睇到乜：", "使用前，先说清楚谁能看到什么："))
                     .ds(.caption)
                     .foregroundStyle(.secondary)
 
                 PrivacyRows(appeared: appeared)
 
                 Button { store.sayAgain(PrivacyRows.spoken) } label: {
-                    Label("再聽一次", systemImage: "speaker.wave.2.fill").frame(maxWidth: .infinity)
+                    Label(L.t("再聽一次", "再听一次"), systemImage: "speaker.wave.2.fill").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsSecondary)
             }
@@ -268,12 +268,12 @@ private struct OnbConsentStep: View {
     @ViewBuilder private func consentButtons(stacked: Bool) -> some View {
         if !declined {
             Button { withAnimation(DS.motion(DS.spring)) { declined = true } } label: {
-                Text("唔同意").frame(maxWidth: stacked ? .infinity : nil)
+                Text(L.t("唔同意", "不同意")).frame(maxWidth: stacked ? .infinity : nil)
             }
             .buttonStyle(.dsSecondary)
         }
         Button(action: onNext) {
-            Text(declined ? "我諗清楚，同意" : "同意").frame(maxWidth: .infinity)
+            Text(declined ? L.t("我諗清楚，同意", "我想清楚了，同意") : "同意").frame(maxWidth: .infinity)
         }
         .buttonStyle(.dsPrimary)
     }
@@ -285,7 +285,7 @@ private struct OnbConsentStep: View {
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
-            Text("冇問題。唔同意就乜都唔會記錄，亦唔會加入圈。你可以而家離開 App；想用嘅時候返嚟撳「同意」就得。")
+            Text(L.t("冇問題。唔同意就乜都唔會記錄，亦唔會加入圈。你可以而家離開 App；想用嘅時候返嚟撳「同意」就得。", "没问题。不同意就什么都不会记录，也不会加入圈子。你可以现在离开 App；想用的时候回来点「同意」就行。"))
                 .ds(.caption)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -294,7 +294,7 @@ private struct OnbConsentStep: View {
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
         .padding(.horizontal, DS.side)
         .accessibilityElement(children: .combine)
-        .onAppear { store.say("冇問題。唔同意就乜都唔會記錄。想用嘅時候返嚟撳同意就得。") }
+        .onAppear { store.say(L.t("冇問題。唔同意就乜都唔會記錄。想用嘅時候返嚟撳同意就得。", "没问题。不同意就什么都不会记录。想用的时候回来点同意就行。")) }
     }
 
     private var hero: some View {
@@ -335,7 +335,7 @@ private struct OnbLocateStep: View {
             Spacer(minLength: 0)
             if waitedLong && !store.changingHome && (store.loadingMap || store.map == nil) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("網絡慢，仲搵緊。可以再等等，或者先用示例屋邨睇吓。")
+                    Text(L.t("網絡慢，仲搵緊。可以再等等，或者先用示例屋邨睇吓。", "网络慢，还在找。可以再等等，或者先用示例屋邨看看。"))
                         .ds(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -356,8 +356,8 @@ private struct OnbLocateStep: View {
                     .frame(width: 52, height: 52)
                     .background(DS.accentSoft, in: Circle())
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("搵緊你附近嘅樓…").ds(.bodyBold)
-                    Text("用你而家嘅位置砌一個小模型")
+                    Text(L.t("搵緊你附近嘅樓…", "正在找你附近的楼…")).ds(.bodyBold)
+                    Text(L.t("用你而家嘅位置砌一個小模型", "用你现在的位置搭一个小模型"))
                         .ds(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -410,7 +410,7 @@ private struct OnbPickHomeStep: View {
             } else {
                 // 3D 里的楼很小、读屏也点不到：用清单也能选。
                 Button { showList = true } label: {
-                    Label("揀唔到？用清單揀", systemImage: "list.bullet").frame(maxWidth: .infinity)
+                    Label(L.t("揀唔到？用清單揀", "选不到？用清单选"), systemImage: "list.bullet").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsSecondary)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -421,7 +421,7 @@ private struct OnbPickHomeStep: View {
         .padding(.bottom, 8)
         .animation(DS.motion(DS.spring), value: store.pendingHome)
         .animation(DS.motion(DS.snappy), value: store.toast)
-        .onAppear { store.say("撳一下你住嗰座樓，或者用清單揀。") }
+        .onAppear { store.say(L.t("撳一下你住嗰座樓，或者用清單揀。", "点一下你住的那栋楼，或者用清单选。")) }
         .sheet(isPresented: $showList) {
             OnbBuildingList { id in
                 showList = false
@@ -442,8 +442,8 @@ private struct OnbPickHomeStep: View {
                 .frame(width: 52, height: 52)
                 .background(DS.accentSoft, in: Circle())
             VStack(alignment: .leading, spacing: 4) {
-                Text("撳一下你住嗰座樓").ds(.bodyBold)
-                Text("住宅樓已經亮咗橙色").ds(.caption).foregroundStyle(.secondary)
+                Text(L.t("撳一下你住嗰座樓", "点一下你住的那栋楼")).ds(.bodyBold)
+                Text(L.t("住宅樓已經亮咗橙色", "住宅楼已经亮成橙色")).ds(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
         }
@@ -455,7 +455,7 @@ private struct OnbPickHomeStep: View {
     private var sourceCaption: some View {
         let place = store.map?.placeName ?? ""
         let icon = Image(systemName: store.mapSource == .live ? "antenna.radiowaves.left.and.right" : "map")
-        let source = place.isEmpty ? store.mapSource.rawValue : "\(store.mapSource.rawValue) · \(place)"
+        let source = place.isEmpty ? store.mapSource.label : "\(store.mapSource.label) · \(place)"
         // 拼成一段字：大字号时整句换行，不缩字、不拆成几栏
         return (Text("\(icon) \(source) ") + Text("©\u{00A0}OpenStreetMap").foregroundStyle(.secondary))
         .ds(.caption)
@@ -478,11 +478,11 @@ private struct OnbPickHomeStep: View {
                     .frame(width: 52, height: 52)
                     .background(DS.accentSoft, in: Circle())
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(b?.name ?? "你揀咗呢座樓")
+                    Text(b?.name ?? L.t("你揀咗呢座樓", "你选了这栋楼"))
                         .ds(.bodyBold)
                         .contentTransition(.interpolate)
                     if let levels = b?.levels {
-                        Text("\(levels) 層高")
+                        Text(L.t("\(levels) 層高", "\(levels) 层高"))
                             .ds(.caption)
                             .foregroundStyle(.secondary)
                             .contentTransition(.numericText(value: Double(levels)))
@@ -492,7 +492,7 @@ private struct OnbPickHomeStep: View {
                 Spacer(minLength: 0)
             }
             Button(action: onNext) {
-                Text("就係呢座").frame(maxWidth: .infinity)
+                Text(L.t("就係呢座", "就是这栋")).frame(maxWidth: .infinity)
             }
             .buttonStyle(.dsPrimary)
         }
@@ -512,7 +512,7 @@ private struct OnbBuildingList: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("近嘅排先").ds(.caption).foregroundStyle(.secondary)
+                    Text(L.t("近嘅排先", "近的排前面")).ds(.caption).foregroundStyle(.secondary)
                     ForEach(list, id: \.id) { b in
                         Button { onPick(b.id) } label: {
                             HStack(spacing: 12) {
@@ -520,8 +520,8 @@ private struct OnbBuildingList: View {
                                     .foregroundStyle(DS.accent)
                                     .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(b.name ?? "住宅樓").ds(.body)
-                                    Text("\(b.levels) 層 · 大約 \(Self.meters(b.centroid.length))")
+                                    Text(b.name ?? L.t("住宅樓", "住宅楼")).ds(.body)
+                                    Text(L.t("\(b.levels) 層 · 大約 \(Self.meters(b.centroid.length))", "\(b.levels) 层 · 大约 \(Self.meters(b.centroid.length))"))
                                         .ds(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -538,7 +538,7 @@ private struct OnbBuildingList: View {
                         .accessibilityElement(children: .combine)
                     }
                     if list.isEmpty {
-                        Text("附近搵唔到住宅樓。").ds(.body).foregroundStyle(.secondary)
+                        Text(L.t("附近搵唔到住宅樓。", "附近找不到住宅楼。")).ds(.body).foregroundStyle(.secondary)
                     }
                 }
                 .padding(.horizontal, DS.side)
@@ -546,7 +546,7 @@ private struct OnbBuildingList: View {
             }
             .background(Color(.systemGroupedBackground))
             .toolbar {
-                ToolbarItem(placement: .principal) { Text("揀你住嗰座").ds(.bodyBold) }
+                ToolbarItem(placement: .principal) { Text(L.t("揀你住嗰座", "选你住的那栋")).ds(.bodyBold) }
             }
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -569,13 +569,13 @@ private struct OnbFloorStep: View {
         let top = maxFloor
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("你住幾樓？")
+                Text(L.t("你住幾樓？", "你住几楼？"))
                     .ds(.title)
                     .accessibilityAddTraits(.isHeader)
                 Text(subtitle)
                     .ds(.caption)
                     .foregroundStyle(.secondary)
-                Label("只有碰過一碰嘅街坊先見到你住邊座、幾樓（唔會見到門牌）", systemImage: "eye")
+                Label(L.t("只有碰過一碰嘅街坊先見到你住邊座、幾樓（唔會見到門牌）", "只有碰过一碰的邻居才能看到你住哪栋、几楼（看不到门牌）"), systemImage: "eye")
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -586,14 +586,14 @@ private struct OnbFloorStep: View {
                     .frame(width: 88, height: 300)
 
                 VStack(spacing: 8) {
-                    Text("\(store.floorChoice) 樓")
+                    Text(L.t("\(store.floorChoice) 樓", "\(store.floorChoice) 楼"))
                         .font(.system(size: 56, weight: .bold, design: .rounded))
                         .monospacedDigit()
                         .contentTransition(.numericText(value: Double(store.floorChoice)))
                         .animation(DS.motion(DS.snappy), value: store.floorChoice)
                         .accessibilityHidden(true)
 
-                    Picker("樓層", selection: $store.floorChoice) {
+                    Picker(L.t("樓層", "楼层"), selection: $store.floorChoice) {
                         ForEach(1...top, id: \.self) { n in
                             Text("\(n)")
                                 .font(.system(size: 28, weight: .semibold, design: .rounded))
@@ -602,8 +602,8 @@ private struct OnbFloorStep: View {
                     }
                     .pickerStyle(.wheel)
                     .frame(height: 216)
-                    .accessibilityLabel("樓層")
-                    .accessibilityValue("\(store.floorChoice) 樓")
+                    .accessibilityLabel(L.t("樓層", "楼层"))
+                    .accessibilityValue(L.t("\(store.floorChoice) 樓", "\(store.floorChoice) 楼"))
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -620,14 +620,14 @@ private struct OnbFloorStep: View {
         .onAppear {
             if store.floorChoice > top { store.floorChoice = top }
             if store.floorChoice < 1 { store.floorChoice = 1 }
-            store.say("你住幾樓？轉個轆揀。只有碰過一碰嘅街坊先見到。")
+            store.say(L.t("你住幾樓？轉個轆揀。只有碰過一碰嘅街坊先見到。", "你住几楼？转动滚轮选。只有碰过一碰的邻居才能看到。"))
         }
     }
 
     private var subtitle: String {
-        guard let b = building else { return "轉個轆揀，唔使打字" }
-        if let name = b.name { return "\(name) · 共 \(b.levels) 層" }
-        return "呢座樓共 \(b.levels) 層"
+        guard let b = building else { return L.t("轉個轆揀，唔使打字", "转动滚轮选，不用打字") }
+        if let name = b.name { return L.t("\(name) · 共 \(b.levels) 層", "\(name) · 共 \(b.levels) 层") }
+        return L.t("呢座樓共 \(b.levels) 層", "这栋楼共 \(b.levels) 层")
     }
 }
 
@@ -682,7 +682,7 @@ private struct OnbAvatarStep: View {
             : [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text("揀你嘅小人")
+                Text(L.t("揀你嘅小人", "选你的形象"))
                     .ds(.title)
                     .accessibilityAddTraits(.isHeader)
 
@@ -693,7 +693,7 @@ private struct OnbAvatarStep: View {
                 }
                 .animation(DS.motion(DS.spring), value: store.mobilityChoice)
 
-                OnbChoiceRow(title: "年紀", options: AgeGroup.allCases, selected: store.ageChoice, label: \.label) {
+                OnbChoiceRow(title: L.t("年紀", "年龄"), options: AgeGroup.allCases, selected: store.ageChoice, label: \.label) {
                     store.setLook(age: $0)
                     store.say($0.label)
                 }
@@ -702,7 +702,7 @@ private struct OnbAvatarStep: View {
 
                 swatches
 
-                Text("排行榜同地圖都會用呢個小人，唔會用相片")
+                Text(L.t("排行榜同地圖都會用呢個小人，唔會用相片", "排行榜和地图都会用这个形象，不会用照片"))
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -719,7 +719,7 @@ private struct OnbAvatarStep: View {
         .sensoryFeedback(.selection, trigger: store.colorChoice)
         .sensoryFeedback(.selection, trigger: store.skinChoice)
         .sensoryFeedback(.selection, trigger: store.ageChoice)
-        .onAppear { store.say("揀你嘅小人：行動方式、年紀、膚色同衫嘅顏色。") }
+        .onAppear { store.say(L.t("揀你嘅小人：行動方式、年紀、膚色同衫嘅顏色。", "选你的形象：行动方式、年龄、肤色和衣服颜色。")) }
     }
 
     private var changeKey: String { "\(store.mobilityChoice.rawValue)-\(store.colorChoice)-\(store.skinChoice)-\(store.ageChoice.rawValue)" }
@@ -742,13 +742,13 @@ private struct OnbAvatarStep: View {
                 .contentTransition(.interpolate)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("預覽：\(store.ageChoice.label)、\(Palette.skinName(store.skinChoice))、\(colorName(store.colorChoice))衫、\(store.mobilityChoice.label)嘅小人")
+        .accessibilityLabel(L.t("預覽：\(store.ageChoice.label)、\(Palette.skinName(store.skinChoice))、\(colorName(store.colorChoice))衫、\(store.mobilityChoice.label)嘅小人", "预览：\(store.ageChoice.label)、\(Palette.skinName(store.skinChoice))、\(colorName(store.colorChoice))衣服、\(store.mobilityChoice.label)的形象"))
     }
 
     /// 肤色四档：圆点 + 读屏名。
     private var skinRow: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("膚色").ds(.caption).foregroundStyle(.secondary)
+            Text(L.t("膚色", "肤色")).ds(.caption).foregroundStyle(.secondary)
             HStack(spacing: 0) {
                 ForEach(0..<Palette.skins.count, id: \.self) { i in
                     let selected = store.skinChoice == i

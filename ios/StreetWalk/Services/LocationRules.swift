@@ -104,20 +104,20 @@ struct LocationEvent: Codable, Equatable, Identifiable {
     /// 「最近喚醒」用嘅标题。
     var title: String {
         switch kind {
-        case .leftHome: return "離開屋企"
-        case .arrivedHome: return "返到屋企"
-        case .visit: return "到訪"
-        case .significant: return "大範圍移動"
-        case .launch: return "系統喺背景開 App"
-        case .walkStart: return "開始記錄散步"
-        case .walkEnd: return "散步記好"
-        case .backfill: return "補記散步"
-        case .monitor: return "監察"
-        case .permission: return "權限"
-        case .home: return "屋企位置"
-        case .night: return "夜晚位置"
-        case .watch: return "等開始行路"
-        case .note: return "備註"
+        case .leftHome: return L.t("離開屋企", "离开家")
+        case .arrivedHome: return L.t("返到屋企", "回到家")
+        case .visit: return L.t("到訪", "到访")
+        case .significant: return L.t("大範圍移動", "大范围移动")
+        case .launch: return L.t("系統喺背景開 App", "系统在后台打开 App")
+        case .walkStart: return L.t("開始記錄散步", "开始记录散步")
+        case .walkEnd: return L.t("散步記好", "散步已记录")
+        case .backfill: return L.t("補記散步", "补记散步")
+        case .monitor: return L.t("監察", "监测")
+        case .permission: return L.t("權限", "权限")
+        case .home: return L.t("屋企位置", "家的位置")
+        case .night: return L.t("夜晚位置", "夜间位置")
+        case .watch: return L.t("等開始行路", "等待开始走路")
+        case .note: return L.t("備註", "备注")
         }
     }
 

@@ -152,6 +152,8 @@ final class LiveIsland {
 
     /// 过期时间：约会 = 约定时间（之后小组件讲「夠鐘」，唔会倒数变「1 分鐘前」）；其他 20 分钟冇更新就当旧（锁屏提示「打開 App 更新」）。
     static func content(_ s: IslandStatus) -> ActivityContent<IslandStatus> {
+        var s = s
+        s.lang = L.lang   // 小组件係另一个进程，读唔到 App 嘅语言设定
         let stale: Date
         if s.kind == .meet, let t = s.target {
             stale = t

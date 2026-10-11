@@ -32,7 +32,7 @@ struct BumpView: View {
     private func bumpContent(_ p: BumpUpdate, demo: Bool) -> some View {
         VStack(spacing: 24) {
             if demo {
-                DemoBadge(text: "示範：距離係模擬")
+                DemoBadge(text: L.t("示範：距離係模擬", "演示：距离是模拟的"))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             Spacer(minLength: 0)
@@ -71,31 +71,31 @@ struct BumpView: View {
         case .failed(let f):
             VStack(spacing: 8) {
                 Button { store.bumpUseQR() } label: {
-                    Label("用二維碼", systemImage: "qrcode").frame(maxWidth: .infinity)
+                    Label(L.t("用二維碼", "用二维码"), systemImage: "qrcode").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsPrimary)
                 HStack(spacing: 8) {
                     if f.needsSettings {
-                        Button { openSettings() } label: { Text("去設定").frame(maxWidth: .infinity) }
+                        Button { openSettings() } label: { Text(L.t("去設定", "去设置")).frame(maxWidth: .infinity) }
                             .buttonStyle(.dsSecondary)
                     } else if f.canRetry {
-                        Button { store.beginBumpSearch() } label: { Text("再試").frame(maxWidth: .infinity) }
+                        Button { store.beginBumpSearch() } label: { Text(L.t("再試", "再试")).frame(maxWidth: .infinity) }
                             .buttonStyle(.dsSecondary)
                     }
-                    Button { store.cancelBump() } label: { Text("取消").frame(maxWidth: .infinity) }
+                    Button { store.cancelBump() } label: { Text(L.t("取消", "取消")).frame(maxWidth: .infinity) }
                         .buttonStyle(.dsSecondary)
                 }
             }
         case .linking:
-            Button { store.cancelBump() } label: { Text("取消").frame(maxWidth: .infinity) }
+            Button { store.cancelBump() } label: { Text(L.t("取消", "取消")).frame(maxWidth: .infinity) }
                 .buttonStyle(.dsSecondary)
         default:
             VStack(spacing: 8) {
                 Button { store.bumpUseQR() } label: {
-                    Label("用二維碼", systemImage: "qrcode").frame(maxWidth: .infinity)
+                    Label(L.t("用二維碼", "用二维码"), systemImage: "qrcode").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsSecondary)
-                Button { store.cancelBump() } label: { Text("取消").frame(maxWidth: .infinity) }
+                Button { store.cancelBump() } label: { Text(L.t("取消", "取消")).frame(maxWidth: .infinity) }
                     .buttonStyle(.dsSecondary)
             }
         }
@@ -103,24 +103,24 @@ struct BumpView: View {
 
     static func title(_ p: BumpUpdate) -> String {
         switch p {
-        case .searching: return "搵緊身邊部手機…"
-        case .needsLocalNetwork: return "要允許「本地網絡」"
+        case .searching: return L.t("搵緊身邊部手機…", "正在找身边的手机…")
+        case .needsLocalNetwork: return L.t("要允許「本地網絡」", "要允许「本地网络」")
         case .ranging(let d): return BumpTuning.hint(d)
-        case .nearMe: return "等緊對方部手機…"
-        case .linking: return "配對緊…"
-        case .paired: return "成功！"
+        case .nearMe: return L.t("等緊對方部手機…", "在等对方的手机…")
+        case .linking: return L.t("配對緊…", "正在配对…")
+        case .paired: return L.t("成功！", "成功！")
         case .failed(let f): return f.title
         }
     }
 
     static func hint(_ p: BumpUpdate) -> String {
         switch p {
-        case .searching: return "兩部手機都要開住呢頁，慢慢貼埋一齊。"
-        case .needsLocalNetwork: return "彈出問你嗰陣撳「允許」。撳錯咗就去「設定」打開，或者用二維碼。"
-        case .ranging: return "兩部手機慢慢貼埋，拎穩一陣。"
-        case .nearMe: return "你部已經夠近，等對方部都量到。"
-        case .linking: return "唔好走開，就快好。"
-        case .paired: return "你哋而家係街坊。"
+        case .searching: return L.t("兩部手機都要開住呢頁，慢慢貼埋一齊。", "两部手机都要打开这页，慢慢靠在一起。")
+        case .needsLocalNetwork: return L.t("彈出問你嗰陣撳「允許」。撳錯咗就去「設定」打開，或者用二維碼。", "弹窗询问时点「允许」。点错了就去「设置」打开，或者用二维码。")
+        case .ranging: return L.t("兩部手機慢慢貼埋，拎穩一陣。", "两部手机慢慢靠近，拿稳一会儿。")
+        case .nearMe: return L.t("你部已經夠近，等對方部都量到。", "你的已经够近了，等对方的也测到。")
+        case .linking: return L.t("唔好走開，就快好。", "别走开，马上就好。")
+        case .paired: return L.t("你哋而家係街坊。", "你们现在是邻居了。")
         case .failed(let f): return f.hint
         }
     }
@@ -138,7 +138,7 @@ private struct BumpRing: View {
             case .searching, .needsLocalNetwork:
                 FSBumpIllustration()
                     .accessibilityElement()
-                    .accessibilityLabel("碰一碰：將你部手機貼近對方部手機，就會加做街坊")
+                    .accessibilityLabel(L.t("碰一碰：將你部手機貼近對方部手機，就會加做街坊", "碰一碰：把你的手机靠近对方的手机，就能加为邻居"))
             default:
                 Circle()
                     .stroke(DS.accent.opacity(0.15), lineWidth: 16)
@@ -166,19 +166,19 @@ private struct BumpRing: View {
                     .animation(DS.motion(DS.snappy), value: cm)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
-                Text("厘米").ds(.bodyBold).foregroundStyle(.secondary)
+                Text(L.t("厘米", "厘米")).ds(.bodyBold).foregroundStyle(.secondary)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("相距 \(cm) 厘米")
+            .accessibilityLabel(L.t("相距 \(cm) 厘米", "相距 \(cm) 厘米"))
         case .ranging(nil):
             ProgressView().controlSize(.large)
-                .accessibilityLabel("量緊距離")
+                .accessibilityLabel(L.t("量緊距離", "正在测距离"))
         case .nearMe, .linking:
             ProgressView().controlSize(.large)
-                .accessibilityLabel(progress == .linking ? "配對緊" : "等緊對方")
+                .accessibilityLabel(progress == .linking ? L.t("配對緊", "正在配对") : L.t("等緊對方", "在等对方"))
         case .paired:
             BumpPopSymbol(name: "checkmark.circle.fill", size: 110, color: DS.accent)
-                .accessibilityLabel("成功")
+                .accessibilityLabel(L.t("成功", "成功"))
         case .failed(let f):
             Image(systemName: Self.symbol(f))
                 .font(.system(size: 76, weight: .semibold))
@@ -303,15 +303,15 @@ struct FindAskCard: View {
 
     var body: some View {
         if let f = store.find, let p = store.resident(f.partnerID) {
-            let place = store.landmark(f.landmarkID)?.name ?? "附近"
+            let place = store.landmark(f.landmarkID)?.name ?? L.t("附近", "附近")
             let agreed = store.partnerAgreed && f.stage != .declined
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top, spacing: 12) {
                     AvatarBadge(p, size: 52)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("問緊\(p.name)").ds(.bodyBold)
+                        Text(L.t("問緊\(p.name)", "正在问\(p.name)")).ds(.bodyBold)
                         // 真后端对方见到我嘅网名（演示模式冇网名就照用楼层）
-                        Text("「\(store.nickname.isEmpty ? store.me.floorLabel : store.nickname)想過嚟搵你，喺\(place)等陣？」")
+                        Text(L.t("「\(store.nickname.isEmpty ? store.me.floorLabel : store.nickname)想過嚟搵你，喺\(place)等陣？」", "「\(store.nickname.isEmpty ? store.me.floorLabel : store.nickname)想过来找你，在\(place)等一下？」"))
                             .ds(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -321,21 +321,21 @@ struct FindAskCard: View {
                         ProgressView()
                             .controlSize(.large)
                             .transition(.opacity)
-                            .accessibilityLabel("等緊\(p.name)回覆")
+                            .accessibilityLabel(L.t("等緊\(p.name)回覆", "在等\(p.name)回复"))
                     }
                 }
                 .accessibilityElement(children: .combine)
 
                 if f.stage == .declined {
                     Label {
-                        Text("\(p.name)而家唔方便").ds(.bodyBold)
+                        Text(L.t("\(p.name)而家唔方便", "\(p.name)现在不方便")).ds(.bodyBold)
                     } icon: {
                         Image(systemName: "moon.zzz.fill").foregroundStyle(.secondary)
                     }
                     .transition(DS.slide(.bottom))
                 } else if agreed {
                     Label {
-                        Text("\(p.name)話好：喺\(place)等你").ds(.bodyBold)
+                        Text(L.t("\(p.name)話好：喺\(place)等你", "\(p.name)说好：在\(place)等你")).ds(.bodyBold)
                     } icon: {
                         FSPopSymbol(name: "checkmark.circle.fill", size: 26, color: DS.accent)
                     }
@@ -344,15 +344,15 @@ struct FindAskCard: View {
 
                 HStack(spacing: 8) {
                     if agreed {
-                        Button { store.endFind() } label: { Text("取消") }
+                        Button { store.endFind() } label: { Text(L.t("取消", "取消")) }
                             .buttonStyle(.dsSecondary)
                         Button { store.startGoing() } label: {
-                            Label("去", systemImage: "figure.walk").frame(maxWidth: .infinity)
+                            Label(L.t("去", "去"), systemImage: "figure.walk").frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.dsPrimary)
                         .transition(.scale(scale: 0.9).combined(with: .opacity))
                     } else {
-                        Button { store.endFind() } label: { Text("取消").frame(maxWidth: .infinity) }
+                        Button { store.endFind() } label: { Text(L.t("取消", "取消")).frame(maxWidth: .infinity) }
                             .buttonStyle(.dsSecondary)
                     }
                 }
@@ -375,7 +375,7 @@ struct FindOverlay: View {
         if let f = store.find, f.live {
             LiveFindOverlay()
         } else if let f = store.find, let p = store.resident(f.partnerID) {
-            let place = store.landmark(f.landmarkID)?.name ?? "約定地方"
+            let place = store.landmark(f.landmarkID)?.name ?? L.t("約定地方", "约定地点")
             ZStack {
                 VStack(spacing: 8) {
                     // 演示：约会找人时都撳得到演示菜单（「遲到」= 将时间拨到约定后 11 分钟）。
@@ -426,17 +426,17 @@ struct FindOverlay: View {
                 AvatarBadge(p, size: 52)
                 Group {
                     if f.stage == .met {
-                        Text("見到\(p.name)喇")
+                        Text(L.t("見到\(p.name)喇", "见到\(p.name)了"))
                     } else if f.spontaneous {
-                        Text("\(p.name)喺\(place)等你 · 你大約 \(eta) 分鐘到")
+                        Text(L.t("\(p.name)喺\(place)等你 · 你大約 \(eta) 分鐘到", "\(p.name)在\(place)等你 · 你大约 \(eta) 分钟到"))
                     } else if !f.partnerOut {
                         // 未收到对方出门通知，唔好讲佢出咗门（A19）。
-                        Text("約咗\(p.name)喺\(place) · 等緊佢出門")
+                        Text(L.t("約咗\(p.name)喺\(place) · 等緊佢出門", "约了\(p.name)在\(place) · 等对方出门"))
                     } else if f.etaMinutes == 0 {
-                        Text("\(p.name)已經喺\(place)等你")
+                        Text(L.t("\(p.name)已經喺\(place)等你", "\(p.name)已经在\(place)等你"))
                     } else {
                         // 对方仲要几耐到约定地方（按佢剩低嘅路，A67）。
-                        Text("\(p.name)出咗門 · 大約 \(eta) 分鐘到\(place)")
+                        Text(L.t("\(p.name)出咗門 · 大約 \(eta) 分鐘到\(place)", "\(p.name)出门了 · 大约 \(eta) 分钟到\(place)"))
                     }
                 }
                 .ds(.bodyBold)
@@ -445,10 +445,10 @@ struct FindOverlay: View {
                 .animation(DS.motion(DS.snappy), value: eta)
                 Spacer(minLength: 0)
             }
-            if p.isDemo { DemoBadge(text: "示範：對方位置係模擬") }
+            if p.isDemo { DemoBadge(text: L.t("示範：對方位置係模擬", "演示：对方位置是模拟的")) }
             if let b = f.broadcast {
                 Label {
-                    Text("已話俾\(p.name)知：\(b)")
+                    Text(L.t("已話俾\(p.name)知：\(b)", "已告诉\(p.name)：\(b)"))
                 } icon: {
                     Image(systemName: "speaker.wave.2.fill")
                         .foregroundStyle(DS.accent)
@@ -476,12 +476,12 @@ struct FindOverlay: View {
                 .background(DS.accent, in: Circle())
                 .shadow(color: DS.accent.opacity(0.4), radius: 10, y: 4)
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(meters) 米")
+                Text(L.t("\(meters) 米", "\(meters) 米"))
                     .font(.system(size: 40, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .contentTransition(.numericText(value: Double(meters)))
                     .animation(DS.motion(DS.snappy), value: meters)
-                Text("\(p.name)就喺附近，跟住箭咀行")
+                Text(L.t("\(p.name)就喺附近，跟住箭咀行", "\(p.name)就在附近，跟着箭头走"))
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -493,14 +493,14 @@ struct FindOverlay: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 50, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 50, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(p.name)喺附近，大約 \(meters) 米")
+        .accessibilityLabel(L.t("\(p.name)喺附近，大約 \(meters) 米", "\(p.name)在附近，大约 \(meters) 米"))
     }
 
     private func lateCard(_ p: Resident) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
                 FSPopSymbol(name: "clock.fill", size: 26, color: DS.accent)
-                Text("過咗約定時間 10 分鐘，仲未見到\(p.name)。要唔要打電話俾佢？")
+                Text(L.t("過咗約定時間 10 分鐘，仲未見到\(p.name)。要唔要打電話俾佢？", "过了约定时间 10 分钟，还没见到\(p.name)。要不要给对方打电话？"))
                     .ds(.body)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -509,14 +509,14 @@ struct FindOverlay: View {
                 Button {
                     withAnimation(DS.motion(DS.spring)) { store.find?.latePrompt = false }
                 } label: {
-                    Text("再等等")
+                    Text(L.t("再等等", "再等等"))
                 }
                 .buttonStyle(.dsSecondary)
                 Button {
                     store.call(p.id)
                     withAnimation(DS.motion(DS.spring)) { store.find?.latePrompt = false }
                 } label: {
-                    Label("打電話", systemImage: "phone.fill").frame(maxWidth: .infinity)
+                    Label(L.t("打電話", "打电话"), systemImage: "phone.fill").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsPrimary)
             }
@@ -550,13 +550,13 @@ struct FindOverlay: View {
 
 extension FindOverlay {
     fileprivate func endButton(expand: Bool) -> some View {
-        Button { store.endFind() } label: { Text("結束").frame(maxWidth: expand ? .infinity : nil) }
+        Button { store.endFind() } label: { Text(L.t("結束", "结束")).frame(maxWidth: expand ? .infinity : nil) }
             .buttonStyle(.dsSecondary)
     }
 
     fileprivate func broadcastButton(_ f: FindSession, _ place: String) -> some View {
         Button { store.broadcastHere() } label: {
-            Label(f.spontaneous ? "我就到" : "我喺\(place)", systemImage: "speaker.wave.2.fill")
+            Label(f.spontaneous ? L.t("我就到", "我马上到") : L.t("我喺\(place)", "我在\(place)"), systemImage: "speaker.wave.2.fill")
                 .symbolEffect(.bounce, value: f.broadcast)
                 .frame(maxWidth: .infinity)
         }
@@ -578,9 +578,9 @@ extension FindOverlay {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("講嘢")
-        .accessibilityValue(on ? "聽緊" : "")
-        .accessibilityHint(on ? "再撳一下講完" : "撳一下開始講，例如「我喺\(place)」")
+        .accessibilityLabel(L.t("講嘢", "说话"))
+        .accessibilityValue(on ? L.t("聽緊", "正在听") : "")
+        .accessibilityHint(on ? L.t("再撳一下講完", "再点一下结束") : L.t("撳一下開始講，例如「我喺\(place)」", "点一下开始说，比如「我在\(place)」"))
     }
 }
 
@@ -597,8 +597,8 @@ struct FSMetCelebration: View {
                 .symbolRenderingMode(.palette)
                 .foregroundStyle(.white, DS.accent)
                 .symbolEffect(.bounce, value: pop)
-            Text("見到喇！").ds(.title)
-            Text("你同\(name)喺\(place)見到面")
+            Text(L.t("見到喇！", "见到了！")).ds(.title)
+            Text(L.t("你同\(name)喺\(place)見到面", "你和\(name)在\(place)见面了"))
                 .ds(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

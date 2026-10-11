@@ -32,7 +32,7 @@ extension AppStore {
         }
         if me.todayLine.contains(name) { uploadDay(now) }   // 今日一句跟住新名，再传一次
         renaming = nil
-        say(community.sharesLandmarkNames ? "改咗。\(old)而家叫\(name)，同圈嘅街坊都會見到。" : "改咗。\(old)而家叫\(name)。暫時只喺你部手機。")
+        say(community.sharesLandmarkNames ? L.t("改咗。\(old)而家叫\(name)，同圈嘅街坊都會見到。", "改好了。\(old)现在叫\(name)，同圈的邻居都会看到。") : L.t("改咗。\(old)而家叫\(name)。暫時只喺你部手機。", "改好了。\(old)现在叫\(name)。暂时只在你的手机上。"))
         Haptics.success()
     }
 
@@ -60,8 +60,8 @@ extension AppStore {
         community.submitReport(r)
         syncScene()
         say(community.hasServer
-            ? "記低咗：\(lm?.name ?? "呢度")\(kind.rawValue)。月尾會同其他街坊嘅反映一齊交俾屋邨管理。"
-            : "記低咗：\(lm?.name ?? "呢度")\(kind.rawValue)。暫時只存喺你部手機。")
+            ? L.t("記低咗：\(lm?.name ?? "呢度")\(kind.label)。月尾會同其他街坊嘅反映一齊交俾屋邨管理。", "记下了：\(lm?.name ?? "这里")\(kind.label)。月底会和其他邻居的反映一起交给小区管理处。")
+            : L.t("記低咗：\(lm?.name ?? "呢度")\(kind.label)。暫時只存喺你部手機。", "记下了：\(lm?.name ?? "这里")\(kind.label)。暂时只存在你的手机上。"))
         Haptics.light()
         return r.id
     }
@@ -81,7 +81,7 @@ extension AppStore {
         let mine = reports.filter { r in
             Self.hk.isDate(r.date, equalTo: now, toGranularity: .month) && seen.insert("\(r.landmarkID ?? "-")|\(r.kind.rawValue)").inserted
         }
-        return ai.monthlyReport(placeName: map?.placeName ?? "屋邨", reports: mine + community.othersReports(landmarks: landmarks),
+        return ai.monthlyReport(placeName: map?.placeName ?? L.t("屋邨", "小区"), reports: mine + community.othersReports(landmarks: landmarks),
                                 landmarks: landmarks, stats: monthlyStats)
     }
 
@@ -97,16 +97,16 @@ extension AppStore {
         reports[i].followUp = text
         reports[i].followUpDemo = isDemo ? true : nil
         let r = reports[i]
-        let place = landmark(r.landmarkID)?.name ?? "呢度"
-        let line = "你反映過「\(place)\(r.kind.rawValue)」。\(text)"
+        let place = landmark(r.landmarkID)?.name ?? L.t("呢度", "这里")
+        let line = L.t("你反映過「\(place)\(r.kind.label)」。\(text)", "你反映过「\(place)\(r.kind.label)」。\(text)")
         showBanner(BannerItem(symbol: "checkmark.seal.fill", text: line))
         say(line)
     }
 
     /// 演示：屋邨管理回覆最早一条未回覆的反映。
     func simulateFollowUp() {
-        guard let r = reports.first(where: { $0.followUp == nil }) else { toast("你仲未反映過嘢。散步時撳「好曬」「冇櫈」就得。"); return }
-        localCommunity?.simulateFollowUp(r, place: landmark(r.landmarkID)?.name ?? "呢度")
+        guard let r = reports.first(where: { $0.followUp == nil }) else { toast(L.t("你仲未反映過嘢。散步時撳「好曬」「冇櫈」就得。", "你还没反映过问题。散步时按「好晒」「没凳子」就行。")); return }
+        localCommunity?.simulateFollowUp(r, place: landmark(r.landmarkID)?.name ?? L.t("呢度", "这里"))
     }
 
     /// 有回覆的反映（今日页显示）。
@@ -166,7 +166,7 @@ extension AppStore {
         }
         guard !hko.demoOverride, let r = hko.report else {
             // "天文台話"只留给真实数据；演示选的天气唔好冒认天文台
-            if hko.demoOverride, let a = advice, a.hasPrefix("天文台話") { advice = String(a.dropFirst(4)) }
+            if hko.demoOverride, let a = advice, (a.hasPrefix("天文台話") || a.hasPrefix("天文台说")) { advice = String(a.dropFirst(4)) }
             weatherTip = advice.map { Self.oneSentence([$0]) }
             return
         }
@@ -174,16 +174,17 @@ extension AppStore {
         // 真係落紧雨先讲「等雨停」；只係降雨概率高就讲「可能會落雨」（A81）。
         let rainingNow = r.warnings.contains { $0.code.hasPrefix("WRAIN") || $0.code == "WTS" }
             || (r.rainMM ?? 0) >= 0.5 || (63...65).contains(r.icon ?? 0)
-        var rest = r.isDanger ? "今日唔好出門，留喺屋企安全啲"
+        var rest = r.isDanger ? L.t("今日唔好出門，留喺屋企安全啲", "今天别出门，待在家里安全些")
             : weather != .rain ? advice ?? ""
-            : !rainingNow ? "可能會落雨，出門記得帶遮，或者聽日先行"
-            : ["低", "中低"].contains(r.tomorrowPSR ?? "") ? "唔好勉強出門，聽日天氣好啲先行" : "唔好勉強出門，等雨停先"
+            : !rainingNow ? L.t("可能會落雨，出門記得帶遮，或者聽日先行", "可能会下雨，出门记得带伞，或者明天再走")
+            : ["低", "中低"].contains(r.tomorrowPSR ?? "") ? L.t("唔好勉強出門，聽日天氣好啲先行", "别勉强出门，明天天气好些再走") : L.t("唔好勉強出門，等雨停先", "别勉强出门，等雨停了再说")
         // 天文台已经讲咗酷熱警告，就唔再讲一次「今日好熱」。
         if r.walkWarnings.contains(where: { $0.contains("酷熱") }) {
             rest = rest.replacingOccurrences(of: "今日好熱。", with: "").replacingOccurrences(of: "今日好熱，", with: "")
+                .replacingOccurrences(of: "今天很热。", with: "").replacingOccurrences(of: "今天很热，", with: "")
         }
         // 香港以外：模板句讲「天文台話」唔啱，改讲天气预报。
-        if r.source != .hko { rest = rest.replacingOccurrences(of: "天文台話", with: "天氣預報話") }
+        if r.source != .hko { rest = rest.replacingOccurrences(of: "天文台話", with: "天氣預報話").replacingOccurrences(of: "天文台说", with: "天气预报说") }
         let line = Self.oneSentence([r.line, rest])
         weatherTip = line.isEmpty ? nil : line
     }

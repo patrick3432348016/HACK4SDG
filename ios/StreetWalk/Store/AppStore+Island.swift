@@ -41,9 +41,9 @@ extension AppStore {
             if find != nil { findFullScreen = true }
         case .meet:
             guard let (a, _) = meetSoon else { return }
-            showBanner(BannerItem(symbol: "clock.fill", text: "\(s.title)，\(s.detail)。", action: .depart(a.id), actionTitle: "出發"), haptic: false)
+            showBanner(BannerItem(symbol: "clock.fill", text: "\(s.title)，\(s.detail)。", action: .depart(a.id), actionTitle: L.t("出發", "出发")), haptic: false)
         case .walk:
-            showBanner(BannerItem(symbol: "figure.walk", text: "\(s.title)，\(s.detail)。返到屋企會自動記低。"), haptic: false)
+            showBanner(BannerItem(symbol: "figure.walk", text: L.t("\(s.title)，\(s.detail)。返到屋企會自動記低。", "\(s.title)，\(s.detail)。回到家会自动记下。")), haptic: false)
         }
         Haptics.light()
     }

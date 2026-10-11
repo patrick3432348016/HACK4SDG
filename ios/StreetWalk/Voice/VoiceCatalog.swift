@@ -12,8 +12,8 @@ enum SpokenLanguage: String, CaseIterable, Codable, Sendable {
     /// 设定页嘅名。
     var label: String {
         switch self {
-        case .cantonese: return "粵語"
-        case .mandarin: return "普通話"
+        case .cantonese: return L.t("粵語", "粤语")
+        case .mandarin: return L.t("普通話", "普通话")
         case .english: return "English"
         }
     }
@@ -81,9 +81,9 @@ enum VoiceTier: Int, Comparable, Sendable {
 
     var label: String {
         switch self {
-        case .standard: return "標準"
-        case .enhanced: return "增強"
-        case .premium: return "高品質"
+        case .standard: return L.t("標準", "标准")
+        case .enhanced: return L.t("增強", "增强")
+        case .premium: return L.t("高品質", "高品质")
         }
     }
 
@@ -108,8 +108,8 @@ struct VoiceInfo: Equatable, Hashable, Sendable, Identifiable {
     /// 「女聲 · 高品質」
     var subtitle: String {
         let g: String? = switch gender {
-        case .female: "女聲"
-        case .male: "男聲"
+        case .female: L.t("女聲", "女声")
+        case .male: L.t("男聲", "男声")
         case .unknown: nil
         }
         return ([g, tier.label].compactMap { $0 }).joined(separator: " · ")
@@ -133,9 +133,9 @@ enum SpeechPace: String, CaseIterable, Sendable {
 
     var label: String {
         switch self {
-        case .slow: return "慢"
-        case .normal: return "正常"
-        case .fast: return "快"
+        case .slow: return L.t("慢", "慢")
+        case .normal: return L.t("正常", "正常")
+        case .fast: return L.t("快", "快")
         }
     }
 

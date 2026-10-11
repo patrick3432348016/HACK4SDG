@@ -257,9 +257,9 @@ final class LocalCommunityService: CommunityService {
     func simulateFollowUp(_ r: Report, place: String) {
         let text: String
         switch r.kind {
-        case .sunny: text = "屋邨管理回覆：\(place)下個月加遮陽篷。"
-        case .noSeat: text = "屋邨管理回覆：\(place)會加兩張櫈。"
-        case .rough: text = "屋邨管理回覆：\(place)嘅路面已經安排整平。"
+        case .sunny: text = L.t("屋邨管理回覆：\(place)下個月加遮陽篷。", "小区管理处回复：\(place)下个月加遮阳篷。")
+        case .noSeat: text = L.t("屋邨管理回覆：\(place)會加兩張櫈。", "小区管理处回复：\(place)会加两张凳子。")
+        case .rough: text = L.t("屋邨管理回覆：\(place)嘅路面已經安排整平。", "小区管理处回复：\(place)的路面已安排整平。")
         }
         onEvent?(.reportFollowUp(reportID: r.id, text: text, isDemo: true))
     }
@@ -277,7 +277,7 @@ final class LocalCommunityService: CommunityService {
         let members = demoEnabled ? Self.roster.reduce(0) { $0 + min($1.streak, 30) * 2_900 } : 0
         let ours = members + myMonthSteps
         let rival = demoEnabled ? Int(Double(ours) * 0.93) / 100 * 100 : 0
-        return CircleRace(ourName: "\(placeName)圈", ourSteps: ours, rivalName: "對面圈", rivalSteps: rival, isDemo: demoEnabled)
+        return CircleRace(ourName: "\(placeName)圈", ourSteps: ours, rivalName: L.t("對面圈", "对面圈"), rivalSteps: rival, isDemo: demoEnabled)
     }
 
     func monthlyStats(myWalks: Int, myMeetups: Int, estateHomes: Int) -> MonthlyStats {

@@ -33,9 +33,9 @@ final class VoiceServer {
         /// 设定页显示。
         var label: String {
             switch self {
-            case .connected: return "已連線"
-            case .warming: return "準備緊（載入聲音）"
-            case .searching, .unreachable: return "未連線"
+            case .connected: return L.t("已連線", "已连接")
+            case .warming: return L.t("準備緊（載入聲音）", "准备中（加载声音）")
+            case .searching, .unreachable: return L.t("未連線", "未连接")
             }
         }
         var isConnected: Bool { if case .connected = self { return true }; return false }

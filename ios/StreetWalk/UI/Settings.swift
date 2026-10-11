@@ -13,24 +13,38 @@ struct SettingsView: View {
         NavigationStack {
           ScrollViewReader { proxy in
             Form {
+                // 界面同播报一齐转；默认粤语。演示 / 截图可以用启动参数 -lang cmn。
+                Section {
+                    BigSegments(options: AppLang.allCases, selection: Binding(get: { AppLanguage.shared.current }, set: { l in
+                        AppLanguage.shared.choose(l)
+                        store.previewVoice(VoiceSettings.shared.active)
+                    }), label: \.label)
+                    .padding(.vertical, 8)
+                    .accessibilityLabel(L.t("語言", "语言"))
+                } header: {
+                    Text(L.t("語言", "语言")).ds(.caption)
+                } footer: {
+                    Text(L.t("文字同播報一齊轉。", "文字和播报一起切换。")).ds(.caption)
+                }
+
                 Section {
                     Button { editingNickname = true } label: {
-                        LabeledContent("網名") {
-                            Text(store.nickname.isEmpty ? "未有" : store.nickname).foregroundStyle(.secondary)
+                        LabeledContent(L.t("網名", "网名")) {
+                            Text(store.nickname.isEmpty ? L.t("未有", "还没有") : store.nickname).foregroundStyle(.secondary)
                         }
                     }
                     .foregroundStyle(.primary)
-                    .accessibilityHint("改排行榜上用嘅網名")
-                    LabeledContent("住喺") {
+                    .accessibilityHint(L.t("改排行榜上用嘅網名", "改排行榜上用的网名"))
+                    LabeledContent(L.t("住喺", "住在")) {
                         Text(store.me.blockName ?? store.map?.placeName ?? "—").foregroundStyle(.secondary)
                     }
-                    Button("改我住嘅樓") { confirmMove = true }
+                    Button(L.t("改我住嘅樓", "改我住的楼")) { confirmMove = true }
                     Stepper(value: Binding(get: { store.floorChoice }, set: { store.setFloor($0) }), in: 1...max(1, store.homeLevels)) {
-                        LabeledContent("樓層", value: "\(store.floorChoice) 樓")
+                        LabeledContent(L.t("樓層", "楼层"), value: L.t("\(store.floorChoice) 樓", "\(store.floorChoice) 楼"))
                     }
-                    DSMenuPicker(title: "小人", selection: Binding(get: { store.mobilityChoice }, set: { store.setAvatar(mobility: $0) }),
+                    DSMenuPicker(title: L.t("小人", "形象"), selection: Binding(get: { store.mobilityChoice }, set: { store.setAvatar(mobility: $0) }),
                                  options: Mobility.allCases, label: \.label)
-                    DSMenuPicker(title: "年紀", selection: Binding(get: { store.ageChoice }, set: { store.setLook(age: $0) }),
+                    DSMenuPicker(title: L.t("年紀", "年龄"), selection: Binding(get: { store.ageChoice }, set: { store.setLook(age: $0) }),
                                  options: AgeGroup.allCases, label: \.label)
                     skinRow
                     colorRow
@@ -38,22 +52,22 @@ struct SettingsView: View {
                     Text("我").ds(.caption)
                 } footer: {
                     if !store.demoMode {
-                        Text("同區嘅人見到你嘅網名、小人同連續日數；座數同樓層只有碰過一碰嘅街坊見到。").ds(.caption)
+                        Text(L.t("同區嘅人見到你嘅網名、小人同連續日數；座數同樓層只有碰過一碰嘅街坊見到。", "同区的人能看到你的网名、形象和连续天数；楼栋和楼层只有碰过一碰的邻居能看到。")).ds(.caption)
                     }
                 }
 
                 Section {
-                    Toggle("出門提醒", isOn: $store.remindAll).tint(DS.accent)
+                    Toggle(L.t("出門提醒", "出门提醒"), isOn: $store.remindAll).tint(DS.accent)
                     if store.remindAll {
-                        DSMenuPicker(title: "由", selection: $store.remindFrom, options: Array(5..<24), label: TemplateAI.hourLabel)
+                        DSMenuPicker(title: L.t("由", "从"), selection: $store.remindFrom, options: Array(5..<24), label: TemplateAI.hourLabel)
                         DSMenuPicker(title: "到", selection: $store.remindTo, options: Array(6..<24), label: TemplateAI.hourLabel)
                     }
                 } header: {
-                    Text("街坊出門話我知").ds(.caption)
+                    Text(L.t("街坊出門話我知", "邻居出门告诉我")).ds(.caption)
                 } footer: {
                     // 由、到一樣當全日（A66）
-                    Text(store.remindFrom == store.remindTo ? "「由」同「到」一樣，即係全日都會通知你。每個街坊仲可以喺「街坊」頁分開開關。"
-                         : "只喺呢段時間通知你\(store.remindFrom > store.remindTo ? "（跨夜）" : "")。每個街坊仲可以喺「街坊」頁分開開關。").ds(.caption)
+                    Text(store.remindFrom == store.remindTo ? L.t("「由」同「到」一樣，即係全日都會通知你。每個街坊仲可以喺「街坊」頁分開開關。", "「从」和「到」一样，就是全天都会通知你。每个邻居还可以在「邻居」页单独开关。")
+                         : L.t("只喺呢段時間通知你\(store.remindFrom > store.remindTo ? "（跨夜）" : "")。每個街坊仲可以喺「街坊」頁分開開關。", "只在这段时间通知你\(store.remindFrom > store.remindTo ? "（跨夜）" : "")。每个邻居还可以在「邻居」页单独开关。")).ds(.caption)
                 }
 
                 VoiceSettingsSection()
@@ -65,22 +79,22 @@ struct SettingsView: View {
                         .tint(DS.accent)
                         .disabled(LaunchArgs.has("-demo"))
                 } footer: {
-                    Text(LaunchArgs.has("-demo") ? "而家用演示參數開啟，唔可以喺度關。"
-                         : "演示模式會加入示範街坊、示範紀錄同右上角嘅演示選單。關咗之後用真伺服器：排行榜係附近真人，要兩部手機碰一碰先做到街坊。").ds(.caption)
+                    Text(LaunchArgs.has("-demo") ? L.t("而家用演示參數開啟，唔可以喺度關。", "现在用演示参数开启，不能在这里关。")
+                         : L.t("演示模式會加入示範街坊、示範紀錄同右上角嘅演示選單。關咗之後用真伺服器：排行榜係附近真人，要兩部手機碰一碰先做到街坊。", "演示模式会加入示范邻居、示范记录和右上角的演示菜单。关掉之后用真服务器：排行榜是附近真人，要两部手机碰一碰才能成为邻居。")).ds(.caption)
                 }
 
                 Section {
                     PrivacyRows().padding(.vertical, 8)
-                    Button("讀出嚟") { store.sayAgain(PrivacyRows.spoken) }
+                    Button(L.t("讀出嚟", "读出来")) { store.sayAgain(PrivacyRows.spoken) }
                 } header: {
-                    Text("私隱：邊個見到乜").ds(.caption)
+                    Text(L.t("私隱：邊個見到乜", "隐私：谁能看到什么")).ds(.caption)
                 }
 
                 Section {
-                    Button("清除我嘅紀錄", role: .destructive) { confirmClear = true }
+                    Button(L.t("清除我嘅紀錄", "清除我的记录"), role: .destructive) { confirmClear = true }
                 } footer: {
-                    Text(store.demoMode ? "演示模式：街坊關係、約會、反映、改過嘅地標名、散步紀錄都只存喺你部手機。地圖資料 © OpenStreetMap；天氣：香港天文台。"
-                         : "行過嘅路線、屋企位置只存喺你部手機。伺服器（新加坡）只有網名、小人、屋企附近嘅格子、連續日數、每日分鐘同落腳地標、街坊關係同約會；清除會一齊刪走。地圖資料 © OpenStreetMap；天氣：香港天文台。").ds(.caption)
+                    Text(store.demoMode ? L.t("演示模式：街坊關係、約會、反映、改過嘅地標名、散步紀錄都只存喺你部手機。地圖資料 © OpenStreetMap；天氣：香港天文台。", "演示模式：邻居关系、约会、反馈、改过的地标名、散步记录都只存在你的手机里。地图数据 © OpenStreetMap；天气：香港天文台。")
+                         : L.t("行過嘅路線、屋企位置只存喺你部手機。伺服器（新加坡）只有網名、小人、屋企附近嘅格子、連續日數、每日分鐘同落腳地標、街坊關係同約會；清除會一齊刪走。地圖資料 © OpenStreetMap；天氣：香港天文台。", "走过的路线、家的位置只存在你的手机里。服务器（新加坡）只有网名、形象、家附近的格子、连续天数、每日分钟和落脚地标、邻居关系和约会；清除会一起删掉。地图数据 © OpenStreetMap；天气：香港天文台。")).ds(.caption)
                 }
             }
             .ds(.body)
@@ -105,11 +119,11 @@ struct SettingsView: View {
                 }
             }
           }
-            .navigationTitle("設定")
+            .navigationTitle(L.t("設定", "设置"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // 标题和「完成」都用设计规范字号（系统默认 17pt 太小）。
-                ToolbarItem(placement: .principal) { Text("設定").ds(.bodyBold).accessibilityAddTraits(.isHeader) }
+                ToolbarItem(placement: .principal) { Text(L.t("設定", "设置")).ds(.bodyBold).accessibilityAddTraits(.isHeader) }
                 ToolbarItem(placement: .confirmationAction) {
                     Button { store.showSettings = false } label: { Text("完成").ds(.bodyBold) }.foregroundStyle(DS.accent)
                 }
@@ -117,18 +131,18 @@ struct SettingsView: View {
             .sheet(isPresented: $editingNickname) {
                 NicknameSheet().environment(store)
             }
-            .confirmationDialog("清除全部紀錄？", isPresented: $confirmClear, titleVisibility: .visible) {
+            .confirmationDialog(L.t("清除全部紀錄？", "清除全部记录？"), isPresented: $confirmClear, titleVisibility: .visible) {
                 Button("清除", role: .destructive) { store.clearAllData(); store.populate() }
-                Button("唔清", role: .cancel) {}
+                Button(L.t("唔清", "不清除"), role: .cancel) {}
             } message: {
-                Text(store.demoMode ? "街坊、約會、反映、散步紀錄同過夜位置都會刪走，冇得還原。"
-                     : "街坊、約會、反映、散步紀錄同過夜位置都會刪走（連伺服器上嘅），冇得還原。")
+                Text(store.demoMode ? L.t("街坊、約會、反映、散步紀錄同過夜位置都會刪走，冇得還原。", "邻居、约会、反馈、散步记录和过夜位置都会删掉，无法还原。")
+                     : L.t("街坊、約會、反映、散步紀錄同過夜位置都會刪走（連伺服器上嘅），冇得還原。", "邻居、约会、反馈、散步记录和过夜位置都会删掉（包括服务器上的），无法还原。"))
             }
-            .confirmationDialog("改我住嘅樓？", isPresented: $confirmMove, titleVisibility: .visible) {
-                Button("揀過座樓") { store.showSettings = false; store.beginChangeHome() }
-                Button("唔改", role: .cancel) {}
+            .confirmationDialog(L.t("改我住嘅樓？", "改我住的楼？"), isPresented: $confirmMove, titleVisibility: .visible) {
+                Button(L.t("揀過座樓", "重新选楼")) { store.showSettings = false; store.beginChangeHome() }
+                Button(L.t("唔改", "不改"), role: .cancel) {}
             } message: {
-                Text("會重新揀樓。之前嘅約會地點同反映位置會清走，街坊同散步紀錄保留。")
+                Text(L.t("會重新揀樓。之前嘅約會地點同反映位置會清走，街坊同散步紀錄保留。", "会重新选楼。之前的约会地点和反馈位置会清掉，邻居和散步记录保留。"))
             }
         }
     }

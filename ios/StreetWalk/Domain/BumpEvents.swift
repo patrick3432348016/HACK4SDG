@@ -54,32 +54,32 @@ enum BumpFailure: Equatable {
     /// 大字标题。
     var title: String {
         switch self {
-        case .unsupported: return "呢部手機唔支援碰一碰"
-        case .localNetworkDenied: return "搵唔到身邊部手機"
-        case .nearbyDenied: return "量唔到距離"
-        case .timeout: return "未碰到"
-        case .background: return "碰一碰停咗"
-        case .peerLeft: return "對方停咗"
-        case .noServer: return "未連到伺服器"
-        case .linkFailed: return "配對唔到"
-        case .network: return "網絡有問題"
-        case .other: return "碰一碰出錯"
+        case .unsupported: return L.t("呢部手機唔支援碰一碰", "这部手机不支持碰一碰")
+        case .localNetworkDenied: return L.t("搵唔到身邊部手機", "找不到身边的手机")
+        case .nearbyDenied: return L.t("量唔到距離", "测不到距离")
+        case .timeout: return L.t("未碰到", "还没碰到")
+        case .background: return L.t("碰一碰停咗", "碰一碰已停止")
+        case .peerLeft: return L.t("對方停咗", "对方已停止")
+        case .noServer: return L.t("未連到伺服器", "未连接服务器")
+        case .linkFailed: return L.t("配對唔到", "配对失败")
+        case .network: return L.t("網絡有問題", "网络有问题")
+        case .other: return L.t("碰一碰出錯", "碰一碰出错")
         }
     }
 
     /// 辅助说明（点样做）。
     var hint: String {
         switch self {
-        case .unsupported: return "要兩部 iPhone 11 或之後嘅型號先得。可以改用二維碼。"
-        case .localNetworkDenied: return "要允許「本地網絡」。去「設定」打開，或者改用二維碼。"
-        case .nearbyDenied: return "要允許「附近互動」。去「設定」打開，或者改用二維碼。"
-        case .timeout: return "兩部手機都要開住呢頁，貼埋一齊。可以再試，或者改用二維碼。"
-        case .background: return "碰一碰時要開住呢頁。再試一次就得。"
-        case .peerLeft: return "兩部手機一齊再試，或者改用二維碼。"
-        case .noServer: return "呢個版本未接伺服器，加唔到街坊。"
-        case .linkFailed: return "兩部手機一齊再試，或者改用二維碼。"
-        case .network: return "睇下有冇上網，再試一次。"
-        case .other: return "再試一次，或者改用二維碼。"
+        case .unsupported: return L.t("要兩部 iPhone 11 或之後嘅型號先得。可以改用二維碼。", "需要两部 iPhone 11 或更新的机型。可以改用二维码。")
+        case .localNetworkDenied: return L.t("要允許「本地網絡」。去「設定」打開，或者改用二維碼。", "需要允许「本地网络」。去「设置」打开，或者改用二维码。")
+        case .nearbyDenied: return L.t("要允許「附近互動」。去「設定」打開，或者改用二維碼。", "需要允许「附近交互」。去「设置」打开，或者改用二维码。")
+        case .timeout: return L.t("兩部手機都要開住呢頁，貼埋一齊。可以再試，或者改用二維碼。", "两部手机都要开着这页，贴在一起。可以再试，或者改用二维码。")
+        case .background: return L.t("碰一碰時要開住呢頁。再試一次就得。", "碰一碰时要开着这页。再试一次就行。")
+        case .peerLeft: return L.t("兩部手機一齊再試，或者改用二維碼。", "两部手机一起再试，或者改用二维码。")
+        case .noServer: return L.t("呢個版本未接伺服器，加唔到街坊。", "这个版本未接服务器，加不了邻居。")
+        case .linkFailed: return L.t("兩部手機一齊再試，或者改用二維碼。", "两部手机一起再试，或者改用二维码。")
+        case .network: return L.t("睇下有冇上網，再試一次。", "看看有没有联网，再试一次。")
+        case .other: return L.t("再試一次，或者改用二維碼。", "再试一次，或者改用二维码。")
         }
     }
 

@@ -15,4 +15,6 @@ enum IslandStyle {
     static let accentOnBlack = Color(red: 1.0, green: 0.604, blue: 0.431)  // #FF9A6E
     /// 约会倒数用粤语格式（「15 分鐘後」，数字同字之间有空格，同 App 一致）。
     static let locale = Locale(identifier: "yue-Hant-HK")
+    static let localeCmn = Locale(identifier: "zh-Hans-CN")
+    static func locale(_ s: IslandStatus) -> Locale { (s.lang ?? L.lang) == .cmn ? localeCmn : locale }
 }

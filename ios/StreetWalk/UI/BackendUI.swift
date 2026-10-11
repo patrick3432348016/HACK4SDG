@@ -15,7 +15,7 @@ struct NicknameEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            TextField("例如：陳太、李伯", text: $text)
+            TextField(L.t("例如：陳太、李伯", "例如：陈太、李伯"), text: $text)
                 .font(.system(size: 30, weight: .semibold, design: .rounded))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -26,11 +26,11 @@ struct NicknameEditor: View {
                 .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous)
                     .strokeBorder(tooLong ? Color.red : (focused ? DS.accent : Color.primary.opacity(0.12)), lineWidth: focused || tooLong ? 2 : 1))
-                .accessibilityLabel("網名")
-                .accessibilityHint("1 至 20 個字")
+                .accessibilityLabel(L.t("網名", "网名"))
+                .accessibilityHint(L.t("1 至 20 個字", "1 到 20 个字"))
 
             HStack {
-                Text(tooLong ? "太長喇，最多 20 個字" : "唔使用真名，1 至 20 個字")
+                Text(tooLong ? L.t("太長喇，最多 20 個字", "太长了，最多 20 个字") : L.t("唔使用真名，1 至 20 個字", "不用真名，1 到 20 个字"))
                     .ds(.caption)
                     .foregroundStyle(tooLong ? Color.red : .secondary)
                 Spacer(minLength: 8)
@@ -42,7 +42,7 @@ struct NicknameEditor: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("或者撳一個：").ds(.caption).foregroundStyle(.secondary)
+                Text(L.t("或者撳一個：", "或者点一个：")).ds(.caption).foregroundStyle(.secondary)
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], alignment: .leading, spacing: 8) {
                     ForEach(store.nicknameSuggestions, id: \.self) { s in
                         let on = text.trimmingCharacters(in: .whitespaces) == s
@@ -65,7 +65,7 @@ struct NicknameEditor: View {
                                     .strokeBorder(on ? DS.accent : Color.primary.opacity(0.08), lineWidth: on ? 3 : 1))
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("用「\(s)」做網名")
+                        .accessibilityLabel(L.t("用「\(s)」做網名", "用「\(s)」做网名"))
                     }
                 }
             }
@@ -82,10 +82,10 @@ struct OnbNicknameStep: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("大家點叫你？")
+                Text(L.t("大家點叫你？", "大家怎么称呼你？"))
                     .ds(.title)
                     .accessibilityAddTraits(.isHeader)
-                Label("排行榜上同區嘅人會見到呢個網名。座數樓層只有碰過一碰嘅街坊先見到。", systemImage: "eye")
+                Label(L.t("排行榜上同區嘅人會見到呢個網名。座數樓層只有碰過一碰嘅街坊先見到。", "排行榜上同区的人会看到这个网名。楼栋楼层只有碰过一碰的邻居才看得到。"), systemImage: "eye")
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -101,7 +101,7 @@ struct OnbNicknameStep: View {
             Button {
                 if store.setNickname(text) { onNext() }
             } label: {
-                Text("完成").frame(maxWidth: .infinity)
+                Text(L.t("完成", "完成")).frame(maxWidth: .infinity)
             }
             .buttonStyle(.dsPrimary)
             .disabled(CommunityProfile.cleanNickname(text) == nil)
@@ -112,7 +112,7 @@ struct OnbNicknameStep: View {
         }
         .onAppear {
             text = store.nickname
-            store.say("大家點叫你？打個網名，或者撳下面一個。")
+            store.say(L.t("大家點叫你？打個網名，或者撳下面一個。", "大家怎么称呼你？输入一个网名，或者点下面一个。"))
         }
         .onChange(of: store.nickname) { _, n in if text.isEmpty { text = n } }   // 自动脚本 / 启动参数填咗
     }
@@ -128,18 +128,18 @@ struct NicknameSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("排行榜上同區嘅人會見到呢個網名。")
+                    Text(L.t("排行榜上同區嘅人會見到呢個網名。", "排行榜上同区的人会看到这个网名。"))
                         .ds(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     NicknameEditor(text: $text)
                     Button {
                         if store.setNickname(text) {
-                            store.say("好，網名改咗做\(store.nickname)。")
+                            store.say(L.t("好，網名改咗做\(store.nickname)。", "好，网名改成了\(store.nickname)。"))
                             dismiss()
                         }
                     } label: {
-                        Text("好").frame(maxWidth: .infinity)
+                        Text(L.t("好", "好")).frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.dsPrimary)
                     .disabled(CommunityProfile.cleanNickname(text) == nil)
@@ -150,10 +150,10 @@ struct NicknameSheet: View {
             }
             .background(Color(.systemGroupedBackground))
             .toolbar {
-                ToolbarItem(placement: .principal) { Text("網名").ds(.bodyBold).accessibilityAddTraits(.isHeader) }
+                ToolbarItem(placement: .principal) { Text(L.t("網名", "网名")).ds(.bodyBold).accessibilityAddTraits(.isHeader) }
                 if !store.needsNickname {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button { dismiss() } label: { Text("唔改").ds(.bodyBold) }.foregroundStyle(DS.accent)
+                        Button { dismiss() } label: { Text(L.t("唔改", "不改")).ds(.bodyBold) }.foregroundStyle(DS.accent)
                     }
                 }
             }
@@ -177,11 +177,11 @@ struct IncomingFindCard: View {
                 HStack(alignment: .top, spacing: 12) {
                     AvatarBadge(p, size: 64)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("\(p.name)想過嚟搵你，方唔方便？")
+                        Text(L.t("\(p.name)想過嚟搵你，方唔方便？", "\(p.name)想过来找你，方便吗？"))
                             .ds(.bodyBold)
                             .fixedSize(horizontal: false, vertical: true)
                         if let place = store.placeName(ask.landmarkID) {
-                            Text("佢會過去\(place)附近搵你。")
+                            Text(L.t("佢會過去\(place)附近搵你。", "他会去\(place)附近找你。"))
                                 .ds(.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -194,7 +194,7 @@ struct IncomingFindCard: View {
                     taps += 1
                     store.answerIncomingFind(true)
                 } label: {
-                    Text("好").frame(maxWidth: .infinity)
+                    Text(L.t("好", "好")).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsPrimary)
 
@@ -202,7 +202,7 @@ struct IncomingFindCard: View {
                     taps += 1
                     store.answerIncomingFind(false)
                 } label: {
-                    Text("唔方便").frame(maxWidth: .infinity)
+                    Text(L.t("唔方便", "不方便")).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsSecondary)
             }
@@ -216,13 +216,13 @@ struct IncomingFindCard: View {
 /// 真后端连唔到（冇网络 / 服务器暂时唔得）：主画面左上细细一粒。写入已经排队，连返就自动送出。
 struct OfflineChip: View {
     var body: some View {
-        Label("未連線", systemImage: "wifi.slash")
+        Label(L.t("未連線", "未联网"), systemImage: "wifi.slash")
             .ds(.captionBold)
             .foregroundStyle(.primary)
             .padding(.horizontal, 12)
             .frame(minHeight: 40)
             .background(.regularMaterial, in: Capsule())
             .overlay(Capsule().strokeBorder(Color.orange.opacity(0.6), lineWidth: 1.5))
-            .accessibilityLabel("未連線。你做嘅改動會留住，連返網就會送出。")
+            .accessibilityLabel(L.t("未連線。你做嘅改動會留住，連返網就會送出。", "未联网。你的改动会保留，联网后就会发送。"))
     }
 }

@@ -7,6 +7,10 @@ struct StreetWalkApp: App {
     @State private var store = AppStore.launch()
     @Environment(\.scenePhase) private var scenePhase
 
+    init() {
+        VoiceSettings.shared.followAppLanguage()   // 播报语言跟界面语言（-lang cmn / 设定页揀过）
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()

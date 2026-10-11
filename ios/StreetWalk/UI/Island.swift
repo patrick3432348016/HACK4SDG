@@ -136,7 +136,7 @@ struct IslandBanner: View {
         .allowsHitTesting(shown)
         .accessibilityHidden(!shown)
         .accessibilityElement(children: .contain)
-        .accessibilityAction(named: "關閉") { store.banner = nil }
+        .accessibilityAction(named: L.t("關閉", "关闭")) { store.banner = nil }
         .animation(fade ? IslandMotion.fade : (shown ? IslandMotion.expand : IslandMotion.collapse), value: shown)
         .animation(fade ? nil : IslandMotion.resize, value: height)
         .onChange(of: current) { _, new in
@@ -308,7 +308,7 @@ private struct IslandCompact: View {
             .allowsHitTesting(shown)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(s?.spoken ?? "")
-            .accessibilityHint("撳一下睇詳情")
+            .accessibilityHint(L.t("撳一下睇詳情", "点一下看详情"))
             .accessibilityAddTraits(.isButton)
             .accessibilityHidden(!shown)
             .animation(fade ? IslandMotion.fade : (shown ? IslandMotion.expand : IslandMotion.collapse), value: shown)

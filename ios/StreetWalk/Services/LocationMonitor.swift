@@ -106,7 +106,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
 
     /// AppDelegate：系统喺背景开 App（App 之前冇开住，例如俾系统收咗；多数係定位事件）。
     func noteLocationLaunch() {
-        record(.launch, "App 冇開住，iOS 喺背景重新開咗街坊行")
+        record(.launch, L.t("App 冇開住，iOS 喺背景重新開咗街坊行", "App 没开着，iOS 在后台重新打开了街坊行"))
         wake(.launch)
     }
 
@@ -140,7 +140,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
             if !monitoring {
                 monitoring = true
                 // 上次（包括之前嘅进程）已经开紧就唔再记，免得每次开 App 都多一行
-                if !UserDefaults.standard.bool(forKey: Keys.monitoring) { record(.monitor, "開始監察：離開 / 返到屋企、到訪、大範圍移動") }
+                if !UserDefaults.standard.bool(forKey: Keys.monitoring) { record(.monitor, L.t("開始監察：離開 / 返到屋企、到訪、大範圍移動", "开始监测：离开 / 回到家、到访、大范围移动")) }
                 UserDefaults.standard.set(true, forKey: Keys.monitoring)
             }
         } else if servicesOn || monitoring || !m.monitoredRegions.isEmpty {
@@ -151,7 +151,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
             if monitoring || UserDefaults.standard.bool(forKey: Keys.monitoring) {
                 monitoring = false
                 UserDefaults.standard.set(false, forKey: Keys.monitoring)
-                record(.monitor, enabled ? "停咗監察：定位唔係「始終允許」" : "停咗監察")
+                record(.monitor, enabled ? L.t("停咗監察：定位唔係「始終允許」", "已停止监测：定位不是「始终允许」") : L.t("停咗監察", "已停止监测"))
             }
         }
     }
@@ -170,7 +170,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         r.notifyOnExit = true
         m.startMonitoring(for: r)
         m.requestState(for: r)
-        record(.home, "登記咗屋企範圍：你揀嗰座樓周圍 \(Int(radius)) 米")
+        record(.home, L.t("登記咗屋企範圍：你揀嗰座樓周圍 \(Int(radius)) 米", "已登记家的范围：你选的那栋楼周围 \(Int(radius)) 米"))
     }
 
     // MARK: - 屋企
@@ -186,7 +186,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         }
         if moved {
             setSnooze(nil)
-            record(.home, picked ? "屋企定咗喺你揀嘅樓" : "屋企暫時用模型預設嘅樓（未揀）")
+            record(.home, picked ? L.t("屋企定咗喺你揀嘅樓", "家已定在你选的楼") : L.t("屋企暫時用模型預設嘅樓（未揀）", "家暂时用模型默认的楼（未选）"))
         }
         if monitoring { registerHome() }
         reevaluate()
@@ -243,7 +243,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         default:
             openSettings()
         }
-        record(.permission, "問咗「始終允許」定位")
+        record(.permission, L.t("問咗「始終允許」定位", "已请求「始终允许」定位"))
     }
 
     func markAlwaysOffered() {
@@ -270,7 +270,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         let changed = s != auth || full != precise
         auth = s
         precise = full
-        if changed { record(.permission, "定位：\(Self.authLabel(s))\(full ? "" : "，精確位置關咗")") }
+        if changed { record(.permission, L.t("定位：\(Self.authLabel(s))\(full ? "" : "，精確位置關咗")", "定位：\(Self.authLabel(s))\(full ? "" : "，精确位置已关闭")")) }
         if wantsAlways, s == .authorizedWhenInUse {
             wantsAlways = false
             manager?.requestAlwaysAuthorization()
@@ -282,22 +282,22 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
 
     static func authLabel(_ s: CLAuthorizationStatus) -> String {
         switch s {
-        case .authorizedAlways: return "始終允許"
-        case .authorizedWhenInUse: return "只係用緊 App 時"
-        case .denied: return "已拒絕"
-        case .restricted: return "受限制"
-        case .notDetermined: return "未問"
-        @unknown default: return "未知"
+        case .authorizedAlways: return L.t("始終允許", "始终允许")
+        case .authorizedWhenInUse: return L.t("只係用緊 App 時", "仅使用 App 时")
+        case .denied: return L.t("已拒絕", "已拒绝")
+        case .restricted: return L.t("受限制", "受限制")
+        case .notDetermined: return L.t("未問", "未询问")
+        @unknown default: return L.t("未知", "未知")
         }
     }
 
     static func motionLabel(_ s: CMAuthorizationStatus) -> String {
         switch s {
-        case .authorized: return "已允許"
-        case .denied: return "已拒絕"
-        case .restricted: return "受限制"
-        case .notDetermined: return "未問"
-        @unknown default: return "未知"
+        case .authorized: return L.t("已允許", "已允许")
+        case .denied: return L.t("已拒絕", "已拒绝")
+        case .restricted: return L.t("受限制", "受限制")
+        case .notDetermined: return L.t("未問", "未询问")
+        @unknown default: return L.t("未知", "未知")
         }
     }
 
@@ -339,7 +339,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         }
         save()
         reevaluate()
-        record(.night, "模擬：加咗 \(count) 晚過夜位置（\(Self.describe(home.map { HomeLearner.distance($0, p) }))）")
+        record(.night, L.t("模擬：加咗 \(count) 晚過夜位置（\(Self.describe(home.map { HomeLearner.distance($0, p) }))）", "模拟：加了 \(count) 晚过夜位置（\(Self.describe(home.map { HomeLearner.distance($0, p) }))）"))
     }
 
     /// 开发用 -resetOnboarding：连屋企、问过「始终允许」都清走，当新装。
@@ -390,7 +390,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
 
     nonisolated func locationManager(_ m: CLLocationManager, monitoringDidFailFor region: CLRegion?, withError error: Error) {
         let msg = error.localizedDescription
-        Task { @MainActor in self.record(.note, "屋企範圍監察出錯：\(msg)") }
+        Task { @MainActor in self.record(.note, L.t("屋企範圍監察出錯：\(msg)", "家范围监测出错：\(msg)")) }
     }
 
     nonisolated func locationManager(_ m: CLLocationManager, didVisit visit: CLVisit) {
@@ -417,12 +417,12 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
             if let h = home, !learner.hasOpen(.region) {
                 addSample(NightSample(lat: h.lat, lon: h.lon, start: now, end: nil, source: .region))
             }
-            record(.arrivedHome, "入咗屋企 \(Int(TriggerRules.homeRadius)) 米範圍")
+            record(.arrivedHome, L.t("入咗屋企 \(Int(TriggerRules.homeRadius)) 米範圍", "进入了家 \(Int(TriggerRules.homeRadius)) 米范围"))
             deliver(.arrivedHome)
             wake(.arrivedHome)
         } else {
             closeRegionStay(at: now)
-            record(.leftHome, "出咗屋企 \(Int(TriggerRules.homeRadius)) 米範圍")
+            record(.leftHome, L.t("出咗屋企 \(Int(TriggerRules.homeRadius)) 米範圍", "离开了家 \(Int(TriggerRules.homeRadius)) 米范围"))
             deliver(.leftHome)
             wake(.leftHome)
         }
@@ -449,7 +449,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         }
         let d = home.map { HomeLearner.distance($0, p) }
         let leaving = end != nil
-        record(.visit, "\(leaving ? "離開" : "到咗")一個地方（\(Self.describe(d))）")
+        record(.visit, L.t("\(leaving ? "離開" : "到咗")一個地方（\(Self.describe(d))）", "\(leaving ? "离开" : "到了")一个地方（\(Self.describe(d))）"))
         deliver(leaving ? .visitDeparture(fromHome: d) : .visitArrival(fromHome: d))
         wake(.visit)
     }
@@ -460,7 +460,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         oneShot = false
         if accuracy >= 0, accuracy <= 200, HomeLearner.isNight(at, calendar: Self.calendar) {
             addSample(NightSample(lat: p.lat, lon: p.lon, start: at, end: at, source: mine ? .fix : .significant))
-            if mine { record(.night, "夜晚位置（\(Self.describe(d))）") }
+            if mine { record(.night, L.t("夜晚位置（\(Self.describe(d))）", "夜间位置（\(Self.describe(d))）")) }
         }
         guard !mine else { return }
         // 开始监察（每次启动）时系统会即刻俾一个位置：同上次大范围移动差唔多就唔当移动
@@ -470,7 +470,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         }
         if let prev, HomeLearner.distance(prev, p) < 300 { return }
         if prev == nil, Date().timeIntervalSince(servicesSince) < 20 { return }
-        record(.significant, "大範圍移動（\(Self.describe(d))）")
+        record(.significant, L.t("大範圍移動（\(Self.describe(d))）", "大范围移动（\(Self.describe(d))）"))
         deliver(.significantChange(fromHome: d))
         wake(.significantChange)
     }
@@ -519,7 +519,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
 
     /// 「離屋企 35 米」「離屋企 2.3 公里」。
     static func describe(_ d: Double?) -> String {
-        guard let d else { return "未知離屋企幾遠" }
-        return d < 1000 ? "離屋企 \(Int(d.rounded())) 米" : String(format: "離屋企 %.1f 公里", d / 1000)
+        guard let d else { return L.t("未知離屋企幾遠", "不知离家多远") }
+        return d < 1000 ? L.t("離屋企 \(Int(d.rounded())) 米", "离家 \(Int(d.rounded())) 米") : String(format: L.t("離屋企 %.1f 公里", "离家 %.1f 公里"), d / 1000)
     }
 }

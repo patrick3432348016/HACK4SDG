@@ -5,7 +5,17 @@ import Foundation
 /// 只有格子范围会发给地图服务，精确位置不离开手机。
 @MainActor
 final class MapService: NSObject, CLLocationManagerDelegate {
-    enum Source: String { case live = "實時", cache = "快取", fallback = "示例" }
+    enum Source: String {
+        case live = "實時", cache = "快取", fallback = "示例"
+        /// 显示用。
+        var label: String {
+            switch self {
+            case .live: return L.t("實時", "实时")
+            case .cache: return L.t("快取", "缓存")
+            case .fallback: return L.t("示例", "示例")
+            }
+        }
+    }
 
     private let manager = CLLocationManager()
     private var locationContinuation: CheckedContinuation<GeoPoint?, Never>?

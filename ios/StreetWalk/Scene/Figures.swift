@@ -6,10 +6,10 @@ enum Mobility: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .walk: return "行路"
-        case .cane: return "拐杖"
-        case .wheelchair: return "輪椅"
-        case .stroller: return "推BB車"
+        case .walk: return L.t("行路", "步行")
+        case .cane: return L.t("拐杖", "拐杖")
+        case .wheelchair: return L.t("輪椅", "轮椅")
+        case .stroller: return L.t("推BB車", "推婴儿车")
         }
     }
 }

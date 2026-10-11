@@ -72,12 +72,12 @@ enum NotificationPlan {
             let who = partner(a.partnerID), spot = place(a.landmarkID)
             let remindAt = a.date.addingTimeInterval(-remindBefore)
             if a.status == .accepted, !a.reminded, remindAt > now {
-                out.append(Item(id: "appt-\(a.id.uuidString)-remind", at: remindAt, body: "30 分鐘後約咗\(who)喺\(spot)。"))
+                out.append(Item(id: "appt-\(a.id.uuidString)-remind", at: remindAt, body: L.t("30 分鐘後約咗\(who)喺\(spot)。", "30 分钟后和\(who)约在\(spot)。")))
             }
             let expireAt = a.date.addingTimeInterval(expireAfter)
             if expireAt > now {
                 let hour = TemplateAI.hourLabel(AppStore.hk.component(.hour, from: a.date))
-                out.append(Item(id: "appt-\(a.id.uuidString)-expire", at: expireAt, body: "同\(who)\(hour)喺\(spot)嘅約過咗時間，收埋咗。"))
+                out.append(Item(id: "appt-\(a.id.uuidString)-expire", at: expireAt, body: L.t("同\(who)\(hour)喺\(spot)嘅約過咗時間，收埋咗。", "和\(who)\(hour)在\(spot)的约已过时间，已收起。")))
             }
         }
         return out

@@ -60,7 +60,7 @@ struct StreetWalkLiveActivity: Widget {
 /// 第二行：散步讲经过几多地方（太耐冇更新就叫佢打开 App）；找人讲喺边、几耐到；约会讲喺边见。
 private func secondLine(_ s: IslandStatus, stale: Bool) -> String {
     switch s.kind {
-    case .walk: return stale && !s.finished ? "打開 App 睇最新" : s.detail
+    case .walk: return stale && !s.finished ? s.t("打開 App 睇最新", "打开 App 看最新") : s.detail
     case .find: return s.findLine
     case .meet: return s.detail
     }
@@ -75,9 +75,13 @@ private struct Headline: View {
     var body: some View {
         Group {
             if s.kind == .meet, let t = s.target, !stale, s.minutes > 0 {
-                Text("\(TimeDataSource<Date>.currentDate, format: Self.countdown(to: t))約咗\(s.name ?? "街坊")")
+                if s.lang == .cmn {
+                    Text("\(TimeDataSource<Date>.currentDate, format: Self.countdown(to: t, s))约了\(s.name ?? "邻居")")
+                } else {
+                    Text("\(TimeDataSource<Date>.currentDate, format: Self.countdown(to: t, s))約咗\(s.name ?? "街坊")")
+                }
             } else if s.kind == .meet, stale || s.minutes <= 0 {
-                Text("夠鐘見\(s.name ?? "街坊")喇")
+                Text(s.t("夠鐘見\(s.name ?? "街坊")喇", "该去见\(s.name ?? "邻居")了"))
             } else {
                 Text(s.title)
             }
@@ -88,8 +92,8 @@ private struct Headline: View {
         .minimumScaleFactor(0.7)
     }
 
-    static func countdown(to t: Date) -> SystemFormatStyle.DateReference {
-        .reference(to: t, allowedFields: [.hour, .minute], maxFieldCount: 1).locale(IslandStyle.locale)
+    static func countdown(to t: Date, _ s: IslandStatus) -> SystemFormatStyle.DateReference {
+        .reference(to: t, allowedFields: [.hour, .minute], maxFieldCount: 1).locale(IslandStyle.locale(s))
     }
 }
 
@@ -102,9 +106,9 @@ private struct BigValue: View {
     var body: some View {
         Group {
             if s.kind == .meet, let t = s.target, !stale, s.minutes > 0 {
-                Text(TimeDataSource<Date>.currentDate, format: Headline.countdown(to: t))
+                Text(TimeDataSource<Date>.currentDate, format: Headline.countdown(to: t, s))
             } else if s.kind == .meet {
-                Text(stale ? "夠鐘喇" : s.short)
+                Text(stale ? s.t("夠鐘喇", "到点了") : s.short)
             } else if s.finished {
                 Image(systemName: "checkmark")
             } else {
@@ -129,9 +133,9 @@ private struct CompactValue: View {
             if s.kind == .meet, let t = s.target, !stale, s.minutes > 0 {
                 Text(TimeDataSource<Date>.currentDate,
                      format: .offset(to: t, allowedFields: [.hour, .minute], maxFieldCount: 1, sign: .never))
-                    .environment(\.locale, IslandStyle.locale)
+                    .environment(\.locale, IslandStyle.locale(s))
             } else if s.kind == .meet {
-                Text(stale ? "夠鐘" : s.compact)
+                Text(stale ? s.t("夠鐘", "到点") : s.compact)
             } else {
                 Text(s.compact)
             }
@@ -191,7 +195,7 @@ private struct LockScreenView: View {
                     .foregroundStyle(.white.opacity(0.75))
                 Spacer(minLength: 8)
                 if s.demo {
-                    Text("示範")
+                    Text(s.t("示範", "示范"))
                         .foregroundStyle(.white.opacity(0.9))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 2)

@@ -49,8 +49,9 @@ extension AppStore {
 
     /// 网名建议（一撳就用）：唔使打字，亦唔使用真名。
     var nicknameSuggestions: [String] {
-        var s = ["\(Palette.name(colorChoice).replacingOccurrences(of: "色", with: ""))衫街坊", "行路友", "早晨街坊", "慢慢行"]
-        if let p = (map ?? fullMap)?.placeName, !p.isEmpty, p.count <= 5 { s.insert("\(p)街坊", at: 1) }
+        let c = Palette.name(colorChoice).replacingOccurrences(of: "色", with: "")
+        var s = L.isCmn ? ["\(c)衣邻居", "走路友", "早安邻居", "慢慢走"] : ["\(c)衫街坊", "行路友", "早晨街坊", "慢慢行"]
+        if let p = (map ?? fullMap)?.placeName, !p.isEmpty, p.count <= 5 { s.insert(L.t("\(p)街坊", "\(p)邻居"), at: 1) }
         return s.filter { CommunityProfile.cleanNickname($0) != nil }
     }
 
@@ -129,14 +130,14 @@ extension AppStore {
         tab = .neighbors
         bumpStage = .found(peer.id)
         Haptics.success()
-        say("你同\(peer.nickname)而家係街坊。")
+        say(L.t("你同\(peer.nickname)而家係街坊。", "你和\(peer.nickname)现在是邻居了。"))
         syncScene()
         if map != nil { scene.setCamera(target: bumpMeetSpot(), distance: scene.overviewDistance * 0.7, animated: true, duration: 1.0) }
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(2.6))
             guard self.bumpStage == .found(peer.id) else { return }
             self.remindPromptFor = peer.id
-            self.say("開唔開出門提醒？開咗之後，佢出門你會知，你出門佢都會知。", prompt: true)
+            self.say(L.t("開唔開出門提醒？開咗之後，佢出門你會知，你出門佢都會知。", "要开出门提醒吗？开了之后，他出门你会知道，你出门他也会知道。"), prompt: true)
         }
     }
 
@@ -178,7 +179,7 @@ extension AppStore {
         let before = appointments.count
         invitedBy(a)
         guard appointments.count > before, let p = resident(a.partnerID) else { return }
-        notifyIfBackground(id: "invite-\(a.id.uuidString)", body: "\(p.name)約你\(dayTimeLabel(a.date))喺\(placeName(a.landmarkID) ?? "附近")一齊行。")
+        notifyIfBackground(id: "invite-\(a.id.uuidString)", body: L.t("\(p.name)約你\(dayTimeLabel(a.date))喺\(placeName(a.landmarkID) ?? "附近")一齊行。", "\(p.name)约你\(dayTimeLabel(a.date))在\(placeName(a.landmarkID) ?? "附近")一起散步。"))
     }
 
     func receiveBackend(_ e: CommunityEvent) {
@@ -192,11 +193,11 @@ extension AppStore {
         case .findAskCancelled(let askID):
             guard let ask = incomingFind, ask.askID == askID else { return }
             incomingFind = nil
-            toast("\(resident(ask.fromID)?.name ?? "街坊")今次唔過嚟喇。")
+            toast(L.t("\(resident(ask.fromID)?.name ?? "街坊")今次唔過嚟喇。", "\(resident(ask.fromID)?.name ?? "邻居")这次不过来了。"))
         case .findAskUnanswered(let id, let offline):
             guard let f = find, f.partnerID == id, f.stage == .asking, !partnerAgreed else { return }
-            let name = resident(id)?.name ?? "街坊"
-            toast(offline ? "未連線，問唔到\(name)。遲啲再試。" : "\(name)暫時冇回覆，可能冇開 App。")
+            let name = resident(id)?.name ?? L.t("街坊", "邻居")
+            toast(offline ? L.t("未連線，問唔到\(name)。遲啲再試。", "未联网，问不了\(name)。稍后再试。") : L.t("\(name)暫時冇回覆，可能冇開 App。", "\(name)暂时没回复，可能没开 App。"))
             endFind()
         case .partnerSaid(let id, let text):
             guard let p = resident(id), p.isNeighbor else { return }
@@ -226,8 +227,8 @@ extension AppStore {
         appointments[i].fromPartner = true
         appointments[i].reminded = false
         appointments[i].lateAsked = nil
-        let text = "\(p.name)想改做\(dayTimeLabel(a.date))，喺\(placeName(a.landmarkID) ?? "附近")。"
-        showBanner(BannerItem(symbol: "calendar.badge.clock", text: text, action: .openNeighbors, actionTitle: "睇吓"))
+        let text = L.t("\(p.name)想改做\(dayTimeLabel(a.date))，喺\(placeName(a.landmarkID) ?? "附近")。", "\(p.name)想改成\(dayTimeLabel(a.date))，在\(placeName(a.landmarkID) ?? "附近")。")
+        showBanner(BannerItem(symbol: "calendar.badge.clock", text: text, action: .openNeighbors, actionTitle: L.t("睇吓", "看看")))
         say(text)
         notifyIfBackground(id: "meetup-\(a.id.uuidString)", body: text)
     }
@@ -236,10 +237,10 @@ extension AppStore {
         guard let i = appointments.firstIndex(where: { $0.id == id }), appointments[i].isOpen else { return }
         appointments[i].status = .cancelled
         let a = appointments[i]
-        let name = resident(a.partnerID)?.name ?? "街坊"
+        let name = resident(a.partnerID)?.name ?? L.t("街坊", "邻居")
         if findAppointment == id { endFind() }
         if proposal?.editing == id { cancelProposal() }
-        let text = "\(name)取消咗\(dayTimeLabel(a.date))嘅約。"
+        let text = L.t("\(name)取消咗\(dayTimeLabel(a.date))嘅約。", "\(name)取消了\(dayTimeLabel(a.date))的约。")
         showBanner(BannerItem(symbol: "calendar.badge.minus", text: text))
         say(text)
         notifyIfBackground(id: "meetup-\(id.uuidString)", body: text)
@@ -248,15 +249,15 @@ extension AppStore {
     /// 约会当日对方出咗门 / 到咗（我未撳「出發」）：横幅话我知，可以即刻出发。
     private func partnerTripWithoutFind(_ id: UUID, partnerID: String, trip: PartnerTrip, ended: Bool) {
         guard let a = appointments.first(where: { $0.id == id }), let p = resident(partnerID), p.isNeighbor else { return }
-        let place = placeName(a.landmarkID) ?? "約好嘅地方"
+        let place = placeName(a.landmarkID) ?? L.t("約好嘅地方", "约好的地方")
         if ended {
-            if findAppointment == id || a.isOpen { toast("\(p.name)今次冇過去\(place)。") }
+            if findAppointment == id || a.isOpen { toast(L.t("\(p.name)今次冇過去\(place)。", "\(p.name)这次没去\(place)。")) }
             return
         }
         guard findAppointment != id, a.status == .accepted else { return }
-        let text = trip.arrived ? "\(p.name)已經到咗\(place)。"
-            : "\(p.name)出咗門去\(place)\(trip.etaMinutes.map { "，大約 \($0) 分鐘到" } ?? "")。"
-        showBanner(BannerItem(symbol: "figure.walk", text: text, action: .depart(id), actionTitle: "出發"))
+        let text = trip.arrived ? L.t("\(p.name)已經到咗\(place)。", "\(p.name)已经到了\(place)。")
+            : L.t("\(p.name)出咗門去\(place)\(trip.etaMinutes.map { "，大約 \($0) 分鐘到" } ?? "")。", "\(p.name)已出门去\(place)\(trip.etaMinutes.map { "，大约 \($0) 分钟到" } ?? "")。")
+        showBanner(BannerItem(symbol: "figure.walk", text: text, action: .depart(id), actionTitle: L.t("出發", "出发")))
         say(text)
         notifyIfBackground(id: "trip-\(id.uuidString)", body: text)
     }
@@ -266,10 +267,10 @@ extension AppStore {
     func incomingFindAsk(_ ask: IncomingFindAsk) {
         guard let p = resident(ask.fromID), p.isNeighbor else { return }
         incomingFind = ask
-        let q = "\(p.name)想過嚟搵你，方唔方便？"
+        let q = L.t("\(p.name)想過嚟搵你，方唔方便？", "\(p.name)想过来找你，方便吗？")
         say(q, prompt: true)
         Haptics.warning()
-        notifyIfBackground(id: "find-\(ask.askID)", body: "\(q)打開 App 答佢。")
+        notifyIfBackground(id: "find-\(ask.askID)", body: L.t("\(q)打開 App 答佢。", "\(q)打开 App 回复他。"))
         // 對方等 2 分鐘就當冇回覆：張卡都收埋
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(SupabaseCommunityService.askTimeout))
@@ -282,16 +283,16 @@ extension AppStore {
         guard let ask = incomingFind else { return }
         incomingFind = nil
         community.answerFindAsk(ask, accepted: accepted)
-        let name = resident(ask.fromID)?.name ?? "街坊"
+        let name = resident(ask.fromID)?.name ?? L.t("街坊", "邻居")
         if accepted && canShareLive(with: ask.fromID) {
             beginIncomingLiveFind(ask)
-            say("好，話咗俾\(name)知。而家同\(name)分享緊位置，佢會過嚟搵你。")
+            say(L.t("好，話咗俾\(name)知。而家同\(name)分享緊位置，佢會過嚟搵你。", "好，已告诉\(name)。现在正和\(name)共享位置，他会过来找你。"))
             Haptics.success()
         } else if accepted {
-            say("好，話咗俾\(name)知。佢會過嚟\(placeName(ask.landmarkID).map { "\($0)附近" } ?? "")搵你。")
+            say(L.t("好，話咗俾\(name)知。佢會過嚟\(placeName(ask.landmarkID).map { "\($0)附近" } ?? "")搵你。", "好，已告诉\(name)。他会来\(placeName(ask.landmarkID).map { "\($0)附近" } ?? "")找你。"))
             Haptics.success()
         } else {
-            say("冇問題，話咗俾\(name)知你而家唔方便。")
+            say(L.t("冇問題，話咗俾\(name)知你而家唔方便。", "没问题，已告诉\(name)你现在不方便。"))
             Haptics.light()
         }
     }
@@ -305,7 +306,7 @@ extension AppStore {
 
     func notifyNeighborOut(_ id: String) {
         guard isInBackground, let r = resident(id), r.isNeighbor, r.isOut, r.receiveRemind, remindAll, inRemindWindow else { return }
-        notifyIfBackground(id: "out-\(id)", body: "\(r.name)啱啱出門，喺\(placeName(r.atLandmarkID) ?? "附近")附近。")
+        notifyIfBackground(id: "out-\(id)", body: L.t("\(r.name)啱啱出門，喺\(placeName(r.atLandmarkID) ?? "附近")附近。", "\(r.name)刚刚出门，在\(placeName(r.atLandmarkID) ?? "附近")附近。"))
     }
 
     func notifyIfBackground(id: String, body: String) {
@@ -325,7 +326,7 @@ extension AppStore {
         guard let s = supabase else { return }
         Task { @MainActor in
             let ok = await s.deleteMyServerData()
-            self.toast(ok ? "伺服器上你嘅資料都刪咗。" : "未連線，伺服器上嘅資料未刪到。連返網之後再撳一次。")
+            self.toast(ok ? L.t("伺服器上你嘅資料都刪咗。", "服务器上你的资料都删了。") : L.t("未連線，伺服器上嘅資料未刪到。連返網之後再撳一次。", "未联网，服务器上的资料还没删。联网后再按一次。"))
             if ok { self.populate(); self.uploadProfile() }
         }
     }

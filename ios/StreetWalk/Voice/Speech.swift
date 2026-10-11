@@ -149,7 +149,15 @@ final class Listener: ObservableObject {
     @Published var transcript = ""
     @Published var available = false
 
-    private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "zh-HK"))
+    /// 跟界面语言：粤语 zh-HK、普通话 zh-CN（每次开始听先揀，切换语言即时生效）。
+    private var recognizers: [AppLang: SFSpeechRecognizer] = [:]
+    private var recognizer: SFSpeechRecognizer? {
+        let l = L.lang
+        if let r = recognizers[l] { return r }
+        let r = SFSpeechRecognizer(locale: Locale(identifier: l.locale))
+        recognizers[l] = r
+        return r
+    }
     private let engine = AVAudioEngine()
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?

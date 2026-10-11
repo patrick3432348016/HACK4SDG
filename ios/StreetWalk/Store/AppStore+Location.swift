@@ -94,7 +94,7 @@ extension AppStore {
         let enabled = WalkDetector.isAvailable && !demoMode && phase == .main
         let r = TriggerRules.response(to: t, recording: d.recording, enabled: enabled)
         if !enabled, t == .leftHome {
-            lm.record(.note, demoMode ? "演示模式開住：唔記錄真散步" : WalkDetector.isAvailable ? "未完成首次使用" : "呢部機冇動作感應")
+            lm.record(.note, demoMode ? L.t("演示模式開住：唔記錄真散步", "演示模式开着：不记录真实散步") : WalkDetector.isAvailable ? L.t("未完成首次使用", "未完成首次使用") : L.t("呢部機冇動作感應", "这台手机没有动作感应"))
         }
         switch r {
         case .watch:
@@ -122,7 +122,7 @@ extension AppStore {
         d.keepAlive = true                 // 背景醒住：等 Core Motion 话行紧路先开准确定位
         startWalkDetection()               // 补记之前未记嘅行路、开动作感应（同返前台一样）
         if !d.catchingUp, d.running { d.setLocating(d.moving || d.recording) }
-        LocationMonitor.shared.record(.watch, "開定位等你開始行路（最多 15 分鐘）")
+        LocationMonitor.shared.record(.watch, L.t("開定位等你開始行路（最多 15 分鐘）", "开定位等你开始走路（最多 15 分钟）"))
         d.watchTask?.cancel()
         d.watchTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -140,7 +140,7 @@ extension AppStore {
         d.watchTask = nil
         guard !d.recording else { return }      // 已经交咗俾散步
         d.keepAlive = false
-        LocationMonitor.shared.record(.watch, "冇開始行路，熄返定位")
+        LocationMonitor.shared.record(.watch, L.t("冇開始行路，熄返定位", "没开始走路，关掉定位"))
         guard isInBackground else { return }    // 前台照旧（行路先开定位）
         // 背景：停晒，等系统再叫醒。由 since 起（未接手嘅行路由佢开始）返前台时补记
         UserDefaults.standard.set(min(since, d.pendingWalk?.start ?? since), forKey: Self.backgroundKey)
@@ -157,7 +157,7 @@ extension AppStore {
         guard d.recording, walk != nil else { return }
         if d.moving, let fix = d.lastFix, let m = map,
            m.scenePoint(fix.0).distance(to: scene.homeTarget) - fix.accuracy > LiveWalkGate.homeRadius {
-            LocationMonitor.shared.record(.note, "經過屋企附近，仲行緊：繼續記錄")
+            LocationMonitor.shared.record(.note, L.t("經過屋企附近，仲行緊：繼續記錄", "经过家附近，还在走：继续记录"))
             return
         }
         holdBackgroundTime("arrive")
@@ -197,11 +197,11 @@ extension AppStore {
         d.watchTask = nil
         d.keepAlive = false      // 记录中一直用准确定位（停低都唔熄），唔使粗略档
         let bg = isInBackground
-        LocationMonitor.shared.record(.walkStart, "\(bg ? "鎖咗機 / 背景" : "App 開住")，由 \(Self.clock(w.start)) 計")
+        LocationMonitor.shared.record(.walkStart, L.t("\(bg ? "鎖咗機 / 背景" : "App 開住")，由 \(Self.clock(w.start)) 計", "\(bg ? "锁屏 / 后台" : "App 开着")，从 \(Self.clock(w.start)) 算起"))
         guard bg else { return }
         // 记录中俾系统收咗：下次开 App 由今次开始补记
         UserDefaults.standard.set(w.start, forKey: Self.backgroundKey)
-        notifyWalk("偵測到你出咗門，開始記錄散步。")
+        notifyWalk(L.t("偵測到你出咗門，開始記錄散步。", "检测到你出门了，开始记录散步。"))
     }
 
     /// finishWalk 之后。
@@ -209,15 +209,15 @@ extension AppStore {
         guard live, isMainStore else { return }
         let why: String
         switch reason {
-        case .home: why = "返到屋企"
-        case .stopped: why = "喺外面停低咗"
-        case .riding: why = "上咗車"
+        case .home: why = L.t("返到屋企", "回到家")
+        case .stopped: why = L.t("喺外面停低咗", "在外面停下了")
+        case .riding: why = L.t("上咗車", "上车了")
         }
-        LocationMonitor.shared.record(.walkEnd, recorded ? "\(why)：行咗 \(minutes) 分鐘，經過 \(places) 個地方" : "\(why)：太短，唔記錄")
+        LocationMonitor.shared.record(.walkEnd, recorded ? L.t("\(why)：行咗 \(minutes) 分鐘，經過 \(places) 個地方", "\(why)：走了 \(minutes) 分钟，经过 \(places) 个地方") : L.t("\(why)：太短，唔記錄", "\(why)：太短，不记录"))
         guard isInBackground else { return }
         let d = walkDetector
         UserDefaults.standard.set(Date(), forKey: Self.backgroundKey)
-        if recorded { notifyWalk(reason == .home ? "返到屋企喇，今次行咗 \(minutes) 分鐘。" : "今次散步記好咗：行咗 \(minutes) 分鐘。") }
+        if recorded { notifyWalk(reason == .home ? L.t("返到屋企喇，今次行咗 \(minutes) 分鐘。", "到家了，这次走了 \(minutes) 分钟。") : L.t("今次散步記好咗：行咗 \(minutes) 分鐘。", "这次散步记好了：走了 \(minutes) 分钟。")) }
         holdBackgroundTime("walkEnd")
         Task { [weak self] in
             // 等 finishLiveWalk 做埋（佢之后会按行唔行路开关定位）
@@ -235,7 +235,7 @@ extension AppStore {
                     d.watchTask = nil
                     d.keepAlive = false
                     guard self.isInBackground else { return }
-                    LocationMonitor.shared.record(.watch, "喺外面停低咗兩個鐘，熄返定位")
+                    LocationMonitor.shared.record(.watch, L.t("喺外面停低咗兩個鐘，熄返定位", "在外面停了两个小时，关掉定位"))
                     d.stop()
                 }
             } else {
@@ -249,7 +249,7 @@ extension AppStore {
     /// recordWalk 之后：补记嘅（背景期间行嘅）写入定位纪录；实时散步由 walkEnded 写。
     func noteWalkRecorded(minutes: Int, simulated: Bool, backfilled: Bool, steps: Int?) {
         guard !simulated, backfilled, isMainStore else { return }
-        LocationMonitor.shared.record(.backfill, "用手機步行紀錄補記：\(minutes) 分鐘\(steps.map { "、\($0) 步" } ?? "")（冇地標）")
+        LocationMonitor.shared.record(.backfill, L.t("用手機步行紀錄補記：\(minutes) 分鐘\(steps.map { "、\($0) 步" } ?? "")（冇地標）", "用手机步行记录补记：\(minutes) 分钟\(steps.map { "、\($0) 步" } ?? "")（没有地标）"))
     }
 
     /// 背景开始 / 记好散步：静音通知（App 打开时唔弹）。
@@ -267,7 +267,7 @@ extension AppStore {
         let lm = LocationMonitor.shared
         guard let p = lm.homePrompt else { return }
         lm.snooze(days: 1)
-        lm.record(.home, "你揀咗「搬過嚟」：喺過夜嘅地方重新揀樓")
+        lm.record(.home, L.t("你揀咗「搬過嚟」：喺過夜嘅地方重新揀樓", "你选了「搬过来」：在过夜的地方重新选楼"))
         mapService.pinnedLocation = p.target
         showSettings = false
         beginChangeHome()
@@ -277,7 +277,7 @@ extension AppStore {
     func declineHomePrompt() {
         let lm = LocationMonitor.shared
         lm.snooze(days: 7)
-        lm.record(.home, "你揀咗「唔係」：7 日內唔再問")
+        lm.record(.home, L.t("你揀咗「唔係」：7 日內唔再問", "你选了「不是」：7 天内不再问"))
     }
 
     // MARK: - 小工具

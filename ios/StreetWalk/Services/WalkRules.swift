@@ -177,20 +177,20 @@ struct LeaveRequest: Hashable {
     static func parse(_ raw: String, today: Date = Date()) -> LeaveRequest {
         let t = raw.replacingOccurrences(of: " ", with: "")
         var r = LeaveRequest()
-        if t.contains("大後日") { r.startOffset = 3 }
-        else if t.contains("後日") { r.startOffset = 2 }
+        if t.contains("大後日") || t.contains("大后天") { r.startOffset = 3 }
+        else if t.contains("後日") || t.contains("后天") { r.startOffset = 2 }
         else if t.contains("聽日") || t.contains("明日") || t.contains("明天") { r.startOffset = 1 }
-        else if ["下星期", "下個星期", "下禮拜", "下個禮拜", "下周", "下週"].contains(where: t.contains) {
+        else if ["下星期", "下個星期", "下禮拜", "下個禮拜", "下周", "下週", "下个星期", "下礼拜", "下个礼拜"].contains(where: t.contains) {
             let wd = AppStore.hk.component(.weekday, from: today)   // 1 = 星期日、2 = 星期一
             let k = (9 - wd) % 7
             r.startOffset = k == 0 ? 7 : k
         }
         // 先睇明讲嘅「N 日」，再睇「一個禮拜」（「下星期」只係讲由几时开始）
-        if let m = t.range(of: "[0-9一二兩三四五六七八九十]+[日天]", options: .regularExpression), let n = number(String(t[m].dropLast())) {
+        if let m = t.range(of: "[0-9一二兩两三四五六七八九十]+[日天]", options: .regularExpression), let n = number(String(t[m].dropLast())) {
             r.days = n
-        } else if ["兩個禮拜", "兩個星期", "兩星期"].contains(where: t.contains) {
+        } else if ["兩個禮拜", "兩個星期", "兩星期", "两个礼拜", "两个星期", "两星期", "两周"].contains(where: t.contains) {
             r.days = 14
-        } else if ["一個禮拜", "一個星期", "成個禮拜", "成個星期", "一星期", "一周", "一週"].contains(where: t.contains) {
+        } else if ["一個禮拜", "一個星期", "成個禮拜", "成個星期", "一星期", "一周", "一週", "一个礼拜", "一个星期", "整个星期"].contains(where: t.contains) {
             r.days = 7
         }
         r.days = max(1, min(maxDays, r.days))
@@ -200,7 +200,7 @@ struct LeaveRequest: Hashable {
     /// 「3」「三」「十四」「兩」→ 数字。
     static func number(_ s: String) -> Int? {
         if let n = Int(s) { return n }
-        let d: [Character: Int] = ["一": 1, "二": 2, "兩": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9]
+        let d: [Character: Int] = ["一": 1, "二": 2, "兩": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9]
         if s == "十" { return 10 }
         if s.hasPrefix("十"), let last = s.last { return 10 + (d[last] ?? 0) }
         if s.count == 2, s.last == "十", let first = s.first { return (d[first] ?? 0) * 10 }

@@ -36,6 +36,11 @@ struct IslandStatus: Codable, Hashable, Sendable {
     var demo = false
     /// 散步完咗：实时活动最后一版（锁屏显示「行咗 N 分鐘」一阵先收）。
     var finished = false
+    /// 界面语言：App 交俾实时活动时先填（StreetWalkWidgets 另一个进程，读唔到 App 嘅设定）；App 入面 nil = 跟 L.lang。
+    var lang: AppLang?
+
+    /// 跟呢个状态嘅语言揀字。
+    func t(_ yue: String, _ cmn: String) -> String { (lang ?? L.lang) == .cmn ? cmn : yue }
 }
 
 extension IslandStatus {
@@ -59,7 +64,7 @@ extension IslandStatus {
     }
 
     static func metersText(_ m: Int) -> String {
-        m >= 1000 ? String(format: "%.1f 公里", Double(m) / 1000) : "\(m) 米"
+        m >= 1000 ? String(format: "%.1f 公里", Double(m) / 1000) : "\(m) 米"   // 粤普同字
     }
 
     /// 同时有几样嘢：按优先次序排，同一类只留第一个。岛同实时活动只显示第一个。
@@ -83,16 +88,16 @@ extension IslandStatus {
     /// 岛右边嘅短字：「12 分」「35 米」「15 分鐘後」。
     var short: String {
         switch kind {
-        case .walk: return "\(minutes) 分"
+        case .walk: return t("\(minutes) 分", "\(minutes) 分")
         case .find: return meters.map(Self.metersText) ?? "\(max(1, minutes)) 分"
-        case .meet: return minutes > 0 ? "\(minutes) 分鐘後" : "夠鐘喇"
+        case .meet: return minutes > 0 ? t("\(minutes) 分鐘後", "\(minutes) 分钟后") : t("夠鐘喇", "到点了")
         }
     }
 
     /// 真·灵动岛右边位好窄：约会只出「15 分」（左边已经有时钟）。
     var compact: String {
         switch kind {
-        case .meet: return minutes > 0 ? "\(minutes) 分" : "夠鐘"
+        case .meet: return minutes > 0 ? "\(minutes) 分" : t("夠鐘", "到点")
         default: return short
         }
     }
@@ -100,18 +105,18 @@ extension IslandStatus {
     /// 一句讲晒（锁屏大字、展开嘅岛）。
     var title: String {
         switch kind {
-        case .walk: return finished ? "散步完成" : "行緊 \(minutes) 分鐘"
-        case .find: return "搵緊\(name ?? "街坊")"
+        case .walk: return finished ? t("散步完成", "散步完成") : t("行緊 \(minutes) 分鐘", "已走 \(minutes) 分钟")
+        case .find: return t("搵緊\(name ?? "街坊")", "正在找\(name ?? "邻居")")
         case .meet:
-            let who = name ?? "街坊"
-            return minutes > 0 ? "\(minutes) 分鐘後約咗\(who)" : "夠鐘見\(who)喇"
+            let who = name ?? t("街坊", "邻居")
+            return minutes > 0 ? t("\(minutes) 分鐘後約咗\(who)", "\(minutes) 分钟后约了\(who)") : t("夠鐘見\(who)喇", "该去见\(who)了")
         }
     }
 
     /// 找人：「喺涼亭 · 大約 2 分鐘到」（锁屏、展开嘅岛第二行用；detail 已经有距离）。
     var findLine: String {
-        let at = place.map { "喺\($0)" }
-        let eta = minutes > 0 ? "大約 \(minutes) 分鐘到" : "就到喇"
+        let at = place.map { t("喺\($0)", "在\($0)") }
+        let eta = minutes > 0 ? t("大約 \(minutes) 分鐘到", "大约 \(minutes) 分钟到") : t("就到喇", "马上到")
         return [at, eta].compactMap { $0 }.joined(separator: " · ")
     }
 
@@ -120,23 +125,23 @@ extension IslandStatus {
         switch kind {
         case .walk:
             let n = places ?? 0
-            if finished { return "今次行咗 \(minutes) 分鐘" + (n > 0 ? "，經過 \(n) 個地方" : "") }
-            return n > 0 ? "經過咗 \(n) 個地方" : "出咗門，自動記錄緊"
+            if finished { return t("今次行咗 \(minutes) 分鐘", "这次走了 \(minutes) 分钟") + (n > 0 ? t("，經過 \(n) 個地方", "，经过 \(n) 个地方") : "") }
+            return n > 0 ? t("經過咗 \(n) 個地方", "经过了 \(n) 个地方") : t("出咗門，自動記錄緊", "已出门，正在自动记录")
         case .find:
-            let at = place.map { "喺\($0)" } ?? ""
-            let far = meters.map { "相距 \(Self.metersText($0))" } ?? ""
+            let at = place.map { t("喺\($0)", "在\($0)") } ?? ""
+            let far = meters.map { t("相距 \(Self.metersText($0))", "相距 \(Self.metersText($0))") } ?? ""
             return [at, far].filter { !$0.isEmpty }.joined(separator: " · ")
         case .meet:
-            return place.map { "喺\($0)見" } ?? "準備出發"
+            return place.map { t("喺\($0)見", "在\($0)见") } ?? t("準備出發", "准备出发")
         }
     }
 
     /// 读屏：一句讲晒。
     var spoken: String {
         switch kind {
-        case .walk: return finished ? "散步完成，行咗 \(minutes) 分鐘" : "行緊 \(minutes) 分鐘"
-        case .find: return "搵緊\(name ?? "街坊")，" + (meters.map { "相距 \(Self.metersText($0))" } ?? "")
-        case .meet: return title + (place.map { "，喺\($0)" } ?? "")
+        case .walk: return finished ? t("散步完成，行咗 \(minutes) 分鐘", "散步完成，走了 \(minutes) 分钟") : t("行緊 \(minutes) 分鐘", "已走 \(minutes) 分钟")
+        case .find: return t("搵緊\(name ?? "街坊")，", "正在找\(name ?? "邻居")，") + (meters.map { "相距 \(Self.metersText($0))" } ?? "")
+        case .meet: return title + (place.map { t("，喺\($0)", "，在\($0)") } ?? "")
         }
     }
 }

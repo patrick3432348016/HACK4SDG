@@ -9,7 +9,7 @@ import SwiftUI
 struct AlwaysAskSheet: View {
     @Environment(AppStore.self) private var store
 
-    static let spoken = "想你鎖咗機、手機放喺袋，出門散步都自動記錄，要將定位改做始終允許。喺屋企唔會一直開定位，唔會好食電。屋企喺邊、行過嘅路，只留喺你部手機。"
+    static var spoken: String { L.t("想你鎖咗機、手機放喺袋，出門散步都自動記錄，要將定位改做始終允許。喺屋企唔會一直開定位，唔會好食電。屋企喺邊、行過嘅路，只留喺你部手機。", "想在锁屏、手机放口袋时，出门散步也自动记录，要把定位改成始终允许。在家不会一直开定位，不会很耗电。家在哪里、走过的路，只留在你的手机上。") }
 
     var body: some View {
         let lm = LocationMonitor.shared
@@ -17,17 +17,17 @@ struct AlwaysAskSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 hero.frame(maxWidth: .infinity)
-                Text("出門自動記錄").ds(.title).accessibilityAddTraits(.isHeader)
+                Text(L.t("出門自動記錄", "出门自动记录")).ds(.title).accessibilityAddTraits(.isHeader)
                 VStack(alignment: .leading, spacing: 16) {
-                    row("lock.iphone", "手機鎖咗、放喺袋，出門散步都會自動記錄，唔使打開 App。")
+                    row("lock.iphone", L.t("手機鎖咗、放喺袋，出門散步都會自動記錄，唔使打開 App。", "手机锁屏、放口袋，出门散步也会自动记录，不用打开 App。"))
                     row("location.fill", viaSettings
-                        ? "撳下面個掣打開設定：撳「位置」，揀「永遠」（有啲手機寫「始終」），再開「精確位置」。"
-                        : "要將定位改做「始終允許」。等陣彈出嚟嘅框，請揀「改為始終允許」（有啲手機寫「永遠允許」）。")
-                    row("battery.75percent", "喺屋企唔會一直開定位，只係出門行路先用準確定位，唔會好食電。")
-                    row("lock.shield.fill", "屋企喺邊、行過嘅路，只留喺你部手機，唔會上傳。")
+                        ? L.t("撳下面個掣打開設定：撳「位置」，揀「永遠」（有啲手機寫「始終」），再開「精確位置」。", "点下面的按钮打开设置：点「位置」，选「永远」（有些手机写「始终」），再开「精确位置」。")
+                        : L.t("要將定位改做「始終允許」。等陣彈出嚟嘅框，請揀「改為始終允許」（有啲手機寫「永遠允許」）。", "要把定位改成「始终允许」。待会儿弹出的框，请选「改为始终允许」（有些手机写「永远允许」）。"))
+                    row("battery.75percent", L.t("喺屋企唔會一直開定位，只係出門行路先用準確定位，唔會好食電。", "在家不会一直开定位，只有出门走路才用精确定位，不会很耗电。"))
+                    row("lock.shield.fill", L.t("屋企喺邊、行過嘅路，只留喺你部手機，唔會上傳。", "家在哪里、走过的路，只留在你的手机上，不会上传。"))
                 }
                 Button { store.sayAgain(Self.spoken) } label: {
-                    Label("再聽一次", systemImage: "speaker.wave.2.fill").frame(maxWidth: .infinity)
+                    Label(L.t("再聽一次", "再听一次"), systemImage: "speaker.wave.2.fill").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsSecondary)
             }
@@ -42,11 +42,11 @@ struct AlwaysAskSheet: View {
                     lm.showAlwaysAsk = false
                     if viaSettings { lm.openSettings() } else { lm.requestAlways() }
                 } label: {
-                    Text(viaSettings ? "打開 iPhone 設定" : "好，下一步").frame(maxWidth: .infinity)
+                    Text(viaSettings ? L.t("打開 iPhone 設定", "打开 iPhone 设置") : L.t("好，下一步", "好，下一步")).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsPrimary)
                 Button { lm.showAlwaysAsk = false } label: {
-                    Text("遲啲先").frame(maxWidth: .infinity)
+                    Text(L.t("遲啲先", "以后再说")).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsSecondary)
             }
@@ -119,18 +119,18 @@ private struct HomePromptCard: View {
 
     private var title: String {
         switch prompt {
-        case .moved: return "你係咪搬咗屋？要唔要將屋企同社區搬過嚟？"
-        case .suggest: return "你屋企係咪喺第二度？要唔要將屋企同社區搬過嚟？"
+        case .moved: return L.t("你係咪搬咗屋？要唔要將屋企同社區搬過嚟？", "你是不是搬家了？要不要把家和社区搬过来？")
+        case .suggest: return L.t("你屋企係咪喺第二度？要唔要將屋企同社區搬過嚟？", "你家是不是在别处？要不要把家和社区搬过来？")
         }
     }
 
     private var detail: String {
         switch prompt {
         case .moved(_, let d, let n):
-            return "最近 \(n) 晚你都喺\(LocationMonitor.describe(d).replacingOccurrences(of: "離屋企", with: "離而家屋企"))嘅地方過夜。"
+            return L.t("最近 \(n) 晚你都喺\(relHome(d, "離而家屋企", "离现在的家"))嘅地方過夜。", "最近 \(n) 晚你都在\(relHome(d, "離而家屋企", "离现在的家"))的地方过夜。")
         case .suggest(_, let d, let n):
-            let far = d.map { "（\(LocationMonitor.describe($0).replacingOccurrences(of: "離屋企", with: "離而家個模型"))）" } ?? ""
-            return "最近 \(n) 晚你都喺同一個地方過夜\(far)。"
+            let far = d.map { "（\(relHome($0, "離而家個模型", "离现在的模型"))）" } ?? ""
+            return L.t("最近 \(n) 晚你都喺同一個地方過夜\(far)。", "最近 \(n) 晚你都在同一个地方过夜\(far)。")
         }
     }
 
@@ -166,11 +166,11 @@ private struct HomePromptCard: View {
 
     @ViewBuilder private func buttons(stacked: Bool) -> some View {
         Button { store.declineHomePrompt() } label: {
-            Text("唔係").frame(maxWidth: stacked ? .infinity : nil)
+            Text(L.t("唔係", "不是")).frame(maxWidth: stacked ? .infinity : nil)
         }
         .buttonStyle(.dsSecondary)
         Button { store.acceptHomePrompt() } label: {
-            Text("係，搬過嚟").frame(maxWidth: .infinity)
+            Text(L.t("係，搬過嚟", "是，搬过来")).frame(maxWidth: .infinity)
         }
         .buttonStyle(.dsPrimary)
     }
@@ -190,7 +190,7 @@ private struct PermissionCard: View {
                     .background(Color(.tertiarySystemFill), in: Circle())
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("出門自動記錄未開齊").ds(.bodyBold)
+                    Text(L.t("出門自動記錄未開齊", "出门自动记录未开全")).ds(.bodyBold)
                     Text(LocationStatusText.problem(lm) ?? "").ds(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -207,11 +207,11 @@ private struct PermissionCard: View {
 
     @ViewBuilder private func buttons(_ lm: LocationMonitor, stacked: Bool) -> some View {
         Button { lm.hideCard(days: 3) } label: {
-            Text("遲啲先").frame(maxWidth: stacked ? .infinity : nil)
+            Text(L.t("遲啲先", "以后再说")).frame(maxWidth: stacked ? .infinity : nil)
         }
         .buttonStyle(.dsSecondary)
         Button { if lm.needsAlways { lm.showAlwaysAsk = true } else { lm.openSettings() } } label: {
-            Text("點樣開").frame(maxWidth: .infinity)
+            Text(L.t("點樣開", "怎么开")).frame(maxWidth: .infinity)
         }
         .buttonStyle(.dsPrimary)
     }
@@ -226,30 +226,35 @@ struct LocationSettingsSection: View {
     var body: some View {
         let lm = LocationMonitor.shared
         Section {
-            LabeledContent("定位") { Text(LocationMonitor.authLabel(lm.auth)).foregroundStyle(lm.auth == .authorizedAlways ? Color.secondary : DS.accent) }
+            LabeledContent(L.t("定位", "定位")) { Text(LocationMonitor.authLabel(lm.auth)).foregroundStyle(lm.auth == .authorizedAlways ? Color.secondary : DS.accent) }
             if !lm.precise {
-                LabeledContent("精確位置") { Text("關咗").foregroundStyle(DS.accent) }
+                LabeledContent(L.t("精確位置", "精确位置")) { Text(L.t("關咗", "已关闭")).foregroundStyle(DS.accent) }
             }
-            LabeledContent("動作與健身") {
+            LabeledContent(L.t("動作與健身", "运动与健身")) {
                 Text(LocationMonitor.motionLabel(lm.motionAuth)).foregroundStyle(lm.motionAuth == .denied ? DS.accent : Color.secondary)
             }
             if !lm.backgroundRefreshOK {
-                LabeledContent("背景 App 重新整理") { Text("關咗").foregroundStyle(DS.accent) }
+                LabeledContent(L.t("背景 App 重新整理", "后台 App 刷新")) { Text(L.t("關咗", "已关闭")).foregroundStyle(DS.accent) }
             }
             if lm.needsAttention || lm.motionAuth == .denied || lm.motionAuth == .restricted {
                 if lm.auth == .authorizedWhenInUse || lm.auth == .notDetermined, !lm.askedAlways {
-                    Button("改做始終允許") { lm.showAlwaysAsk = true }
+                    Button(L.t("改做始終允許", "改成始终允许")) { lm.showAlwaysAsk = true }
                 } else {
-                    Button("打開 iPhone 設定") { lm.openSettings() }
+                    Button(L.t("打開 iPhone 設定", "打开 iPhone 设置")) { lm.openSettings() }
                 }
             }
-            NavigationLink { LocationLogView() } label: { Text("定位紀錄") }
+            NavigationLink { LocationLogView() } label: { Text(L.t("定位紀錄", "定位记录")) }
         } header: {
-            Text("出門自動記錄").ds(.caption)
+            Text(L.t("出門自動記錄", "出门自动记录")).ds(.caption)
         } footer: {
             Text(LocationStatusText.footer(lm)).ds(.caption)
         }
     }
+}
+
+/// LocationMonitor.describe 嘅「離屋企」（普通话「离家」）换成另一个参照。
+@MainActor fileprivate func relHome(_ d: Double?, _ yue: String, _ cmn: String) -> String {
+    LocationMonitor.describe(d).replacingOccurrences(of: "離屋企", with: yue).replacingOccurrences(of: "离家", with: cmn)
 }
 
 /// 状态文字（设定、今日卡、定位纪录共用）。
@@ -257,19 +262,19 @@ enum LocationStatusText {
     /// 有咩未齐（齐晒就 nil）。
     @MainActor static func problem(_ lm: LocationMonitor) -> String? {
         switch lm.auth {
-        case .denied, .restricted: return "定位已經拒絕咗：唔會記錄路線同地標，亦唔知你幾時返到屋企。"
-        case .notDetermined: return "未允許定位：散步唔會自動記錄。"
-        case .authorizedWhenInUse: return "定位只係「用緊 App 時」先開：鎖咗機出門唔會即時記錄，要等你打開 App 先補返分鐘同步數（冇地標）。"
+        case .denied, .restricted: return L.t("定位已經拒絕咗：唔會記錄路線同地標，亦唔知你幾時返到屋企。", "定位已被拒绝：不会记录路线和地标，也不知道你什么时候到家。")
+        case .notDetermined: return L.t("未允許定位：散步唔會自動記錄。", "未允许定位：散步不会自动记录。")
+        case .authorizedWhenInUse: return L.t("定位只係「用緊 App 時」先開：鎖咗機出門唔會即時記錄，要等你打開 App 先補返分鐘同步數（冇地標）。", "定位只在「使用 App 期间」开启：锁屏出门不会实时记录，要等你打开 App 才补记分钟和步数（没有地标）。")
         default: break
         }
-        if !lm.precise { return "「精確位置」關咗：認唔到你行過邊個地標，亦唔知你幾時出門。" }
-        if lm.motionAuth == .denied || lm.motionAuth == .restricted { return "「動作與健身」關咗：認唔到你開始行路。" }
-        if !lm.backgroundRefreshOK { return "「背景 App 重新整理」關咗（或者開咗低耗電模式）：App 俾系統收咗之後，出門唔會被叫醒。去 設定 → 一般 → 背景 App 重新整理 開返。" }
+        if !lm.precise { return L.t("「精確位置」關咗：認唔到你行過邊個地標，亦唔知你幾時出門。", "「精确位置」已关闭：认不出你走过哪个地标，也不知道你什么时候出门。") }
+        if lm.motionAuth == .denied || lm.motionAuth == .restricted { return L.t("「動作與健身」關咗：認唔到你開始行路。", "「运动与健身」已关闭：识别不到你开始走路。") }
+        if !lm.backgroundRefreshOK { return L.t("「背景 App 重新整理」關咗（或者開咗低耗電模式）：App 俾系統收咗之後，出門唔會被叫醒。去 設定 → 一般 → 背景 App 重新整理 開返。", "「后台 App 刷新」已关闭（或开了低电量模式）：App 被系统关掉后，出门不会被唤醒。去 设置 → 通用 → 后台 App 刷新 重新打开。") }
         return nil
     }
 
     @MainActor static func footer(_ lm: LocationMonitor) -> String {
-        problem(lm) ?? "出門會自動記錄，鎖咗機都得。唔好喺多工畫面將街坊行掃走，否則出門唔會自動記錄。"
+        problem(lm) ?? L.t("出門會自動記錄，鎖咗機都得。唔好喺多工畫面將街坊行掃走，否則出門唔會自動記錄。", "出门会自动记录，锁屏也可以。别在多任务界面把街坊行划掉，否则出门不会自动记录。")
     }
 }
 
@@ -289,85 +294,85 @@ struct LocationLogView: View {
         let nights = lm.learner.nights(now: Date(), calendar: cal)
         List {
             Section {
-                InfoRow(title: "自動記錄", value: statusText(lm))
-                InfoRow(title: "屋企", value: verdictText(lm.verdict))
-                InfoRow(title: "而家", value: lm.insideHome.map { $0 ? "喺屋企範圍內（100 米）" : "唔喺屋企範圍" } ?? "未知喺唔喺屋企")
-            } header: { Text("狀態").ds(.caption) }
+                InfoRow(title: L.t("自動記錄", "自动记录"), value: statusText(lm))
+                InfoRow(title: L.t("屋企", "家"), value: verdictText(lm.verdict))
+                InfoRow(title: L.t("而家", "现在"), value: lm.insideHome.map { $0 ? L.t("喺屋企範圍內（100 米）", "在家范围内（100 米）") : L.t("唔喺屋企範圍", "不在家范围内") } ?? L.t("未知喺唔喺屋企", "不知道是否在家"))
+            } header: { Text(L.t("狀態", "状态")).ds(.caption) }
 
             Section {
-                InfoRow(title: "今日", value: today.walks > 0 ? "記咗 \(today.walks) 次，共 \(today.minutes) 分鐘" : "今日未有散步紀錄")
+                InfoRow(title: L.t("今日", "今天"), value: today.walks > 0 ? L.t("記咗 \(today.walks) 次，共 \(today.minutes) 分鐘", "记了 \(today.walks) 次，共 \(today.minutes) 分钟") : L.t("今日未有散步紀錄", "今天还没有散步记录"))
                 ForEach(todayEvents.reversed()) { e in EventRow(event: e) }
-            } header: { Text("今日散步（包括補記）").ds(.caption) }
+            } header: { Text(L.t("今日散步（包括補記）", "今天散步（包括补记）")).ds(.caption) }
 
             Section {
                 if nights.isEmpty {
-                    Text("未有。夜晚 10 點到朝早 6 點喺邊過夜，會喺呢度記低（最多 14 晚）。").ds(.caption).foregroundStyle(.secondary)
+                    Text(L.t("未有。夜晚 10 點到朝早 6 點喺邊過夜，會喺呢度記低（最多 14 晚）。", "暂无。晚上 10 点到早上 6 点在哪里过夜，会记在这里（最多 14 晚）。")).ds(.caption).foregroundStyle(.secondary)
                 }
                 ForEach(nights, id: \.night) { n in
-                    InfoRow(title: Self.nightLabel(n.night), value: "\(placeText(n.center, lm)) · \(String(format: "%.1f", n.hours)) 小時")
+                    InfoRow(title: Self.nightLabel(n.night), value: "\(placeText(n.center, lm)) · \(String(format: "%.1f", n.hours))" + L.t(" 小時", " 小时"))
                 }
-            } header: { Text("過夜位置").ds(.caption) } footer: {
-                Text("只存喺你部手機，唔會上傳；連續兩晚喺同一度就當係屋企。").ds(.caption)
+            } header: { Text(L.t("過夜位置", "过夜位置")).ds(.caption) } footer: {
+                Text(L.t("只存喺你部手機，唔會上傳；連續兩晚喺同一度就當係屋企。", "只存在你的手机上，不会上传；连续两晚在同一处就当作家。")).ds(.caption)
             }
 
             Section {
-                if wakes.isEmpty { Text("未有。出門、返屋企時 iOS 會喺背景叫醒街坊行，會喺呢度記低。").ds(.caption).foregroundStyle(.secondary) }
+                if wakes.isEmpty { Text(L.t("未有。出門、返屋企時 iOS 會喺背景叫醒街坊行，會喺呢度記低。", "暂无。出门、回家时 iOS 会在后台唤醒街坊行，会记在这里。")).ds(.caption).foregroundStyle(.secondary) }
                 ForEach(Array(wakes)) { e in EventRow(event: e) }
-            } header: { Text("最近喚醒").ds(.caption) }
+            } header: { Text(L.t("最近喚醒", "最近唤醒")).ds(.caption) }
 
             Section {
                 ForEach(Array(others)) { e in EventRow(event: e) }
-            } header: { Text("其他紀錄").ds(.caption) }
+            } header: { Text(L.t("其他紀錄", "其他记录")).ds(.caption) }
 
             Section {
-                Label("唔好喺多工畫面將街坊行掃走，否則出門唔會自動記錄。", systemImage: "exclamationmark.triangle.fill")
+                Label(L.t("唔好喺多工畫面將街坊行掃走，否則出門唔會自動記錄。", "别在多任务界面把街坊行划掉，否则出门不会自动记录。"), systemImage: "exclamationmark.triangle.fill")
                     .ds(.body)
-                Label("手機重新開機之後，打開一次街坊行。", systemImage: "arrow.clockwise")
+                Label(L.t("手機重新開機之後，打開一次街坊行。", "手机重启之后，打开一次街坊行。"), systemImage: "arrow.clockwise")
                     .ds(.body)
-            } header: { Text("提提你").ds(.caption) }
+            } header: { Text(L.t("提提你", "提醒你")).ds(.caption) }
 
             Section {
-                Button("清除定位紀錄", role: .destructive) { confirmClear = true }
+                Button(L.t("清除定位紀錄", "清除定位记录"), role: .destructive) { confirmClear = true }
             }
         }
-        .navigationTitle("定位紀錄")
+        .navigationTitle(L.t("定位紀錄", "定位记录"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .principal) { Text("定位紀錄").ds(.bodyBold).accessibilityAddTraits(.isHeader) }
+            ToolbarItem(placement: .principal) { Text(L.t("定位紀錄", "定位记录")).ds(.bodyBold).accessibilityAddTraits(.isHeader) }
         }
-        .confirmationDialog("清除定位紀錄？", isPresented: $confirmClear, titleVisibility: .visible) {
-            Button("清除", role: .destructive) { lm.clearRecords() }
-            Button("唔清", role: .cancel) {}
+        .confirmationDialog(L.t("清除定位紀錄？", "清除定位记录？"), isPresented: $confirmClear, titleVisibility: .visible) {
+            Button(L.t("清除", "清除"), role: .destructive) { lm.clearRecords() }
+            Button(L.t("唔清", "不清除"), role: .cancel) {}
         } message: {
-            Text("最近喚醒同過夜位置會刪走；散步紀錄唔受影響。")
+            Text(L.t("最近喚醒同過夜位置會刪走；散步紀錄唔受影響。", "最近唤醒和过夜位置会被删除；散步记录不受影响。"))
         }
         .onAppear { lm.reevaluate() }
     }
 
     private func statusText(_ lm: LocationMonitor) -> String {
-        if store.demoMode { return "演示模式開住：唔記錄真散步（喺設定關咗演示模式）" }
-        if !WalkDetector.isAvailable { return "呢部機冇動作感應，唔會自動記錄" }
-        if let p = LocationStatusText.problem(lm) { return "未開齊。\(p)" }
-        if lm.home == nil { return "未有屋企位置（打開一次主畫面）" }
-        guard lm.monitoring else { return "未開始監察（打開一次主畫面）" }
-        return lm.lowPower ? "開咗，但低耗電模式開緊：iOS 可能遲啲先叫醒街坊行" : "開咗：離開屋企會自動開始記錄"
+        if store.demoMode { return L.t("演示模式開住：唔記錄真散步（喺設定關咗演示模式）", "演示模式开着：不记录真实散步（在设置里关掉演示模式）") }
+        if !WalkDetector.isAvailable { return L.t("呢部機冇動作感應，唔會自動記錄", "这台手机没有运动感应，不会自动记录") }
+        if let p = LocationStatusText.problem(lm) { return L.t("未開齊。\(p)", "未开全。\(p)") }
+        if lm.home == nil { return L.t("未有屋企位置（打開一次主畫面）", "还没有家的位置（打开一次主界面）") }
+        guard lm.monitoring else { return L.t("未開始監察（打開一次主畫面）", "未开始监测（打开一次主界面）") }
+        return lm.lowPower ? L.t("開咗，但低耗電模式開緊：iOS 可能遲啲先叫醒街坊行", "已开启，但低电量模式开着：iOS 可能晚点才唤醒街坊行") : L.t("開咗：離開屋企會自動開始記錄", "已开启：离开家会自动开始记录")
     }
 
     private func verdictText(_ v: HomeVerdict) -> String {
         switch v {
-        case .learning(let n): return n == 0 ? "學緊：未有過夜紀錄（要 2 晚）" : "學緊：記咗 \(n) 晚，要 2 晚"
-        case .confirmed(let n, let d): return "已確認：\(n) 晚喺你揀嘅樓附近過夜（相差 \(Int(d.rounded())) 米）"
-        case .unsure(let n, let d): return "未確認：\(n) 晚過夜嘅地方\(LocationMonitor.describe(d).replacingOccurrences(of: "離屋企", with: "離你揀嘅樓"))"
-        case .moved(_, let n, let d): return "最近 \(n) 晚都喺\(LocationMonitor.describe(d))嘅地方過夜（會問你係咪搬咗屋）"
+        case .learning(let n): return n == 0 ? L.t("學緊：未有過夜紀錄（要 2 晚）", "学习中：还没有过夜记录（要 2 晚）") : L.t("學緊：記咗 \(n) 晚，要 2 晚", "学习中：记了 \(n) 晚，要 2 晚")
+        case .confirmed(let n, let d): return L.t("已確認：\(n) 晚喺你揀嘅樓附近過夜（相差 \(Int(d.rounded())) 米）", "已确认：\(n) 晚在你选的楼附近过夜（相差 \(Int(d.rounded())) 米）")
+        case .unsure(let n, let d): return L.t("未確認：\(n) 晚過夜嘅地方\(relHome(d, "離你揀嘅樓", "离你选的楼"))", "未确认：\(n) 晚过夜的地方\(relHome(d, "離你揀嘅樓", "离你选的楼"))")
+        case .moved(_, let n, let d): return L.t("最近 \(n) 晚都喺\(LocationMonitor.describe(d))嘅地方過夜（會問你係咪搬咗屋）", "最近 \(n) 晚都在\(LocationMonitor.describe(d))的地方过夜（会问你是否搬家了）")
         case .suggest(_, let n, let d):
-            return "你未揀屋企：\(n) 晚喺同一個地方過夜\(d.map { "（\(LocationMonitor.describe($0).replacingOccurrences(of: "離屋企", with: "離而家個模型")))" } ?? "")"
+            return L.t("你未揀屋企：\(n) 晚喺同一個地方過夜\(d.map { "（\(relHome($0, "離而家個模型", "离现在的模型")))" } ?? "")", "你还没选家：\(n) 晚在同一个地方过夜\(d.map { "（\(relHome($0, "離而家個模型", "离现在的模型")))" } ?? "")")
         }
     }
 
     private func placeText(_ p: GeoPoint, _ lm: LocationMonitor) -> String {
-        guard let h = lm.home else { return "未有屋企位置對比" }
+        guard let h = lm.home else { return L.t("未有屋企位置對比", "没有家的位置可对比") }
         let d = HomeLearner.distance(h, p)
-        return d <= HomeLearner.confirmRadius ? "喺屋企附近（\(Int(d.rounded())) 米）" : LocationMonitor.describe(d)
+        return d <= HomeLearner.confirmRadius ? L.t("喺屋企附近（\(Int(d.rounded())) 米）", "在家附近（\(Int(d.rounded())) 米）") : LocationMonitor.describe(d)
     }
 
     /// "2026-10-09" → 「10 月 9 日晚」。
@@ -400,7 +405,7 @@ private struct EventRow: View {
                 Text(Self.time(event.at)).ds(.caption).monospacedDigit().foregroundStyle(.secondary)
                 Text(event.title).ds(.bodyBold)
                 if event.background {
-                    Text("背景").ds(.caption).foregroundStyle(DS.accent)
+                    Text(L.t("背景", "后台")).ds(.caption).foregroundStyle(DS.accent)
                         .padding(.horizontal, 8)
                         .background(DS.accentSoft, in: Capsule())
                 }

@@ -1,34 +1,35 @@
 import Foundation
 
-/// 成员 B：AIService 的模板实现（离线可跑）。关键词理解粤语，模板生成句子。
+/// 成员 B：AIService 的模板实现（离线可跑）。关键词理解粤语同普通话，模板生成句子（跟 L.t 界面语言）。
 /// 之后接真模型时，新建一个实现同一协议的类，失败或超时就退回这里。
 struct TemplateAI: AIService {
 
     // MARK: - 听懂一句话
 
     func parseVoice(_ raw: String, context: AIContext) -> VoiceIntent {
-        let text = raw.replacingOccurrences(of: " ", with: "")
+        // 普通话识别出简体字：先转繁体，人名、地标名、关键词就同粤语一样对得上（陈太→陳太、凉亭→涼亭）。
+        let text = Self.toHant(raw.replacingOccurrences(of: " ", with: ""))
         guard !text.isEmpty else { return .unknown }
 
         if text.contains("請假") || text.contains("告假") || text.contains("请假") { return .leave }
 
         // 改约 / 取消约：要讲到时间或地标，免得同改地标名撞。
-        let partnerHit = context.residents.first { !$0.isMe && (text.contains($0.name) || text.contains("\($0.floor)樓")) }
-        if text.contains("唔約") || (text.contains("取消") && (text.contains("約") || partnerHit != nil)) {
+        let partnerHit = context.residents.first { !$0.isMe && (text.contains($0.name) || text.contains("\($0.floor)樓") || text.contains("\($0.floor)層")) }
+        if text.contains("唔約") || text.contains("不約") || (text.contains("取消") && (text.contains("約") || partnerHit != nil)) {
             return .cancelMeetup(partnerID: partnerHit?.id)
         }
-        if !text.contains("改名"), let r = ["改去", "改喺", "改到", "改做", "改成", "改返"].compactMap({ text.range(of: $0) }).first {
+        if !text.contains("改名"), let r = ["改去", "改喺", "改在", "改到", "改做", "改成", "改返", "改回"].compactMap({ text.range(of: $0) }).first {
             let before = String(text[..<r.lowerBound]), after = String(text[r.upperBound...])
             let lm = context.landmarks.filter { after.contains($0.name) }.max { $0.name.count < $1.name.count }   // 名有包含关系时揀最长
             let hour = parseHour(after)
-            let day: Int? = after.contains("後日") ? 2 : (after.contains("聽日") || after.contains("明天") || after.contains("明日")) ? 1 : after.contains("今日") ? 0 : nil
+            let day = Self.parseDay(after)
             let aboutMeetup = before.isEmpty || before.contains("約") || partnerHit != nil
             if aboutMeetup, lm != nil || hour != nil || day != nil {
                 return .changeMeetup(partnerID: partnerHit?.id, day: day, hour: hour, landmarkID: lm?.id)
             }
         }
 
-        if let r = ["改名做", "改名叫", "改做", "改名为"].compactMap({ text.range(of: $0) }).first {
+        if let r = ["改名做", "改名叫", "改做", "改名為", "改名成"].compactMap({ text.range(of: $0) }).first {
             let before = String(text[..<r.lowerBound]), after = String(text[r.upperBound...])
             let newName = after.trimmingCharacters(in: .punctuationCharacters)
             if !newName.isEmpty, let lm = context.landmarks.first(where: { before.contains($0.name) || $0.name.contains(before) && !before.isEmpty }) {
@@ -38,24 +39,38 @@ struct TemplateAI: AIService {
 
         if context.finding, text.hasPrefix("我喺") || text.hasPrefix("我在") || text.hasPrefix("我到") { return .broadcast(raw) }
 
-        if text.contains("好曬") || text.contains("好晒") || text.contains("好熱") || text.contains("好热") { return .report(.sunny) }
-        if text.contains("冇櫈") || text.contains("冇凳") || text.contains("無櫈") || text.contains("没有凳") { return .report(.noSeat) }
-        if text.contains("難行") || text.contains("唔好行") || text.contains("难走") { return .report(.rough) }
+        if ["好曬", "好晒", "好熱", "太曬", "太熱", "很曬", "很熱", "曬得很"].contains(where: text.contains) { return .report(.sunny) }
+        if ["冇櫈", "冇凳", "無櫈", "沒有凳", "沒凳", "沒有椅", "沒椅", "沒地方坐"].contains(where: text.contains) { return .report(.noSeat) }
+        if ["難行", "唔好行", "難走", "不好走", "路不平"].contains(where: text.contains) { return .report(.rough) }
 
-        let partner = context.residents.first { !$0.isMe && (text.contains($0.name) || text.contains("\($0.floor)樓")) }
+        let partner = context.residents.first { !$0.isMe && (text.contains($0.name) || text.contains("\($0.floor)樓") || text.contains("\($0.floor)層")) }
         if let p = partner {
             if (text.contains("搵") || text.contains("過去") || text.contains("找")) && !text.contains("約") { return .goFind(partnerID: p.id) }
             if text.contains("約") || text.contains("一齊行") || text.contains("一起") {
-                let day = text.contains("後日") ? 2 : (text.contains("聽日") || text.contains("明天") || text.contains("明日")) ? 1 : 0
+                let day = Self.parseDay(text) ?? 0
                 return .invite(partnerID: p.id, day: day, hour: parseHour(text))
             }
         }
         return .unknown
     }
 
-    /// "下晝三點" → 15；"朝早8點" → 8。
+    /// 简体转繁体（ICU）；转唔到就原样。
+    static func toHant(_ s: String) -> String {
+        s.applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? s
+    }
+
+    /// 後日 / 後天 → 2；聽日 / 明天 / 明日 → 1；今日 / 今天 → 0。
+    static func parseDay(_ t: String) -> Int? {
+        if t.contains("後日") || t.contains("後天") { return 2 }
+        if t.contains("聽日") || t.contains("明天") || t.contains("明日") { return 1 }
+        if t.contains("今日") || t.contains("今天") { return 0 }
+        return nil
+    }
+
+    /// "下晝三點" → 15；"朝早8點" → 8；普通话 "下午三点" → 15。
     func parseHour(_ t: String) -> Int? {
         let digits: [Character: Int] = ["一": 1, "二": 2, "兩": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10]
+        let t = Self.toHant(t)
         guard let r = t.range(of: "[0-9一二兩三四五六七八九十]+點", options: .regularExpression) else {
             if t.contains("朝早") || t.contains("早上") { return 8 }
             if t.contains("下晝") || t.contains("下午") { return 16 }
@@ -74,12 +89,12 @@ struct TemplateAI: AIService {
     // MARK: - 生成句子
 
     func dailyLine(for r: Resident, passed: [Landmark]) -> String {
-        if r.onLeave { return "\(r.floorLabel)今日請咗假" }
-        guard let last = passed.last else { return r.isMe ? "\(r.floorLabel)今日仲未出門" : "\(r.floorLabel)今日仲未出門" }
+        if r.onLeave { return L.t("\(r.floorLabel)今日請咗假", "\(r.floorLabel)今天请假了") }
+        guard let last = passed.last else { return L.t("\(r.floorLabel)今日仲未出門", "\(r.floorLabel)今天还没出门") }
         let seed = abs(r.id.hashValue)
-        if passed.count >= 2, seed % 3 == 0 { return "\(r.floorLabel)今日經過\(passed[0].name)同\(last.name)" }
-        if last.hasSeat, seed % 3 == 1 { return "\(r.floorLabel)喺\(last.name)坐咗陣" }
-        return "\(r.floorLabel)今日行到\(last.name)"
+        if passed.count >= 2, seed % 3 == 0 { return L.t("\(r.floorLabel)今日經過\(passed[0].name)同\(last.name)", "\(r.floorLabel)今天经过\(passed[0].name)和\(last.name)") }
+        if last.hasSeat, seed % 3 == 1 { return L.t("\(r.floorLabel)喺\(last.name)坐咗陣", "\(r.floorLabel)在\(last.name)坐了一会儿") }
+        return L.t("\(r.floorLabel)今日行到\(last.name)", "\(r.floorLabel)今天走到\(last.name)")
     }
 
     func nameLandmark(_ c: LandmarkCandidate) -> String {
@@ -132,20 +147,20 @@ struct TemplateAI: AIService {
         let l = best.0
         let minutes = max(1, Int((max(l.pos.distance(to: mine), l.pos.distance(to: theirs)) / 65).rounded()))
         var parts: [String] = []
-        parts.append(best.2 >= 0.5 ? "嗰陣有樓遮住" : "嗰陣有啲曬")
-        if l.hasSeat { parts.append("有櫈") }
-        parts.append("兩個都行 \(minutes) 分鐘左右")
+        parts.append(best.2 >= 0.5 ? L.t("嗰陣有樓遮住", "那时有楼挡着") : L.t("嗰陣有啲曬", "那时有点晒"))
+        if l.hasSeat { parts.append(L.t("有櫈", "有凳子")) }
+        parts.append(L.t("兩個都行 \(minutes) 分鐘左右", "两人都走 \(minutes) 分钟左右"))
         return MeetProposal(date: date, landmarkID: l.id, reason: parts.joined(separator: "、"))
     }
 
     func walkAdvice(weather: Weather, now: Date, shadeTip: (landmark: Landmark, shadedFrom: Int?)?) -> String? {
         switch weather {
-        case .rain: return "天文台話下晝會落大雨，不如早啲出門，或者聽日先行。"
+        case .rain: return L.t("天文台話下晝會落大雨，不如早啲出門，或者聽日先行。", "天文台说下午会下大雨，不如早点出门，或者明天再走。")
         case .hot:
-            if let tip = shadeTip, let h = tip.shadedFrom { return "今日好熱。\(tip.landmark.name)\(Self.hourLabel(h))後有樓遮住，嗰陣先出門啱啲。" }
-            return "今日好熱，記得帶水，揀有遮蔭嘅路行。"
+            if let tip = shadeTip, let h = tip.shadedFrom { return L.t("今日好熱。\(tip.landmark.name)\(Self.hourLabel(h))後有樓遮住，嗰陣先出門啱啲。", "今天很热。\(tip.landmark.name)\(Self.hourLabel(h))后有楼挡住太阳，那时再出门比较好。") }
+            return L.t("今日好熱，記得帶水，揀有遮蔭嘅路行。", "今天很热，记得带水，挑有树荫的路走。")
         case .normal:
-            if let tip = shadeTip, let h = tip.shadedFrom { return "\(tip.landmark.name)\(Self.hourLabel(h))後有樓遮住，嗰陣行最舒服。" }
+            if let tip = shadeTip, let h = tip.shadedFrom { return L.t("\(tip.landmark.name)\(Self.hourLabel(h))後有樓遮住，嗰陣行最舒服。", "\(tip.landmark.name)\(Self.hourLabel(h))后有楼挡住太阳，那时走最舒服。") }
             return nil
         }
     }
@@ -161,15 +176,15 @@ struct TemplateAI: AIService {
             let place = String(key.dropLast(v.0.rawValue.count))
             let suggestion: String
             switch v.0 {
-            case .sunny: suggestion = "加遮蔭或者種樹"
-            case .noSeat: suggestion = "加張櫈"
-            case .rough: suggestion = "整平路面、加扶手"
+            case .sunny: suggestion = L.t("加遮蔭或者種樹", "加遮阳棚或者种树")
+            case .noSeat: suggestion = L.t("加張櫈", "加张凳子")
+            case .rough: suggestion = L.t("整平路面、加扶手", "修平路面、加扶手")
             }
             return MonthlyReport.Item(place: place, kind: v.0, count: v.1, suggestion: suggestion)
         }.filter { $0.count >= Self.minReporters }.sorted { $0.count > $1.count }
-        let top = items.first.map { "最多人反映：\($0.place)\($0.kind.rawValue)（\($0.count) 人）。" } ?? ""
-        return MonthlyReport(title: "\(placeName) · 本月散步報告",
-                             summary: "本月 \(stats.walks) 人次散步，街坊約咗 \(stats.meetups) 次一齊行。\(top)只計 \(Self.minReporters) 人以上嘅反映，冇任何個人路線。",
+        let top = items.first.map { L.t("最多人反映：\($0.place)\($0.kind.rawValue)（\($0.count) 人）。", "反映最多的：\($0.place)\($0.kind.label)（\($0.count) 人）。") } ?? ""
+        return MonthlyReport(title: L.t("\(placeName) · 本月散步報告", "\(placeName) · 本月散步报告"),
+                             summary: L.t("本月 \(stats.walks) 人次散步，街坊約咗 \(stats.meetups) 次一齊行。\(top)只計 \(Self.minReporters) 人以上嘅反映，冇任何個人路線。", "本月共 \(stats.walks) 人次散步，邻居约了 \(stats.meetups) 次一起走。\(top)只统计 \(Self.minReporters) 人以上的反映，不含任何个人路线。"),
                              items: items, walkers: stats.walks, meetups: stats.meetups)
     }
 
@@ -177,8 +192,8 @@ struct TemplateAI: AIService {
     static let minReporters = 10
 
     static func hourLabel(_ h: Int) -> String {
-        if h < 12 { return "朝早 \(h) 點" }
-        if h == 12 { return "中午 12 點" }
-        return h < 18 ? "下晝 \(h - 12) 點" : "夜晚 \(h - 12) 點"
+        if h < 12 { return L.t("朝早 \(h) 點", "早上 \(h) 点") }
+        if h == 12 { return L.t("中午 12 點", "中午 12 点") }
+        return h < 18 ? L.t("下晝 \(h - 12) 點", "下午 \(h - 12) 点") : L.t("夜晚 \(h - 12) 點", "晚上 \(h - 12) 点")
     }
 }

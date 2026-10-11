@@ -58,7 +58,7 @@ struct TodayTab: View {
     private var quietCard: some View {
         let lm = store.landmarks.first
         let passers = lm.flatMap { store.community.passersToday(at: $0) }.flatMap { $0.count >= 10 ? $0 : nil }
-        let when = AppStore.hk.component(.hour, from: store.now) < 12 ? "今朝" : "今日"
+        let when = AppStore.hk.component(.hour, from: store.now) < 12 ? L.t("今朝", "今早") : L.t("今日", "今天")
         return HStack(spacing: 12) {
             Image(systemName: "figure.walk")
                 .ds(.body)
@@ -67,11 +67,11 @@ struct TodayTab: View {
                 .background(Color(.tertiarySystemFill), in: Circle())
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
-                Text("而家冇街坊喺外面").ds(.caption).foregroundStyle(.secondary)
+                Text(L.t("而家冇街坊喺外面", "现在没有邻居在外面")).ds(.caption).foregroundStyle(.secondary)
                 if let lm, let passers {
-                    Text("\(when) \(passers.count) 人經過\(lm.name)").ds(.body)
+                    Text(L.t("\(when) \(passers.count) 人經過\(lm.name)", "\(when) \(passers.count) 人经过\(lm.name)")).ds(.body)
                 } else {
-                    Text("出門行吓，見到面碰一碰就係街坊").ds(.body)
+                    Text(L.t("出門行吓，見到面碰一碰就係街坊", "出门走走，见面碰一碰就是邻居")).ds(.body)
                 }
                 if passers?.isDemo == true { DemoBadge() }
             }
@@ -90,7 +90,7 @@ struct TodayTab: View {
             HStack(spacing: 12) {
                 AvatarBadge(n)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("而家喺外面").ds(.caption).foregroundStyle(.secondary)
+                    Text(L.t("而家喺外面", "现在在外面")).ds(.caption).foregroundStyle(.secondary)
                     Text(place.map { "\(n.name) · \($0)附近" } ?? n.name)
                         .ds(.body)
                         .fixedSize(horizontal: false, vertical: true)
@@ -103,7 +103,7 @@ struct TodayTab: View {
                 taps += 1
                 if walking { store.goFind(n.id) } else { store.proposeMeetup(with: n.id) }
             } label: {
-                Text(walking ? "過去搵佢" : "約佢").frame(maxWidth: stacked ? .infinity : nil)
+                Text(walking ? L.t("過去搵佢", "过去找他") : L.t("約佢", "约他")).frame(maxWidth: stacked ? .infinity : nil)
             }
             .tabButtonStyle(primary: primary)
         }
@@ -118,11 +118,11 @@ struct TodayTab: View {
             if let w = store.walk {
                 walkingStats(w)
             } else {
-                Text("今日行咗 \(store.todayMinutes) 分鐘 · 連續 \(me.streakDays) 日")
+                Text(L.t("今日行咗 \(store.todayMinutes) 分鐘 · 連續 \(me.streakDays) 日", "今天走了 \(store.todayMinutes) 分钟 · 连续 \(me.streakDays) 天"))
                     .ds(.bodyBold)
                     .contentTransition(.numericText(value: Double(store.todayMinutes * 1000 + me.streakDays)))
                     .fixedSize(horizontal: false, vertical: true)
-                if store.streakHasDemo { DemoBadge(text: "含示範紀錄") }
+                if store.streakHasDemo { DemoBadge(text: L.t("含示範紀錄", "含示范记录")) }
                 if !me.todayLine.isEmpty {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         AIBadge()
@@ -143,12 +143,12 @@ struct TodayTab: View {
     @ViewBuilder private func walkingStats(_ w: WalkSession) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "figure.walk").foregroundStyle(DS.accent).accessibilityHidden(true)
-            Text("行緊 · \(w.minutes) 分鐘")
+            Text(L.t("行緊 · \(w.minutes) 分鐘", "散步中 · \(w.minutes) 分钟"))
                 .contentTransition(.numericText(value: Double(w.minutes)))
         }
         .ds(.bodyBold)
         .animation(DS.motion(DS.snappy), value: w.minutes)
-        Text("經過 \(w.passed.count) 個地方")
+        Text(L.t("經過 \(w.passed.count) 個地方", "经过 \(w.passed.count) 个地方"))
             .ds(.caption)
             .foregroundStyle(.secondary)
             .contentTransition(.numericText(value: Double(w.passed.count)))
@@ -176,7 +176,7 @@ struct TodayTab: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .transition(.opacity)
             } else {
-                Text("今日唔想行？")
+                Text(L.t("今日唔想行？", "今天不想走？"))
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .transition(.opacity)
@@ -192,7 +192,7 @@ struct TodayTab: View {
                         Divider()
                         Button(w, role: .destructive) { store.withdrawLeave() }
                     }
-                } label: { Text("請假") }
+                } label: { Text(L.t("請假", "请假")) }
                 .menuStyle(.button).buttonStyle(.dsSecondary).fixedSize()
             }
         }
@@ -202,17 +202,17 @@ struct TodayTab: View {
 
     private func appointmentCard(_ a: Appointment) -> some View {
         let p = store.resident(a.partnerID)
-        let name = p?.name ?? "街坊"
+        let name = p?.name ?? L.t("街坊", "邻居")
         let place = store.placeName(a.landmarkID) ?? ""
         return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 if let p { AvatarBadge(p) }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("約咗\(name)").ds(.caption).foregroundStyle(.secondary)
+                    Text(L.t("約咗\(name)", "约了\(name)")).ds(.caption).foregroundStyle(.secondary)
                     Text("\(store.dayTimeLabel(a.date)) · \(place)")
                         .ds(.bodyBold)
                         .fixedSize(horizontal: false, vertical: true)
-                    if p?.isDemo == true { DemoBadge(text: "示範街坊") }
+                    if p?.isDemo == true { DemoBadge(text: L.t("示範街坊", "示范邻居")) }
                 }
             }
             .accessibilityElement(children: .combine)
@@ -222,7 +222,7 @@ struct TodayTab: View {
                 .fixedSize(horizontal: false, vertical: true)
             if a.status == .accepted {
                 TabActionRow {
-                    Label("\(name)應承咗", systemImage: "checkmark.circle.fill")
+                    Label(L.t("\(name)應承咗", "\(name)答应了"), systemImage: "checkmark.circle.fill")
                         .ds(.captionBold)
                         .foregroundStyle(DS.accent)
                 } action: { stacked in
@@ -230,7 +230,7 @@ struct TodayTab: View {
                         taps += 1
                         store.departForAppointment(a)
                     } label: {
-                        Label("出發", systemImage: "figure.walk").frame(maxWidth: stacked ? .infinity : nil)
+                        Label(L.t("出發", "出发"), systemImage: "figure.walk").frame(maxWidth: stacked ? .infinity : nil)
                     }
                     .buttonStyle(.dsSecondary)   // 草图：「出發」是次按钮
                 }
@@ -239,7 +239,7 @@ struct TodayTab: View {
             } else {
                 HStack(spacing: 8) {
                     ProgressView()
-                    Text("等緊\(name)確認").ds(.caption).foregroundStyle(.secondary)
+                    Text(L.t("等緊\(name)確認", "等\(name)确认")).ds(.caption).foregroundStyle(.secondary)
                 }
                 .accessibilityElement(children: .combine)
                 .transition(.opacity)
@@ -260,11 +260,11 @@ struct TodayTab: View {
 
     @ViewBuilder private func changeButtons(_ a: Appointment) -> some View {
         Button { store.startEditing(a.id) } label: {
-            Text("改時間地點").lineLimit(1).frame(maxWidth: .infinity)
+            Text(L.t("改時間地點", "改时间地点")).lineLimit(1).frame(maxWidth: .infinity)
         }
         .buttonStyle(.dsSecondary)
         Button { cancelling = a } label: {
-            Text("取消約會").lineLimit(1).frame(maxWidth: .infinity)
+            Text(L.t("取消約會", "取消约会")).lineLimit(1).frame(maxWidth: .infinity)
         }
         .buttonStyle(.dsSecondary)
     }
@@ -272,14 +272,14 @@ struct TodayTab: View {
     // ④ 反映有回覆（F10 落实后告诉居民）
 
     private func followUpCard(_ r: Report) -> some View {
-        let place = store.landmark(r.landmarkID)?.name ?? "呢度"
+        let place = store.landmark(r.landmarkID)?.name ?? L.t("呢度", "这里")
         return HStack(alignment: .top, spacing: 12) {
             Image(systemName: "checkmark.seal.fill")
                 .foregroundStyle(DS.accent)
                 .ds(.body)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
-                Text("你反映過「\(place)\(r.kind.rawValue)」").ds(.caption).foregroundStyle(.secondary)
+                Text(L.t("你反映過「\(place)\(r.kind.label)」", "你反映过「\(place)\(r.kind.label)」")).ds(.caption).foregroundStyle(.secondary)
                 Text(r.followUp ?? "").ds(.body).fixedSize(horizontal: false, vertical: true)
                 if r.followUpDemo == true { DemoBadge() }
             }
@@ -312,15 +312,15 @@ struct TodayTab: View {
     private var reportCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                Text("呢度點樣？").ds(.caption).foregroundStyle(.secondary)
+                Text(L.t("呢度點樣？", "这里怎么样？")).ds(.caption).foregroundStyle(.secondary)
                 Spacer(minLength: 0)
                 if let k = reported {
-                    Label("記低咗", systemImage: "checkmark.circle.fill")
+                    Label(L.t("記低咗", "记下了"), systemImage: "checkmark.circle.fill")
                         .ds(.captionBold)
                         .foregroundStyle(DS.accent)
                         .id(reportToken)
                         .transition(.scale(scale: 0.5, anchor: .trailing).combined(with: .opacity))
-                        .accessibilityLabel("記低咗：\(k.rawValue)")
+                        .accessibilityLabel(L.t("記低咗：\(k.label)", "记下了：\(k.label)"))
                 }
             }
             ViewThatFits(in: .horizontal) {
@@ -338,13 +338,13 @@ struct TodayTab: View {
             Button { send(k) } label: {
                 VStack(spacing: 4) {
                     Image(systemName: k.symbol)
-                    Text(k.rawValue)
+                    Text(k.label)
                 }
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.dsSecondary)
-            .accessibilityLabel("呢度\(k.rawValue)")
+            .accessibilityLabel(L.t("呢度\(k.label)", "这里\(k.label)"))
         }
     }
 
@@ -352,7 +352,7 @@ struct TodayTab: View {
 
     private var landmarksCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TabSectionHeader(text: "附近地標")
+            TabSectionHeader(text: L.t("附近地標", "附近地标"))
             VStack(spacing: 0) {
                 ForEach(Array(store.landmarks.enumerated()), id: \.element.id) { i, lm in
                     if i > 0 { Divider().padding(.leading, 40) }
@@ -366,7 +366,7 @@ struct TodayTab: View {
     private func landmarkRow(_ lm: Landmark) -> some View {
         // 日落后不讲遮荫（会算成 100%）：同地标信息卡一样用 shadeValue（太阳落山返回 nil）
         let v = store.shade == nil ? 0 : store.shadeValue(lm.id, at: store.now)
-        let sun = v.map { "而家大約 \(Int(($0 * 100).rounded()))% 有樓遮" } ?? "太陽落咗山"
+        let sun = v.map { L.t("而家大約 \(Int(($0 * 100).rounded()))% 有樓遮", "现在大约 \(Int(($0 * 100).rounded()))% 有楼遮阴") } ?? L.t("太陽落咗山", "太阳下山了")
         return Button { store.select(.landmark(lm.id)) } label: {
             HStack(spacing: 12) {
                 Image(systemName: "mappin.circle.fill")
@@ -375,7 +375,7 @@ struct TodayTab: View {
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(lm.name).ds(.body)
-                    Text("\(lm.hasSeat ? "有櫈" : "冇櫈") · \(sun)")
+                    Text("\(lm.hasSeat ? L.t("有櫈", "有凳子") : L.t("冇櫈", "没凳子")) · \(sun)")
                         .ds(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -389,7 +389,7 @@ struct TodayTab: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityHint("撳一下睇詳情，可以改名")
+        .accessibilityHint(L.t("撳一下睇詳情，可以改名", "点一下看详情，可以改名"))
     }
 
     private func send(_ k: ReportKind) {
@@ -427,9 +427,9 @@ struct BoardTab: View {
 
         VStack(alignment: .leading, spacing: 16) {
             if store.backendOffline {
-                DemoNote(text: "未連線：而家顯示上次嘅排行榜，連返網會自動更新。")
+                DemoNote(text: L.t("未連線：而家顯示上次嘅排行榜，連返網會自動更新。", "未联网：现在显示上次的排行榜，联网后会自动更新。"))
             } else if !store.community.isSimulated && rows.isEmpty {
-                DemoNote(text: "附近暫時未有其他人用街坊行。同區有人用，就會喺呢度出現。")
+                DemoNote(text: L.t("附近暫時未有其他人用街坊行。同區有人用，就會喺呢度出現。", "附近暂时没有其他人用街坊行。同区有人用，就会出现在这里。"))
             }
             circleCard
             VStack(spacing: 0) {
@@ -442,7 +442,7 @@ struct BoardTab: View {
             }
             // 说明放在名次下面，不再把名次推出首屏。
             if store.community.isSimulated {
-                DemoNote(text: "單機演示：圈入面其他人係示範街坊，連續日數同獎牌係模擬嘅。")
+                DemoNote(text: L.t("單機演示：圈入面其他人係示範街坊，連續日數同獎牌係模擬嘅。", "单机演示：圈里其他人是示范邻居，连续天数和奖牌是模拟的。"))
             }
         }
         .animation(DS.motion(DS.spring), value: rows.map(\.id))
@@ -450,7 +450,7 @@ struct BoardTab: View {
 
     /// 圈对圈：本月圈内总步数（我的由散步分钟估算，其他人和对面圈是示範数据）+ 上个月结果。
     private var circleCard: some View {
-        let race = store.community.circleRace(placeName: store.map?.placeName ?? "我哋", myMonthSteps: store.myMonthSteps)
+        let race = store.community.circleRace(placeName: store.map?.placeName ?? L.t("我哋", "我们"), myMonthSteps: store.myMonthSteps)
         let total = max(1, race.ourSteps + race.rivalSteps)
         let share = CGFloat(race.ourSteps) / CGFloat(total)
         let diff = race.ourSteps - race.rivalSteps
@@ -458,8 +458,8 @@ struct BoardTab: View {
         // 未有对面圈嘅真数据：只讲本圈行咗几多，唔画对比条（唔造假）
         let versus = race.rivalSteps > 0 || race.isDemo
         return VStack(alignment: .leading, spacing: 12) {
-            Text(race.rivalSteps == 0 ? "本月 \(race.ourName) 一齊行咗 \(store.myMonthStepsEstimated ? "約 " : "")\(Self.steps(race.ourSteps))"
-                 : "本月 \(race.ourName) \(diff >= 0 ? "領先" : "落後")\(race.rivalName) \(Self.steps(abs(diff)))")
+            Text(race.rivalSteps == 0 ? L.t("本月 \(race.ourName) 一齊行咗 \(store.myMonthStepsEstimated ? "約 " : "")\(Self.steps(race.ourSteps))", "本月 \(race.ourName) 一起走了 \(store.myMonthStepsEstimated ? "约 " : "")\(Self.steps(race.ourSteps))")
+                 : L.t("本月 \(race.ourName) \(diff >= 0 ? "領先" : "落後")\(race.rivalName) \(Self.steps(abs(diff)))", "本月 \(race.ourName) \(diff >= 0 ? "领先" : "落后")\(race.rivalName) \(Self.steps(abs(diff)))"))
                 .ds(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -493,19 +493,19 @@ struct BoardTab: View {
     @ViewBuilder private func resultLine(_ last: MonthResult?) -> some View {
         if let last {
             Label {
-                Text(last.weWon ? "\(last.month) 月\(last.ourName)贏咗" : "\(last.month) 月\(last.rivalName)贏咗")
+                Text(last.weWon ? L.t("\(last.month) 月\(last.ourName)贏咗", "\(last.month) 月\(last.ourName)赢了") : L.t("\(last.month) 月\(last.rivalName)贏咗", "\(last.month) 月\(last.rivalName)赢了"))
                     .fixedSize(horizontal: false, vertical: true)
             } icon: {
                 Image(systemName: "rosette").foregroundStyle(Color(red: 0.80, green: 0.55, blue: 0.0))
             }
             .ds(.captionBold)
-            .accessibilityLabel(last.weWon ? "上個月 \(last.month) 月，\(last.ourName)贏咗，全圈有獎牌" : "上個月 \(last.month) 月，\(last.rivalName)贏咗")
+            .accessibilityLabel(last.weWon ? L.t("上個月 \(last.month) 月，\(last.ourName)贏咗，全圈有獎牌", "上个月 \(last.month) 月，\(last.ourName)赢了，全圈有奖牌") : L.t("上個月 \(last.month) 月，\(last.rivalName)贏咗", "上个月 \(last.month) 月，\(last.rivalName)赢了"))
         }
     }
 
     /// 例如「3.2 萬步」「8,400 步」。
     static func steps(_ n: Int) -> String {
-        n >= 10_000 ? String(format: "%.1f 萬步", Double(n) / 10_000).replacingOccurrences(of: ".0 萬", with: " 萬") : "\(n) 步"
+        n >= 10_000 ? String(format: L.t("%.1f 萬步", "%.1f 万步"), Double(n) / 10_000).replacingOccurrences(of: ".0 ", with: " ") : "\(n) 步"
     }
 
     @ViewBuilder private func rankRow(_ rank: Int, _ r: Resident) -> some View {
@@ -538,14 +538,14 @@ struct BoardTab: View {
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        let label = "第 \(rank) 名，\(r.listName)，連續 \(r.streakDays) 日\(r.hasMedal ? "，有獎牌" : "")\(r.isNeighbor && !r.todayLine.isEmpty ? "，\(r.todayLine)" : "")"
+        let label = L.t("第 \(rank) 名，\(r.listName)，連續 \(r.streakDays) 日\(r.hasMedal ? "，有獎牌" : "")\(r.isNeighbor && !r.todayLine.isEmpty ? "，\(r.todayLine)" : "")", "第 \(rank) 名，\(r.listName)，连续 \(r.streakDays) 天\(r.hasMedal ? "，有奖牌" : "")\(r.isNeighbor && !r.todayLine.isEmpty ? "，\(r.todayLine)" : "")")
 
         if r.isNeighbor {
             Button { store.select(.person(r.id)) } label: { content }
                 .buttonStyle(.plain)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(label)
-                .accessibilityHint("睇吓佢喺邊")
+                .accessibilityHint(L.t("睇吓佢喺邊", "看看他在哪"))
         } else {
             content
                 .accessibilityElement(children: .combine)
@@ -598,7 +598,7 @@ struct BoardMyRow: View {
         .padding(.bottom, 8)
         .animation(DS.motion(DS.spring), value: rank)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("你排第 \(rank) 名，\(me.listName)，連續 \(me.streakDays) 日，\(me.todayLine)")
+        .accessibilityLabel(L.t("你排第 \(rank) 名，\(me.listName)，連續 \(me.streakDays) 日，\(me.todayLine)", "你排第 \(rank) 名，\(me.listName)，连续 \(me.streakDays) 天，\(me.todayLine)"))
     }
 }
 
@@ -612,7 +612,7 @@ private struct BoardStreak: View {
                 .monospacedDigit()
                 .foregroundStyle(days > 0 ? DS.accentInk : .secondary)
                 .contentTransition(.numericText(value: Double(days)))
-            Text("日").ds(.caption).foregroundStyle(.secondary)
+            Text(L.t("日", "天")).ds(.caption).foregroundStyle(.secondary)
         }
         .frame(minWidth: 44)
         .accessibilityHidden(true)
@@ -636,7 +636,7 @@ struct NeighborsTab: View {
                 store.startBump()
             } label: {
                 Label {
-                    Text("碰一碰加街坊")
+                    Text(L.t("碰一碰加街坊", "碰一碰加邻居"))
                 } icon: {
                     Image(systemName: "iphone.radiowaves.left.and.right")
                 }
@@ -646,20 +646,20 @@ struct NeighborsTab: View {
             .buttonStyle(.dsPrimary)
 
             if store.community.isSimulated {
-                DemoNote(text: "單機演示：碰一碰係模擬嘅，會碰到示範街坊。真機用超寬頻（兩部 iPhone 11 或之後）。")
+                DemoNote(text: L.t("單機演示：碰一碰係模擬嘅，會碰到示範街坊。真機用超寬頻（兩部 iPhone 11 或之後）。", "单机演示：碰一碰是模拟的，会碰到示范邻居。真机用超宽带（两部 iPhone 11 或更新机型）。"))
             } else if store.backendOffline {
-                DemoNote(text: "未連線：街坊出門、約會要連返網先收到。你做嘅改動會留住，連返網就送出。")
+                DemoNote(text: L.t("未連線：街坊出門、約會要連返網先收到。你做嘅改動會留住，連返網就送出。", "未联网：邻居出门、约会要联网才收得到。你的改动会保留，联网后就发送。"))
             }
 
             if !store.invitations.isEmpty {
-                TabSectionHeader(text: "約你嘅")
+                TabSectionHeader(text: L.t("約你嘅", "约你的"))
                 ForEach(store.invitations) { a in
                     invitationCard(a).transition(.tabsInsert)
                 }
             }
 
             if !store.upcomingAppointments.isEmpty {
-                TabSectionHeader(text: "我嘅約會")
+                TabSectionHeader(text: L.t("我嘅約會", "我的约会"))
                 VStack(spacing: 0) {
                     ForEach(Array(store.upcomingAppointments.enumerated()), id: \.element.id) { i, a in
                         VStack(spacing: 0) {
@@ -672,7 +672,7 @@ struct NeighborsTab: View {
                 .transition(.tabsInsert)
             }
 
-            TabSectionHeader(text: "我嘅街坊")
+            TabSectionHeader(text: L.t("我嘅街坊", "我的邻居"))
             if store.neighbors.isEmpty {
                 emptyState.transition(.opacity)
             } else {
@@ -687,9 +687,9 @@ struct NeighborsTab: View {
         .animation(DS.motion(DS.spring), value: store.neighbors)
         .sensoryFeedback(.impact(weight: .light), trigger: taps)
         .sensoryFeedback(.selection, trigger: toggles)
-        .confirmationDialog(unlinking.map { "唔再同\($0.name)做街坊？" } ?? "", isPresented: Binding(get: { unlinking != nil }, set: { if !$0 { unlinking = nil } }), titleVisibility: .visible) {
+        .confirmationDialog(unlinking.map { L.t("唔再同\($0.name)做街坊？", "不再和\($0.name)做邻居？") } ?? "", isPresented: Binding(get: { unlinking != nil }, set: { if !$0 { unlinking = nil } }), titleVisibility: .visible) {
             if let r = unlinking {
-                Button("唔再做街坊", role: .destructive) { store.unlinkNeighbor(r.id); unlinking = nil }
+                Button(L.t("唔再做街坊", "不再做邻居"), role: .destructive) { store.unlinkNeighbor(r.id); unlinking = nil }
             }
             Button("保留", role: .cancel) { unlinking = nil }
         } message: {
@@ -700,24 +700,24 @@ struct NeighborsTab: View {
     /// 解除街坊的说明：有未完成的约会就讲清楚对方会收到「約會取消」（审核 A70）。
     private func unlinkMessage(_ r: Resident?) -> String {
         let open = r.map { r in store.appointments.filter { $0.partnerID == r.id && $0.isOpen }.count } ?? 0
-        let base = "佢唔會收到解除通知。之後佢出門你唔會知，佢亦見唔到你。"
-        let meet = open > 0 ? "你哋 \(open) 個未完成嘅約會會取消，佢會收到「約會取消」。" : ""
-        return base + meet + "想再做街坊，要見面再碰一碰。"
+        let base = L.t("佢唔會收到解除通知。之後佢出門你唔會知，佢亦見唔到你。", "对方不会收到解除通知。之后对方出门你不会知道，对方也看不到你。")
+        let meet = open > 0 ? L.t("你哋 \(open) 個未完成嘅約會會取消，佢會收到「約會取消」。", "你们 \(open) 个未完成的约会会取消，对方会收到「约会取消」。") : ""
+        return base + meet + L.t("想再做街坊，要見面再碰一碰。", "想再做邻居，要见面再碰一碰。")
     }
 
     private func invitationCard(_ a: Appointment) -> some View {
         let p = store.resident(a.partnerID)
-        let name = p?.name ?? "街坊"
+        let name = p?.name ?? L.t("街坊", "邻居")
         let place = store.placeName(a.landmarkID) ?? ""
         return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 if let p { AvatarBadge(p) }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(name)約你\(store.dayTimeLabel(a.date)) · \(place)")
+                    Text(L.t("\(name)約你\(store.dayTimeLabel(a.date)) · \(place)", "\(name)约你\(store.dayTimeLabel(a.date)) · \(place)"))
                         .ds(.bodyBold)
                         .contentTransition(.numericText())
                         .fixedSize(horizontal: false, vertical: true)
-                    if p?.isDemo == true { DemoBadge(text: "示範街坊") }
+                    if p?.isDemo == true { DemoBadge(text: L.t("示範街坊", "示范邻居")) }
                 }
             }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -738,29 +738,29 @@ struct NeighborsTab: View {
 
     @ViewBuilder private func invitationButtons(_ a: Appointment) -> some View {
         Button { store.acceptInvitation(a.id) } label: {
-            Text("好").frame(maxWidth: .infinity)
+            Text(L.t("好", "好的")).frame(maxWidth: .infinity)
         }
         .buttonStyle(.dsPrimary)
         Button { store.rescheduleInvitation(a.id) } label: {
-            Text("換個時間").frame(maxWidth: .infinity)
+            Text(L.t("換個時間", "换个时间")).frame(maxWidth: .infinity)
         }
         .buttonStyle(.dsSecondary)
         Button { store.declineInvitation(a.id) } label: {
-            Text("唔去").frame(maxWidth: .infinity)
+            Text(L.t("唔去", "不去")).frame(maxWidth: .infinity)
         }
         .buttonStyle(.dsSecondary)
     }
 
     private func upcomingRow(_ a: Appointment) -> some View {
-        let name = store.resident(a.partnerID)?.name ?? "街坊"
+        let name = store.resident(a.partnerID)?.name ?? L.t("街坊", "邻居")
         let place = store.placeName(a.landmarkID) ?? ""
         let status: String = {
             switch a.status {
-            case .waiting: return "等緊\(name)確認"
-            case .accepted: return "約好咗"
-            case .done: return "行咗"
-            case .cancelled: return "取消咗"
-            case .expired: return "過咗期"
+            case .waiting: return L.t("等緊\(name)確認", "等\(name)确认")
+            case .accepted: return L.t("約好咗", "约好了")
+            case .done: return L.t("行咗", "走过了")
+            case .cancelled: return L.t("取消咗", "取消了")
+            case .expired: return L.t("過咗期", "过期了")
             }
         }()
         return Button { store.startEditing(a.id) } label: { HStack(alignment: .top, spacing: 12) {
@@ -783,14 +783,14 @@ struct NeighborsTab: View {
         .contentShape(Rectangle()) }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityHint("改時間、地點或者取消")
+        .accessibilityHint(L.t("改時間、地點或者取消", "改时间、地点或取消"))
     }
 
     private func neighborCard(_ n: Resident) -> some View {
         // 没有出门消息不等于在家（对方可能关了发送，或回家后隐身），不要说死。
         let status: String = {
-            if n.isOut, let place = store.placeName(n.atLandmarkID) { return "出咗門 · \(place)附近" }
-            return "冇出門消息"
+            if n.isOut, let place = store.placeName(n.atLandmarkID) { return L.t("出咗門 · \(place)附近", "出门了 · \(place)附近") }
+            return L.t("冇出門消息", "没有出门消息")
         }()
         // F6：接收、发送分开开关。
         let receive = Binding<Bool>(
@@ -824,28 +824,28 @@ struct NeighborsTab: View {
                     taps += 1
                     store.proposeMeetup(with: n.id)
                 } label: {
-                    Text("約佢行").frame(maxWidth: stacked ? .infinity : nil)
+                    Text(L.t("約佢行", "约他散步")).frame(maxWidth: stacked ? .infinity : nil)
                 }
                 .buttonStyle(.dsSecondary)
             }
             Divider()
             Toggle(isOn: receive) {
-                Label("佢出門話我知", systemImage: "bell.fill").ds(.caption)
+                Label(L.t("佢出門話我知", "他出门告诉我"), systemImage: "bell.fill").ds(.caption)
             }
             .tint(DS.accent)
             Toggle(isOn: send) {
-                Label("我出門話佢知", systemImage: "figure.walk").ds(.caption)
+                Label(L.t("我出門話佢知", "我出门告诉他"), systemImage: "figure.walk").ds(.caption)
             }
             .tint(DS.accent)
             Button { unlinking = n } label: {
-                Text("唔再做街坊")
+                Text(L.t("唔再做街坊", "不再做邻居"))
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityHint("佢唔會收到解除通知")
+            .accessibilityHint(L.t("佢唔會收到解除通知", "对方不会收到解除通知"))
         }
         .dsCard()
     }
@@ -856,7 +856,7 @@ struct NeighborsTab: View {
                 .ds(.title)
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
-            Text("仲未有街坊。見到面碰一碰，就會喺呢度出現。")
+            Text(L.t("仲未有街坊。見到面碰一碰，就會喺呢度出現。", "还没有邻居。见面碰一碰，就会出现在这里。"))
                 .ds(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -962,15 +962,15 @@ private struct CancelMeetupDialog: ViewModifier {
     @Binding var target: Appointment?
 
     func body(content: Content) -> some View {
-        let name = target.flatMap { store.resident($0.partnerID)?.name } ?? "街坊"
-        content.confirmationDialog(target.map { "取消同\(name)\(store.dayTimeLabel($0.date))嘅約？" } ?? "",
+        let name = target.flatMap { store.resident($0.partnerID)?.name } ?? L.t("街坊", "邻居")
+        content.confirmationDialog(target.map { L.t("取消同\(name)\(store.dayTimeLabel($0.date))嘅約？", "取消和\(name)\(store.dayTimeLabel($0.date))的约？") } ?? "",
                                    isPresented: Binding(get: { target != nil }, set: { if !$0 { target = nil } }), titleVisibility: .visible) {
             if let a = target {
-                Button("取消約會", role: .destructive) { store.cancelMeetup(a.id); target = nil }
+                Button(L.t("取消約會", "取消约会"), role: .destructive) { store.cancelMeetup(a.id); target = nil }
             }
-            Button("唔取消", role: .cancel) { target = nil }
+            Button(L.t("唔取消", "不取消"), role: .cancel) { target = nil }
         } message: {
-            Text("會話俾\(name)知。")
+            Text(L.t("會話俾\(name)知。", "会告诉\(name)。"))
         }
     }
 }

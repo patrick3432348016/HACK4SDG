@@ -70,8 +70,8 @@ extension AppStore {
     func syncNotifications() {
         guard demoHour == nil else { notifier.sync([]); return }
         notifier.sync(NotificationPlan.items(appointments, now: Date(),
-                                             partner: { resident($0)?.name ?? "街坊" },
-                                             place: { landmark($0)?.name ?? "約好嘅地方" }))
+                                             partner: { resident($0)?.name ?? L.t("街坊", "邻居") },
+                                             place: { landmark($0)?.name ?? L.t("約好嘅地方", "约好的地方") }))
     }
 
     // MARK: - 打电话（找人超时卡片）
@@ -79,12 +79,12 @@ extension AppStore {
     func call(_ id: String) {
         guard let p = resident(id) else { return }
         guard let number = PhoneBook.number(for: id), let url = URL(string: "tel:\(number)") else {
-            toast(demoMode ? "示範街坊冇電話號碼，真機會直接打俾佢。" : "未有\(p.name)嘅電話號碼。")
+            toast(demoMode ? L.t("示範街坊冇電話號碼，真機會直接打俾佢。", "示范邻居没有电话号码，真机会直接打给他。") : L.t("未有\(p.name)嘅電話號碼。", "还没有\(p.name)的电话号码。"))
             return
         }
         // 不用 canOpenURL（要在 Info.plist 声明 tel），直接 open，打不到（模拟器、iPad）再讲。
         UIApplication.shared.open(url) { [weak self] ok in
-            if !ok { self?.toast("呢部機打唔到電話，用手機會直接打俾\(p.name)。") }
+            if !ok { self?.toast(L.t("呢部機打唔到電話，用手機會直接打俾\(p.name)。", "这台设备打不了电话，用手机会直接打给\(p.name)。")) }
         }
     }
 }

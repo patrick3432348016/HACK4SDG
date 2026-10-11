@@ -19,7 +19,7 @@ extension AppStore {
         guard let url = assistantURL, let s = supabase, let uid = s.myID else { return false }
         let api = s.api
         assistant.configure(baseURL: url, userID: uid) {
-            guard let t = try await api.accessToken() else { throw AssistantAPIError(code: "NOT_SIGNED_IN", message: "未登入。") }
+            guard let t = try await api.accessToken() else { throw AssistantAPIError(code: "NOT_SIGNED_IN", message: L.t("未登入。", "未登录。")) }
             return t
         }
         return true
@@ -66,7 +66,7 @@ extension AppStore {
         return true
     }
 
-    private func thinkingCard(heard: String, title: String = "等等，幫你睇睇⋯") -> VoiceCard {
+    private func thinkingCard(heard: String, title: String = L.t("等等，幫你睇睇⋯", "稍等，帮你看看⋯")) -> VoiceCard {
         VoiceCard(heard: heard, title: title, detail: nil, needsConfirm: false, intent: .unknown,
                   assistant: AssistantCard(kind: .thinking, title: title, spoken: "", conversationID: ""))
     }
@@ -88,7 +88,7 @@ extension AppStore {
     func assistantPlaceDetail(_ id: String, at: Date?) -> String? {
         guard let l = landmark(id) else { return nil }
         let mins = Self.walkMinutes(l.pos.distance(to: scene.homeTarget))
-        return "你行 \(Int(mins.rounded())) 分鐘；" + reason(for: l, at: at ?? now)
+        return L.t("你行 \(Int(mins.rounded())) 分鐘；", "你走 \(Int(mins.rounded())) 分钟；") + reason(for: l, at: at ?? now)
     }
 
     /// 显示服务器嘅一步（问、揀、复述、结果）。
@@ -106,7 +106,7 @@ extension AppStore {
         case .confirm:
             if let p = card.action?.placeID, landmark(p) != nil { scene.highlightLandmark(p); focus(onLandmark: p) }
             let s = card.spoken.trimmingCharacters(in: CharacterSet(charactersIn: "。？?！! "))
-            say("\(s)。啱就撳「好」。", prompt: true)
+            say(L.t("\(s)。啱就撳「好」。", "\(s)。没问题就按「好」。"), prompt: true)
         case .choosePlace:
             if let p = card.options.first?.id, landmark(p) != nil { scene.highlightLandmark(p) }
             say(card.spoken, prompt: true)
@@ -121,8 +121,8 @@ extension AppStore {
     }
 
     private func showAssistantUncertain(heard: String) {
-        let card = AssistantCard(kind: .uncertain, title: "上次嘅操作未知做咗未", detail: "撳「查結果」，唔好再做多次。",
-                                 spoken: "上次嘅操作未知做咗未，撳查結果。", conversationID: assistant.conversationID ?? "",
+        let card = AssistantCard(kind: .uncertain, title: L.t("上次嘅操作未知做咗未", "上次的操作不知道做了没有"), detail: L.t("撳「查結果」，唔好再做多次。", "按「查结果」，不要重复操作。"),
+                                 spoken: L.t("上次嘅操作未知做咗未，撳查結果。", "上次的操作不知道做了没有，按查结果。"), conversationID: assistant.conversationID ?? "",
                                  draftID: assistant.unresolvedDraftID)
         voiceCard = VoiceCard(heard: heard, title: card.title, detail: card.detail, needsConfirm: false, intent: .unknown, assistant: card)
         say(card.spoken, prompt: true)
@@ -136,7 +136,7 @@ extension AppStore {
         let gen = UUID()
         assistantGen = gen
         if kind == "place", landmark(option.id) != nil { scene.highlightLandmark(option.id) }
-        voiceCard = thinkingCard(heard: card.heard, title: "揀咗\(option.label)⋯")
+        voiceCard = thinkingCard(heard: card.heard, title: L.t("揀咗\(option.label)⋯", "选了\(option.label)⋯"))
         Task { @MainActor in
             do {
                 let reply = try await assistant.choose(kind: kind, value: option.id)
@@ -157,7 +157,7 @@ extension AppStore {
         guard let a = card.assistant, let draft = a.draftID else { voiceCard = nil; return }
         let gen = UUID()
         assistantGen = gen
-        voiceCard = thinkingCard(heard: card.heard, title: "幫緊你⋯")
+        voiceCard = thinkingCard(heard: card.heard, title: L.t("幫緊你⋯", "正在帮你⋯"))
         Task { @MainActor in
             do {
                 let reply = try await assistant.confirm(draftID: draft)
@@ -192,7 +192,7 @@ extension AppStore {
     func assistantReconcile() {
         guard let card = voiceCard else { return }
         let action = card.assistant?.action ?? pendingAssistantAction
-        voiceCard = thinkingCard(heard: card.heard, title: "查緊⋯")
+        voiceCard = thinkingCard(heard: card.heard, title: L.t("查緊⋯", "正在查⋯"))
         Task { @MainActor in
             do {
                 guard let reply = try await assistant.reconcile() else { self.voiceCard = nil; return }
@@ -203,7 +203,7 @@ extension AppStore {
                 }
             } catch {
                 self.voiceCard = card
-                self.toast("連唔到語音伺服器，遲啲再查。")
+                self.toast(L.t("連唔到語音伺服器，遲啲再查。", "连不上语音服务器，稍后再查。"))
             }
         }
     }
@@ -255,11 +255,11 @@ extension AppStore {
         if let e = error as? AssistantAPIError, ["SESSION_NOT_FOUND", "CONTACT_CHANGED", "INVALID_CHOICE", "PLACE_CHANGED"].contains(e.code) {
             voiceCard = nil
             assistant.reset()
-            toast(e.code == "CONTACT_CHANGED" ? "街坊名單有變，請再講一次。" : "資料有變，請再講一次。")
+            toast(e.code == "CONTACT_CHANGED" ? L.t("街坊名單有變，請再講一次。", "邻居名单有变，请再说一次。") : L.t("資料有變，請再講一次。", "资料有变，请再说一次。"))
             return
         }
         voiceCard = card
-        toast("連唔到語音伺服器，請再試。")
+        toast(L.t("連唔到語音伺服器，請再試。", "连不上语音服务器，请再试。"))
     }
 
     /// 连上语音服务器：上次「未知」嘅操作即刻查一次（B 嘅规则：用原来嘅 id 查，唔会再做）。
@@ -269,7 +269,7 @@ extension AppStore {
             guard let reply = try? await assistant.reconcile() else { return }
             if reply.status == .completed {
                 supabase?.scheduleRefresh([.meetups], delay: 0)
-                toast("上次嘅操作已經做好。")
+                toast(L.t("上次嘅操作已經做好。", "上次的操作已经完成。"))
             }
         }
     }
@@ -318,7 +318,7 @@ extension AppStore {
             g.addTask { try await op() }
             g.addTask {
                 try await Task.sleep(for: .seconds(seconds))
-                throw AssistantAPIError(code: "TIMEOUT", message: "語音伺服器太慢。")
+                throw AssistantAPIError(code: "TIMEOUT", message: L.t("語音伺服器太慢。", "语音服务器太慢。"))
             }
             let first = try await g.next()!
             g.cancelAll()

@@ -13,12 +13,12 @@ enum MainBottomCard: Hashable {
     /// 读屏：新卡出现时先读卡名。
     var spokenName: String {
         switch self {
-        case .voice: return "語音卡"
-        case .incomingFind: return "街坊想過嚟搵你"
-        case .remind: return "出門提醒"
-        case .proposal: return "約人卡"
-        case .findAsk: return "搵人卡"
-        case .info: return "資料卡"
+        case .voice: return L.t("語音卡", "语音卡")
+        case .incomingFind: return L.t("街坊想過嚟搵你", "邻居想过来找你")
+        case .remind: return L.t("出門提醒", "出门提醒")
+        case .proposal: return L.t("約人卡", "约人卡")
+        case .findAsk: return L.t("搵人卡", "找人卡")
+        case .info: return L.t("資料卡", "资料卡")
         }
     }
 }
@@ -77,9 +77,9 @@ fileprivate extension AppStore.Tab {
     var order: Int { Self.ordered.firstIndex(of: self) ?? 0 }
     var title: String {
         switch self {
-        case .today: return "今日"
-        case .board: return "排行榜"
-        case .neighbors: return "街坊"
+        case .today: return L.t("今日", "今天")
+        case .board: return L.t("排行榜", "排行榜")
+        case .neighbors: return L.t("街坊", "邻居")
         }
     }
     var symbol: String {
@@ -259,8 +259,8 @@ private struct MainScene: View {
         }
         return ZStack(alignment: .topLeading) {
             DioramaView(controller: store.scene, onTap: handleSceneTap)
-                .accessibilityLabel("你附近嘅立體地圖")
-                .accessibilityHint("地標喺「今日」頁嘅「附近地標」都揀得到")
+                .accessibilityLabel(L.t("你附近嘅立體地圖", "你附近的立体地图"))
+                .accessibilityHint(L.t("地標喺「今日」頁嘅「附近地標」都揀得到", "地标在「今天」页的「附近地标」也能选"))
             // 状态栏可读：顶部一层很淡的渐变（浅色白、深色黑）。
             LinearGradient(colors: [Color(.systemBackground).opacity(0.55), Color(.systemBackground).opacity(0)],
                            startPoint: .top, endPoint: .bottom)
@@ -389,8 +389,8 @@ private struct HomeChip: View {
                     .foregroundStyle(DS.accent)
                 // 大字号放不下就只出分钟数（不截断成「行緊 3…」）。
                 ViewThatFits(in: .horizontal) {
-                    Text("行緊 \(m) 分鐘")
-                    Text("\(m) 分鐘")
+                    Text(L.t("行緊 \(m) 分鐘", "已走 \(m) 分钟"))
+                    Text(L.t("\(m) 分鐘", "\(m) 分钟"))
                 }
                 .monospacedDigit()
                 .contentTransition(.numericText(value: Double(m)))
@@ -404,7 +404,7 @@ private struct HomeChip: View {
             .animation(DS.motion(DS.snappy), value: m)
             .transition(.scale(scale: 0.8, anchor: .leading).combined(with: .opacity))
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("行緊 \(m) 分鐘")
+            .accessibilityLabel(L.t("行緊 \(m) 分鐘", "已走 \(m) 分钟"))
         } else {
             // 在家时：设置（改楼、楼层、小人、提醒时段、演示模式）。
             Button { store.showSettings = true } label: {
@@ -417,7 +417,7 @@ private struct HomeChip: View {
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("設定")
+            .accessibilityLabel(L.t("設定", "设置"))
             .transition(.opacity)
         }
     }
@@ -452,9 +452,9 @@ private struct MicButton: View {
         }
         .buttonStyle(MicPressStyle())
         .animation(DS.motion(DS.snappy), value: on)
-        .accessibilityLabel("講嘢")
-        .accessibilityValue(on ? "聽緊" : "")
-        .accessibilityHint(on ? "再撳一下講完" : "撳一下開始講")
+        .accessibilityLabel(L.t("講嘢", "说话"))
+        .accessibilityValue(on ? L.t("聽緊", "在听") : "")
+        .accessibilityHint(on ? L.t("再撳一下講完", "再按一下结束") : L.t("撳一下開始講", "按一下开始说"))
     }
 }
 
@@ -694,7 +694,7 @@ private struct BottomCardSlot: View {
         }
         .accessibilityElement()
         .accessibilityLabel(card.spokenName)
-        .accessibilityHint(visible ? "用兩隻手指扒「Z」字可以收埋" : "")
+        .accessibilityHint(visible ? L.t("用兩隻手指扒「Z」字可以收埋", "用两根手指划「Z」字可以收起") : "")
         .accessibilityAddTraits(.isHeader)
         .accessibilityFocused($focus, equals: card)
     }

@@ -18,7 +18,7 @@ struct ProposalCard: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 12) {
                     if let partner { AvatarBadge(partner) }
-                    Text(p.editing == nil ? "約\(partner?.name ?? "街坊")一齊行" : "改約\(partner?.name ?? "街坊")")
+                    Text(p.editing == nil ? L.t("約\(partner?.name ?? "街坊")一齊行", "约\(partner?.name ?? "邻居")一起走") : L.t("改約\(partner?.name ?? "街坊")", "改约\(partner?.name ?? "邻居")"))
                         .ds(.body)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -49,7 +49,7 @@ struct ProposalCard: View {
                 .accessibilityElement(children: .combine)
 
                 Button { store.confirmProposal() } label: {
-                    Text(p.editing == nil ? "好" : "就咁改").frame(maxWidth: .infinity)
+                    Text(p.editing == nil ? L.t("好", "好") : L.t("就咁改", "就这样改")).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsPrimary)
 
@@ -60,7 +60,7 @@ struct ProposalCard: View {
 
                 if let id = p.editing, let a = store.appointments.first(where: { $0.id == id }) {
                     Button { cancelling = a } label: {
-                        Text("取消約會").frame(maxWidth: .infinity)
+                        Text(L.t("取消約會", "取消约会")).frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.dsSecondary)
                 }
@@ -69,7 +69,7 @@ struct ProposalCard: View {
                     taps += 1
                     store.cancelProposal()
                 } label: {
-                    Text(p.editing == nil ? "取消" : "唔改喇")
+                    Text(p.editing == nil ? L.t("取消", "取消") : L.t("唔改喇", "不改了"))
                         .ds(.button)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, minHeight: 44)
@@ -84,11 +84,11 @@ struct ProposalCard: View {
 
     @ViewBuilder private var changeButtons: some View {
         Button { store.nextProposalTime() } label: {
-            Text("換個時間").frame(maxWidth: .infinity)
+            Text(L.t("換個時間", "换个时间")).frame(maxWidth: .infinity)
         }
         .buttonStyle(.dsSecondary)
         Button { store.nextProposalPlace() } label: {
-            Text("換個地方").frame(maxWidth: .infinity)
+            Text(L.t("換個地方", "换个地方")).frame(maxWidth: .infinity)
         }
         .buttonStyle(.dsSecondary)
     }
@@ -125,7 +125,7 @@ struct InfoCard: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("收埋")
+        .accessibilityLabel(L.t("收埋", "收起"))
     }
 
     // 地标
@@ -151,7 +151,7 @@ struct InfoCard: View {
 
             if renaming {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(store.community.sharesLandmarkNames ? "揀個新名，同圈街坊都會見到" : "揀個新名（暫時只喺你部手機）")
+                    Text(store.community.sharesLandmarkNames ? L.t("揀個新名，同圈街坊都會見到", "选个新名字，同圈邻居都会看到") : L.t("揀個新名（暫時只喺你部手機）", "选个新名字（暂时只在你手机上）"))
                         .ds(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -163,7 +163,7 @@ struct InfoCard: View {
                     }
                     Button { store.micTapped() } label: {
                         Label {
-                            Text(store.listening ? "聽緊，講完再撳" : "講新名")
+                            Text(store.listening ? L.t("聽緊，講完再撳", "在听，说完再按") : L.t("講新名", "说新名字"))
                         } icon: {
                             Image(systemName: store.listening ? "waveform" : "mic.fill")
                                 .foregroundStyle(DS.accent)
@@ -176,7 +176,7 @@ struct InfoCard: View {
                         taps += 1
                         store.renaming = nil
                     } label: {
-                        Text("唔改喇")
+                        Text(L.t("唔改喇", "不改了"))
                             .ds(.button)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, minHeight: 44)
@@ -190,7 +190,7 @@ struct InfoCard: View {
                     taps += 1
                     store.renaming = lm.id
                 } label: {
-                    Label("改名", systemImage: "pencil").frame(maxWidth: .infinity)
+                    Label(L.t("改名", "改名"), systemImage: "pencil").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsPrimary)
                 .transition(.opacity)
@@ -201,7 +201,7 @@ struct InfoCard: View {
     }
 
     @ViewBuilder private func facts(_ lm: Landmark, shade: Int) -> some View {
-        CardFact(symbol: lm.hasSeat ? "chair.lounge.fill" : "chair.lounge", text: lm.hasSeat ? "有櫈" : "冇櫈")
+        CardFact(symbol: lm.hasSeat ? "chair.lounge.fill" : "chair.lounge", text: lm.hasSeat ? L.t("有櫈", "有凳子") : L.t("冇櫈", "没凳子"))
         let fact = store.shadeFact(lm.id)
         CardFact(symbol: fact.symbol, text: fact.text)
             .contentTransition(.numericText(value: Double(shade)))
@@ -243,7 +243,7 @@ struct InfoCard: View {
                         store.select(nil)
                         store.goFind(r.id)
                     } label: {
-                        Label("過去搵佢", systemImage: "figure.walk").frame(maxWidth: .infinity)
+                        Label(L.t("過去搵佢", "过去找他"), systemImage: "figure.walk").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.dsPrimary)
                 } else {
@@ -251,12 +251,12 @@ struct InfoCard: View {
                         store.select(nil)
                         store.proposeMeetup(with: r.id)
                     } label: {
-                        Label("約佢行", systemImage: "calendar").frame(maxWidth: .infinity)
+                        Label(L.t("約佢行", "约他散步"), systemImage: "calendar").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.dsPrimary)
                 }
             } else if !r.isMe {
-                Text("見到面碰一碰做咗街坊，先可以約佢。")
+                Text(L.t("見到面碰一碰做咗街坊，先可以約佢。", "见面碰一碰成了邻居，才可以约他。"))
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -268,10 +268,10 @@ struct InfoCard: View {
     private func title(for r: Resident) -> String { r.listName }
 
     private func whereText(for r: Resident) -> String {
-        if r.isMe { return store.walk != nil ? "行緊" : "喺屋企 · 已隱身" }
-        guard r.isNeighbor else { return "仲未係你街坊" }
-        if r.isOut, let place = store.placeName(r.atLandmarkID) { return "喺\(place)附近" }
-        return "冇出門消息"   // 不断言「喺屋企」
+        if r.isMe { return store.walk != nil ? L.t("行緊", "在散步") : L.t("喺屋企 · 已隱身", "在家 · 已隐身") }
+        guard r.isNeighbor else { return L.t("仲未係你街坊", "还不是你的邻居") }
+        if r.isOut, let place = store.placeName(r.atLandmarkID) { return L.t("喺\(place)附近", "在\(place)附近") }
+        return L.t("冇出門消息", "没有出门消息")   // 不断言「喺屋企」
     }
 }
 
@@ -301,13 +301,13 @@ struct RemindPrompt: View {
                                 .offset(x: 6, y: 6)
                                 .accessibilityHidden(true)
                         }
-                    Text("你同\(r.floorLabel)\(r.name)而家係街坊")
+                    Text(L.t("你同\(r.floorLabel)\(r.name)而家係街坊", "你和\(r.floorLabel)\(r.name)现在是邻居了"))
                         .ds(.bodyBold)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .accessibilityElement(children: .combine)
 
-                Text("開唔開出門提醒？開咗之後，佢出門你會知，你出門佢都會知（只講地標）。")
+                Text(L.t("開唔開出門提醒？開咗之後，佢出門你會知，你出門佢都會知（只講地標）。", "要开出门提醒吗？开了之后，他出门你会知道，你出门他也会知道（只说地标）。"))
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -316,7 +316,7 @@ struct RemindPrompt: View {
                     choice += 1
                     store.createNeighbor(id, remind: true)
                 } label: {
-                    Label("開", systemImage: "bell.fill").frame(maxWidth: .infinity)
+                    Label(L.t("開", "开"), systemImage: "bell.fill").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsPrimary)
 
@@ -324,7 +324,7 @@ struct RemindPrompt: View {
                     choice += 1
                     store.createNeighbor(id, remind: false)
                 } label: {
-                    Text("遲啲先").frame(maxWidth: .infinity)
+                    Text(L.t("遲啲先", "以后再说")).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsSecondary)
             }

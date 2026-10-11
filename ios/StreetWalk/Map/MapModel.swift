@@ -97,12 +97,12 @@ struct MapModel: Codable {
         let r = Self.dioramaSize / 2
         if let block = nearest(buildings.filter { $0.kind == .residential && $0.name != nil
             && abs($0.centroid.x - p.x) <= r && abs($0.centroid.y - p.y) <= r }) { return block }
-        return "你附近"
+        return L.t("你附近", "你附近")
     }
 
     /// 设定页"住喺"显示的楼名：示意楼叫"示意樓"，没有名的楼不显示（用地名）。
     func homeLabel(_ id: Int64) -> String? {
-        Self.placeholderPos(id) != nil ? "示意樓" : building(id: id)?.name
+        Self.placeholderPos(id) != nil ? L.t("示意樓", "示意楼") : building(id: id)?.name
     }
 
     func building(id: Int64) -> Building? { buildings.first { $0.id == id } }

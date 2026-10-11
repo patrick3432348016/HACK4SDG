@@ -62,16 +62,16 @@ extension AppStore {
     /// 计时器每 0.25 秒：按即时位置更新距离、箭咀、远 / 近；够近自动「見到喇」。
     func tickLiveFind(_ f: inout FindSession) {
         guard let lf = liveFind, f.stage != .met else { return }
-        let name = resident(f.partnerID)?.name ?? "街坊"
+        let name = resident(f.partnerID)?.name ?? L.t("街坊", "邻居")
         let now = Date()
         let token = f.token
         // 超时：最多分享一个钟；对方位置停咗 5 分钟（我喺前台嘅时间计）都当佢走咗
         if now.timeIntervalSince(lf.started) > 3600 {
-            endLiveLater(token, "同\(name)分享位置已經一個鐘，自動停咗。")
+            endLiveLater(token, L.t("同\(name)分享位置已經一個鐘，自動停咗。", "和\(name)共享位置已经一小时，自动停止了。"))
             return
         }
         if let pf = lf.partnerFix, now.timeIntervalSince(max(pf.at, lf.resumedAt)) > 300 {
-            endLiveLater(token, "收唔到\(name)嘅位置，停咗分享。")
+            endLiveLater(token, L.t("收唔到\(name)嘅位置，停咗分享。", "收不到\(name)的位置，已停止共享。"))
             return
         }
         let gps = lf.gpsDistance
@@ -102,7 +102,7 @@ extension AppStore {
         if d <= 50 && f.stage == .going && fresh {
             f.stage = .near
             Haptics.success()
-            say("\(name)喺附近，\(f.incoming ? "就快到" : "跟住箭咀行")。")
+            say(L.t("\(name)喺附近，\(f.incoming ? "就快到" : "跟住箭咀行")。", "\(name)在附近，\(f.incoming ? "快到了" : "跟着箭头走")。"))
         }
         if fresh && LiveFindMath.isMet(gps: gps, ni: ni) {
             liveMet(&f, notify: true)
@@ -123,7 +123,7 @@ extension AppStore {
         f.stage = .met
         f.etaMinutes = 0
         Haptics.success()
-        say("見到喇！")
+        say(L.t("見到喇！", "看到了！"))
         if let id = findAppointment, let i = appointments.firstIndex(where: { $0.id == id }) { appointments[i].status = .done }
         stopLiveFind(notify: notify, met: true)
         let token = f.token
@@ -142,9 +142,9 @@ extension AppStore {
                 liveMet(&f, notify: false)
                 find = f
             } else {
-                let name = resident(f.partnerID)?.name ?? "街坊"
+                let name = resident(f.partnerID)?.name ?? L.t("街坊", "邻居")
                 stopLiveFind(notify: false)
-                toast("\(name)停咗分享位置。")
+                toast(L.t("\(name)停咗分享位置。", "\(name)停止共享位置了。"))
                 endFind()
             }
         }
@@ -184,7 +184,7 @@ extension AppStore {
     /// 场景入面找人嘅两个人（即时位置）。对方未有位置就唔画佢。
     func livePeople(_ f: FindSession, partner p: Resident) -> [ScenePerson] {
         var out = [ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility,
-                               motion: .stand(at: liveScenePoint(liveFind?.myFix) ?? myPosition()), label: "你")]
+                               motion: .stand(at: liveScenePoint(liveFind?.myFix) ?? myPosition()), label: L.t("你", "你"))]
         if let pp = liveScenePoint(liveFind?.partnerFix) {
             out.append(ScenePerson(id: p.id, color: p.uiColor, mobility: p.mobility, motion: .stand(at: pp), label: p.name, highlighted: true))
         }

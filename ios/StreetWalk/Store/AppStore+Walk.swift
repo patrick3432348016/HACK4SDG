@@ -65,7 +65,7 @@ extension AppStore {
         if live { walkDetector.startSteps(from: start) }
         community.publishOuting(landmarkID: nearestLandmark(to: route[0])?.id)
         paceTip = nil
-        say("偵測到你出咗門，開始記錄，唔使撳任何掣。")
+        say(L.t("偵測到你出咗門，開始記錄，唔使撳任何掣。", "检测到你出门了，开始记录，不用按任何按钮。"))
         Haptics.light()
         scene.followID = "me"
         scene.setCamera(target: route[0], distance: scene.overviewDistance * 0.85, animated: true)
@@ -139,7 +139,7 @@ extension AppStore {
         let ahead = track.pauseAt != nil ? landmark(track.pauseSeat) : nil
         if w.minutes == 18 && paceTip == nil,
            let seat = ahead ?? landmarks.first(where: { $0.hasSeat && !w.passed.contains($0.id) }) ?? landmarks.first(where: \.hasSeat) {
-            paceTip = "行慢咗少少。前面\(seat.name)有櫈，可以唞陣。"
+            paceTip = L.t("行慢咗少少。前面\(seat.name)有櫈，可以唞陣。", "走得慢了一点。前面\(seat.name)有凳子，可以歇一会。")
             showBanner(BannerItem(symbol: "chair.lounge.fill", text: paceTip!)); say(paceTip!)
         }
         walk = w
@@ -188,10 +188,10 @@ extension AppStore {
         scene.resetCamera()
         let m = max(minutes, 1)
         switch (tooShort, reason) {
-        case (true, _): say("行得太短，今次唔記錄。而家已經隱身。")
-        case (_, .home): say("返到屋企喇。今日行咗 \(m) 分鐘，經過 \(w.passed.count) 個地方。而家已經隱身。")
-        case (_, .stopped): say("停低咗一陣，今次散步記好咗：行咗 \(m) 分鐘。而家已經隱身。")
-        case (_, .riding): say("上咗車，今次散步記好咗：行咗 \(m) 分鐘。而家已經隱身。")
+        case (true, _): say(L.t("行得太短，今次唔記錄。而家已經隱身。", "走得太短，这次不记录。现在已经隐身。"))
+        case (_, .home): say(L.t("返到屋企喇。今日行咗 \(m) 分鐘，經過 \(w.passed.count) 個地方。而家已經隱身。", "到家了。今天走了 \(m) 分钟，经过 \(w.passed.count) 个地方。现在已经隐身。"))
+        case (_, .stopped): say(L.t("停低咗一陣，今次散步記好咗：行咗 \(m) 分鐘。而家已經隱身。", "停了一会儿，这次散步已记好：走了 \(m) 分钟。现在已经隐身。"))
+        case (_, .riding): say(L.t("上咗車，今次散步記好咗：行咗 \(m) 分鐘。而家已經隱身。", "上车了，这次散步已记好：走了 \(m) 分钟。现在已经隐身。"))
         }
         Haptics.success()
         walkEnded(live: live, minutes: m, places: w.passed.count, reason: reason, recorded: !tooShort)   // AppStore+Location
@@ -270,7 +270,7 @@ extension AppStore {
         let (done, tail) = WalkBackfill.split(samples, until: to)
         var total = 0
         for s in done { total += await recordBackfill(s) }
-        if total > 0 { toast("App 喺背景嗰陣你行咗 \(total) 分鐘，已經補記低（冇地標）。") }
+        if total > 0 { toast(L.t("App 喺背景嗰陣你行咗 \(total) 分鐘，已經補記低（冇地標）。", "App 在后台时你走了 \(total) 分钟，已补记（没有地标）。")) }
         guard let tail, !d.recording else { return }
         d.pendingWalk = tail
         // 2 分钟后都未开始真机散步、而家又冇行路：按停低嘅时间补记
@@ -298,7 +298,7 @@ extension AppStore {
         guard let s = p.interval(stoppedAt: stoppedAt) else { return }
         Task {
             let m = await recordBackfill(s)
-            if m > 0 { toast("App 喺背景嗰陣你行咗 \(m) 分鐘，已經補記低（冇地標）。") }
+            if m > 0 { toast(L.t("App 喺背景嗰陣你行咗 \(m) 分鐘，已經補記低（冇地標）。", "App 在后台时你走了 \(m) 分钟，已补记（没有地标）。")) }
         }
     }
 
@@ -381,7 +381,7 @@ extension AppStore {
             if let c = cadence, paceTip == nil, track.cadence.add(c, at: Date(), walkStart: w.start) {
                 let here = myPosition()
                 let seat = landmarks.filter(\.hasSeat).min { $0.pos.distance(to: here) < $1.pos.distance(to: here) }
-                paceTip = seat.map { "行慢咗少少。附近\($0.name)有櫈，可以唞陣。" } ?? "行慢咗少少，搵個地方唞陣先。"
+                paceTip = seat.map { L.t("行慢咗少少。附近\($0.name)有櫈，可以唞陣。", "走得慢了一点。附近\($0.name)有凳子，可以歇一会。") } ?? L.t("行慢咗少少，搵個地方唞陣先。", "走得慢了一点，先找个地方歇一会。")
                 showBanner(BannerItem(symbol: "chair.lounge.fill", text: paceTip!)); say(paceTip!)
             }
         }
@@ -424,7 +424,7 @@ extension AppStore {
         leaveDays.formUnion(added)
         uploadLeave(added, on: true)
         refreshMe()
-        say("收到，\(leaveTitle(r))。連續 \(me.streakDays) 日會保留。")
+        say(L.t("收到，\(leaveTitle(r))。連續 \(me.streakDays) 日會保留。", "收到，\(leaveTitle(r))。连续 \(me.streakDays) 天会保留。"))
         Haptics.light()
     }
 
@@ -462,19 +462,19 @@ extension AppStore {
 
     /// 「今日請假」「聽日請假」「由今日起請 3 日假（到 10 月 10 號）」。
     func leaveTitle(_ r: LeaveRequest) -> String {
-        let from = r.startOffset < 4 ? ["今日", "聽日", "後日", "大後日"][r.startOffset] : dateLabel(now.addingTimeInterval(Double(r.startOffset) * 86400))
-        guard r.days > 1 else { return "\(from)請假" }
-        return "由\(from)起請 \(r.days) 日假（到 \(dateLabel(now.addingTimeInterval(Double(r.startOffset + r.days - 1) * 86400)))）"
+        let from = r.startOffset < 4 ? (L.isCmn ? ["今天", "明天", "后天", "大后天"] : ["今日", "聽日", "後日", "大後日"])[r.startOffset] : dateLabel(now.addingTimeInterval(Double(r.startOffset) * 86400))
+        guard r.days > 1 else { return L.t("\(from)請假", "\(from)请假") }
+        return L.t("由\(from)起請 \(r.days) 日假（到 \(dateLabel(now.addingTimeInterval(Double(r.startOffset + r.days - 1) * 86400)))）", "从\(from)起请 \(r.days) 天假（到 \(dateLabel(now.addingTimeInterval(Double(r.startOffset + r.days - 1) * 86400)))）")
     }
 
     /// 请假选单上嘅字。
     func leaveMenuLabel(_ r: LeaveRequest) -> String {
-        r.days == 1 ? leaveTitle(r) : "由今日起 \(r.days) 日（到 \(dateLabel(now.addingTimeInterval(Double(r.startOffset + r.days - 1) * 86400)))）"
+        r.days == 1 ? leaveTitle(r) : L.t("由今日起 \(r.days) 日（到 \(dateLabel(now.addingTimeInterval(Double(r.startOffset + r.days - 1) * 86400)))）", "从今天起 \(r.days) 天（到 \(dateLabel(now.addingTimeInterval(Double(r.startOffset + r.days - 1) * 86400)))）")
     }
 
     func dateLabel(_ d: Date) -> String {
         let c = Self.hk.dateComponents([.month, .day], from: d)
-        return "\(c.month ?? 0) 月 \(c.day ?? 0) 號"
+        return L.t("\(c.month ?? 0) 月 \(c.day ?? 0) 號", "\(c.month ?? 0) 月 \(c.day ?? 0) 日")
     }
 
     /// 今日或之后请咗嘅连续一段（用日数，唔好用 Date 比较：now 每次都係新嘅 Date()）。
@@ -492,10 +492,10 @@ extension AppStore {
         guard let u = upcomingLeave else { return nil }
         let last = dateLabel(now.addingTimeInterval(Double(u.startOffset + u.days - 1) * 86400))
         switch (u.startOffset, u.days) {
-        case (0, 1): return "今日已請假，連續日數保留"
-        case (0, _): return "已請假到 \(last)，連續日數保留"
-        case (1, 1): return "聽日請咗假"
-        default: return "\(dateLabel(now.addingTimeInterval(Double(u.startOffset) * 86400)))起請咗假"
+        case (0, 1): return L.t("今日已請假，連續日數保留", "今天已请假，连续天数保留")
+        case (0, _): return L.t("已請假到 \(last)，連續日數保留", "已请假到 \(last)，连续天数保留")
+        case (1, 1): return L.t("聽日請咗假", "明天请了假")
+        default: return L.t("\(dateLabel(now.addingTimeInterval(Double(u.startOffset) * 86400)))起請咗假", "\(dateLabel(now.addingTimeInterval(Double(u.startOffset) * 86400)))起请了假")
         }
     }
 
@@ -503,15 +503,15 @@ extension AppStore {
     func toggleLeave() {
         guard leaveDays.contains(LocalStore.dayKey(now)) else { requestLeave(); return }
         cancelLeave(days: 1, startOffset: 0)
-        say("撤回咗今日嘅請假。")
+        say(L.t("撤回咗今日嘅請假。", "已撤回今天的请假。"))
         Haptics.light()
     }
 
     /// 请假选单入面嘅「撤回」（今日未请、之后有假时）：例如「撤回聽日嘅假」「撤回 10 月 12 號起嘅假」。
     var withdrawLeaveLabel: String? {
         guard let u = upcomingLeave, u.startOffset > 0 else { return nil }
-        let from = u.startOffset == 1 ? "聽日" : dateLabel(now.addingTimeInterval(Double(u.startOffset) * 86400))
-        return u.days == 1 ? "撤回\(from)嘅假" : "撤回\(from)起嘅 \(u.days) 日假"
+        let from = u.startOffset == 1 ? L.t("聽日", "明天") : dateLabel(now.addingTimeInterval(Double(u.startOffset) * 86400))
+        return u.days == 1 ? L.t("撤回\(from)嘅假", "撤回\(from)的假") : L.t("撤回\(from)起嘅 \(u.days) 日假", "撤回\(from)起的 \(u.days) 天假")
     }
 
     /// 请假选单嘅选项：已经全部请咗嘅唔再列。
@@ -526,7 +526,7 @@ extension AppStore {
         leaveDays.subtract(removed)
         uploadLeave(removed, on: false)
         refreshMe()
-        say("撤回咗請假。")
+        say(L.t("撤回咗請假。", "已撤回请假。"))
         Haptics.light()
     }
 }

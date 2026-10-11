@@ -9,19 +9,12 @@ struct VoiceSettingsSection: View {
     var body: some View {
         @Bindable var v = VoiceSettings.shared
         Section {
-            Toggle(isOn: $v.enabled) { Text("語音播報") }
+            Toggle(isOn: $v.enabled) { Text(L.t("語音播報", "语音播报")) }
                 .tint(DS.accent)
                 .frame(minHeight: 52)
+            // 播报语言跟设定页顶「語言」（AppLanguage.choose），呢度唔再分开揀。
             VStack(alignment: .leading, spacing: 12) {
-                Text("播報語言")
-                BigSegments(options: SpokenLanguage.pickable, selection: Binding(get: { v.language }, set: { l in
-                    v.language = l
-                    store.previewVoice(v.active)
-                }), label: \.label)
-            }
-            .padding(.vertical, 8)
-            VStack(alignment: .leading, spacing: 12) {
-                Text("語速")
+                Text(L.t("語速", "语速"))
                 BigSegments(options: SpeechPace.allCases, selection: Binding(get: { v.pace }, set: { p in
                     v.pace = p
                     store.previewVoice(v.active)
@@ -29,9 +22,9 @@ struct VoiceSettingsSection: View {
             }
             .padding(.vertical, 8)
         } header: {
-            Text("聲音").ds(.caption)
+            Text(L.t("聲音", "声音")).ds(.caption)
         } footer: {
-            Text(v.enabled ? "有新消息會讀出嚟。" : "閂咗：唔會自動讀出嚟，字照樣喺畫面顯示；撳「再聽一次」仍然會讀。")
+            Text(v.enabled ? L.t("有新消息會讀出嚟。", "有新消息会读出来。") : L.t("閂咗：唔會自動讀出嚟，字照樣喺畫面顯示；撳「再聽一次」仍然會讀。", "关闭后：不会自动读出来，文字照样在画面显示；点「再听一次」仍然会读。"))
                 .ds(.caption)
         }
         .id("voice")
@@ -40,13 +33,13 @@ struct VoiceSettingsSection: View {
 
         Section {
             if v.voices.isEmpty {
-                Text(v.scanned ? "部手機未有\(v.language.label)聲音。" : "搵緊手機入面嘅聲音⋯").foregroundStyle(.secondary)
+                Text(v.scanned ? L.t("部手機未有\(v.language.label)聲音。", "手机里还没有\(v.language.label)声音。") : L.t("搵緊手機入面嘅聲音⋯", "正在找手机里的声音⋯")).foregroundStyle(.secondary)
             }
             ForEach(v.voices) { voice in
                 VoiceRow(voice: voice, on: v.active?.id == voice.id)
             }
         } header: {
-            Text("揀把聲（\(v.language.label)）").ds(.caption)
+            Text(L.t("揀把聲（\(v.language.label)）", "选声音（\(v.language.label)）")).ds(.caption)
         } footer: {
             Text(voiceFooter(v)).ds(.caption)
         }
@@ -64,8 +57,7 @@ struct VoiceSettingsSection: View {
     }
 
     private func voiceFooter(_ v: VoiceSettings) -> String {
-        var s = v.isAuto ? "自動用咗最自然嗰把。撳個名就轉用嗰把。" : "撳個名就轉用嗰把。"
-        if v.language == .mandarin { s += "提示文字暫時仲係廣東話，普通話版整緊；試聽句子係普通話。" }
+        let s = v.isAuto ? L.t("自動用咗最自然嗰把。撳個名就轉用嗰把。", "已自动用最自然的那个。点名字就换成那个。") : L.t("撳個名就轉用嗰把。", "点名字就换成那个。")
         return s
     }
 }
@@ -101,21 +93,21 @@ private struct VoiceRow: View {
             .buttonStyle(.plain)
             .accessibilityLabel("\(voice.displayName)，\(voice.subtitle)")
             .accessibilityAddTraits(on ? .isSelected : [])
-            .accessibilityHint("撳兩下轉用呢把聲")
+            .accessibilityHint(L.t("撳兩下轉用呢把聲", "点两下换成这个声音"))
 
             Button { store.previewVoice(voice) } label: {
-                Label("試聽", systemImage: "play.fill").labelStyle(.titleAndIcon).fixedSize()
+                Label(L.t("試聽", "试听"), systemImage: "play.fill").labelStyle(.titleAndIcon).fixedSize()
             }
             .buttonStyle(.dsSecondary)
-            .accessibilityLabel("試聽\(voice.displayName)")
+            .accessibilityLabel(L.t("試聽\(voice.displayName)", "试听\(voice.displayName)"))
         }
         .padding(.vertical, 4)
     }
 
     private var subtitle: Text {
         let g: String? = switch voice.gender {
-        case .female: "女聲 · "
-        case .male: "男聲 · "
+        case .female: L.t("女聲 · ", "女声 · ")
+        case .male: L.t("男聲 · ", "男声 · ")
         case .unknown: nil
         }
         return Text(g ?? "").foregroundStyle(.secondary)
@@ -130,30 +122,30 @@ struct VoiceDownloadGuide: View {
 
     /// iOS 26 叫「閲讀與朗讀」，iOS 18 叫「語音內容」（Apple 香港支援页面同 iOS 26.5 系统字串核对过）。
     static var menuName: String {
-        if #available(iOS 26, *) { return "閲讀與朗讀" }
-        return "語音內容"
+        if #available(iOS 26, *) { return L.t("閲讀與朗讀", "阅读与朗读") }
+        return L.t("語音內容", "朗读内容")
     }
 
     var steps: [String] {
         let (region, names) = switch language {
-        case .cantonese: ("中文（香港）", "「Wing」或者「善怡」")
-        case .mandarin: ("中文（中國大陸）", "「月」或者「黎瀲」")
-        case .english: ("英文（美國）", "「Ava」")
+        case .cantonese: ("中文（香港）", L.t("「Wing」或者「善怡」", "「Wing」或「善怡」"))
+        case .mandarin: (L.t("中文（中國大陸）", "中文（中国大陆）"), L.t("「月」或者「黎瀲」", "「月」或「黎潋」"))
+        case .english: (L.t("英文（美國）", "英文（美国）"), "「Ava」")
         }
         let group = language == .english ? "英文" : "中文"
         return [
-            "撳下面「打開 iPhone 設定」。如果見到「街坊行」嗰頁，撳左上角「‹」返去，直到見到「設定」兩個大字。",
-            "撳「輔助使用」。",
-            "撳「\(Self.menuName)」。",
-            "撳「聲音」。",
-            "撳「\(group)」，再撳「\(region)」。",
-            "揀\(names)：要名後面寫住「優質」嗰個（冇就揀「已強化」）。撳旁邊個雲朵掣下載，等佢下載完。",
-            "返嚟街坊行，會自動轉用新聲音。",
+            L.t("撳下面「打開 iPhone 設定」。如果見到「街坊行」嗰頁，撳左上角「‹」返去，直到見到「設定」兩個大字。", "点下面「打开 iPhone 设置」。如果看到「街坊行」那页，点左上角「‹」返回，直到看到「设置」两个大字。"),
+            L.t("撳「輔助使用」。", "点「辅助功能」。"),
+            L.t("撳「\(Self.menuName)」。", "点「\(Self.menuName)」。"),
+            L.t("撳「聲音」。", "点「声音」。"),
+            L.t("撳「\(group)」，再撳「\(region)」。", "点「\(group)」，再点「\(region)」。"),
+            L.t("揀\(names)：要名後面寫住「優質」嗰個（冇就揀「已強化」）。撳旁邊個雲朵掣下載，等佢下載完。", "选\(names)：要名字后面写着「高音质」的那个（没有就选「增强音质」）。点旁边的云朵按钮下载，等它下载完。"),
+            L.t("返嚟街坊行，會自動轉用新聲音。", "回到街坊行，会自动换成新声音。"),
         ]
     }
 
     var spoken: String {
-        "想把聲自然啲，可以喺 iPhone 設定免費下載。" + steps.enumerated().map { "第\($0.offset + 1)步，\($0.element)" }.joined()
+        L.t("想把聲自然啲，可以喺 iPhone 設定免費下載。", "想让声音更自然，可以在 iPhone 设置里免费下载。") + steps.enumerated().map { "第\($0.offset + 1)步，\($0.element)" }.joined()
     }
 
     var body: some View {
@@ -165,9 +157,9 @@ struct VoiceDownloadGuide: View {
                     .frame(width: 48, height: 48)
                     .background(DS.accentSoft, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .accessibilityHidden(true)
-                Text("想把聲自然啲？").ds(.title).accessibilityAddTraits(.isHeader)
+                Text(L.t("想把聲自然啲？", "想让声音更自然？")).ds(.title).accessibilityAddTraits(.isHeader)
             }
-            Text("iPhone 有免費、更自然嘅聲音，要你自己下載一次（大約 50 MB，最好用 Wi-Fi）。")
+            Text(L.t("iPhone 有免費、更自然嘅聲音，要你自己下載一次（大約 50 MB，最好用 Wi-Fi）。", "iPhone 有免费、更自然的声音，需要你自己下载一次（大约 50 MB，最好用 Wi-Fi）。"))
                 .ds(.body)
                 .fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: 12) {
@@ -188,11 +180,11 @@ struct VoiceDownloadGuide: View {
                 guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
                 UIApplication.shared.open(url)
             } label: {
-                Text("打開 iPhone 設定").frame(maxWidth: .infinity)
+                Text(L.t("打開 iPhone 設定", "打开 iPhone 设置")).frame(maxWidth: .infinity)
             }
             .buttonStyle(.dsPrimary)
             Button { store.sayAgain(spoken) } label: {
-                Label("讀出步驟", systemImage: "speaker.wave.2.fill").frame(maxWidth: .infinity)
+                Label(L.t("讀出步驟", "读出步骤"), systemImage: "speaker.wave.2.fill").frame(maxWidth: .infinity)
             }
             .buttonStyle(.dsSecondary)
         }
@@ -214,13 +206,13 @@ private struct UpgradeDone: View {
                     .frame(width: 48, height: 48)
                     .background(Color.green, in: Circle())
                     .accessibilityHidden(true)
-                Text("裝好咗！").ds(.title).accessibilityAddTraits(.isHeader)
+                Text(L.t("裝好咗！", "装好了！")).ds(.title).accessibilityAddTraits(.isHeader)
             }
-            Text("而家用緊「\(voice.displayName)」（\(voice.subtitle)）同你講嘢。")
+            Text(L.t("而家用緊「\(voice.displayName)」（\(voice.subtitle)）同你講嘢。", "现在用「\(voice.displayName)」（\(voice.subtitle)）和你说话。"))
                 .ds(.body)
                 .fixedSize(horizontal: false, vertical: true)
             Button { store.previewVoice(voice) } label: {
-                Label("試聽", systemImage: "play.fill").frame(maxWidth: .infinity)
+                Label(L.t("試聽", "试听"), systemImage: "play.fill").frame(maxWidth: .infinity)
             }
             .buttonStyle(.dsSecondary)
         }
@@ -287,7 +279,7 @@ extension AppStore {
 
     /// 由 iPhone 设定下载完返嚟：已经自动转用，讲一声（用新把声讲）。
     func voiceUpgraded(_ v: VoiceInfo) {
-        toast("裝好咗新聲音。而家用「\(v.displayName)」同你講嘢。")
+        toast(L.t("裝好咗新聲音。而家用「\(v.displayName)」同你講嘢。", "装好了新声音。现在用「\(v.displayName)」和你说话。"))
     }
 
     /// 试听：清走排紧嘅播报，即刻用呢把声讲试听句子。聆听中唔讲。读屏开着就等佢读完个掣先讲。
@@ -318,7 +310,7 @@ private struct VoiceServerSection: View {
         let server = VoiceServer.shared
         Section {
             HStack(spacing: 12) {
-                Text("語音伺服器")
+                Text(L.t("語音伺服器", "语音服务器"))
                 Spacer(minLength: 0)
                 Label(server.status.label, systemImage: server.status.isConnected ? "checkmark.circle.fill" : "wifi.slash")
                     .foregroundStyle(server.status.isConnected ? DS.accentInk : Color.secondary)
@@ -328,7 +320,7 @@ private struct VoiceServerSection: View {
             if let u = server.status.url {
                 Text(u.host() ?? u.absoluteString).ds(.caption).foregroundStyle(.secondary)
             }
-            TextField("自動搵（或者填地址）", text: $draft)
+            TextField(L.t("自動搵（或者填地址）", "自动找（或者填地址）"), text: $draft)
                 .keyboardType(.URL)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -337,21 +329,21 @@ private struct VoiceServerSection: View {
                 .onSubmit { server.manualURL = draft }
                 .frame(minHeight: 52)
             if editing || draft != server.manualURL {
-                Button("用呢個地址") { server.manualURL = draft; editing = false }
+                Button(L.t("用呢個地址", "用这个地址")) { server.manualURL = draft; editing = false }
                     .buttonStyle(.dsSecondary)
             }
             if server.speechURL != nil {
-                Button { store.sayAgain("你好，我係街坊行嘅廣東話聲，由你部 Mac 讀出嚟。") } label: {
-                    Label("試聽真人聲", systemImage: "play.fill")
+                Button { store.sayAgain(L.t("你好，我係街坊行嘅廣東話聲，由你部 Mac 讀出嚟。", "你好，我是街坊行的粤语声音，由你的 Mac 读出来。")) } label: {
+                    Label(L.t("試聽真人聲", "试听真人声"), systemImage: "play.fill")
                 }
                 .buttonStyle(.dsSecondary)
             }
         } header: {
-            Text("真人聲（Mac）").ds(.caption)
+            Text(L.t("真人聲（Mac）", "真人声（Mac）")).ds(.caption)
         } footer: {
             Text(server.status.isConnected
-                 ? "粵語提示用 Mac 上嘅真人聲讀；Mac 閂咗會自動轉返手機聲音。"
-                 : "Mac 開咗語音伺服器、同一個 Wi-Fi 就會自動搵到；搵唔到可以填 Mac 顯示嘅地址。冇都照用手機聲音。")
+                 ? L.t("粵語提示用 Mac 上嘅真人聲讀；Mac 閂咗會自動轉返手機聲音。", "粤语提示用 Mac 上的真人声读；Mac 关了会自动换回手机声音。")
+                 : L.t("Mac 開咗語音伺服器、同一個 Wi-Fi 就會自動搵到；搵唔到可以填 Mac 顯示嘅地址。冇都照用手機聲音。", "Mac 开了语音服务器、连同一个 Wi-Fi 就会自动找到；找不到可以填 Mac 显示的地址。没有也照用手机声音。"))
                 .ds(.caption)
         }
         .id("voiceServer")

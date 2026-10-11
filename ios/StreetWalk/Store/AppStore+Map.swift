@@ -38,15 +38,15 @@ extension AppStore {
         mapSource = source
         if case .onboarding = phase {
             let me = loc.flatMap { TileKey.snap($0) == m.tile ? LocalProjection(origin: m.center).toLocal($0) : nil }
-            let notice: String? = loc == nil ? "攞唔到你嘅位置，而家用緊示例屋邨（\(m.placeName)）。"
-                : source == .fallback ? "攞唔到地圖資料，而家用緊示例屋邨（\(m.placeName)）。" : nil
+            let notice: String? = loc == nil ? L.t("攞唔到你嘅位置，而家用緊示例屋邨（\(m.placeName)）。", "获取不到你的位置，现在使用示例小区（\(m.placeName)）。")
+                : source == .fallback ? L.t("攞唔到地圖資料，而家用緊示例屋邨（\(m.placeName)）。", "获取不到地图数据，现在使用示例小区（\(m.placeName)）。") : nil
             showPickHome(near: me, notice: notice, animated: animated)
         } else {
             var homeID = home.flatMap { id in m.building(id: id) != nil ? id : nil }
             if homeID == nil {
                 if let t = homeTile, m.tile != t {
                     // 拉不到我屋企那格（离线又没缓存）：显示示例屋邨，但不把示例的楼当成你屋企。
-                    noticeMap("暫時攞唔到你屋企附近嘅地圖，而家顯示緊示例屋邨。", delay: 1)
+                    noticeMap(L.t("暫時攞唔到你屋企附近嘅地圖，而家顯示緊示例屋邨。", "暂时获取不到你家附近的地图，现在显示示例小区。"), delay: 1)
                 } else {
                     homeID = defaultHome(in: m)
                 }
@@ -65,13 +65,13 @@ extension AppStore {
         if let me, v.hasHomeCandidate {
             // 画面不是以我为中心（附近没有可选的楼）：讲清楚，免得以为橙色那几座就是我附近。
             let p = v.scenePoint(LocalProjection(origin: full.center).toGeo(me))
-            if max(abs(p.x), abs(p.y)) > v.half { notice = notice ?? "你附近未有住宅樓資料，而家顯示緊離你最近嘅住宅樓。" }
+            if max(abs(p.x), abs(p.y)) > v.half { notice = notice ?? L.t("你附近未有住宅樓資料，而家顯示緊離你最近嘅住宅樓。", "你附近还没有住宅楼数据，现在显示离你最近的住宅楼。") }
         }
         if !v.hasHomeCandidate {
             full = full.addingPlaceholderHome(at: me ?? .zero).map
             fullMap = full
             v = full.pickView(near: me)
-            notice = "附近未有樓宇資料，喺你位置放咗一座示意樓，撳佢就得。"
+            notice = L.t("附近未有樓宇資料，喺你位置放咗一座示意樓，撳佢就得。", "附近还没有楼宇数据，在你的位置放了一座示意楼，点它就行。")
         }
         install(v, home: nil, animated: animated)
         // 全屏看整个底座（主界面的总览按上半屏调的，这里另算；数值按 300 m 调，再按边长缩放）。
@@ -91,7 +91,7 @@ extension AppStore {
         fullMap = MapService.fallback()
         mapSource = .fallback
         pendingHome = nil
-        showPickHome(near: nil, notice: "而家用緊示例屋邨（\(fullMap?.placeName ?? "皇后山邨")）。", animated: true)
+        showPickHome(near: nil, notice: L.t("而家用緊示例屋邨（\(fullMap?.placeName ?? "皇后山邨")）。", "现在使用示例小区（\(fullMap?.placeName ?? "皇后山邨")）。"), animated: true)
     }
 
     /// 地图有状况（示例屋邨、示意楼）：mapNotice 留给画面显示，再用提示说一次（字 + 声）。
@@ -136,7 +136,7 @@ extension AppStore {
     }
 
     func pickHome(_ id: Int64) {
-        guard let b = map?.building(id: id), b.kind == .residential else { toast("請揀一座亮咗橙色嘅樓"); return }
+        guard let b = map?.building(id: id), b.kind == .residential else { toast(L.t("請揀一座亮咗橙色嘅樓", "请选一座亮橙色的楼")); return }
         pendingHome = id
         scene.highlightBuildings([id], color: nil)
         scene.setCamera(target: b.centroid, distance: 1.2, animated: true)
@@ -169,7 +169,7 @@ extension AppStore {
         populate()
         uploadProfile()     // populate 之后：座数跟新屋企
         scene.resetCamera()
-        say("搞掂。你行街嘅時候我會自動記錄，唔使撳任何掣。")
+        say(L.t("搞掂。你行街嘅時候我會自動記錄，唔使撳任何掣。", "搞定。你散步的时候我会自动记录，不用按任何按钮。"))
         startWalkDetection()   // 同意之后先问动作 / 定位权限
         locationOnboarded()    // 屋企范围、「始终允许」解释页（AppStore+Location）
     }
@@ -272,7 +272,7 @@ extension AppStore {
             people.append(ScenePerson(id: n.id, color: n.uiColor, mobility: n.mobility, motion: .wander(around: lm.pos), label: n.name))
         }
         scene.setPeople(people.map(withLook))
-        scene.homeLabel = (walk == nil && find == nil) ? "你屋企 · 已隱身" : nil
+        scene.homeLabel = (walk == nil && find == nil) ? L.t("你屋企 · 已隱身", "你家 · 已隐身") : nil
         scene.reportMarks = reports.map { (id: $0.id.uuidString, pos: $0.pos, text: $0.kind.rawValue) }
     }
 
@@ -306,10 +306,10 @@ extension AppStore {
 
     /// 地标信息卡的遮荫一句（图标 + 文字）。日落后说"太陽落咗山"。
     func shadeFact(_ landmarkID: String) -> (symbol: String, text: String) {
-        guard shade != nil else { return ("sun.max.fill", "而家大約 0% 有樓遮") }
-        guard let v = shadeValue(landmarkID, at: now) else { return ("moon.stars.fill", "太陽落咗山，冇得曬") }
+        guard shade != nil else { return ("sun.max.fill", L.t("而家大約 0% 有樓遮", "现在大约 0% 有楼遮挡")) }
+        guard let v = shadeValue(landmarkID, at: now) else { return ("moon.stars.fill", L.t("太陽落咗山，冇得曬", "太阳下山了，晒不到")) }
         let pct = Int((v * 100).rounded())
-        return (pct >= 50 ? "building.2.fill" : "sun.max.fill", "而家大約 \(pct)% 有樓遮")
+        return (pct >= 50 ? "building.2.fill" : "sun.max.fill", L.t("而家大約 \(pct)% 有樓遮", "现在大约 \(pct)% 有楼遮挡"))
     }
 
     /// 约人理由：模板按遮荫写"嗰陣有樓遮住"，但日落后遮荫按 100% 计，要改成"嗰陣已經日落"。
@@ -317,6 +317,7 @@ extension AppStore {
         guard let shade, !shade.isSunUp(at: p.date) else { return p }
         var p = p
         p.reason = p.reason.replacingOccurrences(of: "嗰陣有樓遮住", with: "嗰陣已經日落")
+            .replacingOccurrences(of: "那时有楼挡着", with: "那时已经日落")
         return p
     }
 }
