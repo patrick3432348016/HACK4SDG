@@ -27,6 +27,7 @@ extension AppStore {
         instance = s
         s.attachLocation()
         s.attachVoice()     // 装咗更好嘅系统声音就讲一声（Voice/VoiceSettingsSection）
+        s.startLiveIsland()     // 灵动岛 / 锁屏实时活动（AppStore+Island）：背景开 App 都要接手
         return s
     }
 

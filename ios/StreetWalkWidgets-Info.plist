@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 小组件扩展（灵动岛 / 锁屏实时活动）：同自动生成的 Info.plist 合并，只放扩展类型。
+     放喺 StreetWalkWidgets/ 文件夹外面：文件夹同步会把里面的 plist 当资源复制，同生成的 Info.plist 撞名。 -->
+<plist version="1.0">
+<dict>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.widgetkit-extension</string>
+	</dict>
+</dict>
+</plist>
