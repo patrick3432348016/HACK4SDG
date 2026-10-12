@@ -10,11 +10,11 @@ extension AppStore {
         // 真机（2026-10-10）：对方唔使喺圈入面，照碰；过程同二维码后备见 AppStore+Bump。
         if community.isSimulated {
             guard residents.contains(where: { !$0.isMe }) else {
-                toast(L.t("圈入面暫時只有你。", "圈里暂时只有你。"))
+                toast(L.t("附近暫時只有你。", "附近暂时只有你。"))
                 return
             }
             guard residents.contains(where: { !$0.isMe && !$0.isNeighbor }) else {
-                toast(L.t("圈入面嘅人都已經係你街坊。", "圈里的人都已经是你的邻居了。"))
+                toast(L.t("附近嘅人都已經係你街坊。", "附近的人都已经是你的邻居了。"))
                 return
             }
         }

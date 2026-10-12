@@ -5,14 +5,18 @@ extension AppStore {
     // MARK: - 提议
 
     /// announce：撳掣约人时讲出 AI 揀嘅时间、地点、理由（§4 语音 + 图像）；语音约人由复述卡自己讲。
-    func proposeMeetup(with partnerID: String, day: Int? = nil, hour: Int? = nil, announce: Bool = true) {
+    /// landmarkID：喺地标卡撳「約街坊喺度」——地点定咗，只揀时间。
+    func proposeMeetup(with partnerID: String, day: Int? = nil, hour: Int? = nil, landmarkID: String? = nil, announce: Bool = true) {
         guard let p = resident(partnerID), let shade else { return }
         renaming = nil   // 约人卡盖住改名卡：之后讲嘢唔再当新名
         // 唔讲楼层：免得名同楼层对得上（A03）。
         guard p.isNeighbor else { toast(L.t("佢仲未係你街坊。見到面碰一碰，先可以約。", "他还不是你的邻居。见面碰一碰，才可以约。")); return }
         var options: [MeetProposal] = []
         for (d, h) in candidateTimes(day: day, hour: hour) {
-            if let prop = ai.pickMeetupSpot(me: me, partner: p, date: Self.today(at: Double(h), dayOffset: d), landmarks: landmarks, shade: shade).map(honestReason) {
+            let date = Self.today(at: Double(h), dayOffset: d)
+            if let id = landmarkID, let lm = landmark(id) {
+                options.append(MeetProposal(date: date, landmarkID: lm.id, reason: reason(for: lm, at: date)))
+            } else if let prop = ai.pickMeetupSpot(me: me, partner: p, date: date, landmarks: landmarks, shade: shade).map(honestReason) {
                 options.append(prop)
             }
         }
@@ -27,21 +31,29 @@ extension AppStore {
     }
 
     /// 候选时间：讲咗就用讲嘅；冇讲就由而家之后嘅朝早 / 下晝 / 傍晚揀。
+    /// 我哋自己提嘅时间避开日落后（长者夜晚行唔安全，UX 评审 34）；用户自己讲咗钟点就照用佢讲嗰个。
     func candidateTimes(day: Int?, hour: Int?) -> [(Int, Int)] {
         let nowH = Self.hk.component(.hour, from: now)
         // 今日已经过咗嘅钟点唔提：讲咗"今日三點"而家已经四点，就改去聽日同一个钟。
         if var day, let hour {
             if day == 0 && hour <= nowH { day = 1 }
-            return [(day, hour), (day, min(hour + 1, 21)), (day + 1, 8)]
+            return [(day, hour)] + daylight([(day, min(hour + 1, 21)), (day + 1, 8)], fallback: [(day + 1, 8)])
         }
         if let day {
             let hours = [8, 16, 18].filter { day > 0 || $0 > nowH + 1 }
-            return hours.isEmpty ? [(day + 1, 8), (day + 1, 16)] : hours.map { (day, $0) }
+            return daylight(hours.isEmpty ? [(day + 1, 8), (day + 1, 16)] : hours.map { (day, $0) }, fallback: [(day + 1, 8), (day + 1, 16)])
         }
         var c: [(Int, Int)] = []
         for h in [8, 16, 17, 18] where h > nowH + 1 { c.append((0, h)) }
         c += [(1, 8), (1, 17)]
-        return c
+        return daylight(c, fallback: [(1, 8), (1, 16)])
+    }
+
+    /// 只留太阳仲喺天上嘅钟点（未有遮荫资料就照留）；全部都日落咗就用 fallback。
+    private func daylight(_ c: [(Int, Int)], fallback: [(Int, Int)]) -> [(Int, Int)] {
+        guard let shade else { return c }
+        let lit = c.filter { shade.isSunUp(at: Self.today(at: Double($0.1), dayOffset: $0.0)) }
+        return lit.isEmpty ? fallback : lit
     }
 
     func nextProposalTime() {
@@ -63,7 +75,12 @@ extension AppStore {
         guard ranked.count > 1 else { toast(L.t("附近只有一個地標，換唔到第二個。", "附近只有一个地标，换不了别的。")); return }
         guard let i = ranked.firstIndex(where: { $0.id == cur.landmarkID }) ?? ranked.indices.first else { return }
         let next = ranked[(i + 1) % ranked.count]
-        p.options[p.index] = MeetProposal(date: cur.date, landmarkID: next.id, reason: reason(for: next, at: cur.date))
+        if p.editing != nil {
+            // 改约：时间同地点分开揀，换地点就全部时间一齐换（再揀第二个时间都系新地点）。
+            p.options = p.options.map { MeetProposal(date: $0.date, landmarkID: next.id, reason: reason(for: next, at: $0.date)) }
+        } else {
+            p.options[p.index] = MeetProposal(date: cur.date, landmarkID: next.id, reason: reason(for: next, at: cur.date))
+        }
         proposal = p
         scene.highlightLandmark(next.id)
         focus(onLandmark: next.id)
@@ -122,19 +139,37 @@ extension AppStore {
 
     // MARK: - 改约、取消
 
-    /// 打开一个已有约会来改：当前时间地点排第一，其余是候选时间。
-    func startEditing(_ id: UUID) {
-        guard let a = appointments.first(where: { $0.id == id }), let p = resident(a.partnerID), let shade else { return }
+    /// 打开一个已有约会来改：一打开就揀好第一个唔同嘅时间（UX 评审 12），地点照旧（可以再「換個地方」）。
+    /// 选项：今日下晝 / 聽日朝早 / 聽日下晝（过咗嘅、日落后嘅、同原来差唔到半个钟嘅唔要）。
+    /// keepCurrent：最尾加返「原本時間」，方便只改地点（回覆别人嘅邀请「換個時間」就唔加）。
+    func startEditing(_ id: UUID, keepCurrent: Bool = true) {
+        guard let a = appointments.first(where: { $0.id == id }), resident(a.partnerID) != nil else { return }
         renaming = nil
-        var options = [MeetProposal(date: a.date, landmarkID: a.landmarkID, reason: a.reason)]
-        for (d, h) in candidateTimes(day: nil, hour: nil) {
+        let lm = landmark(a.landmarkID)
+        var options: [MeetProposal] = []
+        for (d, h) in Self.rescheduleSlots {
+            guard options.count < 3 else { break }
             let date = Self.today(at: Double(h), dayOffset: d)
-            guard abs(date.timeIntervalSince(a.date)) > 1800 else { continue }
-            if let prop = ai.pickMeetupSpot(me: me, partner: p, date: date, landmarks: landmarks, shade: shade).map(honestReason) { options.append(prop) }
+            guard date > now.addingTimeInterval(3600), abs(date.timeIntervalSince(a.date)) > 1800,
+                  shade?.isSunUp(at: date) != false else { continue }
+            options.append(MeetProposal(date: date, landmarkID: a.landmarkID, reason: lm.map { reason(for: $0, at: date) } ?? a.reason))
         }
+        if keepCurrent || options.isEmpty { options.append(MeetProposal(date: a.date, landmarkID: a.landmarkID, reason: a.reason)) }
         proposal = Proposal(partnerID: a.partnerID, options: options, index: 0, editing: id)
         scene.highlightLandmark(a.landmarkID)
         focus(onLandmark: a.landmarkID)
+    }
+
+    /// 改时间嘅候选（日差, 钟点）：今日下晝、聽日朝早、聽日下晝，唔够就後日。
+    static let rescheduleSlots: [(Int, Int)] = [(0, 16), (1, 8), (1, 16), (2, 8), (2, 16)]
+
+    /// 改约卡揀咗边个时间（时间小按钮）。
+    func pickProposalOption(_ i: Int) {
+        guard var p = proposal, p.options.indices.contains(i), p.index != i else { return }
+        p.index = i
+        proposal = p
+        scene.highlightLandmark(p.options[i].landmarkID)
+        Haptics.select()
     }
 
     /// 直接改（语音"改做下晝 4 點""改去涼亭"复述确认后）。
@@ -223,7 +258,7 @@ extension AppStore {
         guard let p = resident(a.partnerID), p.isNeighbor else { return }
         appointments.insert(a, at: 0)
         let text = L.t("\(p.name)約你\(dayTimeLabel(a.date))喺\(landmark(a.landmarkID)?.name ?? "")一齊行。", "\(p.name)约你\(dayTimeLabel(a.date))在\(landmark(a.landmarkID)?.name ?? "")一起散步。")
-        showBanner(BannerItem(symbol: "envelope.fill", text: text, action: .openNeighbors, actionTitle: L.t("睇吓", "看看")))
+        showBanner(BannerItem(symbol: "envelope.fill", text: text, action: .openNeighbors, actionTitle: L.t("睇吓", "看看")), reply: true)
         say(text)
     }
 
@@ -245,8 +280,8 @@ extension AppStore {
         Haptics.light()
     }
 
-    /// 别人约我、我想换时间：打开改约卡，按「好」就变成我反提议，等对方确认。
-    func rescheduleInvitation(_ id: UUID) { startEditing(id) }
+    /// 别人约我、我想换时间：打开改约卡（已经揀好一个唔同嘅时间），撳「發俾XX」就变成我反提议，等对方确认。
+    func rescheduleInvitation(_ id: UUID) { startEditing(id, keepCurrent: false) }
 
     // MARK: - 出发前提醒、过期
 
@@ -294,6 +329,10 @@ extension AppStore {
             .sorted { $0.date < $1.date }
     }
     var invitations: [Appointment] { appointments.filter { $0.fromPartner && $0.status == .waiting } }
+    /// 等你回覆嘅事有几多件：别人约你（未答）+ 街坊问「想過嚟搵你，方唔方便？」（未答）。标签栏红点用。
+    var pendingReplies: Int {
+        invitations.count + (incomingFind.map { resident($0.fromID) != nil } == true ? 1 : 0)
+    }
     var upcomingAppointments: [Appointment] {
         let cal = Self.hk
         return appointments.filter { !cal.isDate($0.date, inSameDayAs: now) && $0.date > now && $0.isOpen && !($0.fromPartner && $0.status == .waiting) }

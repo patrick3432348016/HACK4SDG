@@ -305,7 +305,8 @@ extension AppStore {
             people.append(ScenePerson(id: n.id, color: n.uiColor, mobility: n.mobility, motion: .wander(around: lm.pos), label: n.name))
         }
         scene.setPeople(people.map(withLook))
-        scene.homeLabel = (walk == nil && find == nil) ? L.t("你屋企 · 已隱身", "你家 · 已隐身") : nil
+        // 只写「你屋企」：以前「· 已隱身」长者以为自己开咗乜嘢或者被人封咗（UX 评审 16）。
+        scene.homeLabel = (walk == nil && find == nil) ? L.t("你屋企", "你家") : nil
         scene.reportMarks = reports.map { (id: $0.id.uuidString, pos: $0.pos, text: $0.kind.rawValue) }
     }
 
@@ -339,10 +340,14 @@ extension AppStore {
 
     /// 地标信息卡的遮荫一句（图标 + 文字）。日落后说"太陽落咗山"。
     func shadeFact(_ landmarkID: String) -> (symbol: String, text: String) {
-        guard shade != nil else { return ("sun.max.fill", L.t("而家大約 0% 有樓遮", "现在大约 0% 有楼遮挡")) }
+        guard shade != nil else { return ("sun.max.fill", Self.shadeWords(0)) }
         guard let v = shadeValue(landmarkID, at: now) else { return ("moon.stars.fill", L.t("太陽落咗山，冇得曬", "太阳下山了，晒不到")) }
-        let pct = Int((v * 100).rounded())
-        return (pct >= 50 ? "building.2.fill" : "sun.max.fill", L.t("而家大約 \(pct)% 有樓遮", "现在大约 \(pct)% 有楼遮挡"))
+        return (v >= 0.5 ? "building.2.fill" : "sun.max.fill", Self.shadeWords(v))
+    }
+
+    /// 遮荫讲日常话，唔讲百分比（长者睇唔明「0% 有樓遮」，UX 评审 16）：有陰 / 一半有陰 / 曬。
+    static func shadeWords(_ v: Double) -> String {
+        v >= 0.6 ? L.t("而家有陰", "现在有阴凉") : v >= 0.3 ? L.t("而家一半有陰", "现在一半有阴凉") : L.t("而家曬", "现在晒")
     }
 
     /// 约人理由：模板按遮荫写"嗰陣有樓遮住"，但日落后遮荫按 100% 计，要改成"嗰陣已經日落"。

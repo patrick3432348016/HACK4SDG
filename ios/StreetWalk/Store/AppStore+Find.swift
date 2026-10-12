@@ -15,6 +15,8 @@ extension AppStore {
         if let old = find { community.cancelFindAsk(partnerID: old.partnerID) }
         banner = nil
         renaming = nil
+        selection = nil
+        walkingWith = nil
         partnerAgreed = false
         findAppointment = nil
         partnerRoute = nil
@@ -68,7 +70,17 @@ extension AppStore {
         scene.followID = nil
         startTicker()
         syncScene()
-        if let lm = landmark(f.landmarkID) { scene.setCamera(target: lm.pos + Vec2(x: -10, y: -10), distance: scene.overviewDistance * 0.8, animated: true, duration: 1.0) }
+        if let lm = landmark(f.landmarkID) { frameFind(on: lm.pos) }
+    }
+
+    /// 找人镜头：对准「我」同目的地中间，拉远到两个都睇到（UX 评审 19：以前「你」喺画面外）。
+    func frameFind(on spot: Vec2) {
+        let me = myPosition()
+        let mid = (me + spot) * 0.5
+        let span = Float(me.distance(to: spot))
+        // 全屏系竖嘅（正交镜头按高度计），要拉远啲先阔到包住两个人：相距越远镜头越远，最近同以前一样（总览 0.8），最远两倍总览。
+        let d = min(scene.overviewDistance * 2, max(scene.overviewDistance * 0.8, scene.overviewDistance * span / 50))
+        scene.setCamera(target: mid, distance: d, animated: true, duration: 1.0)
     }
 
     func departForAppointment(_ a: Appointment) {
@@ -77,6 +89,8 @@ extension AppStore {
         guard let lm = landmark(a.landmarkID) else { toast(L.t("搵唔到約會個地點（地圖更新咗），撳「改時間地點」揀過。", "找不到约会地点（地图更新了），按「改时间地点」重新选。")); return }
         if let old = find { community.cancelFindAsk(partnerID: old.partnerID) }
         renaming = nil
+        selection = nil
+        walkingWith = nil
         let start = myPosition()
         findRoute = scene.route(from: start, to: scene.nearestWalkable(lm.pos + Vec2(x: -4, y: -3)))
         // 对方未出门：唔入场景（syncScene 只画出咗门嘅对方），呢度只记低模拟路线嘅起点（A19 / A67）。
@@ -94,7 +108,7 @@ extension AppStore {
         scene.highlightLandmark(lm.id)
         syncScene()
         startTicker()
-        scene.setCamera(target: lm.pos + Vec2(x: -10, y: -10), distance: scene.overviewDistance * 0.8, animated: true, duration: 1.0)
+        frameFind(on: lm.pos)
         say(session.live ? L.t("今日約咗\(p.name)喺\(lm.name)。而家同\(p.name)分享緊位置。", "今天约了\(p.name)在\(lm.name)。正在和\(p.name)共享位置。") : L.t("今日約咗\(p.name)喺\(lm.name)。等緊\(p.name)出門。", "今天约了\(p.name)在\(lm.name)。在等\(p.name)出门。"))
         let myMinutes = max(1, Int((pathLength(findRoute ?? []) / 70).rounded(.up)))
         let token = session.token
@@ -162,6 +176,7 @@ extension AppStore {
             Haptics.success()
             say(L.t("見到喇！", "看到了！"))
             if let id = findAppointment, let i = appointments.firstIndex(where: { $0.id == id }) { appointments[i].status = .done }
+            walkingWith = f.partnerID
             let finished = f
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(3))
@@ -203,6 +218,66 @@ extension AppStore {
         Haptics.light()
     }
 
+    // MARK: - 底栏主按钮（两条找人流程同一条底栏，UX 评审 19 / 22）
+
+    enum FindStep: Equatable { case depart, almost, waiting, met }
+
+    /// 按阶段：「出發喇」→「我就到」→（够近或者讲咗就到）「見到喇」；被搵嗰边：「我喺度等你」→「見到喇」。
+    func findStep(_ f: FindSession) -> FindStep {
+        if f.stage == .near || f.stage == .met { return .met }
+        if f.incoming { return f.told == 0 ? .waiting : .met }
+        switch f.told {
+        case 0: return .depart
+        case 1: return .almost
+        default: return .met
+        }
+    }
+
+    func findStepTitle(_ s: FindStep) -> String {
+        switch s {
+        case .depart: return L.t("出發喇", "出发了")
+        case .almost: return L.t("我就到", "我马上到")
+        case .waiting: return L.t("我喺度等你", "我在这儿等你")
+        case .met: return L.t("見到喇", "见到了")
+        }
+    }
+
+    /// 撳底栏主按钮：前几步话俾对方知（播送），最后一步「見到喇」结束。
+    func findStepTapped() {
+        guard let f = find, f.stage != .met else { return }
+        let place = placeName(f.landmarkID)
+        switch findStep(f) {
+        case .depart:
+            broadcastHere(L.t("我出發喇", "我出发了"))
+            find?.told = 1
+        case .almost:
+            broadcastHere(place.map { L.t("我就到\($0)", "我马上到\($0)") } ?? L.t("我就到", "我马上到"))
+            find?.told = 2
+        case .waiting:
+            broadcastHere(L.t("我喺度等你", "我在这儿等你"))
+            find?.told = 1
+        case .met:
+            if f.live { liveMetTapped() } else { findMetTapped() }
+        }
+    }
+
+    /// 模拟找人（示範街坊）撳「見到喇」：同自动见到一样，3 秒后收埋。
+    func findMetTapped() {
+        guard var f = find, !f.live, f.stage != .met else { return }
+        f.stage = .met
+        f.etaMinutes = 0
+        Haptics.success()
+        say(L.t("見到喇！", "看到了！"))
+        if let id = findAppointment, let i = appointments.firstIndex(where: { $0.id == id }) { appointments[i].status = .done }
+        walkingWith = f.partnerID
+        find = f
+        let token = f.token
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            if self.find?.token == token { self.endFind() }
+        }
+    }
+
     func endFind() {
         if let f = find {
             if f.live { stopLiveFind(notify: true, met: f.stage == .met) }
@@ -215,6 +290,9 @@ extension AppStore {
         partnerRoute = nil
         findAppointment = nil
         partnerAgreed = false
+        // 找完人唔好留低地标卡（UX 评审 23）
+        selection = nil
+        renaming = nil
         scene.setRoute(nil)
         scene.highlightLandmark(nil)
         scene.fadeOccluders(toward: nil)

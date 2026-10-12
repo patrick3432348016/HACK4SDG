@@ -759,7 +759,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
     /// 未有「对面圈」嘅真数据：rivalSteps = 0，排行榜只显示本圈总步数（唔造假）。
     func circleRace(placeName: String, myMonthSteps: Int) -> CircleRace {
         let others = cache.board.filter { !$0.is_me && $0.id.lowercased() != myID }.reduce(0) { $0 + max(0, $1.month_steps ?? 0) }
-        return CircleRace(ourName: "\(placeName)圈", ourSteps: others + myMonthSteps, rivalName: "", rivalSteps: 0, isDemo: false)
+        return CircleRace(ourName: L.t("我哋呢頭", "我们这边"), ourSteps: others + myMonthSteps, rivalName: "", rivalSteps: 0, isDemo: false)
     }
 
     func monthlyStats(myWalks: Int, myMeetups: Int, estateHomes: Int) -> MonthlyStats {

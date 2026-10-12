@@ -11,7 +11,7 @@ final class MapService: NSObject, CLLocationManagerDelegate {
         var label: String {
             switch self {
             case .live: return L.t("實時", "实时")
-            case .cache: return L.t("快取", "缓存")
+            case .cache: return L.t("地圖", "地图")   // 唔讲「快取」（UX 评审 16）
             case .fallback: return L.t("示例", "示例")
             }
         }

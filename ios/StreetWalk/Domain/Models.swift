@@ -150,6 +150,8 @@ struct FindSession: Equatable {
     var token = UUID()
     /// 约会找人：对方出咗门未（收到 CommunityService 通知先算）。临时找人对方已经喺地标等。
     var partnerOut = true
+    /// 底栏主按钮讲到边一步：0 未讲、1 讲咗「出發喇」（被搵嗰边：「我喺度等你」）、2 讲咗「我就到」。见 AppStore.findStep。
+    var told = 0
 
     // 「查找」式找人（真街坊，2026-10-11）：两部手机经私有频道临时共享即时位置，见 AppStore+LiveFind。
     /// 真街坊：用即时位置（唔係模拟路线）。

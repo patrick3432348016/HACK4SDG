@@ -166,6 +166,8 @@ final class AppStore: NeighborRegistry {
     @ObservationIgnored var liveSceneStamp: Date?
     /// 第一次见到对方位置：镜头移去两人之间（只做一次）。
     @ObservationIgnored var liveCameraDone = false
+    /// 找人见到咗面：而家同边个一齐行（「今日」页主角卡改讲「同XX一齊行緊」，唔再叫你過去搵佢）。行完 / 再找人就清。
+    var walkingWith: String?
 
     // 首次使用之后（AppStore+FirstDay）
     /// 「今日三件事」任务卡嘅进度（nil = 冇任务卡，例如旧用户）。存档。
@@ -219,12 +221,15 @@ final class AppStore: NeighborRegistry {
     // 横幅、提示直接改值，唔好包 withAnimation（动画由 IslandBanner / ToastView 自己按值做）：
     // 同一刻仲有其他改动未刷新时，withAnimation 会令 SwiftUI 喺 willSet 嗰刻同步重画，读到旧值，
     // 之后呢次改动就冇再通知（合并时用日志实测：横幅已经设好但画面冇出，三次有两次）。
-    func showBanner(_ b: BannerItem, haptic: Bool = true) {
+    /// reply：要你回应嘅横幅（别人约你、改约）留 30 秒（读屏 60 秒），长者来得及按；
+    /// 收咗之后「今日」页最上面同「街坊」页最上面都有张可以直接回覆嘅卡（UX 评审 5 / 11）。只係话你知嘅照 8 秒收。
+    func showBanner(_ b: BannerItem, haptic: Bool = true, reply: Bool = false) {
         banner = b
         if haptic { Haptics.warning() }
         bannerTask?.cancel()
+        let seconds: Double = UIAccessibility.isVoiceOverRunning ? (reply ? 60 : 30) : (reply ? 30 : 8)   // 读屏开着：留时间找按钮（A43）
         bannerTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(UIAccessibility.isVoiceOverRunning ? 30 : 8))   // 读屏开着：30 秒，留时间找按钮（A43）
+            try? await Task.sleep(for: .seconds(seconds))
             if !Task.isCancelled { self.banner = nil }
         }
     }

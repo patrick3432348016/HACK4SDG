@@ -228,7 +228,7 @@ extension AppStore {
         appointments[i].reminded = false
         appointments[i].lateAsked = nil
         let text = L.t("\(p.name)想改做\(dayTimeLabel(a.date))，喺\(placeName(a.landmarkID) ?? "附近")。", "\(p.name)想改成\(dayTimeLabel(a.date))，在\(placeName(a.landmarkID) ?? "附近")。")
-        showBanner(BannerItem(symbol: "calendar.badge.clock", text: text, action: .openNeighbors, actionTitle: L.t("睇吓", "看看")))
+        showBanner(BannerItem(symbol: "calendar.badge.clock", text: text, action: .openNeighbors, actionTitle: L.t("睇吓", "看看")), reply: true)
         say(text)
         notifyIfBackground(id: "meetup-\(a.id.uuidString)", body: text)
     }
