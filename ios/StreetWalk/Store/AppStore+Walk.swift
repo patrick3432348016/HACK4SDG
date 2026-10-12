@@ -167,6 +167,7 @@ extension AppStore {
     /// 收尾。endAt：真机按几时停低 / 最后定位计分钟。
     func finishWalk(endAt: Date? = nil, reason: WalkEnd = .home) {
         guard let w = walk else { return }
+        walkingWith = nil
         let live = walkDetector.recording
         var minutes = w.minutes
         if live, let end = endAt ?? walkDetector.lastFixAt { minutes = max(0, Int(end.timeIntervalSince(w.start) / 60)) }
@@ -467,9 +468,13 @@ extension AppStore {
         return L.t("由\(from)起請 \(r.days) 日假（到 \(dateLabel(now.addingTimeInterval(Double(r.startOffset + r.days - 1) * 86400)))）", "从\(from)起请 \(r.days) 天假（到 \(dateLabel(now.addingTimeInterval(Double(r.startOffset + r.days - 1) * 86400)))）")
     }
 
-    /// 请假选单上嘅字。
+    /// 请假选单上嘅字：画面上唔讲「請假」（似返工），讲「唔行」（UX 评审 16）。语音照认「請假」。
     func leaveMenuLabel(_ r: LeaveRequest) -> String {
-        r.days == 1 ? leaveTitle(r) : L.t("由今日起 \(r.days) 日（到 \(dateLabel(now.addingTimeInterval(Double(r.startOffset + r.days - 1) * 86400)))）", "从今天起 \(r.days) 天（到 \(dateLabel(now.addingTimeInterval(Double(r.startOffset + r.days - 1) * 86400)))）")
+        guard r.days > 1 else {
+            let from = r.startOffset < 4 ? (L.isCmn ? ["今天", "明天", "后天", "大后天"] : ["今日", "聽日", "後日", "大後日"])[r.startOffset] : dateLabel(now.addingTimeInterval(Double(r.startOffset) * 86400))
+            return L.t("\(from)唔行", "\(from)不走")
+        }
+        return L.t("由今日起 \(r.days) 日唔行（到 \(dateLabel(now.addingTimeInterval(Double(r.startOffset + r.days - 1) * 86400)))）", "从今天起 \(r.days) 天不走（到 \(dateLabel(now.addingTimeInterval(Double(r.startOffset + r.days - 1) * 86400)))）")
     }
 
     func dateLabel(_ d: Date) -> String {
@@ -492,10 +497,10 @@ extension AppStore {
         guard let u = upcomingLeave else { return nil }
         let last = dateLabel(now.addingTimeInterval(Double(u.startOffset + u.days - 1) * 86400))
         switch (u.startOffset, u.days) {
-        case (0, 1): return L.t("今日已請假，連續日數保留", "今天已请假，连续天数保留")
-        case (0, _): return L.t("已請假到 \(last)，連續日數保留", "已请假到 \(last)，连续天数保留")
-        case (1, 1): return L.t("聽日請咗假", "明天请了假")
-        default: return L.t("\(dateLabel(now.addingTimeInterval(Double(u.startOffset) * 86400)))起請咗假", "\(dateLabel(now.addingTimeInterval(Double(u.startOffset) * 86400)))起请了假")
+        case (0, 1): return L.t("今日唔行，連續日數照計", "今天不走，连续天数照算")
+        case (0, _): return L.t("唔行到 \(last)，連續日數照計", "不走到 \(last)，连续天数照算")
+        case (1, 1): return L.t("聽日唔行，連續日數照計", "明天不走，连续天数照算")
+        default: return L.t("\(dateLabel(now.addingTimeInterval(Double(u.startOffset) * 86400)))起唔行，連續日數照計", "\(dateLabel(now.addingTimeInterval(Double(u.startOffset) * 86400)))起不走，连续天数照算")
         }
     }
 
@@ -511,7 +516,7 @@ extension AppStore {
     var withdrawLeaveLabel: String? {
         guard let u = upcomingLeave, u.startOffset > 0 else { return nil }
         let from = u.startOffset == 1 ? L.t("聽日", "明天") : dateLabel(now.addingTimeInterval(Double(u.startOffset) * 86400))
-        return u.days == 1 ? L.t("撤回\(from)嘅假", "撤回\(from)的假") : L.t("撤回\(from)起嘅 \(u.days) 日假", "撤回\(from)起的 \(u.days) 天假")
+        return u.days == 1 ? L.t("\(from)照行（撤回）", "\(from)照走（撤回）") : L.t("\(from)起照行（撤回 \(u.days) 日）", "\(from)起照走（撤回 \(u.days) 天）")
     }
 
     /// 请假选单嘅选项：已经全部请咗嘅唔再列。

@@ -5,6 +5,7 @@ import SwiftUI
 // MARK: - 约人提议
 
 /// 约人：AI 给的时间 + 地点 + 理由；一个大「好」，「換個時間」「換個地方」各换一个。
+/// 改约（editing）：一打开就揀好一个唔同嘅时间，时间用几个大选项直接揀；卡上只有「發俾XX」同「唔改喇」（UX 评审 12）。
 struct ProposalCard: View {
     @Environment(AppStore.self) private var store
     @State private var taps = 0
@@ -12,91 +13,196 @@ struct ProposalCard: View {
 
     var body: some View {
         if let p = store.proposal, p.options.indices.contains(p.index) {
-            let current = p.options[p.index]
-            let partner = store.resident(p.partnerID)
-            let place = store.landmark(current.landmarkID)?.name ?? ""
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 12) {
-                    if let partner { AvatarBadge(partner) }
-                    Text(p.editing == nil ? L.t("約\(partner?.name ?? "街坊")一齊行", "约\(partner?.name ?? "邻居")一起走") : L.t("改約\(partner?.name ?? "街坊")", "改约\(partner?.name ?? "邻居")"))
-                        .ds(.body)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .accessibilityElement(children: .combine)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Label {
-                        Text("\(store.dayTimeLabel(current.date)) · \(place)")
-                            .contentTransition(.numericText())
-                            .fixedSize(horizontal: false, vertical: true)
-                    } icon: {
-                        Image(systemName: "calendar").foregroundStyle(DS.accent)
-                    }
-                    .ds(.bodyBold)
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        CardAITag()
-                        Text(current.reason)
-                            .ds(.caption)
-                            .foregroundStyle(.secondary)
-                            .contentTransition(.opacity)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(DS.accentSoft, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .animation(DS.motion(DS.spring), value: current)
-                .accessibilityElement(children: .combine)
-
-                Button { store.confirmProposal() } label: {
-                    Text(p.editing == nil ? L.t("好", "好") : L.t("就咁改", "就这样改")).frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.dsPrimary)
-
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 12) { changeButtons }
-                    VStack(spacing: 12) { changeButtons }
-                }
-
+            Group {
                 if let id = p.editing, let a = store.appointments.first(where: { $0.id == id }) {
-                    Button { cancelling = a } label: {
-                        Text(L.t("取消約會", "取消约会")).frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.dsSecondary)
+                    editingCard(p, a)
+                } else {
+                    newCard(p)
                 }
-
-                Button {
-                    taps += 1
-                    store.cancelProposal()
-                } label: {
-                    Text(p.editing == nil ? L.t("取消", "取消") : L.t("唔改喇", "不改了"))
-                        .ds(.button)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
             }
             .sensoryFeedback(.impact(weight: .light), trigger: taps)
             .cancelMeetupDialog($cancelling)
         }
     }
 
+    // MARK: 新约
+
+    private func newCard(_ p: Proposal) -> some View {
+        let current = p.options[p.index]
+        let partner = store.resident(p.partnerID)
+        let place = store.landmark(current.landmarkID)?.name ?? ""
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                if let partner { AvatarBadge(partner) }
+                Text(L.t("約\(partner?.name ?? "街坊")一齊行", "约\(partner?.name ?? "邻居")一起走"))
+                    .ds(.body)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Label {
+                    Text("\(store.dayTimeLabel(current.date)) · \(place)")
+                        .contentTransition(.numericText())
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "calendar").foregroundStyle(DS.accent)
+                }
+                .ds(.bodyBold)
+                Text(current.reason)
+                    .ds(.caption)
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.opacity)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(DS.accentSoft, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .animation(DS.motion(DS.spring), value: current)
+            .accessibilityElement(children: .combine)
+
+            Button { store.confirmProposal() } label: {
+                Text(L.t("好", "好")).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.dsPrimary)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) { changeButtons }
+                VStack(spacing: 12) { changeButtons }
+            }
+
+            closeLink(L.t("取消", "取消"))
+        }
+    }
+
     @ViewBuilder private var changeButtons: some View {
         Button { store.nextProposalTime() } label: {
-            Text(L.t("換個時間", "换个时间")).frame(maxWidth: .infinity)
+            Text(L.t("換個時間", "换个时间")).lineLimit(1).fixedSize().frame(maxWidth: .infinity)
         }
         .buttonStyle(.dsSecondary)
         Button { store.nextProposalPlace() } label: {
-            Text(L.t("換個地方", "换个地方")).frame(maxWidth: .infinity)
+            Text(L.t("換個地方", "换个地方")).lineLimit(1).fixedSize().frame(maxWidth: .infinity)
         }
         .buttonStyle(.dsSecondary)
+    }
+
+    // MARK: 改约 / 回覆邀请换时间
+
+    private func editingCard(_ p: Proposal, _ a: Appointment) -> some View {
+        let current = p.options[p.index]
+        let partner = store.resident(p.partnerID)
+        let name = partner?.name ?? L.t("街坊", "邻居")
+        let place = store.landmark(current.landmarkID)?.name ?? ""
+        let replying = a.fromPartner && a.status == .waiting
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                if let partner { AvatarBadge(partner) }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(replying ? L.t("同\(name)改時間", "和\(name)改时间") : L.t("改約\(name)", "改约\(name)"))
+                        .ds(.bodyBold)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(L.t("原本：\(store.dayTimeLabel(a.date)) · \(store.placeName(a.landmarkID) ?? "")", "原本：\(store.dayTimeLabel(a.date)) · \(store.placeName(a.landmarkID) ?? "")"))
+                        .ds(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .accessibilityElement(children: .combine)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L.t("揀個新時間", "选个新时间")).ds(.captionBold)
+                ForEach(Array(p.options.enumerated()), id: \.offset) { i, o in
+                    timeOption(o, selected: i == p.index, original: o.date == a.date) { store.pickProposalOption(i) }
+                }
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(place).ds(.body).contentTransition(.opacity)
+                        Text(current.reason).ds(.caption).foregroundStyle(.secondary).contentTransition(.opacity)
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "mappin.circle.fill").foregroundStyle(DS.accent)
+                }
+                .ds(.body)
+                Spacer(minLength: 0)
+                Button { store.nextProposalPlace() } label: {
+                    Text(L.t("換地方", "换地方"))
+                        .ds(.captionBold)
+                        .foregroundStyle(DS.accentInk)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .animation(DS.motion(DS.spring), value: current)
+
+            Button { store.confirmProposal() } label: {
+                Label(L.t("發俾\(name)", "发给\(name)"), systemImage: "paperplane.fill").lineLimit(1).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.dsPrimary)
+
+            closeLink(L.t("唔改喇", "不改了"))
+
+            // 自己嘅约会：取消放最底、细字（回覆别人嘅邀请就用「唔去」，唔使喺呢度出）
+            if !replying {
+                Button { cancelling = a } label: {
+                    Text(L.t("取消約會", "取消约会"))
+                        .ds(.caption)
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    /// 一个时间选项：成行撳得，揀咗嘅有橙色框。
+    private func timeOption(_ o: MeetProposal, selected: Bool, original: Bool, pick: @escaping () -> Void) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        return Button(action: pick) {
+            HStack(spacing: 12) {
+                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                    .foregroundStyle(selected ? DS.accent : Color.secondary)
+                Text(original ? L.t("\(store.dayTimeLabel(o.date))（原本）", "\(store.dayTimeLabel(o.date))（原本）") : store.dayTimeLabel(o.date))
+                    .ds(selected ? .bodyBold : .body)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .background(selected ? DS.accentSoft : Color.clear, in: shape)
+            .overlay(shape.strokeBorder(selected ? DS.accent : Color.primary.opacity(0.18), lineWidth: selected ? 2 : 1))
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+
+    private func closeLink(_ text: String) -> some View {
+        Button {
+            taps += 1
+            store.cancelProposal()
+        } label: {
+            Text(text)
+                .ds(.button)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
 // MARK: - 点场景里的地标 / 人
 
-/// 点地标：名字、有冇櫈、而家遮蔭几成、「改名」；点人：喺边、「約佢行」或「過去搵佢」。
+/// 点地标：名字、有冇櫈、而家有冇陰、「約街坊喺度」（主按钮）、「改名」（细字）；点人：喺边、「約佢行」或「過去搵佢」。
 struct InfoCard: View {
     @Environment(AppStore.self) private var store
     @State private var taps = 0
@@ -186,18 +292,64 @@ struct InfoCard: View {
                 }
                 .transition(DS.slide(.bottom))
             } else {
-                Button {
-                    taps += 1
-                    store.renaming = lm.id
-                } label: {
-                    Label(L.t("改名", "改名"), systemImage: "pencil").frame(maxWidth: .infinity)
+                VStack(spacing: 4) {
+                    meetHereButton(lm)
+                    // 改名好少用：细字连结（UX 评审 15）
+                    Button {
+                        taps += 1
+                        store.renaming = lm.id
+                    } label: {
+                        Label(L.t("改名", "改名"), systemImage: "pencil")
+                            .ds(.caption)
+                            .foregroundStyle(DS.accentInk)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.dsPrimary)
                 .transition(.opacity)
             }
         }
         .animation(DS.motion(DS.spring), value: renaming)
         .animation(DS.motion(DS.spring), value: lm.name)
+    }
+
+    /// 主按钮：「約街坊喺度」（一个街坊就直接写佢个名；几个就先揀边个）；未有街坊：「出去行吓」。
+    @ViewBuilder private func meetHereButton(_ lm: Landmark) -> some View {
+        let ns = store.neighbors
+        if ns.isEmpty {
+            Button {
+                taps += 1
+                store.select(nil)
+                if store.demoMode { store.startWalk() } else { store.toast(L.t("出門去\(lm.name)行吓啦，返到屋企會自動記低。", "出门去\(lm.name)走走吧，回到家会自动记下。")) }
+            } label: {
+                Label(L.t("出去行吓", "出去走走"), systemImage: "figure.walk").lineLimit(1).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.dsPrimary)
+        } else if ns.count == 1, let n = ns.first {
+            Button {
+                taps += 1
+                store.select(nil)
+                store.proposeMeetup(with: n.id, landmarkID: lm.id)
+            } label: {
+                Label(L.t("約\(n.name)喺度", "约\(n.name)在这里"), systemImage: "calendar").lineLimit(1).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.dsPrimary)
+        } else {
+            Menu {
+                ForEach(ns) { n in
+                    Button(n.name) {
+                        taps += 1
+                        store.select(nil)
+                        store.proposeMeetup(with: n.id, landmarkID: lm.id)
+                    }
+                }
+            } label: {
+                Label(L.t("約街坊喺度", "约邻居在这里"), systemImage: "calendar").lineLimit(1).frame(maxWidth: .infinity)
+            }
+            .menuStyle(.button)
+            .buttonStyle(.dsPrimary)
+        }
     }
 
     @ViewBuilder private func facts(_ lm: Landmark, shade: Int) -> some View {
@@ -231,12 +383,9 @@ struct InfoCard: View {
 
             if r.isNeighbor && !r.isMe {
                 if !r.todayLine.isEmpty {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        CardAITag()
-                        Text(r.todayLine)
-                            .ds(.body)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                    Text(r.todayLine)
+                        .ds(.body)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if walking && r.isOut {
                     Button {
@@ -268,7 +417,7 @@ struct InfoCard: View {
     private func title(for r: Resident) -> String { r.listName }
 
     private func whereText(for r: Resident) -> String {
-        if r.isMe { return store.walk != nil ? L.t("行緊", "在散步") : L.t("喺屋企 · 已隱身", "在家 · 已隐身") }
+        if r.isMe { return store.walk != nil ? L.t("行緊", "在散步") : L.t("喺屋企（街坊睇唔到你）", "在家（邻居看不到你）") }
         guard r.isNeighbor else { return L.t("仲未係你街坊", "还不是你的邻居") }
         if r.isOut, let place = store.placeName(r.atLandmarkID) { return L.t("喺\(place)附近", "在\(place)附近") }
         return L.t("冇出門消息", "没有出门消息")   // 不断言「喺屋企」
@@ -359,9 +508,4 @@ private struct CardFact: View {
         .background(Color(.tertiarySystemFill), in: Capsule())
         .accessibilityElement(children: .combine)
     }
-}
-
-/// 小小的「AI」标签：表示这句是 AI 写的（共用 AIBadge，辅助字号 20）。
-private struct CardAITag: View {
-    var body: some View { AIBadge() }
 }

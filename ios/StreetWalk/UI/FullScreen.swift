@@ -389,11 +389,10 @@ struct FindOverlay: View {
                         lateCard(p)
                             .transition(DS.slide(.bottom))
                     } else if f.stage != .met {
-                        if f.stage == .near {
-                            nearPill(f, p)
-                                .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
-                        }
-                        bottomBar(f, place)
+                        // 远近都有大箭咀（以前要近先有，UX 评审 19）
+                        arrowPill(f, p, place)
+                            .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
+                        FindBottomBar(f: f, place: place)
                             .transition(DS.slide(.bottom))
                     }
                 }
@@ -444,6 +443,11 @@ struct FindOverlay: View {
                 .contentTransition(.numericText(value: Double(eta)))
                 .animation(DS.motion(DS.snappy), value: eta)
                 Spacer(minLength: 0)
+                // 「結束」放角落（同「查找」式找人嘅「停止」一样位置，UX 评审 22）
+                if f.stage != .met {
+                    Button { store.endFind() } label: { Text(L.t("結束", "结束")).lineLimit(1).fixedSize() }
+                        .buttonStyle(.dsSecondary)
+                }
             }
             if p.isDemo { DemoBadge(text: L.t("示範：對方位置係模擬", "演示：对方位置是模拟的")) }
             if let b = f.broadcast {
@@ -465,23 +469,29 @@ struct FindOverlay: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func nearPill(_ f: FindSession, _ p: Resident) -> some View {
+    /// 大箭咀 + 距离：近（50 米内）讲「就喺附近」，远讲行路几耐 / 跟住箭咀去约定地方。
+    private func arrowPill(_ f: FindSession, _ p: Resident, _ place: String) -> some View {
         let meters = Int(f.distance)
+        let near = f.stage == .near
+        let sub: String = near ? L.t("\(p.name)就喺附近，跟住箭咀行", "\(p.name)就在附近，跟着箭头走")
+            : !f.spontaneous && !f.partnerOut ? L.t("跟住箭咀去\(place)", "跟着箭头去\(place)")
+            : L.t("跟住箭咀行，大約 \(max(1, Int((f.distance / 70).rounded(.up)))) 分鐘", "跟着箭头走，大约 \(max(1, Int((f.distance / 70).rounded(.up)))) 分钟")
         return HStack(spacing: 16) {
-            Image(systemName: "arrow.up")
-                .font(.system(size: 40, weight: .bold))
+            Image(systemName: "location.north.fill")
+                .font(.system(size: near ? 56 : 48, weight: .bold))
                 .foregroundStyle(.white)
                 .rotationEffect(.degrees(arrowAngle))
-                .frame(width: 76, height: 76)
+                .frame(width: near ? 112 : 96, height: near ? 112 : 96)
                 .background(DS.accent, in: Circle())
                 .shadow(color: DS.accent.opacity(0.4), radius: 10, y: 4)
+                .animation(DS.motion(DS.snappy), value: near)
             VStack(alignment: .leading, spacing: 2) {
                 Text(L.t("\(meters) 米", "\(meters) 米"))
                     .font(.system(size: 40, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .contentTransition(.numericText(value: Double(meters)))
                     .animation(DS.motion(DS.snappy), value: meters)
-                Text(L.t("\(p.name)就喺附近，跟住箭咀行", "\(p.name)就在附近，跟着箭头走"))
+                Text(sub)
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -490,10 +500,10 @@ struct FindOverlay: View {
         }
         .padding(12)
         .padding(.trailing, 8)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 50, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 50, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 60, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 60, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(L.t("\(p.name)喺附近，大約 \(meters) 米", "\(p.name)在附近，大约 \(meters) 米"))
+        .accessibilityLabel(L.t("\(p.name)，大約 \(meters) 米。\(sub)", "\(p.name)，大约 \(meters) 米。\(sub)"))
     }
 
     private func lateCard(_ p: Resident) -> some View {
@@ -524,63 +534,6 @@ struct FindOverlay: View {
         .padding(16)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
-    }
-
-    /// 结束、播送、讲嘢（咪）。放得落就一行；大字号放唔落就播送占一行、其余排第二行（唔截字，A41）。
-    private func bottomBar(_ f: FindSession, _ place: String) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                endButton(expand: false)
-                broadcastButton(f, place)
-                micButton(place)
-            }
-            VStack(spacing: 8) {
-                broadcastButton(f, place)
-                HStack(spacing: 8) {
-                    endButton(expand: true)
-                    micButton(place)
-                }
-            }
-        }
-        .padding(12)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DS.radius + 4, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: DS.radius + 4, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
-    }
-}
-
-extension FindOverlay {
-    fileprivate func endButton(expand: Bool) -> some View {
-        Button { store.endFind() } label: { Text(L.t("結束", "结束")).frame(maxWidth: expand ? .infinity : nil) }
-            .buttonStyle(.dsSecondary)
-    }
-
-    fileprivate func broadcastButton(_ f: FindSession, _ place: String) -> some View {
-        Button { store.broadcastHere() } label: {
-            Label(f.spontaneous ? L.t("我就到", "我马上到") : L.t("我喺\(place)", "我在\(place)"), systemImage: "speaker.wave.2.fill")
-                .symbolEffect(.bounce, value: f.broadcast)
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.dsPrimary)
-    }
-
-    /// 找人途中都可以讲（例如「我喺涼亭」）：同主画面个咪一样，讲完照样复述再撳「好」（A21）。
-    fileprivate func micButton(_ place: String) -> some View {
-        let on = store.listening
-        return Button { store.micTapped() } label: {
-            Image(systemName: on ? "waveform" : "mic.fill")
-                .font(.system(size: 26, weight: .semibold))
-                .foregroundStyle(.white)
-                .contentTransition(.symbolEffect(.replace))
-                .symbolEffect(.variableColor.iterative.reversing, isActive: on)
-                .frame(width: DS.micSize, height: DS.micSize)
-                .background(DS.accent, in: Circle())
-                .overlay(Circle().strokeBorder(Color.white.opacity(0.9), lineWidth: 3))
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(L.t("講嘢", "说话"))
-        .accessibilityValue(on ? L.t("聽緊", "正在听") : "")
-        .accessibilityHint(on ? L.t("再撳一下講完", "再点一下结束") : L.t("撳一下開始講，例如「我喺\(place)」", "点一下开始说，比如「我在\(place)」"))
     }
 }
 

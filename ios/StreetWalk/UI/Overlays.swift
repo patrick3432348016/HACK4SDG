@@ -154,7 +154,7 @@ private struct SceneLabel: View {
         case .landmark:
             Image(systemName: "mappin.circle.fill").foregroundStyle(DS.accent)
         case .home:
-            Image(systemName: "eye.slash.fill").foregroundStyle(.secondary)
+            Image(systemName: "house.fill").foregroundStyle(DS.accent)   // 以前系「隱身」眼，长者以为被人封咗（UX 评审 16）
         case .report:
             EmptyView()
         }
@@ -388,8 +388,14 @@ private struct HeardCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(L.t("我聽到", "我听到")).ds(.caption).foregroundStyle(.secondary)
-            Text("「\(card.heard)」").ds(.body)
+            // 「我聽到」只係一行细字；大字只写结果（以前同一句睇两次，UX 评审 32）
+            if !card.heard.isEmpty {
+                Text(L.t("我聽到：「\(card.heard)」", "我听到：「\(card.heard)」"))
+                    .ds(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
             HStack(alignment: .firstTextBaseline, spacing: DS.gap) {
                 if !card.needsConfirm && (card.assistant == nil || card.assistant?.kind == .done) {
                     Image(systemName: "checkmark.circle.fill")
@@ -397,8 +403,7 @@ private struct HeardCard: View {
                         .symbolEffect(.bounce, options: .nonRepeating, value: appeared)
                         .accessibilityLabel(L.t("做咗", "完成了"))
                 }
-                Text(card.title).ds(.bodyBold)
-                AIBadge(spoken: "AI 理解")
+                Text(card.title).ds(.bodyBold).fixedSize(horizontal: false, vertical: true)
             }
             if let d = card.detail, !d.isEmpty {
                 Text(d).ds(.caption).foregroundStyle(.secondary)

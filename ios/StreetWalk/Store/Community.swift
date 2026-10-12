@@ -277,7 +277,7 @@ final class LocalCommunityService: CommunityService {
         let members = demoEnabled ? Self.roster.reduce(0) { $0 + min($1.streak, 30) * 2_900 } : 0
         let ours = members + myMonthSteps
         let rival = demoEnabled ? Int(Double(ours) * 0.93) / 100 * 100 : 0
-        return CircleRace(ourName: "\(placeName)圈", ourSteps: ours, rivalName: L.t("對面圈", "对面圈"), rivalSteps: rival, isDemo: demoEnabled)
+        return CircleRace(ourName: L.t("我哋呢頭", "我们这边"), ourSteps: ours, rivalName: L.t("隔籬", "隔壁"), rivalSteps: rival, isDemo: demoEnabled)
     }
 
     func monthlyStats(myWalks: Int, myMeetups: Int, estateHomes: Int) -> MonthlyStats {

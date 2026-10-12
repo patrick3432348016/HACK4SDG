@@ -11,6 +11,9 @@ import Foundation
 //      bgrefresh（App 喺后台时叫 backgroundRefresh，睇 debug-events.txt 有冇「notify」）
 //      语音助手（Mac 语音服务器）：voice <一句>（等于讲咗）· vpick <第几个>（揀人 / 地点）· vchip <第几个> · vok（撳「好」）
 //      · vno（撳「唔係」）· vcheck（即刻重新搵语音服务器）· speak <一句>（播报，测真人声）
+//      演示（示範街坊）：pinvite（陳太約你）· pout / phome（陳太出門 / 返屋企）· hour <钟点>（演示时钟）
+//      · reschedule（第一个邀请撳「改時間」）· edit（改第一个未完成约会）· pick <第几个时间> · ok（撳约人卡主按钮）
+//      · lm <第几个地标>（打开地标卡）· step（找人底栏主按钮）
 extension AppStore {
     private static var debugCommandsStarted = false
 
@@ -101,6 +104,16 @@ extension AppStore {
         case "vno": rejectVoice()
         case "vcheck": VoiceServer.shared.recheckSoon()
         case "speak": if !arg.isEmpty { say(arg, force: true) }
+        case "pinvite": partnerInvites()
+        case "pout": neighborGoesOut()
+        case "phome": neighborGoesHome()
+        case "hour": setDemoHour(Double(arg))
+        case "reschedule": if let a = invitations.first { rescheduleInvitation(a.id) }
+        case "edit": if let a = appointments.first(where: \.isOpen) { startEditing(a.id) }
+        case "pick": if let i = Int(arg) { pickProposalOption(i - 1) }
+        case "ok": confirmProposal()
+        case "lm": if let i = Int(arg), landmarks.indices.contains(i - 1) { select(.landmark(landmarks[i - 1].id)) }
+        case "step": findStepTapped()
         default: break
         }
     }
@@ -125,7 +138,7 @@ extension AppStore {
         } else {
             out.append("live=-")
         }
-        out.append("walk=\(walk.map { "\($0.minutes)min" } ?? "-") bump=\(bumpStage) remindPrompt=\(remindPromptFor ?? "-")")
+        out.append("walk=\(walk.map { "\($0.minutes)min" } ?? "-") bump=\(bumpStage) remindPrompt=\(remindPromptFor ?? "-") walkingWith=\(walkingWith ?? "-") pendingReplies=\(pendingReplies) selection=\(selection.map { "\($0)" } ?? "-")")
         out.append("banner=\(banner?.text ?? "-")")
         out.append("toast=\(toast ?? "-")")
         out.append("card=\(uiActiveCard.map { "\($0)" } ?? "-")")

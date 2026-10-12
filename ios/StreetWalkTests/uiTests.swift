@@ -127,7 +127,7 @@ struct LookTests {
         let demo = LocalCommunityService(demoEnabled: true).lastMonthRace(placeName: "皇后山邨", month: 9)
         #expect(demo?.isDemo == true)
         #expect(demo?.weWon == true)
-        #expect(demo?.ourName == "皇后山邨圈")
+        #expect(demo?.ourName == "我哋呢頭")
         #expect(LocalCommunityService(demoEnabled: false).lastMonthRace(placeName: "皇后山邨", month: 9) == nil, "未接后端不编数据")
     }
 }

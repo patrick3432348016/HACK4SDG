@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// 「查找」式找人画面（真街坊，store.find.live）：顶部「而家同〈網名〉分享緊位置」+ 停止；
-/// 中间大箭咀 + 距离 + 大约几分钟（远：GPS + 指南针；近：超宽带，对正咗转绿）；底部「見到喇」、播送、咪。
+/// 中间大箭咀 + 距离 + 大约几分钟（远：GPS + 指南针；近：超宽带，对正咗转绿）；底部同模拟找人同一条底栏（FindBottomBar）。
 struct LiveFindOverlay: View {
     @Environment(AppStore.self) private var store
     @State private var arrowAngle: Double = 0
@@ -18,7 +18,7 @@ struct LiveFindOverlay: View {
                     if f.stage != .met {
                         compass(f, p, place)
                             .transition(DS.slide(.bottom))
-                        bottomBar(f, place)
+                        FindBottomBar(f: f, place: place)
                             .transition(DS.slide(.bottom))
                     }
                 }
@@ -98,7 +98,7 @@ struct LiveFindOverlay: View {
             } else {
                 // 远：箭咀同距离并排，留返位睇场景入面对方大概喺边
                 HStack(spacing: 16) {
-                    arrow(color, size: 64, frame: 104)
+                    arrow(color, size: 80, frame: 128)
                     VStack(alignment: .leading, spacing: 2) {
                         distanceText(meters, size: 48)
                         Text(subtitle(f, p))
@@ -162,42 +162,34 @@ struct LiveFindOverlay: View {
         return L.t("行路大約 \(max(1, f.etaMinutes)) 分鐘", "步行大约 \(max(1, f.etaMinutes)) 分钟")
     }
 
-    /// 見到喇、播送、咪。放唔落一行就分两行（唔截字）。
-    private func bottomBar(_ f: FindSession, _ place: String) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                metButton
-                broadcastButton(f, place)
-                MicRoundButton(place: place)
+}
+
+/// 两条找人流程（约会出发、过去搵佢 / 被搵）同一条底栏（UX 评审 22）：
+/// 一个主按钮按阶段变「出發喇 → 我就到 → 見到喇」（被搵嗰边「我喺度等你 → 見到喇」），右边咪；「結束 / 停止」喺顶部角落。
+struct FindBottomBar: View {
+    @Environment(AppStore.self) private var store
+    let f: FindSession
+    let place: String
+
+    var body: some View {
+        let step = store.findStep(f)
+        HStack(spacing: 8) {
+            Button { store.findStepTapped() } label: {
+                Label(store.findStepTitle(step), systemImage: step == .met ? "checkmark.circle.fill" : "speaker.wave.2.fill")
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .symbolEffect(.bounce, value: f.broadcast)
+                    .contentTransition(.opacity)
+                    .frame(maxWidth: .infinity)
             }
-            VStack(spacing: 8) {
-                metButton
-                HStack(spacing: 8) {
-                    broadcastButton(f, place)
-                    MicRoundButton(place: place)
-                }
-            }
+            .buttonStyle(.dsPrimary)
+            .accessibilityHint(step == .met ? L.t("見到面就撳，兩邊一齊結束", "见到面就点，两边一起结束") : L.t("撳一下話俾對方知", "点一下告诉对方"))
+            MicRoundButton(place: place)
         }
         .padding(12)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DS.radius + 4, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: DS.radius + 4, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
-    }
-
-    private var metButton: some View {
-        Button { store.liveMetTapped() } label: {
-            Label(L.t("見到喇", "见到了"), systemImage: "checkmark.circle.fill").frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.dsPrimary)
-    }
-
-    private func broadcastButton(_ f: FindSession, _ place: String) -> some View {
-        let text = f.incoming ? L.t("我喺度等你", "我在这儿等你") : f.spontaneous ? L.t("我就到", "我马上到") : L.t("我喺\(place)", "我在\(place)")
-        return Button { store.broadcastHere(text) } label: {
-            Label(text, systemImage: "speaker.wave.2.fill")
-                .symbolEffect(.bounce, value: f.broadcast)
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.dsSecondary)
+        .animation(DS.motion(DS.snappy), value: step)
     }
 }
 

@@ -44,6 +44,7 @@ extension AppStore {
         if find != nil { endFind() }
         banner = nil
         renaming = nil
+        walkingWith = nil
         partnerAgreed = false
         findAppointment = nil
         findRoute = nil
@@ -125,6 +126,7 @@ extension AppStore {
         Haptics.success()
         say(L.t("見到喇！", "看到了！"))
         if let id = findAppointment, let i = appointments.firstIndex(where: { $0.id == id }) { appointments[i].status = .done }
+        walkingWith = f.partnerID
         stopLiveFind(notify: notify, met: true)
         let token = f.token
         Task { @MainActor in
