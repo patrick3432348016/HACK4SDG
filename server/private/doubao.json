@@ -1,0 +1,12 @@
+{
+  "speech_key": "9a9bd8f7-f68e-4553-bf53-8532b42ebb2f",
+  "app_id": "",
+  "access_key": "",
+  "ark_key": "ark-493d7155-8780-44b8-aadc-68b99c50a9a5-c7816",
+  "model": "doubao-seed-2-1-lite-260915",
+  "speaker": "zh_female_xiaohe_uranus_bigtts",
+  "asr_resource": "volc.seedasr.sauc.duration",
+  "tts_resource": "seed-tts-2.0",
+  "end_window_ms": 1200,
+  "speech_rate": -15
+}

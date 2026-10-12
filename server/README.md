@@ -12,7 +12,15 @@ App 嘅「连续对话」（`ios/StreetWalk/Store/AppStore+Conversation.swift`�
 手机先认 App 自己做嘅指令（找人、改约、取消约、反映、地标改名），其余交 B 嗰套；影响别人嘅动作照旧要撳「好」。
 连唔到 Mac → 手机识别（Apple）+ 手机模板（TemplateAI）+ 系统声音，功能唔会少。
 
-**密钥**：B 私下交嘅 `Private/voice-config.json`（豆包语音 Key、方舟 Key、模型、音色）抄去 `~/Desktop/HACK/voice-runtime/doubao.json`（chmod 600），**唔入 git、唔去手机**。
+**密钥**：B 嘅豆包配置（语音 Key、方舟 Key、模型、音色）喺 `server/private/doubao.json`——用户 10-12 决定放入**私有**仓库俾组员内部测试（**仓库唔好改公开**）。唔会去手机。本机另放 `~/Desktop/HACK/voice-runtime/doubao.json` 会优先用。
+
+### 组员第一次用（自己部 Mac 开语音服务器）
+
+```sh
+git clone https://github.com/patrick3432348016/HACK4SDG.git && cd HACK4SDG && git checkout prototype/ios-3d-diorama
+tools/voice_server.sh        # 第一次自动建 Python 环境（约 1 分钟，要 Python 3.10+ 或 uv）；之后即开即用
+```
+手机同 Mac 连同一个 Wi-Fi，App 自动搵到；撳咪就同 AI 倾。App 安装见 `ios/真机安装说明.md`。
 
 ## 每次测试之前（一条命令）
 

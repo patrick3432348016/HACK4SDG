@@ -14,27 +14,42 @@ RUNTIME=${VOICE_RUNTIME:-$HOME/Desktop/HACK/voice-runtime}
 PY="$RUNTIME/venv/bin/python"
 PORT=${PORT:-8765}
 TUNNEL=0
+TESTONLY=0
 VOICE=${TTS_PROVIDER:-doubao}
 for a in "$@"; do
   case "$a" in
     --tunnel) TUNNEL=1 ;;
     --verbose) export VOICE_LOG_TEXT=1 ;;
-    --test) cd server && exec "$PY" -m unittest discover -s tests ;;
+    --test) TESTONLY=1 ;;
     --port=*) PORT=${a#--port=} ;;
     --voice=*) VOICE=${a#--voice=} ;;
     *) echo "唔识呢个参数：$a"; exit 2 ;;
   esac
 done
 if [ ! -x "$PY" ]; then
-  echo "搵唔到 Python 环境：$RUNTIME/venv"
-  echo "按 server/README.md「第一次安装」做一次。"
-  exit 1
+  # 第一次用（例如组员部 Mac）：建一个细嘅 Python 环境（豆包喺云端，唔使声音模型），约 1 分钟，要网络
+  echo "第一次用：建 Python 环境（$RUNTIME/venv）…"
+  mkdir -p "$RUNTIME"
+  if command -v uv >/dev/null 2>&1; then
+    uv venv --python 3.12 "$RUNTIME/venv" && uv pip install --python "$PY" -r server/requirements.txt
+  else
+    BASE=""
+    for c in python3.13 python3.12 python3.11 python3.10; do command -v $c >/dev/null 2>&1 && { BASE=$c; break; }; done
+    if [ -z "$BASE" ]; then
+      echo "要 Python 3.10 或以上：brew install python@3.12（或者喺 python.org 装），装好再开。"
+      exit 1
+    fi
+    "$BASE" -m venv "$RUNTIME/venv" && "$PY" -m pip install -q -r server/requirements.txt
+  fi || { echo "装唔到 Python 套件，睇下网络再试。"; rm -rf "$RUNTIME/venv"; exit 1; }
 fi
-# 组员 B 嘅豆包配置（语音 Key、方舟 Key、模型、音色）：B 私下俾嘅 Private/voice-config.json，抄去呢度；唔入 git。
-export DOUBAO_CONFIG="${DOUBAO_CONFIG:-$RUNTIME/doubao.json}"
+if [ "$TESTONLY" = 1 ]; then cd server && exec "$PY" -m unittest discover -s tests; fi
+# 组员 B 嘅豆包配置（语音 Key、方舟 Key、模型、音色）：本机另放嘅优先，冇就用私有仓库入面嗰份（server/private/）
+if [ -z "$DOUBAO_CONFIG" ]; then
+  if [ -f "$RUNTIME/doubao.json" ]; then DOUBAO_CONFIG="$RUNTIME/doubao.json"; else DOUBAO_CONFIG="$REPO/server/private/doubao.json"; fi
+fi
+export DOUBAO_CONFIG
 if [ ! -f "$DOUBAO_CONFIG" ]; then
   echo "搵唔到豆包配置：$DOUBAO_CONFIG"
-  echo "将组员 B 私下交嘅 Private/voice-config.json 抄去呢个位置（chmod 600）。"
   exit 1
 fi
 if [ "$VOICE" = sovits ] && [ ! -d "$RUNTIME/gptsovits/GPT_SoVITS/pretrained_models" ]; then
