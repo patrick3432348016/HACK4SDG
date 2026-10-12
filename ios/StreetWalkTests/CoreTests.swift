@@ -159,8 +159,17 @@ struct StoreTests {
         s.landmarkNames = ["park-0": "大樹底"]
         s.walkLog = [key(0): DayLog(minutes: 30, walks: 1, landmarks: ["park-0"])]
         s.leaveDays = [key(1)]
+        s.firstDay = FirstDayProgress(started: Date(timeIntervalSince1970: 1_790_000_000), walkMinutes: 6, bumped: true)
         let back = try JSONDecoder().decode(SavedState.self, from: JSONEncoder().encode(s))
         #expect(back == s)
+    }
+
+    @Test func 旧存档冇任务卡都读得返() throws {
+        let old = try JSONDecoder().decode(SavedState.self, from: Data(#"{"version":1,"walkLog":{},"leaveDays":[]}"#.utf8))
+        #expect(old.firstDay == nil)
+        // 任务卡入面缺字段（以后加嘅）都照读
+        let partial = try JSONDecoder().decode(SavedState.self, from: Data(#"{"firstDay":{"bumped":true}}"#.utf8))
+        #expect(partial.firstDay?.bumped == true && partial.firstDay?.walked == false && partial.firstDay?.doneCount == 1)
     }
 }
 

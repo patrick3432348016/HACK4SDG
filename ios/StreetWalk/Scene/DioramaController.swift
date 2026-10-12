@@ -475,8 +475,9 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     /// 深色时深灰楼体正片叠底不够亮：先叠一层暖色压掉蓝，再加橙色自发光。
     func highlightBuildings(_ ids: Set<Int64>, color: UIColor?) {
         highlighted = (ids, color)
-        let tint = color ?? (ids.count == 1 ? UIColor(red: 0.93, green: 0.58, blue: 0.43, alpha: 1)
-                                            : UIColor(red: 0.98, green: 0.83, blue: 0.74, alpha: 1))
+        // 选楼：可以揀嘅楼用实心橙（以前太淡，近肉色，长者搵唔到）；揀中嗰座再深一档。
+        let tint = color ?? (ids.count == 1 ? UIColor(red: 0.86, green: 0.40, blue: 0.22, alpha: 1)
+                                            : UIColor(red: 0.95, green: 0.62, blue: 0.42, alpha: 1))
         let glow = ids.count == 1 ? UIColor(red: 0.62, green: 0.28, blue: 0.04, alpha: 1) : UIColor(red: 0.45, green: 0.22, blue: 0.06, alpha: 1)
         let warm = UIColor(red: 1, green: 0.78, blue: 0.5, alpha: 1)
         SCNTransaction.begin()

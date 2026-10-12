@@ -1,6 +1,6 @@
 import SwiftUI
 
-// 真后端用到嘅界面：网名（首次使用一步、设置、旧用户补填）、「想過嚟搵你，方唔方便？」卡、「未連線」。
+// 真后端用到嘅界面：网名（首次使用「樓層同網名」一页、设置、旧用户补填）、「想過嚟搵你，方唔方便？」卡、「未連線」。
 
 // MARK: - 网名
 
@@ -70,51 +70,6 @@ struct NicknameEditor: View {
                 }
             }
         }
-    }
-}
-
-/// 首次使用最后一步：大家點叫你？
-struct OnbNicknameStep: View {
-    @Environment(AppStore.self) private var store
-    var onNext: () -> Void
-    @State private var text = ""
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(L.t("大家點叫你？", "大家怎么称呼你？"))
-                    .ds(.title)
-                    .accessibilityAddTraits(.isHeader)
-                Label(L.t("排行榜上同區嘅人會見到呢個網名。座數樓層只有碰過一碰嘅街坊先見到。", "排行榜上同区的人会看到这个网名。楼栋楼层只有碰过一碰的邻居才看得到。"), systemImage: "eye")
-                    .ds(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                NicknameEditor(text: $text)
-            }
-            .padding(.horizontal, DS.side)
-            .padding(.top, 8)
-            .padding(.bottom, 24)
-        }
-        .scrollBounceBehavior(.basedOnSize)
-        .scrollDismissesKeyboard(.interactively)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            Button {
-                if store.setNickname(text) { onNext() }
-            } label: {
-                Text(L.t("完成", "完成")).frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.dsPrimary)
-            .disabled(CommunityProfile.cleanNickname(text) == nil)
-            .opacity(CommunityProfile.cleanNickname(text) == nil ? 0.45 : 1)
-            .padding(.horizontal, DS.side)
-            .padding(.vertical, 8)
-            .background(Color(.systemGroupedBackground).opacity(0.94))
-        }
-        .onAppear {
-            text = store.nickname
-            store.say(L.t("大家點叫你？打個網名，或者撳下面一個。", "大家怎么称呼你？输入一个网名，或者点下面一个。"))
-        }
-        .onChange(of: store.nickname) { _, n in if text.isEmpty { text = n } }   // 自动脚本 / 启动参数填咗
     }
 }
 

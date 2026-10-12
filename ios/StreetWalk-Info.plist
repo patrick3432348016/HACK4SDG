@@ -24,7 +24,7 @@
 		<string>_jiefongvoice._tcp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>碰一碰加街坊時，用嚟搵到身邊另一部手機；亦用嚟搵同一個 Wi-Fi 入面讀粵語嘅 Mac。</string>
+	<string>碰一碰加街坊時，用嚟搵到身邊另一部手機；亦用嚟連接同一個 Wi-Fi 入面嘅語音服務，令讀出嚟嘅聲更自然。</string>
 	<!-- Mac 语音服务器喺局域网用 HTTP（http://192.168.x.x:8765）：只放行本地网络（NSAllowsLocalNetworking），
 	     公网照样要 HTTPS（--tunnel 嘅 trycloudflare 地址系 HTTPS）。见 server/README.md。 -->
 	<key>NSAppTransportSecurity</key>

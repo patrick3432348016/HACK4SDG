@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import StreetWalk
 
@@ -293,6 +294,46 @@ struct VoiceFlowTests {
         let tip = AppStore.oneSentence(["天文台話打鼓嶺而家 34 度。", "今日好熱。涼亭下晝 3 點後有樓遮住，嗰陣先出門啱啲。"])
         #expect(tip.filter { $0 == "。" }.count == 1)
         #expect(tip.hasSuffix("。"))
+    }
+
+    @Test func 今日三件事打勾() {
+        let s = makeStore()     // 陳太已经係街坊
+        s.firstDay = FirstDayProgress(started: Date())
+        s.firstDayCheck()
+        #expect(s.firstDay?.bumped == true)
+        s.firstDayWalked(4)
+        #expect(s.firstDay?.walked == false)
+        s.firstDayWalked(6)
+        #expect(s.firstDay?.walked == true && s.firstDay?.finishedAt == nil)
+        // 人哋约你、未应承：唔算
+        s.appointments = [Appointment(partnerID: "chan", date: Date().addingTimeInterval(86400), landmarkID: "park-0", reason: "", status: .waiting, fromPartner: true)]
+        s.firstDayCheck()
+        #expect(s.firstDay?.invited != true)
+        // 自己约咗：三件做齐
+        s.appointments.append(Appointment(partnerID: "chan", date: Date().addingTimeInterval(86400), landmarkID: "park-0", reason: "", status: .waiting))
+        s.firstDayCheck()
+        #expect(s.firstDay?.allDone == true && s.firstDay?.finishedAt != nil)
+        s.closeFirstDay()
+        #expect(s.showsFirstDay == false)
+    }
+
+    @Test func 任务卡只喺有进度时画() throws {
+        let s = makeStore()
+        s.phase = .main
+        func render() -> UIImage? {
+            let r = ImageRenderer(content: FirstDayCard().environment(s).frame(width: 393).background(Color(.systemGroupedBackground)))
+            r.scale = 3
+            return r.uiImage
+        }
+        s.firstDay = nil
+        #expect((render()?.size.height ?? 0) < 10, "冇任务卡：乜都唔画")
+        s.firstDay = FirstDayProgress(started: Date(), walkMinutes: 4, bumped: true)
+        let img = try #require(render())
+        #expect(img.size.height > 150, "有任务卡：三行都画得出")
+        // 留低一张图俾人睇（STREETWALK_SNAPSHOT_DIR 有设先写）
+        if let dir = ProcessInfo.processInfo.environment["STREETWALK_SNAPSHOT_DIR"], let png = img.pngData() {
+            try png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("first_day_card.png"))
+        }
     }
 }
 

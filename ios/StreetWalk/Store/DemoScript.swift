@@ -136,27 +136,35 @@ extension AppStore {
 }
 
 /// 自动走一遍首次使用（启动参数 `-resetOnboarding -scriptOnboarding`），用于检查每一步的画面。
+/// 5 步：欢迎 → 私隐「同意」→ 屋企（未问过定位就当撳「好」；估中就「係」，估唔到就揀第一座）→ 樓層同網名 → 試一次（撳「或者撳呢句」）→ 做完。
 extension AppStore {
     func runOnboardingScriptIfNeeded() {
         guard LaunchArgs.has("-scriptOnboarding") else { return }
         Task { @MainActor in
+            try? await Task.sleep(for: .seconds(4))
+            print("[script] 開始"); onbHush(); phase = .onboarding(.consent)
+            try? await Task.sleep(for: .seconds(4))
+            print("[script] 同意"); onbHush(); consent()
             try? await Task.sleep(for: .seconds(3))
-            print("[script] 同意"); consent()
-            while map == nil || loadingMap { try? await Task.sleep(for: .milliseconds(200)) }
+            if !loadingMap && map == nil { print("[script] 好（定位）"); onbHush(); startLocating() }
+            while map == nil || loadingMap || phase != .onboarding(.pickHome) { try? await Task.sleep(for: .milliseconds(200)) }
             try? await Task.sleep(for: .seconds(4))
-            if let b = residentialBuildings().first(where: { $0.name != nil }) ?? residentialBuildings().first { print("[script] 揀樓"); pickHome(b.id) }
-            try? await Task.sleep(for: .seconds(4))
-            print("[script] 確認"); confirmHome()
-            try? await Task.sleep(for: .seconds(4))
-            print("[script] 揀小人"); floorChoice = 12; phase = .onboarding(.avatar)
-            try? await Task.sleep(for: .seconds(2))
-            mobilityChoice = .cane
+            if let id = pendingHome {
+                print("[script] 估中：\(map?.building(id: id)?.name ?? "\(id)")")
+            } else if let b = residentialBuildings().first(where: { $0.name != nil }) ?? residentialBuildings().first {
+                print("[script] 揀樓"); pickHome(b.id)
+                try? await Task.sleep(for: .seconds(3))
+            }
+            print("[script] 係"); onbHush(); confirmHome()
             try? await Task.sleep(for: .seconds(3))
-            print("[script] 網名"); phase = .onboarding(.nickname)
-            try? await Task.sleep(for: .seconds(2))
+            print("[script] 樓層 + 網名"); floorChoice = min(12, max(1, homeLevels))
             setNickname(nickname.isEmpty ? "行路友" : nickname)   // -debugNickname 已经喺启动时填咗
-            try? await Task.sleep(for: .seconds(2))
-            print("[script] 完成"); finishOnboarding()
+            try? await Task.sleep(for: .seconds(3))
+            print("[script] 試一次"); onbHush(); phase = .onboarding(.tryMic)
+            try? await Task.sleep(for: .seconds(4))
+            print("[script] 撳「今日天氣點」"); NotificationCenter.default.post(name: .onbTryPhrase, object: nil)
+            try? await Task.sleep(for: .seconds(6))
+            print("[script] 做完"); onbHush(); finishOnboarding()
         }
     }
 }
