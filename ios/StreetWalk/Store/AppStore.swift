@@ -6,7 +6,8 @@ import UIKit
 @Observable
 final class AppStore: NeighborRegistry {
     enum Phase: Equatable { case onboarding(Step), main }
-    enum Step: Int { case consent, locate, pickHome, floor, avatar, nickname }
+    /// 首次使用 5 步：欢迎、私隐、屋企（定位 + 揀樓）、樓層同網名、試一次撳咪。改楼（设定）只行屋企同樓層。
+    enum Step: Int { case welcome, consent, locate, pickHome, floor, tryMic }
     enum Tab: Hashable { case today, board, neighbors }
     enum BumpStage: Equatable { case idle, searching, found(String) }
     enum Selection: Equatable { case landmark(String), person(String) }
@@ -166,6 +167,10 @@ final class AppStore: NeighborRegistry {
     /// 第一次见到对方位置：镜头移去两人之间（只做一次）。
     @ObservationIgnored var liveCameraDone = false
 
+    // 首次使用之后（AppStore+FirstDay）
+    /// 「今日三件事」任务卡嘅进度（nil = 冇任务卡，例如旧用户）。存档。
+    var firstDay: FirstDayProgress? { didSet { scheduleSave() } }
+
     var me: Resident { residents.first { $0.isMe } ?? Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true, nickname: nickname) }
     var neighbors: [Resident] { residents.filter { $0.isNeighbor && !$0.isMe } }
     var outNeighbors: [Resident] { neighbors.filter(\.isOut) }
@@ -203,6 +208,8 @@ final class AppStore: NeighborRegistry {
             colorChoice = d.object(forKey: "color") as? Int ?? Palette.meIndex
             phase = .main
             Task { await loadMap(home: (d.object(forKey: "homeBuilding") as? NSNumber)?.int64Value, animated: true) }
+        } else {
+            phase = .onboarding(.welcome)     // 首次使用由欢迎页开始（讲用途），再到私隐
         }
         runOnboardingScriptIfNeeded()
     }

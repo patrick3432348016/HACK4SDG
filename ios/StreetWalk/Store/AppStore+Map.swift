@@ -6,6 +6,12 @@ extension AppStore {
 
     func consent() {
         phase = .onboarding(.locate)
+        // 未问过定位：「屋企」一步先讲一句点解要定位，用户撳「好」先弹系统框（startLocating）。
+        if !mapService.locationUndetermined { startLocating() }
+    }
+
+    /// 攞位置、装附近地图（第一次会弹「使用 App 期間」定位框）。装好就到选楼（showPickHome）。
+    func startLocating() {
         Task { await loadMap(home: nil, animated: true) }
     }
 
@@ -74,15 +80,40 @@ extension AppStore {
             notice = L.t("附近未有樓宇資料，喺你位置放咗一座示意樓，撳佢就得。", "附近还没有楼宇数据，在你的位置放了一座示意楼，点它就行。")
         }
         install(v, home: nil, animated: animated)
-        // 全屏看整个底座（主界面的总览按上半屏调的，这里另算；数值按 300 m 调，再按边长缩放）。
-        let k = v.size / 300
-        scene.setCamera(target: Vec2(x: -65 * k, y: 65 * k), distance: Float(2.85 * k), animated: false)
+        pickCamera(animated: false)
         loadingMap = false
         phase = .onboarding(.pickHome)
         highlightResidential(true)
-        // 等「撳一下你住嗰座樓」说完再说。
+        // 知道你喺边、附近有住宅楼：先替你揀最近嗰座，问「你係咪住XX樓？」（唔啱先自己揀，见 OnbPickHomeStep）。
+        if let me, notice == nil, let id = guessHome(in: v, at: v.scenePoint(LocalProjection(origin: full.center).toGeo(me))) { pickHome(id) }
+        // 等「你係咪住…」/「撳一下你住嗰座樓」说完再说。
         if let notice { noticeMap(notice, delay: 2.5) }
     }
+
+    /// 选楼画面全屏看整个底座（主界面的总览按上半屏调的，这里另算；数值按 300 m 调，再按边长缩放）。
+    func pickCamera(animated: Bool) {
+        guard let v = map else { return }
+        let k = v.size / 300
+        scene.setCamera(target: Vec2(x: -65 * k, y: 65 * k), distance: Float(2.85 * k), animated: animated)
+    }
+
+    /// 估你住边座：脚下嗰座住宅楼，冇就最近嗰座（120 米以外唔估，交俾你自己揀）。
+    func guessHome(in v: MapModel, at p: Vec2) -> Int64? {
+        let homes = v.buildings.filter { $0.kind == .residential }
+        if let b = homes.first(where: { Polygon.contains($0.outline, p) }) { return b.id }
+        guard let b = homes.min(by: { $0.centroid.distance(to: p) < $1.centroid.distance(to: p) }), b.centroid.distance(to: p) <= 120 else { return nil }
+        return b.id
+    }
+
+    /// 「唔係，我揀」：收起估嘅楼，全部住宅楼亮橙色，镜头退返睇成个底座。
+    func pickHomeManually() {
+        pendingHome = nil
+        highlightResidential(true)
+        pickCamera(animated: true)
+    }
+
+    /// 选楼画面里可以揀嘅楼（住宅楼）。
+    func isHomeCandidate(_ id: Int64) -> Bool { map?.building(id: id)?.kind == .residential }
 
     /// 等太久时改用内置示例屋邨（给选楼一步的「用示例屋邨」按钮用）。正在拉的地图拉到了也不要。
     func useSampleMap() {
@@ -153,6 +184,7 @@ extension AppStore {
     }
 
     func finishOnboarding() {
+        let firstTime = !changingHome     // 改楼（设定）唔使任务卡
         let d = UserDefaults.standard
         d.set(true, forKey: "onboarded")
         if let id = pendingHome { d.set(NSNumber(value: id), forKey: "homeBuilding") }
@@ -169,9 +201,10 @@ extension AppStore {
         populate()
         uploadProfile()     // populate 之后：座数跟新屋企
         scene.resetCamera()
-        say(L.t("搞掂。你行街嘅時候我會自動記錄，唔使撳任何掣。", "搞定。你散步的时候我会自动记录，不用按任何按钮。"))
-        startWalkDetection()   // 同意之后先问动作 / 定位权限
-        locationOnboarded()    // 屋企范围、「始终允许」解释页（AppStore+Location）
+        if firstTime { startFirstDay() }   // 「今日」页顶「今日三件事」（AppStore+FirstDay）
+        say(firstTime ? L.t("搞掂！今日試吓做呢三件事。", "搞定！今天试试做这三件事。") : L.t("改好咗。", "改好了。"))
+        startWalkDetection()   // 动作感应；通知权限等有街坊先问（requestNotificationsIfReady）
+        locationOnboarded()    // 屋企范围；「始终允许」等第一次散步返屋企先问（AppStore+Location）
     }
 
     /// 圈成员（F2）：由 CommunityService 给（单机演示时是示範街坊），再套回已保存的街坊关系、地标名、我的记录。

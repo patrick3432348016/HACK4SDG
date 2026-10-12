@@ -59,6 +59,7 @@ extension AppStore {
         syncScene()
         scene.resetCamera()
         say(remind ? L.t("開咗出門提醒，你哋出門都會互相話知（只講地標）。", "出门提醒开了，你们出门都会互相通知（只说地标）。") : L.t("冇問題，之後想開隨時可以。", "没问题，之后想开随时可以。"))
+        if remind { requestNotificationsIfReady() }   // 第一次有街坊、开咗提醒：先问通知权限（AppStore+Services）
     }
 
     /// F6：发送、接收可以分开开关。

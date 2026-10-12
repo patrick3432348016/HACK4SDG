@@ -62,9 +62,11 @@ extension AppStore {
         ["-script", "-script2", "-script3", "-scriptOnboarding", "-captions", "-skipOnboarding"].contains(where: LaunchArgs.has)
     }
 
-    /// 完成首次使用之后先问通知权限（之后每次开 App 都唔会再问，由系统设定管）。
+    /// 通知权限等到真係要用先问（UX 报告问题 24）：有街坊开咗出门提醒（碰一碰之后答「開」），或者有约会。
+    /// 只问一次，之后由系统设定管。
     func requestNotificationsIfReady() {
         guard phase == .main, UserDefaults.standard.bool(forKey: "onboarded"), !skipsPermissionPrompt else { return }
+        guard neighbors.contains(where: \.receiveRemind) || appointments.contains(where: \.isOpen) else { return }
         notifier.requestIfNeeded()
     }
 

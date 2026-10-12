@@ -11,7 +11,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().delegate = self
     }
 
-    /// 完成首次使用后先问（只问一次，之后由系统设定管）。
+    /// 要用时先问（有街坊开咗出门提醒、或者有约会，见 AppStore.requestNotificationsIfReady）；只问一次，之后由系统设定管。
     func requestIfNeeded() {
         let c = UNUserNotificationCenter.current()
         c.getNotificationSettings { s in

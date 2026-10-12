@@ -5,11 +5,11 @@ import SwiftUI
 
 // MARK: - 「始终允许」解释页
 
-/// 完成首次使用之后弹一次：大字讲清楚点解要「始终允许」，按「好」先弹系统框。
+/// 第一次散步记好之后弹一次（offerAlwaysIfNeeded）：大字讲清楚点解要「始终允许」，按「好」先弹系统框。
 struct AlwaysAskSheet: View {
     @Environment(AppStore.self) private var store
 
-    static var spoken: String { L.t("想你鎖咗機、手機放喺袋，出門散步都自動記錄，要將定位改做始終允許。喺屋企唔會一直開定位，唔會好食電。屋企喺邊、行過嘅路，只留喺你部手機。", "想在锁屏、手机放口袋时，出门散步也自动记录，要把定位改成始终允许。在家不会一直开定位，不会很耗电。家在哪里、走过的路，只留在你的手机上。") }
+    static var spoken: String { L.t("想鎖咗機都自動記錄散步，要將定位改做始終允許。", "想锁屏也自动记录散步，要把定位改成始终允许。") }
 
     var body: some View {
         let lm = LocationMonitor.shared
@@ -17,14 +17,12 @@ struct AlwaysAskSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 hero.frame(maxWidth: .infinity)
-                Text(L.t("出門自動記錄", "出门自动记录")).ds(.title).accessibilityAddTraits(.isHeader)
+                Text(L.t("想鎖咗機都記錄散步？", "想锁屏也记录散步？")).ds(.title).fixedSize(horizontal: false, vertical: true).accessibilityAddTraits(.isHeader)
                 VStack(alignment: .leading, spacing: 16) {
-                    row("lock.iphone", L.t("手機鎖咗、放喺袋，出門散步都會自動記錄，唔使打開 App。", "手机锁屏、放口袋，出门散步也会自动记录，不用打开 App。"))
                     row("location.fill", viaSettings
                         ? L.t("撳下面個掣打開設定：撳「位置」，揀「永遠」（有啲手機寫「始終」），再開「精確位置」。", "点下面的按钮打开设置：点「位置」，选「永远」（有些手机写「始终」），再开「精确位置」。")
-                        : L.t("要將定位改做「始終允許」。等陣彈出嚟嘅框，請揀「改為始終允許」（有啲手機寫「永遠允許」）。", "要把定位改成「始终允许」。待会儿弹出的框，请选「改为始终允许」（有些手机写「永远允许」）。"))
-                    row("battery.75percent", L.t("喺屋企唔會一直開定位，只係出門行路先用準確定位，唔會好食電。", "在家不会一直开定位，只有出门走路才用精确定位，不会很耗电。"))
-                    row("lock.shield.fill", L.t("屋企喺邊、行過嘅路，只留喺你部手機，唔會上傳。", "家在哪里、走过的路，只留在你的手机上，不会上传。"))
+                        : L.t("等陣彈出嚟嘅框，請揀「改為始終允許」（有啲手機寫「永遠允許」）。", "待会儿弹出的框，请选「改为始终允许」（有些手机写「永远允许」）。"))
+                    row("lock.shield.fill", L.t("喺屋企唔會一直開定位，唔會好食電；行過嘅路只留喺你部手機。", "在家不会一直开定位，不会很耗电；走过的路只留在你的手机上。"))
                 }
                 Button { store.sayAgain(Self.spoken) } label: {
                     Label(L.t("再聽一次", "再听一次"), systemImage: "speaker.wave.2.fill").frame(maxWidth: .infinity)
@@ -97,6 +95,7 @@ struct AlwaysAskSheet: View {
 // MARK: - 今日页嘅提示卡
 
 /// 今日页最顶：係咪搬咗屋（连续两晚喺第二度过夜）、自动记录未开齐（唔係「始终允许」）。演示模式唔出。
+/// 未开齐嘅卡等第一次散步问过「始终允许」先出（要用时先问，UX 报告问题 24）；定位拒绝咗就即刻出。
 struct LocationCards: View {
     @Environment(AppStore.self) private var store
 
@@ -106,7 +105,8 @@ struct LocationCards: View {
             if let p = lm.homePrompt {
                 HomePromptCard(prompt: p).transition(.opacity)
             }
-            if lm.needsAttention, (lm.cardHiddenUntil ?? .distantPast) < Date() {
+            if lm.needsAttention, (lm.cardHiddenUntil ?? .distantPast) < Date(),
+               lm.alwaysOffered || lm.auth == .denied || lm.auth == .restricted {
                 PermissionCard().transition(.opacity)
             }
         }
@@ -176,44 +176,56 @@ private struct HomePromptCard: View {
     }
 }
 
+/// 自动记录未开齐：一句白话 + 一个掣（UX 报告问题 25）；右上角细「×」= 遲啲先（3 日后再出）。
 private struct PermissionCard: View {
     @Environment(AppStore.self) private var store
 
     var body: some View {
         let lm = LocationMonitor.shared
+        let a = Self.ask(lm)
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "location.slash.fill")
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: a.symbol)
                     .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.accent)
                     .frame(width: 48, height: 48)
-                    .background(Color(.tertiarySystemFill), in: Circle())
+                    .background(DS.accentSoft, in: Circle())
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(L.t("出門自動記錄未開齊", "出门自动记录未开全")).ds(.bodyBold)
-                    Text(LocationStatusText.problem(lm) ?? "").ds(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                Text(a.text)
+                    .ds(.bodyBold)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Button { lm.hideCard(days: 3) } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L.t("遲啲先", "以后再说"))
             }
-            .accessibilityElement(children: .combine)
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) { buttons(lm, stacked: false) }
-                VStack(spacing: 8) { buttons(lm, stacked: true) }
+            Button { if lm.needsAlways { lm.showAlwaysAsk = true } else { lm.openSettings() } } label: {
+                Text(a.button).frame(maxWidth: .infinity)
             }
+            .buttonStyle(.dsPrimary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .dsCard()
     }
 
-    @ViewBuilder private func buttons(_ lm: LocationMonitor, stacked: Bool) -> some View {
-        Button { lm.hideCard(days: 3) } label: {
-            Text(L.t("遲啲先", "以后再说")).frame(maxWidth: stacked ? .infinity : nil)
+    /// 而家最要紧嗰样：一句白话、掣上面嘅字、图标。
+    @MainActor static func ask(_ lm: LocationMonitor) -> (text: String, button: String, symbol: String) {
+        switch lm.auth {
+        case .denied, .restricted:
+            return (L.t("定位閂咗，散步記錄唔到。", "定位关了，散步记录不了。"), L.t("去設定開", "去设置打开"), "location.slash.fill")
+        case .notDetermined, .authorizedWhenInUse:
+            return (L.t("想鎖咗機都記到散步？", "想锁屏也记录散步？"), L.t("撳呢度開", "点这里打开"), "lock.iphone")
+        default:
+            break
         }
-        .buttonStyle(.dsSecondary)
-        Button { if lm.needsAlways { lm.showAlwaysAsk = true } else { lm.openSettings() } } label: {
-            Text(L.t("點樣開", "怎么开")).frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.dsPrimary)
+        if !lm.precise { return (L.t("開「精確位置」，先認到你行過邊度。", "打开「精确位置」，才能认出你走过哪里。"), L.t("去設定開", "去设置打开"), "location.fill") }
+        return (L.t("開返「背景 App 重新整理」，出門先會自動記錄。", "打开「后台 App 刷新」，出门才会自动记录。"), L.t("去設定開", "去设置打开"), "arrow.clockwise")
     }
 }
 

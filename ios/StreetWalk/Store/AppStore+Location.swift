@@ -78,10 +78,12 @@ extension AppStore {
         LocationMonitor.shared.setHome(m.geoPoint(b.centroid), picked: picked)
     }
 
-    /// 首次使用之后（或者旧用户第一次开新版本）自动弹一次「始终允许」解释页。演示、自动脚本唔弹。
+    /// 第一次真散步记好、返到嚟（唔喺散步中）先自动弹一次「始终允许」解释页（UX 报告问题 24：要用时先问）。
+    /// 演示、自动脚本唔弹。之后只喺今日页卡同设定提。
     func offerAlwaysIfNeeded() {
         let lm = LocationMonitor.shared
         guard phase == .main, !demoMode, !skipsPermissionPrompt, !changingHome, lm.auth != .authorizedAlways, !lm.alwaysOffered else { return }
+        guard walk == nil, walkLog.values.contains(where: { !$0.demo && $0.walks > 0 }) else { return }
         lm.markAlwaysOffered()
         lm.showAlwaysAsk = true
     }
@@ -214,6 +216,13 @@ extension AppStore {
         case .riding: why = L.t("上咗車", "上车了")
         }
         LocationMonitor.shared.record(.walkEnd, recorded ? L.t("\(why)：行咗 \(minutes) 分鐘，經過 \(places) 個地方", "\(why)：走了 \(minutes) 分钟，经过 \(places) 个地方") : L.t("\(why)：太短，唔記錄", "\(why)：太短，不记录"))
+        if recorded, !isInBackground {
+            // 第一次散步记好：等「返到屋企喇…」讲完先问「始终允许」（只问一次）
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(5))
+                self?.offerAlwaysIfNeeded()
+            }
+        }
         guard isInBackground else { return }
         let d = walkDetector
         UserDefaults.standard.set(Date(), forKey: Self.backgroundKey)
@@ -250,6 +259,7 @@ extension AppStore {
     func noteWalkRecorded(minutes: Int, simulated: Bool, backfilled: Bool, steps: Int?) {
         guard !simulated, backfilled, isMainStore else { return }
         LocationMonitor.shared.record(.backfill, L.t("用手機步行紀錄補記：\(minutes) 分鐘\(steps.map { "、\($0) 步" } ?? "")（冇地標）", "用手机步行记录补记：\(minutes) 分钟\(steps.map { "、\($0) 步" } ?? "")（没有地标）"))
+        if !isInBackground { offerAlwaysIfNeeded() }    // 补记咗第一次散步（返前台）：问「始终允许」
     }
 
     /// 背景开始 / 记好散步：静音通知（App 打开时唔弹）。

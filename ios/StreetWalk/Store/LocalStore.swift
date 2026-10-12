@@ -14,6 +14,8 @@ struct SavedState: Codable, Equatable {
     var landmarkNames: [String: String] = [:]
     var walkLog: [String: DayLog] = [:]
     var leaveDays: Set<String> = []
+    /// 「今日三件事」任务卡（首次使用之后）。可选：旧存档冇呢个字段都读得返。
+    var firstDay: FirstDayProgress?
 }
 
 struct NeighborLink: Codable, Equatable {
@@ -182,6 +184,7 @@ extension SavedState {
         landmarkNames = c.value(.landmarkNames, [:], d)
         walkLog = c.value(.walkLog, [:], d)
         leaveDays = c.value(.leaveDays, [], d)
+        firstDay = c.value(.firstDay, nil, d)
     }
 }
 

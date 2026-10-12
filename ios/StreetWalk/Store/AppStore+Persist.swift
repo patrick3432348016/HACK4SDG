@@ -22,6 +22,7 @@ extension AppStore {
         landmarkNames = s.landmarkNames
         walkLog = s.walkLog
         leaveDays = s.leaveDays
+        firstDay = s.firstDay
         if demoMode && walkLog.isEmpty { seedDemoHistory() }
         restoring = false
     }
@@ -35,12 +36,13 @@ extension AppStore {
             guard !Task.isCancelled else { return }
             self.saveNow()
             self.syncNotifications()
+            self.firstDayCheck()     // 街坊、约会有变：「今日三件事」打勾（AppStore+FirstDay）
         }
     }
 
     func saveNow() {
         LocalStore.save(SavedState(mapKey: savedMapKey, neighbors: savedNeighbors, appointments: appointments, reports: reports,
-                                   landmarkNames: landmarkNames, walkLog: walkLog, leaveDays: leaveDays))
+                                   landmarkNames: landmarkNames, walkLog: walkLog, leaveDays: leaveDays, firstDay: firstDay))
     }
 
     var currentMapKey: String? { map.map { "\($0.tile)|\(scene.homeBuildingID.map(String.init) ?? "-")" } }
@@ -92,7 +94,7 @@ extension AppStore {
     func clearAllData() {
         LocalStore.clear()
         restoring = true
-        savedNeighbors = [:]; appointments = []; reports = []; landmarkNames = [:]; walkLog = [:]; leaveDays = []
+        savedNeighbors = [:]; appointments = []; reports = []; landmarkNames = [:]; walkLog = [:]; leaveDays = []; firstDay = nil
         if demoMode { seedDemoHistory() }
         restoring = false
         restoreOriginalNames()
@@ -170,6 +172,7 @@ extension AppStore {
                           steps: steps, simulated: simulated)
         refreshMe()
         uploadDay(day ?? now)
+        firstDayWalked(minutes)     // 「今日三件事」：出去行 10 分鐘（AppStore+FirstDay）
         noteWalkRecorded(minutes: minutes, simulated: simulated, backfilled: day != nil, steps: steps)   // 定位纪录（AppStore+Location）
     }
 
