@@ -1,14 +1,15 @@
 import SwiftUI
 
 /// 设计规范（按 iPhone 17 402×874 pt，第一版草图）：侧边距 16，间距 8 的倍数，卡片圆角 18；
-/// 字号三档 标题 34 / 正文 24 / 辅助 20，随动态字体只放大；单一强调色橙。
+/// 字号三档 标题 34 / 正文 24 / 辅助 20（「標準」），设定页「字體大小」可以调细一档或者调大（TextSize）；单一强调色橙。
 enum DS {
     static let accent = Color(red: 0.847, green: 0.353, blue: 0.188)      // #D85A30
     static let accentSoft = Color(red: 0.847, green: 0.353, blue: 0.188).opacity(0.12)
     static let side: CGFloat = 16
     static let gap: CGFloat = 8
     static let radius: CGFloat = 18
-    static let sceneFraction: CGFloat = 0.42
+    /// 上面 3D 场景占屏幕高度：「標準」42%，字大时缩（TextSize.sceneFraction）。喺 body 入面读会跟住字号重画。
+    static var sceneFraction: CGFloat { TextSizeSetting.shared.current.sceneFraction }
     static let micSize: CGFloat = 68
     static let tabBarHeight: CGFloat = 83
 
@@ -263,7 +264,7 @@ struct DSMenuPicker<Value: Hashable>: View {
                     .foregroundStyle(.tertiary)
             }
             .ds(.body)
-            .frame(minHeight: 44)
+            .frame(minHeight: 56)   // 长者手指：成行 56pt 高
             .contentShape(Rectangle())
         }
         .tint(.primary)   // 表单里 Menu 的 label 会被染成强调色，标题要用正文色

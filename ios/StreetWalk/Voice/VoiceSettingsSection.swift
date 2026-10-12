@@ -1,7 +1,8 @@
 import SwiftUI
 import UIKit
 
-// 设定页「聲音」：播报开关、讲粤语定普通话、揀把声（试听）、语速三档；未有自然啲嘅声就教用户去 iPhone 设定下载。
+// 设定页「聲音」：播报开关、语速三档、试听（常用，放上面）；
+// 语音服务器、揀把声、教用户去 iPhone 设定下载声音（VoiceAdvancedSections）收喺设定页最底「進階」。
 
 struct VoiceSettingsSection: View {
     @Environment(AppStore.self) private var store
@@ -21,6 +22,11 @@ struct VoiceSettingsSection: View {
                 }), label: \.label)
             }
             .padding(.vertical, 8)
+            Button { store.previewVoice(v.active) } label: {
+                Label(L.t("試聽", "试听"), systemImage: "play.fill").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.dsSecondary)
+            .padding(.vertical, 4)
         } header: {
             Text(L.t("聲音", "声音")).ds(.caption)
         } footer: {
@@ -28,7 +34,13 @@ struct VoiceSettingsSection: View {
                 .ds(.caption)
         }
         .id("voice")
+    }
+}
 
+/// 设定页「進階」入面嘅声音部分：语音服务器、揀把声、下载声音指引。
+struct VoiceAdvancedSections: View {
+    var body: some View {
+        let v = VoiceSettings.shared
         VoiceServerSection()
 
         Section {

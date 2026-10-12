@@ -26,7 +26,12 @@ struct RootView: View {
         .sheet(isPresented: $locator.showAlwaysAsk) {
             AlwaysAskSheet().environment(store)
         }
-        // 正文基准已经是 24pt：系统字号调小也不缩（下限 .large = 基准）；大过无障碍第 2 档排不下，所以封顶。
-        .dynamicTypeSize(.large ... .accessibility2)
+        // 字号由设定页「字體大小」决定（細 / 標準 / 大 / 特大），覆盖 iOS 文字大小；未揀过就按 iOS 揀最接近嗰档。
+        // 弹出页唔跟呢度嘅环境，所以 UIWindowScene 都覆盖埋（applyToWindows）。
+        .dynamicTypeSize(TextSizeSetting.shared.current.dynamicType)
+        .onChange(of: TextSizeSetting.shared.current, initial: true) { TextSizeSetting.shared.applyToWindows() }
+        .onReceive(NotificationCenter.default.publisher(for: UIContentSizeCategory.didChangeNotification)) { _ in
+            TextSizeSetting.shared.applyToWindows()
+        }
     }
 }
