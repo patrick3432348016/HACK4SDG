@@ -23,6 +23,10 @@ final class Speaker: ObservableObject {
     /// 每次 speak / stop 加一：等 token 嗰阵被打断就唔再开始。
     private var speakGeneration = 0
     var isSpeaking: Bool { synth.isSpeaking || serverPlayer.isActive }
+    /// 连续对话收紧音（ServerSpeechPlayer 嘅 engine）：唔好改音频会话，否则咪会断。
+    var capturing: Bool { serverPlayer.capturing }
+    func startCapture(_ onPCM: @escaping @Sendable (Data) -> Void) throws { try serverPlayer.startCapture(onPCM) }
+    func stopCapture() { serverPlayer.stopCapture() }
     func stop() {
         speakGeneration += 1
         serverPlayer.stop()
@@ -37,10 +41,12 @@ final class Speaker: ObservableObject {
         settings.ensureScanned()
         let language = settings.language
         let speed = TTSRoute.speed(settings.pace)
-        let voiceID = server?.voiceID
+        // 普通话同粤语同一把声（豆包小何）：缓存要分开（粤语照旧 key，同预热一致）
+        let voiceID = server?.voiceID.map { language == .cantonese ? $0 : "\($0)/\(language.rawValue)" }
         let key = voiceID.map { SpeechAudioCache.key(text: text, voiceID: $0, speed: speed) }
         let cached = key.flatMap { SpeechAudioCache.file(for: $0) }
-        let route = TTSRoute.decide(language: language, server: server?.speechURL, cached: cached, scripted: Self.scripted)
+        let route = TTSRoute.decide(language: language, server: server?.speechURL, cached: cached, scripted: Self.scripted,
+                                    mandarin: server?.speaksMandarin ?? false)
         lastRoute = route
         switch route {
         case .system:
@@ -72,7 +78,8 @@ final class Speaker: ObservableObject {
 
     private func startStream(_ text: String, url: URL, speed: Double, token: String?, key: String?, language: SpokenLanguage) {
         let started = Date()
-        serverPlayer.stream(text: text, server: url, speed: speed, token: token, cacheKey: key) { [weak self] outcome in
+        serverPlayer.stream(text: text, server: url, speed: speed, token: token, cacheKey: key,
+                            locale: language == .mandarin ? "zh-CN" : "zh-HK") { [weak self] outcome in
             guard let self else { return }
             switch outcome {
             case .failedBeforeAudio:
@@ -92,6 +99,7 @@ final class Speaker: ObservableObject {
     }
 
     private func activateSession() {
+        guard !capturing else { return }
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
         try? AVAudioSession.sharedInstance().setActive(true)
     }
@@ -107,8 +115,10 @@ final class Speaker: ObservableObject {
 
     private func play(_ text: String, voice v: VoiceInfo?, language: SpokenLanguage) {
         serverPlayer.stop()
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
-        try? AVAudioSession.sharedInstance().setActive(true)
+        if !capturing {
+            try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+            try? AVAudioSession.sharedInstance().setActive(true)
+        }
         synth.stopSpeaking(at: .immediate)
         // 一定要指明边把声（只写语言会拎到最低档；普通话只会揀 zh-CN 声，见 VoicePicker）。
         let voice = v.flatMap(systemVoice) ?? fallback(language)

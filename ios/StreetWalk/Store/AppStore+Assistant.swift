@@ -37,7 +37,8 @@ extension AppStore {
         let upload = assistantContextUpload()
         Task { @MainActor in
             do {
-                let reply = try await Self.withTimeout(8) { [assistant] in
+                // B 嗰套：豆包理解约 3–4 秒，问天气再加天文台（最多 6 秒）
+                let reply = try await Self.withTimeout(12) { [assistant] in
                     // 地点资料上传失败都照问：最多系揀唔到地点，B 会如实讲
                     try? await assistant.upload(upload)
                     return try await assistant.turn(text)
@@ -95,9 +96,11 @@ extension AppStore {
     func showAssistant(_ reply: AssistantReply, heard: String) {
         let card = AssistantFlow.card(reply, lookup: assistantLookup)
         if card.kind == .info && reply.status == .info {
-            // 今日一句、散步建议之类：照讲 B 嘅内容（转繁体）
-            voiceCard = VoiceCard(heard: heard, title: card.title, detail: nil, needsConfirm: false, intent: .unknown, assistant: card)
+            // 今日一句、天气、B 嘅固定句之类：照讲 B 嘅内容（转繁体）
+            voiceCard = VoiceCard(heard: heard, title: card.title, detail: card.detail, needsConfirm: false, intent: .unknown, assistant: card)
             say(card.spoken)
+            // 天气：留住对话，紧接住问「咁聽日呢」B 会参考上一句（其他资讯答完就开新对话）
+            if AssistantFlow.policy(reply) != "weather" { assistant.reset() }
             return
         }
         voiceCard = VoiceCard(heard: heard, title: card.title, detail: card.detail, needsConfirm: card.kind == .confirm,

@@ -62,6 +62,18 @@ final class AppStore: NeighborRegistry {
     var banner: BannerItem?
     var voiceCard: VoiceCard?
     var listening = false
+    /// 连续对话中（B 嘅豆包识别，见 AppStore+Conversation）：listening 都系 true，但唔使每句撳。
+    var conversing = false
+    /// 连续对话：而家听到（未处理）嘅字。
+    var heardPartial = ""
+    @ObservationIgnored let ear = VoiceEar()
+    @ObservationIgnored var earPending: [String] = []
+    @ObservationIgnored var earFlush: Task<Void, Never>?
+    @ObservationIgnored var earIdle: Task<Void, Never>?
+    @ObservationIgnored var earFeed: Task<Void, Never>?
+    @ObservationIgnored var lastEarActivity = Date()
+    /// 最近讲过嘅句子（连续对话嘅回声保险）。
+    @ObservationIgnored var recentSpoken: [(text: String, at: Date)] = []
     var phrasePicker = false
     var bumpStage: BumpStage = .idle
     var remindPromptFor: String?

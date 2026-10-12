@@ -1,6 +1,11 @@
 from dataclasses import dataclass
+from functools import cached_property
 import os
+from pathlib import Path
 from urllib.parse import urlparse
+
+# 成员 A 加（2026-10-12）：豆包方舟兼容 OpenAI 嘅 chat/completions，B 嘅豆包配置有 Key 就用嚟做理解（代替千问）。
+ARK_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
 
 
 @dataclass(frozen=True)
@@ -18,7 +23,9 @@ class Settings:
     # 成员 A 加（2026-10-11）：街坊行嘅 Supabase 业务适配（mode="supabase"）同本地粤语播报（GPT-SoVITS）。
     supabase_url: str = ""
     supabase_key: str = ""
-    tts_provider: str = "auto"          # auto | sovits | azure | none；auto = 有 SOVITS_ROOT 用 sovits，否则 Azure（配咗先）
+    tts_provider: str = "auto"          # auto | doubao | sovits | azure | none；auto = 有 SOVITS_ROOT 用 sovits，再到豆包，再到 Azure
+    # 成员 A 加（2026-10-12）：B 嘅豆包配置（voice-runtime/doubao.json：语音 Key、方舟 Key、模型、音色…），唔入 git。
+    doubao_config: str = ""
     sovits_root: str = ""
     sovits_ref_wav: str = ""
     sovits_ref_text: str = ""
@@ -32,7 +39,16 @@ class Settings:
 
     @classmethod
     def from_env(cls):
-        return cls(**{k: os.environ[env] for k, env in {
+        values = cls._env_values()
+        # 成员 A：有豆包配置、又冇另外设千问 → 理解用豆包方舟模型（B 新版同一个模型）。
+        if values.get("doubao_config") and "qwen_key" not in values:
+            doubao = load_doubao(values["doubao_config"])
+            values.update(qwen_key=doubao.ark_key.get_secret_value(), qwen_base_url=ARK_BASE_URL, qwen_model=doubao.model)
+        return cls(**values)
+
+    @classmethod
+    def _env_values(cls):
+        return dict(**{k: os.environ[env] for k, env in {
             "mode": "ASSISTANT_MODE", "database": "ASSISTANT_DATABASE",
             "demo_token": "DEMO_TOKEN", "azure_key": "AZURE_SPEECH_KEY",
             "azure_stt_url": "AZURE_STT_URL", "azure_tts_url": "AZURE_TTS_URL",
@@ -41,19 +57,30 @@ class Settings:
             "supabase_url": "SUPABASE_URL", "supabase_key": "SUPABASE_ANON_KEY",
             "tts_provider": "TTS_PROVIDER", "sovits_root": "SOVITS_ROOT", "sovits_ref_wav": "SOVITS_REF_WAV",
             "sovits_ref_text": "SOVITS_REF_TEXT", "sovits_device": "SOVITS_DEVICE", "speech_cache_dir": "SPEECH_CACHE_DIR",
+            "doubao_config": "DOUBAO_CONFIG",
         }.items() if env in os.environ},
             **{k: os.environ[env].lower() in {"1", "true", "yes"} for k, env in {
                 "speech_lan_open": "SPEECH_LAN_OPEN", "log_speech_text": "VOICE_LOG_TEXT"}.items() if env in os.environ})
 
     @property
+    def transcription_ready(self):
+        return bool(self.azure_key and self.azure_stt_url)
+
+    @property
     def speech_ready(self):
         return bool(self.azure_key and self.azure_stt_url and self.azure_tts_url)
 
+    @cached_property
+    def doubao(self):
+        """B 嘅豆包配置（DoubaoConfig）；冇设 DOUBAO_CONFIG 就 None。"""
+        return load_doubao(self.doubao_config) if self.doubao_config else None
+
     @property
     def tts(self):
-        """实际用边个播报：sovits（本机粤语）/ azure / none。"""
+        """实际用边个播报：doubao（B 嘅豆包粤语声）/ sovits（本机粤语）/ azure / none。"""
         if self.tts_provider == "auto":
-            return "sovits" if self.sovits_root else ("azure" if self.speech_ready else "none")
+            return ("sovits" if self.sovits_root else "doubao" if self.doubao_config
+                    else "azure" if self.speech_ready else "none")
         return self.tts_provider
 
     @property
@@ -63,8 +90,10 @@ class Settings:
     def validate(self):
         if self.mode not in {"demo", "production", "supabase"}:
             raise ValueError("ASSISTANT_MODE must be demo, production or supabase")
-        if self.tts_provider not in {"auto", "sovits", "azure", "none"}:
-            raise ValueError("TTS_PROVIDER must be auto, sovits, azure or none")
+        if self.tts_provider not in {"auto", "doubao", "sovits", "azure", "none"}:
+            raise ValueError("TTS_PROVIDER must be auto, doubao, sovits, azure or none")
+        if self.tts == "doubao" and self.doubao is None:
+            raise ValueError("doubao needs DOUBAO_CONFIG (B's voice-config.json)")
         if self.tts == "sovits" and not (self.sovits_root and self.sovits_ref_wav and self.sovits_ref_text):
             raise ValueError("sovits needs SOVITS_ROOT, SOVITS_REF_WAV and SOVITS_REF_TEXT")
         if self.mode == "supabase" and not (self.supabase_url and self.supabase_key):
@@ -78,3 +107,12 @@ class Settings:
                 raise ValueError("Provider and business URLs must be HTTPS URLs without credentials/query/fragment")
         if self.mode == "production" and not (self.speech_ready and self.model_ready and self.business_base_url):
             raise ValueError("Production requires Azure, Qwen and an authenticated business API; demo fallback is forbidden")
+
+
+def load_doubao(path):
+    """读 B 嘅豆包配置（同 B 嘅 macOS/server.py 一样：细过 12 KB、按 DoubaoConfig 校验）。"""
+    from .doubao import DoubaoConfig
+    file = Path(path).expanduser()
+    if file.stat().st_size > 12000:
+        raise ValueError("DOUBAO_CONFIG too large")
+    return DoubaoConfig.model_validate_json(file.read_bytes())

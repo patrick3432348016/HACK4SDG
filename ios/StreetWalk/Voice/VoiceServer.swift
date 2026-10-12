@@ -2,7 +2,8 @@ import Foundation
 import Network
 import Observation
 
-/// Mac 语音服务器（tools/voice_server.sh）：粤语真人声（GPT-SoVITS）+ 组员 B 嘅语音助手。
+/// Mac 语音服务器（tools/voice_server.sh）：组员 B 嘅豆包那套（识别 + 理解 + 小何粤语 / 普通话声）+ App 业务。
+/// 2026-10-12 起默认豆包；`--voice=sovits` 先系旧嘅 GPT-SoVITS 真人声（只有粤语、冇识别）。
 ///
 /// 点搵：① 设定 → 聲音 →「語音伺服器」亲手填嘅地址；② 同一个 Wi-Fi 用 Bonjour（_jiefongvoice._tcp，TXT 带 url）自动搵；
 /// ③ 模拟器再试本机 http://127.0.0.1:8765。逐个问 GET /v1/voice，第一个答到就用。
@@ -48,6 +49,10 @@ final class VoiceServer {
         var voice_id: String?
         var status: String
         var assistant: String?
+        /// 播报支援嘅语言（豆包：zh-HK、zh-CN；GPT-SoVITS：zh-HK）。
+        var locales: [String]?
+        /// 有冇 B 嘅豆包流式识别（/v1/voice/ear）：有就用连续对话。
+        var ear: Bool?
     }
 
     private(set) var status: Status = .searching
@@ -60,12 +65,23 @@ final class VoiceServer {
     }
     /// Bonjour 搵到嘅地址。
     private(set) var discovered: [URL] = []
+    /// 而家连住嘅服务器嘅能力（/v1/voice）。
+    private(set) var info: Info?
 
     /// 播报用：而家可以用嘅服务器（模型准备好）。
     var speechURL: URL? { if case .connected(let u, let v, _) = status, !v.isEmpty { return u }; return nil }
     var voiceID: String? { if case .connected(_, let v, _) = status, !v.isEmpty { return v }; return nil }
     /// 语音助手用：服务器开咗 Supabase 业务模式。
     var assistantURL: URL? { if case .connected(let u, _, true) = status { return u }; return nil }
+    /// 播报可唔可以用普通话（豆包有，GPT-SoVITS 冇）。
+    var speaksMandarin: Bool { speechURL != nil && (info?.locales ?? []).contains("zh-CN") }
+    /// B 嘅豆包流式识别（WebSocket）：http → ws、https → wss。
+    var earURL: URL? {
+        guard case .connected(let u, _, _) = status, info?.ear == true,
+              var c = URLComponents(url: u.appendingPathComponent("v1/voice/ear"), resolvingAgainstBaseURL: false) else { return nil }
+        c.scheme = c.scheme == "https" ? "wss" : "ws"
+        return c.url
+    }
 
     /// 连续播报失败几多次（超过就当连唔到，重新搵）。
     @ObservationIgnored private var failures = 0
@@ -133,6 +149,7 @@ final class VoiceServer {
         let list = Self.candidates(manual: manualURL, discovered: discovered, simulator: Self.isSimulator)
         for url in list {
             guard let info = await probe(url) else { continue }
+            self.info = info
             let next = Self.status(for: url, info: info)
             let wasConnected = status.isConnected
             status = next

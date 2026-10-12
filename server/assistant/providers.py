@@ -48,7 +48,7 @@ class Providers:
 
     async def transcribe(self, audio: bytes, locale: str):
         duration = validate_wav(audio)
-        if not self.settings.speech_ready:
+        if not self.settings.transcription_ready:
             raise AssistantError("SPEECH_NOT_CONFIGURED", "尚未配置语音 API；录音没有被识别。请使用文字输入测试。", 503)
         response = await self.post(self.settings.azure_stt_url,
             params={"language": locale, "format": "simple"}, content=audio,
@@ -81,7 +81,9 @@ class Providers:
             "Authorization": "Bearer " + self.settings.qwen_key,
         }, json={"model": self.settings.qwen_model, "messages": [
             {"role": "system", "content": system}, {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
-        ], "response_format": {"type": "json_object"}, "temperature": 0, "max_tokens": 800})
+        ], "response_format": {"type": "json_object"}, "temperature": 0, "max_tokens": 800,
+            # 成员 A 加：豆包方舟模型关思考（同 B 嘅 doubao.py），唔系就慢好多
+            **({"thinking": {"type": "disabled"}} if "volces.com" in self.settings.qwen_base_url else {})})
         try:
             result = response.json()
             choice = result["choices"][0]

@@ -10,12 +10,14 @@ extension AppStore {
     /// prompt：要用户回应嘅句子（复述确认、问题），优先讲、唔会被挤走。
     /// force：用户亲手要求（「再聽一次」），设定入面「語音播報」关咗都读。
     func say(_ s: String, prompt: Bool = false, force: Bool = false) {
-        announcer.say(s, kind: prompt ? .prompt : .info, force: force, via: speaker, holding: listening)
+        // 连续对话：一路收音一路可以讲（回声消除），唔使收起；记低讲过咩（回声保险）
+        if conversing { recentSpoken.append((s, Date())) }
+        announcer.say(s, kind: prompt ? .prompt : .info, force: force, via: speaker, holding: listening && !conversing)
     }
 
     /// 「再聽一次」：停低而家讲紧嘅，即刻由头讲（排队嘅话，长句讲紧时再撳会排到过期、静静鸡唔讲）。
     func sayAgain(_ s: String) {
-        guard !listening else { say(s, force: true); return }
+        guard !listening || conversing else { say(s, force: true); return }
         announcer.hold(speaker)
         _ = announcer.release()
         say(s, prompt: true, force: true)
@@ -23,12 +25,13 @@ extension AppStore {
 
     /// 聆听结束：讲返聆听期间收起嘅提示（排喺对用户嗰句嘅回应之后；排得太耐嘅资讯句唔再讲）。
     func flushHeldSpeech(_ held: [Announcer.Line]) {
-        held.forEach { announcer.enqueue($0, via: speaker, holding: listening) }
+        held.forEach { announcer.enqueue($0, via: speaker, holding: listening && !conversing) }
     }
 
     // MARK: - 语音
 
     func micTapped() {
+        if conversing { endConversation(); return }
         if listening { stopListening(); return }
         guard !micStarting else { return }
         // 复述卡仲等紧确认：当係「唔係」（收返高亮、撤回提议），唔好静静鸡丢咗。
@@ -36,6 +39,8 @@ extension AppStore {
         micStarting = true
         Task { @MainActor in
             defer { micStarting = false }
+            // Mac 语音服务器有 B 嘅豆包识别：连续对话（AppStore+Conversation）；开唔到先用手机识别
+            if canConverse, await startConversation() { return }
             // 第一次按咪：等用户答完权限框先开始听，唔系第一句会冇咗（A47）。
             let auth = await ensureVoiceAuth()
             guard auth.granted else {
@@ -81,6 +86,7 @@ extension AppStore {
     }
 
     func stopListening() {
+        if conversing { endConversation(); return }
         let text = listener.stop()
         listening = false
         if text.isEmpty {
@@ -120,10 +126,17 @@ extension AppStore {
 
     func handle(_ text: String) {
         phrasePicker = false
+        // 连续对话：继续听，唔使收起播报
+        guard !conversing else { routeHeard(text); return }
         if listening { _ = listener.stop() }
         listening = false
         let held = announcer.release()
         defer { flushHeldSpeech(held) }
+        routeHeard(text)
+    }
+
+    /// 听到 / 揀咗一句之后：手机模板先认，约人同听唔明嘅交俾组员 B 嘅助手。
+    private func routeHeard(_ text: String) {
         // 只俾 AI 睇我同街坊（非街坊连名都唔传，A03）。讲非街坊个名 = 听唔明，唔会讲出佢住几楼。
         let known = residents.filter { $0.isMe || $0.isNeighbor }
         let ctx = AIContext(residents: known, landmarks: landmarks, now: now, walking: walk != nil, finding: find != nil)

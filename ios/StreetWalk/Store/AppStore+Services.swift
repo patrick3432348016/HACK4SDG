@@ -18,6 +18,7 @@ extension AppStore {
             startDayClock()
             locationAppActive()     // 权限、屋企范围、夜晚位置、「始终允许」解释页（AppStore+Location）
         } else {
+            endConversation()   // 连续对话：退后台即刻收咪（B：切后台停止本地收音）
             // 退后台即刻写盘（唔等 0.5 秒），之后被系统收咗都唔会冇咗最后一次改动（A76）
             saveTask?.cancel()
             saveNow()

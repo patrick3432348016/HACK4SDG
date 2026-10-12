@@ -1,27 +1,47 @@
 # 街坊行 · Mac 语音服务器
 
-一部 Mac 做两样嘢：
+**2026-10-12 起换成组员 B 新版嗰套（用户：「直接换成 B 的，用它的那套」）**：全部豆包（火山引擎）。
 
-1. **粤语真人声播报**：GPT-SoVITS v2ProPlus 常驻内存，用 CC0 授权嘅 Common Voice 粤语录音（`common_voice_yue_31206624`）克隆出嚟。App 嘅粤语提示由佢读；Mac 冇开 / 连唔到 / 6 秒都未出声，App 自动转返手机系统声音。
-2. **组员 B 嘅语音助手**：B 交付嘅 FastAPI 服务（`assistant/`，原样保留佢嘅流程、确认卡、幂等、唔重试规则同 41 项测试），加上成员 A 写嘅 Supabase 业务适配：约人真系写入 Supabase 嘅 `meetups`，对方手机即时见到。
+| | 做乜 | 代码 |
+|---|---|---|
+| 耳 | 豆包流式识别（粤语 / 普通话），手机收音经 Mac 转发；讲完一句自动出字 | B 嘅 `doubao.py`、`realtime.py`；A 嘅 `app_ear.py`（`/v1/voice/ear`） |
+| 脑 | B 嘅范围规则（紧急 → 求助提示；医疗 / 投资 / 政治 / 色情 → 拒答）+ 豆包模型判断话题同指令 + 天文台北区天气 + 约人确认卡 | B 嘅 `voice_policy.py`、`weather.py`、`service.py`；A 嘅 `app_policy.py`（`/v1/assistant/turn`） |
+| 嘴 | 豆包「小何」粤语声（普通话都得），首段约 0.7 秒出声，服务器同手机都有缓存 | A 嘅 `doubao_speech.py`（同 B 一样嘅请求，交俾原有 `SpeechService`） |
 
-演示模式、离线、Mac 冇开：App 照用手机入面嘅模板（`ios/StreetWalk/AI/TemplateAI.swift`）同系统声音，功能唔会少。
+App 嘅「连续对话」（`ios/StreetWalk/Store/AppStore+Conversation.swift`）：撳一下咪就一路倾，讲完唔使撳；助手讲嘢时开口就停（插嘴）；
+手机先认 App 自己做嘅指令（找人、改约、取消约、反映、地标改名），其余交 B 嗰套；影响别人嘅动作照旧要撳「好」。
+连唔到 Mac → 手机识别（Apple）+ 手机模板（TemplateAI）+ 系统声音，功能唔会少。
+
+**密钥**：B 私下交嘅 `Private/voice-config.json`（豆包语音 Key、方舟 Key、模型、音色）抄去 `~/Desktop/HACK/voice-runtime/doubao.json`（chmod 600），**唔入 git、唔去手机**。
 
 ## 每次测试之前（一条命令）
 
 ```sh
-cd ~/Desktop/HACK/HACK4SDG        # 仓库
-tools/voice_server.sh             # 局域网：同一个 Wi-Fi 嘅 iPhone 自动搵到（Bonjour）
-# 或者
-tools/voice_server.sh --tunnel    # 再开一个 https://….trycloudflare.com 公网地址（要先 brew install cloudflared）
+cd ~/Desktop/HACK/HACK4SDG
+tools/voice_server.sh                 # 局域网：同一个 Wi-Fi 嘅 iPhone 自动搵到（Bonjour）
+tools/voice_server.sh --tunnel        # 再开 https 公网地址（外出测试，要 brew install cloudflared）
+tools/voice_server.sh --voice=sovits  # 播报改返旧嘅 Mac 本机 GPT-SoVITS 声（要下面嘅声音模型）
 ```
 
-- 开咗之后约 20 秒载入声音模型（终端会印 `tts ready`）；之前 App 用系统声音。
-- 终端会印局域网地址（例如 `http://192.168.1.20:8765`）。iPhone 搵唔到时：App → 設定 → 聲音 →「語音伺服器」填呢个地址。
-- **部 Mac 要保持开机**：脚本用 `caffeinate` 防止闲置瞓眠，但合埋盖照样会瞓。外出测试（唔同 Wi-Fi）就用 `--tunnel`，将印出嚟嘅 https 地址填入 App。
-- `--verbose`：日志印埋每句合成咗咩字（排查用）；`--test`：只跑服务器测试。Ctrl-C 停。
+- 即开即用（豆包喺云端，唔使载入模型）。终端印局域网地址；iPhone 搵唔到时：App → 設定 → 聲音 →「語音伺服器」填地址。
+- 部 Mac 要开住、唔好合盖；外出用 `--tunnel`，经隧道嘅识别 / 播报 / 助手都要 App 登录。
+- `--verbose`：日志印埋合成嘅句子；`--test`：只跑服务器测试（107 项）。Ctrl-C 停。
+- 模拟器测连续对话（唔使讲嘢）：`-debugCommands -earFeed a.wav,b.wav [-earGap 秒]`（16 kHz 单声道 WAV 当系用户讲），再写 `mic` 入 Documents/debug-commands.txt。
 
-## 第一次安装（模型同 Python 环境放喺仓库外面）
+### 实测（2026-10-12，这台 Mac）
+
+| | 时间 |
+|---|---|
+| 识别：讲完到出整句 | 约 1.2–1.6 秒（豆包判停 1.2 秒） |
+| 理解（豆包模型） | 约 3–4 秒，偶然 > 12 秒（App 12 秒后用返手机模板） |
+| 天气（加天文台） | 约 3.5–4 秒 |
+| 播报首段 | 0.6–1 秒；播过嘅即刻 |
+
+已知：豆包「二遍识别」对好短嘅句子会乱认（「咁聽日呢」→「帮我导航到大沥公园」），`app_ear.settle()` 发现同边讲边出嘅字对唔上就用后者。
+
+## 旧：GPT-SoVITS 本机声（`--voice=sovits` 先用）
+
+### 第一次安装（模型同 Python 环境放喺仓库外面）
 
 模型约 1.4 GB、Python 环境约 1.1 GB，唔入 git，放 `~/Desktop/HACK/voice-runtime/`（用 `VOICE_RUNTIME=…` 可以改位置）：
 
@@ -115,3 +135,12 @@ B 嘅文件照搬入 `server/assistant/`，测试原封不动全过。改动全�
 - `app.py`：按模式揀 `Business` 或 `SupabaseBusiness`；加 `/v1/voice`、`/v1/assistant/context`、`/assistant/*`；播报用 sovits 时流式返回 WAV。
 - 新文件：`sovits.py`（本机粤语播报）、`supabase_business.py`（业务适配）、`tests/test_sovits.py`、`tests/test_supabase_adapter.py`、`tools/tts_probe.py`。
 - 冇用到：Azure 录音转写（App 用 iPhone 自己嘅粤语识别，免费）；B 嘅 iOS `AssistantPanel`、`AudioController`（App 用自己嘅语音卡）。`AssistantClient`、`Models`、`AssistantViewModel` 嘅规则抄咗入 `ios/StreetWalk/Assistant/`。
+
+### 2026-10-12 B 新版（豆包那套）点样接
+
+- B 嘅 `doubao.py`、`realtime.py`、`voice_policy.py`、`weather.py`、`windows.py` 同测试原样搬入（`windows.py` 只改网页路径一行，网页喺 `server/windows/web/`）；B 嘅文档、Mac 壳、工具喺 `upstream_b/`（Mac 壳只作参考，佢按 B 嘅目录结构揾 `backend/`）。
+- B 写 Python 3.12，我哋同 GPT-SoVITS 共用 3.10 环境：`compat.py`（由 `__init__.py` 最先载入）补 `asyncio.timeout`、统一 `TimeoutError`；服务器经 `python -m assistant.serve` 开（等 uvicorn / websockets 都喺补丁之后载入）。
+- `config.py`：`DOUBAO_CONFIG`（B 嘅 voice-config.json）、`TTS_PROVIDER=doubao`；冇另外设千问就用 B 嘅方舟模型做理解（`providers.py` 对方舟关「思考」，同 B 一样）。
+- `sovits.py` 嘅 `SpeechService`：可以几条线程同时合成、按语言合成（豆包有普通话）。
+- B 嘅实时对话（`/windows/realtime`）只准本机网页用；App 用 A 嘅 `/v1/voice/ear`（只收音、唔自己答，交返手机分流）同 `/v1/assistant/turn`（`app_policy.TurnPolicy` 照 B 嘅 VoicePolicy 次序：本地规则 → 豆包路由 → 天气 / 固定句 / App 操作）。B 嘅播报句（「测试确认卡」等联调字眼）唔用：App 按结构出自己嘅粤语卡同播报。
+- 排行榜、散步纪录：B 嘅固定句讲「未接通」，喺 App 唔啱，改讲去边一页睇（`app_policy.BOARD/HISTORY`）。

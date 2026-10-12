@@ -102,6 +102,7 @@ class Job:
     key: str
     text: str
     speed: float
+    locale: str = "zh-HK"
     chunks: list[bytes] = field(default_factory=list)
     done: bool = False
     failed: bool = False
@@ -115,8 +116,11 @@ class SpeechService:
     """一条工作线程排队合成；HTTP 层用 stream() 边收边传。"""
 
     def __init__(self, engine_factory: Callable[[], Engine], cache_dir: str, voice_id: str,
-                 memory_bytes: int = 64_000_000, log_text: bool = False):
+                 memory_bytes: int = 64_000_000, log_text: bool = False,
+                 locales: tuple[str, ...] = ("zh-HK",), workers: int = 1):
         self.engine_factory, self.voice_id, self.log_text = engine_factory, voice_id, log_text
+        # 2026-10-12：豆包（云端）可以同时合成几句、有普通话；GPT-SoVITS 只可以一句一句、得粤语。
+        self.locales, self.workers = locales, workers
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.memory: OrderedDict[str, bytes] = OrderedDict()
@@ -130,6 +134,7 @@ class SpeechService:
         self.ready = threading.Event()
         self.load_error: str | None = None
         self.thread: threading.Thread | None = None
+        self.extra_threads: list[threading.Thread] = []
         self.stats = {"hits": 0, "misses": 0, "synthesized": 0}
 
     # ── 生命周期 ──
@@ -139,6 +144,15 @@ class SpeechService:
             return
         self.thread = threading.Thread(target=self._run, args=(warm_text,), name="sovits", daemon=True)
         self.thread.start()
+        for i in range(1, self.workers):
+            t = threading.Thread(target=self._extra, name=f"tts-{i}", daemon=True)
+            t.start()
+            self.extra_threads.append(t)
+
+    def _extra(self):
+        self.ready.wait()
+        if self.engine is not None:
+            self._loop()
 
     def _run(self, warm_text):
         started = time.monotonic()
@@ -156,6 +170,9 @@ class SpeechService:
             self.ready.set()
             return
         self.ready.set()
+        self._loop()
+
+    def _loop(self):
         while True:
             _, _, job = self.queue.get()
             if job is None:
@@ -168,7 +185,8 @@ class SpeechService:
 
     def stop(self):
         if self.thread:
-            self.queue.put((-1, next(self.counter), None))
+            for _ in range(1 + len(self.extra_threads)):
+                self.queue.put((-1, next(self.counter), None))
 
     # ── 缓存 ──
 
@@ -204,7 +222,10 @@ class SpeechService:
     def _synthesize(self, job: Job):
         t0 = time.monotonic()
         try:
-            for pcm in self.engine.stream(clean_text(job.text), job.speed):
+            text = clean_text(job.text)
+            pieces = (self.engine.stream(text, job.speed, job.locale) if getattr(self.engine, "locales", None)
+                      else self.engine.stream(text, job.speed))
+            for pcm in pieces:
                 if not pcm:
                     continue
                 with self.lock:
@@ -244,7 +265,7 @@ class SpeechService:
         with self.lock:
             job = self.jobs.get(key)
             if job is None:
-                job = self.jobs[key] = Job(key=key, text=text, speed=speed)
+                job = self.jobs[key] = Job(key=key, text=text, speed=speed, locale=locale)
             if not job.started:
                 # 同一句可以排多次（预热 → 当场要）：工作线程见到已开始 / 已完成就跳过
                 self.queue.put((priority, next(self.counter), job))

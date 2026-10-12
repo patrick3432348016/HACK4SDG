@@ -225,6 +225,8 @@ struct VoiceOverlay: View {
     private enum Mode: Equatable { case listening, picker, heard(UUID), none }
 
     private var mode: Mode {
+        // 连续对话：有卡（答案 / 复述卡）又未开口就睇卡，一开口就睇字幕
+        if store.conversing, let c = store.voiceCard, store.heardPartial.isEmpty { return .heard(c.id) }
         if store.listening { return .listening }
         if store.phrasePicker { return .picker }
         if let c = store.voiceCard { return .heard(c.id) }
@@ -258,7 +260,7 @@ struct VoiceOverlay: View {
 fileprivate extension AppStore {
     /// 按常用说法 = 讲了那句。如果正在听，先停咪。
     func pickPhrase(_ phrase: String) {
-        if listening { listener.stop() }
+        if listening && !conversing { listener.stop() }
         handle(phrase)
     }
 }
@@ -271,7 +273,7 @@ private struct ListeningCard: View {
         let phrases = store.suggestedPhrases
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 12) {
-                Text(L.t("聽緊…", "正在听…")).ds(.title)
+                Text(store.conversing ? L.t("傾緊…", "对话中…") : L.t("聽緊…", "正在听…")).ds(.title)
                 Spacer(minLength: 0)
                 VoiceBars()
             }
@@ -283,7 +285,11 @@ private struct ListeningCard: View {
                 .animation(DS.motion(DS.snappy), value: listener.transcript)
                 .accessibilityAddTraits(.updatesFrequently)
             Button { store.stopListening() } label: {
-                Label(L.t("講完", "说完了"), systemImage: "checkmark").frame(maxWidth: .infinity)
+                if store.conversing {
+                    Label(L.t("傾完", "结束对话"), systemImage: "xmark").frame(maxWidth: .infinity)
+                } else {
+                    Label(L.t("講完", "说完了"), systemImage: "checkmark").frame(maxWidth: .infinity)
+                }
             }
             .buttonStyle(.dsPrimary)
             if !phrases.isEmpty {
@@ -312,6 +318,7 @@ extension ListeningCard {
     /// 改名中只要讲新名；其他时候举一句做例子。
     fileprivate func hint(_ phrases: [String]) -> String {
         if store.renamingNow != nil { return L.t("講新名，例如「\(phrases.first ?? "大樹底")」", "说新名字，例如「\(phrases.first ?? "大树下")」") }
+        if store.conversing { return L.t("講啦，講完唔使撳，我會答你。例如「北區今日天氣點」", "说吧，说完不用按，我会回答。例如「北区今天天气怎样」") }
         return L.t("講啦，例如「\(phrases.first ?? "今日請假")」", "说吧，例如「\(phrases.first ?? "今天请假")」")
     }
 }

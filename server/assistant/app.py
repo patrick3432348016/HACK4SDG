@@ -18,6 +18,11 @@ from .service import Assistant
 from .store import Store
 from .sovits import SovitsEngine, SpeechService, SynthesisFailed
 from .supabase_business import SupabaseBusiness, UploadedContext
+# 成员 A 加（2026-10-12）：换成 B 新版嗰套——豆包识别（app_ear）、豆包理解 + 天文台 + B 嘅范围规则（app_policy）、豆包小何播报。
+from .app_ear import add_ear_route
+from .app_policy import TurnPolicy
+from .doubao import Doubao
+from .doubao_speech import DoubaoEngine, doubao_voice_id
 
 log = logging.getLogger("assistant")
 
@@ -100,6 +105,9 @@ def create_app(settings=None, client=None, clock=None, speech=None):
         speech = SpeechService(lambda: SovitsEngine(settings.sovits_root, settings.sovits_ref_wav, settings.sovits_ref_text,
                                                     settings.sovits_device),
                                settings.speech_cache_dir, voice_id(settings), log_text=settings.log_speech_text)
+    elif speech is None and settings.tts == "doubao":
+        speech = SpeechService(lambda: DoubaoEngine(settings.doubao), settings.speech_cache_dir, doubao_voice_id(settings.doubao),
+                               log_text=settings.log_speech_text, locales=DoubaoEngine.locales, workers=3)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -110,9 +118,12 @@ def create_app(settings=None, client=None, clock=None, speech=None):
         providers = Providers(settings, vendor_client)
         app.state.speech = speech
         if speech is not None:
-            speech.start()
+            speech.start(warm_text=None if settings.tts == "doubao" else "你好。")
         app.state.business, app.state.providers = business, providers
         app.state.assistant = Assistant(settings, store, business, providers, clock)
+        # B 嘅豆包理解 + 天文台 + 范围规则：有豆包配置先用；冇就照旧（千问 / 有限规则）。
+        app.state.policy = (TurnPolicy(settings, store, app.state.assistant, Doubao(settings.doubao, vendor_client))
+                            if settings.doubao is not None else None)
         store.cleanup()
         app.state.last_cleanup = time.monotonic()
         yield
@@ -202,7 +213,11 @@ def create_app(settings=None, client=None, clock=None, speech=None):
         engine = app.state.speech
         return {"service": "jiefong-voice", "tts": settings.tts, "voice_id": engine.voice_id if engine else None,
                 "status": engine.status if engine else ("ready" if settings.tts == "azure" else "off"),
-                "locales": ["zh-HK"] if engine else [], "assistant": settings.mode, "sample_rate": 32000 if engine else None}
+                "locales": list(engine.locales) if engine else [], "assistant": settings.mode,
+                "sample_rate": engine.sample_rate if engine else None,
+                # 成员 A 加（2026-10-12）：ear = 有 B 嘅豆包流式识别（/v1/voice/ear）；brain = 理解用乜
+                "ear": settings.doubao is not None, "brain": "doubao" if settings.doubao is not None else (
+                    "model" if settings.model_ready else "rules")}
 
     @app.post("/v1/speech/synthesize")
     async def synthesize(body: SpeakRequest, request: Request, user=Depends(speech_principal)):
@@ -212,7 +227,7 @@ def create_app(settings=None, client=None, clock=None, speech=None):
                 raise AssistantError("UNAUTHORIZED", "请先登录。", 401)
             audio = await app.state.providers.speak(body.text, body.locale)
             return Response(audio, media_type="audio/mpeg")
-        if body.locale != "zh-HK":
+        if body.locale not in engine.locales:
             raise AssistantError("TTS_LOCALE_UNSUPPORTED", "本机声音暂时只有粤语；请用手机系统声音。", 503)
         if engine.status != "ready":
             raise AssistantError("TTS_NOT_READY", "声音模型仲未准备好。", 503)
@@ -286,6 +301,8 @@ def create_app(settings=None, client=None, clock=None, speech=None):
 
     @app.post("/v1/assistant/turn", response_model=Reply)
     async def turn(body: TurnRequest, user=Depends(principal)):
+        if app.state.policy is not None:
+            return await app.state.policy.turn(*user, body)
         return await app.state.assistant.turn(*user, body)
 
     @app.post("/v1/conversations/{conversation_id}/choice", response_model=Reply)
@@ -308,4 +325,5 @@ def create_app(settings=None, client=None, clock=None, speech=None):
             return await app.state.assistant.confirm(*user, draft_id)
         return app.state.assistant.draft_reply(user[0], draft_id)
 
+    add_ear_route(app, settings, is_lan_caller)
     return app

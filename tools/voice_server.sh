@@ -1,10 +1,11 @@
 #!/bin/sh
-# 街坊行 · Mac 语音服务器（粤语真人声 + 语音助手）。一条命令开：
+# 街坊行 · Mac 语音服务器（组员 B 嘅豆包那套：识别 + 理解 + 小何粤语声；加 App 嘅 Supabase 业务）。一条命令开：
 #   tools/voice_server.sh             # 局域网：同一个 Wi-Fi 嘅 iPhone 自动搵到（Bonjour _jiefongvoice._tcp）
 #   tools/voice_server.sh --tunnel    # 再开 Cloudflare 临时公网地址（https://….trycloudflare.com，唔使账号）
 #   tools/voice_server.sh --verbose   # 日志印埋合成嘅句子（排查用）
 #   tools/voice_server.sh --test      # 只跑服务器测试
-# 声音模型同 Python 环境喺仓库外面：$VOICE_RUNTIME（默认 ~/Desktop/HACK/voice-runtime，见 server/README.md）。
+#   tools/voice_server.sh --voice=sovits  # 播报改返 Mac 本机 GPT-SoVITS 真人声（要声音模型；默认豆包小何）
+# Python 环境同 B 嘅豆包配置（doubao.json，有密钥）喺仓库外面：$VOICE_RUNTIME（默认 ~/Desktop/HACK/voice-runtime，见 server/README.md）。
 # 部 Mac 要保持开机唔好瞓（脚本会用 caffeinate 防止闲置瞓眠；合埋盖照样会瞓）。Ctrl-C 停。
 set -e
 cd "$(dirname "$0")/.."
@@ -13,18 +14,31 @@ RUNTIME=${VOICE_RUNTIME:-$HOME/Desktop/HACK/voice-runtime}
 PY="$RUNTIME/venv/bin/python"
 PORT=${PORT:-8765}
 TUNNEL=0
+VOICE=${TTS_PROVIDER:-doubao}
 for a in "$@"; do
   case "$a" in
     --tunnel) TUNNEL=1 ;;
     --verbose) export VOICE_LOG_TEXT=1 ;;
     --test) cd server && exec "$PY" -m unittest discover -s tests ;;
     --port=*) PORT=${a#--port=} ;;
+    --voice=*) VOICE=${a#--voice=} ;;
     *) echo "唔识呢个参数：$a"; exit 2 ;;
   esac
 done
-if [ ! -x "$PY" ] || [ ! -d "$RUNTIME/gptsovits/GPT_SoVITS/pretrained_models" ]; then
-  echo "搵唔到语音模型环境：$RUNTIME"
-  echo "按 server/README.md「第一次安装」做一次（大约 3 GB）。"
+if [ ! -x "$PY" ]; then
+  echo "搵唔到 Python 环境：$RUNTIME/venv"
+  echo "按 server/README.md「第一次安装」做一次。"
+  exit 1
+fi
+# 组员 B 嘅豆包配置（语音 Key、方舟 Key、模型、音色）：B 私下俾嘅 Private/voice-config.json，抄去呢度；唔入 git。
+export DOUBAO_CONFIG="${DOUBAO_CONFIG:-$RUNTIME/doubao.json}"
+if [ ! -f "$DOUBAO_CONFIG" ]; then
+  echo "搵唔到豆包配置：$DOUBAO_CONFIG"
+  echo "将组员 B 私下交嘅 Private/voice-config.json 抄去呢个位置（chmod 600）。"
+  exit 1
+fi
+if [ "$VOICE" = sovits ] && [ ! -d "$RUNTIME/gptsovits/GPT_SoVITS/pretrained_models" ]; then
+  echo "--voice=sovits 要 GPT-SoVITS 声音模型：$RUNTIME/gptsovits（见 server/README.md）。"
   exit 1
 fi
 # Supabase 地址同 publishable key：同 App 用同一份（ios/StreetWalk/Services/BackendConfig.swift）
@@ -35,13 +49,15 @@ export SUPABASE_URL SUPABASE_ANON_KEY
 export ASSISTANT_MODE="${ASSISTANT_MODE:-supabase}"
 export ASSISTANT_DATABASE="${ASSISTANT_DATABASE:-$RUNTIME/data/assistant.sqlite3}"
 export SPEECH_CACHE_DIR="${SPEECH_CACHE_DIR:-$RUNTIME/data/tts-cache}"
-export TTS_PROVIDER="${TTS_PROVIDER:-sovits}"
-export SOVITS_ROOT="$RUNTIME/gptsovits"
-export SOVITS_REF_WAV="$RUNTIME/ref/cv_yue_f2.wav"
-export SOVITS_REF_TEXT="$RUNTIME/ref/cv_yue_f2.txt"
-# 句子入面有英文（例如英文网名）时，GPT-SoVITS 要用 nltk 嘅英文字典
-export NLTK_DATA="$RUNTIME/nltk_data"
-# 以后有通义千问 key：export QWEN_API_KEY=… QWEN_BASE_URL=… QWEN_MODEL=… 再开，就会用模型理解（冇就用规则）。
+export TTS_PROVIDER="$VOICE"
+if [ "$VOICE" = sovits ]; then
+  export SOVITS_ROOT="$RUNTIME/gptsovits"
+  export SOVITS_REF_WAV="$RUNTIME/ref/cv_yue_f2.wav"
+  export SOVITS_REF_TEXT="$RUNTIME/ref/cv_yue_f2.txt"
+  # 句子入面有英文（例如英文网名）时，GPT-SoVITS 要用 nltk 嘅英文字典
+  export NLTK_DATA="$RUNTIME/nltk_data"
+fi
+# 理解：有豆包配置就用 B 嘅豆包模型（方舟）；另外设 QWEN_API_KEY 等就改用千问。
 mkdir -p "$RUNTIME/data"
 
 IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo 127.0.0.1)
@@ -76,7 +92,11 @@ echo "────────────────────────�
 echo "  街坊行語音伺服器"
 echo "  局域網地址：http://$IP:$PORT   （同一個 Wi-Fi 嘅 iPhone 會自動搵到）"
 echo "  模擬器：http://127.0.0.1:$PORT"
-echo "  聲音模型載入中（約 10–30 秒），之後先有真人聲；未好之前 App 用系統聲音。"
+if [ "$VOICE" = sovits ]; then
+  echo "  播報：Mac 本機真人聲（載入約 10–30 秒，未好之前 App 用系統聲音）"
+else
+  echo "  播報：豆包「小何」粵語聲（組員 B 嗰套；識別、理解都係豆包，Mac 只做轉發）"
+fi
 echo "──────────────────────────────────────────────"
 cd "$REPO/server"
-"$PY" -m uvicorn assistant.app:create_app --factory --host 0.0.0.0 --port "$PORT" --no-access-log --log-level warning
+"$PY" -m assistant.serve assistant.app:create_app --factory --host 0.0.0.0 --port "$PORT" --no-access-log --log-level warning

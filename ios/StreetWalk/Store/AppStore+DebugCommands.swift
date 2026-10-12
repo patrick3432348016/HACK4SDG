@@ -10,7 +10,7 @@ import Foundation
 //      say <一句> · banner off · refresh · settings on|off · link <一次性码>（两部机用同一个码 = 碰咗一碰）
 //      bgrefresh（App 喺后台时叫 backgroundRefresh，睇 debug-events.txt 有冇「notify」）
 //      语音助手（Mac 语音服务器）：voice <一句>（等于讲咗）· vpick <第几个>（揀人 / 地点）· vchip <第几个> · vok（撳「好」）
-//      · vno（撳「唔係」）· vcheck（即刻重新搵语音服务器）· speak <一句>（播报，测真人声）
+//      · vno（撳「唔係」）· vcheck（即刻重新搵语音服务器）· speak <一句>（播报，测真人声）· mic（撳咪：连续对话开始 / 收咪）
 extension AppStore {
     private static var debugCommandsStarted = false
 
@@ -101,6 +101,7 @@ extension AppStore {
         case "vno": rejectVoice()
         case "vcheck": VoiceServer.shared.recheckSoon()
         case "speak": if !arg.isEmpty { say(arg, force: true) }
+        case "mic": micTapped()   // 等于撳咪（连续对话：开始 / 收咪）
         default: break
         }
     }
@@ -130,6 +131,7 @@ extension AppStore {
         out.append("toast=\(toast ?? "-")")
         out.append("card=\(uiActiveCard.map { "\($0)" } ?? "-")")
         out.append("voiceServer=\(VoiceServer.shared.status.label) url=\(VoiceServer.shared.status.url?.absoluteString ?? "-") voice=\(VoiceServer.shared.voiceID ?? "-") assistant=\(assistantURL != nil) route=\(speaker.lastRoute)")
+        out.append("conversing=\(conversing) ear=\(VoiceServer.shared.earURL?.absoluteString ?? "-") heard=\(heardPartial) lastSpoken=\(speaker.lastSpoken)")
         if let c = voiceCard {
             out.append("voiceCard=\(c.title) | \(c.detail ?? "") confirm=\(c.needsConfirm) assistant=\(c.assistant.map { "\($0.kind) options=\($0.options.map(\.label)) chips=\($0.chips)" } ?? "-")")
         } else {

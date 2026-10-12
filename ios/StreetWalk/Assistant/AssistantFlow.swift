@@ -50,8 +50,10 @@ enum AssistantFlow {
     }
 
     /// 服务器听唔明（help）而手机模板听得明：用返手机流程。
+    /// B 嘅范围规则答咗（天气、拒答、紧急求助、交通…，data.policy）就一定用服务器嘅答案（B：夹杂 App 词语都成句拒绝）。
     static func shouldFallBack(_ reply: AssistantReply, local: VoiceIntent) -> Bool {
         guard reply.status == .info, (reply.command?.intent ?? "help") == "help" else { return false }
+        if let p = policy(reply), p != "help" { return false }
         if case .unknown = local { return false }
         return true
     }
@@ -148,7 +150,14 @@ enum AssistantFlow {
             c.spoken = L.t("未知做咗未。撳查結果，唔好再約多次。", "不确定是否完成。点查结果，不要再约一次。")
         case .info:
             let op = r.data["operation_status"]?.string ?? r.data["operationStatus"]?.string
-            if op == "failed" || op == "expired" {
+            if let p = policy(r), p != "app" {
+                // B 嘅范围规则（2026-10-12）：天文台天气、固定拒答 / 求助提示、交通、排行榜、纪录、打招呼。
+                // 讲 B 嘅原句（官方天气资料或固定句，唔系模型自由作答），标题用短句。
+                c.kind = .info
+                c.detail = hant(r.message)
+                c.spoken = hant(r.speechText)
+                c.title = policyTitle(p)
+            } else if op == "failed" || op == "expired" {
                 c.kind = .failed
                 c.title = op == "expired" ? L.t("等得太耐，張卡過咗期，冇做到。", "等太久，卡片过期了，没有完成。") : L.t("做唔到：資料有變，冇寫入。", "做不到：资料有变，没有写入。")
                 c.detail = L.t("可以再講一次。", "可以再说一次。")
@@ -175,6 +184,21 @@ enum AssistantFlow {
     }
 
     // MARK: - 小工具
+
+    /// 服务器用 B 嘅范围规则答（data.policy）：weather / deny / emergency / traffic / board / history / help / app。
+    static func policy(_ r: AssistantReply) -> String? { r.data["policy"]?.string }
+
+    static func policyTitle(_ p: String) -> String {
+        switch p {
+        case "weather": return L.t("天文台天氣", "天文台天气")
+        case "deny": return L.t("呢個我幫唔到", "这个我帮不了")
+        case "emergency": return L.t("有危險請即刻求助", "有危险请马上求助")
+        case "traffic": return L.t("交通資料未接通", "交通资料未接通")
+        case "board": return L.t("排行榜", "排行榜")
+        case "history": return L.t("散步紀錄", "散步记录")
+        default: return L.t("我可以幫你", "我可以帮你")
+        }
+    }
 
     static func action(_ data: [String: AssistantJSON]) -> AssistantCard.Action? {
         guard let a = data["action"] else { return nil }

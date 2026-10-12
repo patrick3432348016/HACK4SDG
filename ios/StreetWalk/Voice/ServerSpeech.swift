@@ -15,12 +15,13 @@ enum TTSRoute: Equatable {
     /// 问 Mac 服务器（边收边播；6 秒都未有声就转系统声音）。
     case server(URL)
 
-    /// - language：而家播报语言（服务器只有粤语）
+    /// - language：而家播报语言
     /// - server：可以用嘅服务器（模型准备好）；nil = 冇
     /// - cached：手机缓存入面呢句嘅档案
     /// - scripted：自动演示脚本（-script…）：画面同声音要对得准，冇缓存就唔等服务器
-    static func decide(language: SpokenLanguage, server: URL?, cached: URL?, scripted: Bool) -> TTSRoute {
-        guard language == .cantonese else { return .system }
+    /// - mandarin：服务器有普通话声（豆包小何有；GPT-SoVITS 冇）
+    static func decide(language: SpokenLanguage, server: URL?, cached: URL?, scripted: Bool, mandarin: Bool = false) -> TTSRoute {
+        guard language == .cantonese || (language == .mandarin && mandarin) else { return .system }
         if let cached { return .cached(cached) }
         if scripted { return .system }
         if let server { return .server(server) }
@@ -186,14 +187,84 @@ final class ServerSpeechPlayer: NSObject {
     private var requestedAt = Date()
 
     var isActive: Bool { completion != nil }
+    /// 连续对话收紧音（同播报共用呢部 engine：开咗「语音处理」，播报唔会被咪录返入去，用户可以插话）。
+    private(set) var capturing = false
 
     override init() {
         super.init()
         engine.attach(node)
     }
 
+    // MARK: 收音（B 嘅豆包流式识别用，2026-10-12）
+
+    /// 开咪：16 kHz 单声道 PCM16 交俾 onPCM（喺音频线程叫）。播报照用同一部 engine，回声消除先认得自己把声。
+    func startCapture(_ onPCM: @escaping @Sendable (Data) -> Void) throws {
+        stop()
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .duckOthers])
+        try session.setActive(true)
+        engine.stop()
+        let input = engine.inputNode
+        try input.setVoiceProcessingEnabled(true)
+        let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0,
+              let target = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true),
+              let converter = AVAudioConverter(from: format, to: target) else {
+            try? input.setVoiceProcessingEnabled(false)
+            throw NSError(domain: "ServerSpeechPlayer", code: 1)
+        }
+        converter.downmix = true
+        input.removeTap(onBus: 0)
+        input.installTap(onBus: 0, bufferSize: 4096, format: format, block: Self.tapBlock(converter: converter, target: target, onPCM: onPCM))
+        if connectedRate == nil {
+            // 未播过嘢：先接好播放线路，engine 先开得到输出（语音处理要输入输出一齐）
+            let f = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 24000, channels: 1, interleaved: false)!
+            engine.connect(node, to: engine.mainMixerNode, format: f)
+            connectedRate = 24000
+        }
+        engine.prepare()
+        do { try engine.start() } catch {
+            input.removeTap(onBus: 0)
+            try? input.setVoiceProcessingEnabled(false)
+            throw error
+        }
+        capturing = true
+    }
+
+    /// 收咪：停埋播报，音频会话转返淨播放。
+    func stopCapture() {
+        guard capturing else { return }
+        stop()
+        capturing = false
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        try? engine.inputNode.setVoiceProcessingEnabled(false)
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+    }
+
+    /// 音频线程：转成 16 kHz PCM16。唔可以喺 @MainActor 入面整（会被当主线程闭包）。
+    nonisolated private static func tapBlock(converter: AVAudioConverter, target: AVAudioFormat,
+                                             onPCM: @escaping @Sendable (Data) -> Void) -> AVAudioNodeTapBlock {
+        { buffer, _ in
+            let ratio = target.sampleRate / buffer.format.sampleRate
+            let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
+            guard let out = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: capacity) else { return }
+            var fed = false
+            var error: NSError?
+            converter.convert(to: out, error: &error) { _, status in
+                if fed { status.pointee = .noDataNow; return nil }
+                fed = true
+                status.pointee = .haveData
+                return buffer
+            }
+            guard error == nil, out.frameLength > 0, let ch = out.int16ChannelData?[0] else { return }
+            onPCM(Data(bytes: ch, count: Int(out.frameLength) * 2))
+        }
+    }
+
     /// 问服务器要一句，边收边播。cacheKey：播完就存手机。
-    func stream(text: String, server: URL, speed: Double, token: String?, cacheKey: String?, done: @escaping (Outcome) -> Void) {
+    func stream(text: String, server: URL, speed: Double, token: String?, cacheKey: String?, locale: String = "zh-HK",
+                done: @escaping (Outcome) -> Void) {
         stop()
         generation += 1
         let gen = generation
@@ -204,7 +275,7 @@ final class ServerSpeechPlayer: NSObject {
         req.setValue("audio/wav", forHTTPHeaderField: "Accept")
         // 登录 token 只经 HTTPS 送（局域网 HTTP 唔使登录）
         if let token, server.scheme == "https" { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": text, "locale": "zh-HK", "speed": speed])
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": text, "locale": locale, "speed": speed])
         let t = session.dataTask(with: req)
         t.taskDescription = String(gen)
         task = t
@@ -258,7 +329,7 @@ final class ServerSpeechPlayer: NSObject {
         watchdog?.cancel()
         watchdog = nil
         node.stop()
-        engine.stop()
+        if !capturing { engine.stop() }   // 连续对话收紧音：engine 唔好停
         playing = false
         if outcome == .finished, let key = cacheKey, let rate = parser.sampleRate, !pcm.isEmpty {
             let data = pcm

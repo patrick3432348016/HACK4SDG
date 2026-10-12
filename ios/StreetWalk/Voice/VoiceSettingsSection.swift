@@ -300,7 +300,7 @@ extension AppStore {
 }
 
 
-/// 「語音伺服器」：Mac 上嘅粵語真人聲（tools/voice_server.sh）。自動搵；搵唔到可以親手填地址。
+/// 「語音伺服器」：Mac 上嘅語音伺服器（tools/voice_server.sh，組員 B 嘅豆包：識別 + 理解 + 小何聲）。自動搵；搵唔到可以親手填地址。
 private struct VoiceServerSection: View {
     @Environment(AppStore.self) private var store
     @State private var draft = VoiceServer.shared.manualURL
@@ -333,16 +333,18 @@ private struct VoiceServerSection: View {
                     .buttonStyle(.dsSecondary)
             }
             if server.speechURL != nil {
-                Button { store.sayAgain(L.t("你好，我係街坊行嘅廣東話聲，由你部 Mac 讀出嚟。", "你好，我是街坊行的粤语声音，由你的 Mac 读出来。")) } label: {
-                    Label(L.t("試聽真人聲", "试听真人声"), systemImage: "play.fill")
+                Button { store.sayAgain(L.t("你好，我係街坊行嘅語音助手，有咩想問就撳咪同我講。", "你好，我是街坊行的语音助手，有什么想问就按麦克风跟我说。")) } label: {
+                    Label(L.t("試聽助手把聲", "试听助手的声音"), systemImage: "play.fill")
                 }
                 .buttonStyle(.dsSecondary)
             }
         } header: {
-            Text(L.t("真人聲（Mac）", "真人声（Mac）")).ds(.caption)
+            Text(L.t("語音助手（Mac）", "语音助手（Mac）")).ds(.caption)
         } footer: {
             Text(server.status.isConnected
-                 ? L.t("粵語提示用 Mac 上嘅真人聲讀；Mac 閂咗會自動轉返手機聲音。", "粤语提示用 Mac 上的真人声读；Mac 关了会自动换回手机声音。")
+                 ? (server.earURL != nil
+                    ? L.t("撳一下咪就可以一路傾：講完唔使撳，佢講緊嘢你開口就會停。Mac 閂咗會自動轉返手機聽同手機聲音。", "按一下麦克风就可以一直聊：说完不用按，它说话时你开口就会停。Mac 关了会自动换回手机识别和手机声音。")
+                    : L.t("提示用 Mac 上嘅聲音讀；Mac 閂咗會自動轉返手機聲音。", "提示用 Mac 上的声音读；Mac 关了会自动换回手机声音。"))
                  : L.t("Mac 開咗語音伺服器、同一個 Wi-Fi 就會自動搵到；搵唔到可以填 Mac 顯示嘅地址。冇都照用手機聲音。", "Mac 开了语音服务器、连同一个 Wi-Fi 就会自动找到；找不到可以填 Mac 显示的地址。没有也照用手机声音。"))
                 .ds(.caption)
         }
