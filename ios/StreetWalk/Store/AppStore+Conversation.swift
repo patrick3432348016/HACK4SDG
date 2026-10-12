@@ -31,8 +31,7 @@ extension AppStore {
         let token: String? = url.scheme == "wss" ? (try? await supabase?.api.accessToken()) ?? nil : nil
         let ok = await ear.open(url, token: token, locale: L.isCmn ? "zh-CN" : "zh-HK") { [weak self] e in self?.earEvent(e) }
         guard ok else { return false }
-        announcer.hold(speaker)
-        _ = announcer.release()
+        hush()
         #if DEBUG
         if let files = LaunchArgs.value("-earFeed") {
             // 模拟器测试：用录好嘅 WAV（16 kHz 单声道 PCM16）当系用户讲，每段之间停 7 秒等回答
@@ -99,10 +98,7 @@ extension AppStore {
             lastEarActivity = Date()
             show(partial: (earPending + [text]).joined(separator: "，"))
             // 插嘴：用户开口就停播报（B：识别到新语句即停旧播报）
-            if speaker.isSpeaking && text.count >= 2 {
-                announcer.hold(speaker)
-                _ = announcer.release()
-            }
+            if speaker.isSpeaking && text.count >= 2 { hush() }
         case .final(let raw):
             let text = AssistantFlow.hant(raw)
             guard !isEcho(text) else { show(partial: earPending.joined(separator: "，")); return }

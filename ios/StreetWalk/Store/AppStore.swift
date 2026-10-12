@@ -46,8 +46,9 @@ final class AppStore: NeighborRegistry {
     @ObservationIgnored var clockTask: Task<Void, Never>?
 
     // 状态
-    var phase: Phase = .onboarding(.consent)
-    var tab: Tab = .today
+    // 换页 / 换标签 / 开关设定：上一个画面讲紧嘅嘢即刻停（2026-10-12 用户：「切到画面上一个画面声音没有停一直播」）
+    var phase: Phase = .onboarding(.consent) { didSet { if phase != oldValue { hush() } } }
+    var tab: Tab = .today { didSet { if tab != oldValue { hush() } } }
     var map: MapModel?
     var mapSource: MapService.Source = .fallback
     var loadingMap = false
@@ -85,7 +86,7 @@ final class AppStore: NeighborRegistry {
     var leaveDays: Set<String> = [] { didSet { scheduleSave() } }
     /// 改过的地标名（地标 id → 名），重新装载地图后要套回去。
     var landmarkNames: [String: String] = [:] { didSet { scheduleSave() } }
-    var showSettings = false
+    var showSettings = false { didSet { if showSettings != oldValue { hush() } } }
     /// 录演示视频用的字幕（启动参数 -captions）：模拟器录屏录唔到声，用字幕讲清楚每一步。
     var caption: (zh: String, en: String)?
     var weather: Weather = .normal

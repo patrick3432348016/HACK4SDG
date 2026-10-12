@@ -241,6 +241,9 @@ struct VoiceFlowTests {
         var t = Date()
         s.announcer.clock = { t }
         s.announcer.busy = { true }   // 当成讲紧一句长嘢
+        s.say("開頭")                  // 讲紧（经 Announcer 开始）
+        #expect(s.speaker.lastSpoken == "開頭")
+        // 同一个动作连住出嘅几句（0.5 秒内）：排队
         s.say("資訊一")
         s.say("資訊二")
         #expect(s.announcer.queued.map(\.text) == ["資訊一", "資訊二"])
@@ -260,6 +263,27 @@ struct VoiceFlowTests {
         s.flushHeldSpeech(held)
         #expect(!s.announcer.queued.map(\.text).contains("舊資訊"))
         s.announcer.hold(s.speaker)   // 停咗排队循环
+    }
+
+    @Test func 新嘅取代旧嘅_换画面即停() {
+        let s = makeStore()
+        var t = Date()
+        s.announcer.clock = { t }
+        s.announcer.busy = { true }
+        s.say("約陳太今日下晝五點。啱就撳「好」就約。", prompt: true)
+        s.say("同一個動作嘅第二句")
+        #expect(s.announcer.queued.map(\.text) == ["同一個動作嘅第二句"])
+        // 一秒后撳咗「好」：结果句即刻讲，唔会排到过期冇咗（UX 报告 2）
+        t = t.addingTimeInterval(1)
+        s.say("幫你約咗陳太")
+        #expect(s.speaker.lastSpoken == "幫你約咗陳太")
+        #expect(s.announcer.queued.isEmpty)
+        // 换标签：停低兼清空
+        t = t.addingTimeInterval(0.1)
+        s.say("仲有一句")
+        s.tab = .board
+        #expect(s.announcer.queued.isEmpty)
+        #expect(s.announcer.pendingCount == 0)
     }
 
     @Test func 播报关咗唔自动读_再听一次照读() {

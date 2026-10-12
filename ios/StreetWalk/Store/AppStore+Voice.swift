@@ -15,6 +15,11 @@ extension AppStore {
         announcer.say(s, kind: prompt ? .prompt : .info, force: force, via: speaker, holding: listening && !conversing)
     }
 
+    /// 停低兼清空播报（换标签、开关设定、引导换页、关卡、取消、退后台）。连续对话照听，唔会收咪。
+    func hush() {
+        announcer.interrupt(speaker)
+    }
+
     /// 「再聽一次」：停低而家讲紧嘅，即刻由头讲（排队嘅话，长句讲紧时再撳会排到过期、静静鸡唔讲）。
     func sayAgain(_ s: String) {
         guard !listening || conversing else { say(s, force: true); return }
@@ -120,8 +125,11 @@ extension AppStore {
             let alt = Self.hk.component(.hour, from: a.date) == 16 ? "五" : "四"
             return [L.t("改做下晝\(alt)點", "改到下午\(alt)点"), L.t("改去\(other.name)", "改到\(other.name)"), L.t("取消同\(p.name)嘅約", "取消和\(p.name)的约会"), L.t("今日請假", "今天请假")]
         }
-        // 反映只喺散步时讲（F10）；唔散步时唔建议。
-        return (name.map { [L.t("約\($0)聽日下晝三點一齊行", "约\($0)明天下午三点一起走")] } ?? []) + [L.t("今日請假", "今天请假"), L.t("\(landmarks.first?.name ?? "涼亭")改名做大樹底", "\(landmarks.first?.name ?? "涼亭")改名叫大樹底")]
+        // 反映只喺散步时讲（F10）；唔散步时唔建议。改地标名好少用、仲会以为改咗地名（UX 报告 33），唔建议；
+        // 有 Mac 语音服务器（B 嘅豆包）先建议问天气（手机模板答唔到）。
+        let weather = assistantURL != nil ? [L.t("北區今日天氣點", "北区今天天气怎么样")] : []
+        let find = residents.first(where: { $0.isNeighbor && !$0.isMe && $0.isOut }).map { [L.t("過去搵\($0.name)", "去找\($0.name)")] } ?? []
+        return (name.map { [L.t("約\($0)聽日下晝三點一齊行", "约\($0)明天下午三点一起走")] } ?? []) + weather + find + [L.t("今日請假", "今天请假")]
     }
 
     func handle(_ text: String) {
@@ -245,6 +253,7 @@ extension AppStore {
 
     func confirmVoice() {
         guard let card = voiceCard else { return }
+        hush()   // 撳咗「好」：唔好再叫人撳「好」，之后讲结果
         if card.assistant != nil { assistantConfirm(card); return }
         voiceCard = nil
         switch card.intent {
@@ -264,6 +273,7 @@ extension AppStore {
 
     func rejectVoice() {
         guard let card = voiceCard else { return }
+        hush()   // 撳咗「唔係 / 取消」：「撳好就約」唔好再讲落去
         voiceCard = nil
         if card.assistant != nil { assistantReject(card); return }
         switch card.intent {

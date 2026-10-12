@@ -58,6 +58,7 @@ extension AppStore {
 
     func uiDismiss(_ c: MainBottomCard) {
         guard uiCanDismiss(c) else { return }
+        hush()   // 用户拉走 / 关咗张卡：卡上嗰句唔好再讲落去
         switch c {
         case .voice:
             if voiceCard != nil {
@@ -451,6 +452,19 @@ private struct MicButton: View {
             .contentShape(Circle())
         }
         .buttonStyle(MicPressStyle())
+        // 咪要带字（UX 报告 8）：长者唔知个橙色圆系乜；只系标签，唔阻点按
+        .overlay(alignment: .bottom) {
+            Text(on ? (store.conversing ? L.t("傾緊", "对话中") : L.t("聽緊", "在听")) : L.t("講嘢", "说话"))
+                .ds(.captionBold)
+                .foregroundStyle(DS.accentInk)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 2)
+                .background(.regularMaterial, in: Capsule())
+                .fixedSize()
+                .offset(y: 34)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
         .animation(DS.motion(DS.snappy), value: on)
         .accessibilityLabel(L.t("講嘢", "说话"))
         .accessibilityValue(on ? L.t("聽緊", "在听") : "")

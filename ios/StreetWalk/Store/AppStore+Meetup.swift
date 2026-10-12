@@ -114,6 +114,7 @@ extension AppStore {
     }
 
     func cancelProposal() {
+        hush()   // 取消：「撳好就約」唔好再讲落去
         proposal = nil
         scene.highlightLandmark(nil)
         scene.fadeOccluders(toward: nil)

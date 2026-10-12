@@ -501,6 +501,7 @@ private struct AssistantStepView: View {
                 HStack {
                     Spacer(minLength: 0)
                     Button {
+                        store.hush()
                         store.voiceCard = nil
                         if card.waitsForUser { store.assistantReject(VoiceCard(heard: "", title: "", needsConfirm: false, intent: .unknown, assistant: card)) }
                     } label: {
