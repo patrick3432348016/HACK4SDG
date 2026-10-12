@@ -36,12 +36,12 @@ enum TextSize: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// 上面 3D 场景占屏幕高度：字大就缩，内容区至少见到两张卡。標準 42% 係负责人定咗嘅，唔好郁。
+    /// 「今日」页上面 3D 场景占屏幕高度（排行榜、街坊冇场景）。用户 10-12 拍板：由 42% 改约 25%，等内容区有重心；字大再缩。
     var sceneFraction: CGFloat {
         switch self {
-        case .small, .standard: return 0.42
-        case .large: return 0.30
-        case .xlarge: return 0.22
+        case .small, .standard: return 0.25
+        case .large: return 0.22
+        case .xlarge: return 0.18
         }
     }
 

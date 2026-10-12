@@ -401,6 +401,12 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         applyCamera()
     }
 
+    /// 场景视窗比原来（屏幕 42%）矮几多：用嚟保持每米几多像素唔变，只系裁走上下（用户 10-12：场景缩到约 25%）。
+    /// 1 = 原来嘅比例（找人全屏都系 1）。
+    var viewportScale: Float = 1 {
+        didSet { if abs(viewportScale - oldValue) > 0.001 { applyCamera() } }
+    }
+
     private func applyCamera() {
         let (tg, dist) = locked { (_target, _distance) }
         let t = scenePoint(tg)
@@ -409,7 +415,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         cameraNode.position = SCNVector3(t.x + horiz * sin(azimuth), sin(pitch) * far, t.z + horiz * cos(azimuth))
         cameraNode.look(at: t, up: SCNVector3(0, 1, 0), localFront: SCNVector3(0, 0, -1))
         // 与之前 20° 透视在同等 distance 下的取景高度一致：半高 = distance · tan(10°)。
-        cameraNode.camera?.orthographicScale = Double(dist) * 0.1763
+        cameraNode.camera?.orthographicScale = Double(dist) * 0.1763 * Double(viewportScale)
     }
 
     /// 减少动态效果时不飞，直接跳到位。

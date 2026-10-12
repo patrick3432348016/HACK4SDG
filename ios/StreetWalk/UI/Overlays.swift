@@ -16,8 +16,9 @@ struct SceneLabelsLayer: View {
         // 在 GeometryReader 闭包外读取状态，保证 Observation 能追踪到。
         let focus = focusIDs
         let items = store.scene.overlay.items
+        let onlyFocus = store.findFullScreen
         GeometryReader { geo in
-            let shown = placed(items, in: CGRect(origin: .zero, size: geo.size), focus: focus)
+            let shown = placed(items, in: CGRect(origin: .zero, size: geo.size), focus: focus, onlyFocus: onlyFocus)
             ZStack(alignment: .topLeading) {
                 ForEach(shown) { item in
                     SceneLabel(item: item,
@@ -42,9 +43,11 @@ struct SceneLabelsLayer: View {
         return s
     }
 
-    private func placed(_ items: [OverlayItem], in bounds: CGRect, focus: Set<String>) -> [OverlayItem] {
+    /// 地标平时都出名牌（用户 10-12：场景「可以点，平时显示地标名牌」），一睇就知撳得；叠埋嘅按重要程度让位。
+    /// 找人全屏只出目的地。
+    private func placed(_ items: [OverlayItem], in bounds: CGRect, focus: Set<String>, onlyFocus: Bool) -> [OverlayItem] {
         let candidates = items
-            .filter { $0.kind != .landmark || $0.highlighted || focus.contains($0.id) }
+            .filter { $0.kind != .landmark || !onlyFocus || $0.highlighted || focus.contains($0.id) }
             .sorted { a, b in
                 // 「你」最重要（只靠橙色不够认，色弱也要找到自己）；其次高亮的人（约的对象、找的人）、焦点地标。
                 func rank(_ x: OverlayItem) -> Int {

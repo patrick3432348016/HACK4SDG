@@ -8,7 +8,7 @@ enum DS {
     static let side: CGFloat = 16
     static let gap: CGFloat = 8
     static let radius: CGFloat = 18
-    /// 上面 3D 场景占屏幕高度：「標準」42%，字大时缩（TextSize.sceneFraction）。喺 body 入面读会跟住字号重画。
+    /// 「今日」页上面 3D 场景占屏幕高度：「標準」25%，字大时缩（TextSize.sceneFraction）。喺 body 入面读会跟住字号重画。
     static var sceneFraction: CGFloat { TextSizeSetting.shared.current.sceneFraction }
     static let micSize: CGFloat = 68
     static let tabBarHeight: CGFloat = 83

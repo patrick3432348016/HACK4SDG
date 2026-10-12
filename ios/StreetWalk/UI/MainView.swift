@@ -154,7 +154,10 @@ private struct MainLayout: View {
 
     var body: some View {
         let full = store.findFullScreen
-        let sceneH = full ? size.height : (size.height * DS.sceneFraction).rounded()
+        // 场景只喺「今日」页（用户 10-12 拍板：约 25%）；排行榜、街坊只留顶部一条放设定掣，成页俾内容（UX 报告 6）
+        let band = safe.top + DS.gap + 44 + 8
+        let sceneH = full ? size.height : store.tab == .today ? max(band + 60, (size.height * DS.sceneFraction).rounded()) : band
+        let showScene = full || store.tab == .today
         let tabH = max(DS.tabBarHeight, safe.bottom + 49)
         let micCenter = CGPoint(x: size.width - DS.side - DS.micSize / 2, y: sceneH)
         let island = IslandGeometry.make(screen: size, safeTop: safe.top, isPhone: UIDevice.current.userInterfaceIdiom == .phone)
@@ -170,8 +173,15 @@ private struct MainLayout: View {
                 .allowsHitTesting(!full)
                 .accessibilityHidden(full)
 
-            // 场景 + 标签
+            // 场景 + 标签（唔喺「今日」页时收起，但保留 SceneKit 状态唔销毁）
             MainScene(width: size.width, height: sceneH, safe: safe, micCenter: micCenter, full: full)
+                .onChange(of: sceneH, initial: true) { _, h in
+                    // 场景矮咗：模型大细唔变，只裁上下（以屋企为中心）
+                    store.scene.viewportScale = full ? 1 : Float(min(1, h / (size.height * 0.42)))
+                }
+                .opacity(showScene ? 1 : 0)
+                .allowsHitTesting(showScene)
+                .accessibilityHidden(!showScene)
 
             // 左上 / 右上胶囊
             MainTopChips(safeTop: safe.top, hasIsland: island.hasIsland)
@@ -220,6 +230,7 @@ private struct MainLayout: View {
         }
         .frame(width: size.width, height: size.height)
         .animation(DS.motion(DS.spring), value: full)
+        .animation(DS.motion(DS.snappy), value: store.tab)
     }
 }
 
@@ -272,6 +283,7 @@ private struct MainScene: View {
             // 地图署名（OpenStreetMap 协议要求可见）：左下角一行小字，跟动态字体放大。
             Text("© OpenStreetMap")
                 .font(.system(size: creditSize))
+                .dynamicTypeSize(...DynamicTypeSize.large)   // 字大时唔好压到模型底座
                 .foregroundStyle(.secondary)
                 .padding(.leading, DS.side)
                 .padding(.bottom, 6)
@@ -301,9 +313,10 @@ private struct MainTopChips: View {
     var body: some View {
         HStack(alignment: .top, spacing: DS.gap) {
             HomeChip(hasIsland: hasIsland)
+            // 「演示」放左边：右上角留俾咪（排行榜、街坊冇场景，咪就喺顶部右边）
+            if store.demoMode { DemoMenu() }
             if store.backendOffline { OfflineChip().transition(.opacity) }
             Spacer(minLength: DS.gap)
-            if store.demoMode { DemoMenu() }
         }
         .animation(DS.motion(DS.spring), value: store.backendOffline)
         .padding(.horizontal, DS.side)
@@ -536,6 +549,18 @@ private struct MainTabBar: View {
                     .font(.system(size: 24, weight: .medium))
                     .symbolEffect(.bounce, options: .nonRepeating, value: taps[t, default: 0])
                     .frame(height: 28)
+                    // 等你回覆（有人约你、街坊想过嚟）：「街坊」标签出红点同数字（UX 报告 5）
+                    .overlay(alignment: .topTrailing) {
+                        if t == .neighbors, store.pendingReplies > 0 {
+                            Text("\(store.pendingReplies)")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(minWidth: 22, minHeight: 22)
+                                .background(Color.red, in: Capsule())
+                                .offset(x: 14, y: -6)
+                                .accessibilityHidden(true)
+                        }
+                    }
                 Text(t.title)
                     .ds(selected ? .bodyBold : .body)
                     .lineLimit(1)
@@ -546,7 +571,8 @@ private struct MainTabBar: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(t.title)
+        .accessibilityLabel(t == .neighbors && store.pendingReplies > 0
+                            ? L.t("\(t.title)，\(store.pendingReplies) 件等你回覆", "\(t.title)，\(store.pendingReplies) 件等你回复") : t.title)
         .accessibilityAddTraits(selected ? [.isSelected, .isButton] : .isButton)
         .accessibilityShowsLargeContentViewer {
             Label(t.title, systemImage: t.symbol)

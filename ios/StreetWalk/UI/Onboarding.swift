@@ -167,12 +167,10 @@ struct OnboardingFlow: View {
 // MARK: - 讲嘢：换步先停
 
 extension AppStore {
-    /// 引导换步：停掉上一步讲紧、排紧嘅句子（Announcer 停 + 清空排队）。聆听中唔郁（聆听自己会收起）。
-    /// TODO：同事喺 Announcer / AppStore 加咗统一嘅「打断」（hush / interrupt，换 phase 自动停）之后，换成佢、删走呢个。
+    /// 引导换步：停掉上一步讲紧、排紧嘅句子（换 phase 时 AppStore 已经自动 hush；同一步入面换画面靠呢个）。聆听中唔郁。
     func onbHush() {
         guard !listening else { return }
-        announcer.hold(speaker)
-        _ = announcer.release()
+        hush()
     }
 
     /// 每步出现时讲嘅一句（≤ 8 秒）：先停上一句再讲，唔会排喺旧句后面。

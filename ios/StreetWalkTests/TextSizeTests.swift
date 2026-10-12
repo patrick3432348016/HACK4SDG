@@ -34,9 +34,9 @@ struct TextSizeTests {
     @Test func 字号同场景高度() {
         #expect(TextSize.standard.dynamicType == .large, "標準 = 正文 24 / 辅助 20 / 标题 34")
         #expect(TextSize.allCases.map(\.dynamicType) == TextSize.allCases.map(\.dynamicType).sorted(), "由細到大")
-        #expect(TextSize.standard.sceneFraction == 0.42, "標準 42% 负责人定咗")
-        #expect(TextSize.small.sceneFraction == 0.42)
-        #expect(TextSize.large.sceneFraction < 0.42 && TextSize.xlarge.sceneFraction < TextSize.large.sceneFraction, "字大场景缩")
+        #expect(TextSize.standard.sceneFraction == 0.25, "用户 10-12 拍板：今日页场景约 25%")
+        #expect(TextSize.small.sceneFraction == 0.25)
+        #expect(TextSize.large.sceneFraction < 0.25 && TextSize.xlarge.sceneFraction < TextSize.large.sceneFraction, "字大场景缩")
         #expect(!TextSize.xlarge.dynamicType.isAccessibilitySize, "特大都唔用无障碍档（一屏要见到两张卡）")
     }
 }

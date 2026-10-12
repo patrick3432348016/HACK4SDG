@@ -40,6 +40,7 @@ struct TodayTab: View {
     var body: some View {
         let hero = Self.hero(store)
         VStack(alignment: .leading, spacing: 16) {
+            FirstDayCard()      // 第一日「今日三件事」（自己判断显唔显示，做完三件就冇）
             heroCard(hero)
                 .id(heroKey(hero))
                 .transition(.tabsInsert)
