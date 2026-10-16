@@ -346,6 +346,21 @@ class LogicTests(unittest.TestCase):
         context.places[1].is_open = None
         self.assertNotEqual(rank_places(context, "chan", command)[0].id, "plaza")
 
+    def test_minutes_and_walk_length(self):
+        # 成员 A 加（2026-10-17 用户测试）：整点、半点以外嘅时间同行几耐
+        cases = {"约陈伯明天下午三点十五散步": 15, "约陈伯明天下午3点20分散步": 20, "约陈伯明天下午三点一刻散步": 15,
+                 "约陈伯明天下午两点三刻散步": 45, "约陈伯明天早上八点零五散步": 5, "约陈伯明天下午四点四十五散步": 45,
+                 "约陈伯明天下午三点半散步": 30, "约陈伯明天下午三点一起散步": 0, "約陳伯聽日下晝三點兩個字": 10}
+        for text, minute in cases.items():
+            cmd = demo_interpret(text, None, NOW)
+            self.assertIsNotNone(cmd.starts_at, text)
+            self.assertEqual(cmd.starts_at.minute, minute, text)
+        self.assertEqual(demo_interpret("约陈伯明天下午两点三刻散步", None, NOW).starts_at.hour, 14)
+        self.assertEqual(demo_interpret("约陈伯明天下午三点走四十分钟", None, NOW).max_walk_minutes, 40)
+        self.assertEqual(demo_interpret("约陈伯明天下午三点散步一个小时", None, NOW).max_walk_minutes, 60)
+        self.assertEqual(demo_interpret("約陳伯聽日下晝三點行半個鐘", None, NOW).max_walk_minutes, 30)
+        self.assertIsNone(demo_interpret("约陈伯明天下午三点散步", None, NOW).max_walk_minutes)
+
     def test_ambiguous_time_and_negation_not_guessed(self):
         self.assertIsNone(demo_interpret("约陈伯明天四点散步", None, NOW).starts_at)
         self.assertEqual(demo_interpret("不要约陈伯", None, NOW).intent, "help")

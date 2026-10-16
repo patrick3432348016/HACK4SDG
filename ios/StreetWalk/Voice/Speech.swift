@@ -6,7 +6,12 @@ final class Speaker: ObservableObject {
     private var synth = AVSpeechSynthesizer()
     @Published var lastSpoken = ""
     /// 设定页「試聽」讲紧（个掣变「正在播放…」，撳咗一定有反应）。
+    /// 2026-10-17 用户测试：有声但个掣冇变。以前靠各条播放路线嘅完成回调收返，旧一句嘅回调会提早收咗新一次试听；
+    /// 而家由 trackPreview 自己睇住：开始讲 → 讲完（或者被打断 / 6 秒都冇声）先变返。
     @Published private(set) var previewing = false
+    /// 边个掣喺试听（"current" = 「聲音」主掣、"assistant" = 「試聽助手把聲」、其他 = 系统声音 id）。
+    @Published private(set) var previewKey: String?
+    private var previewGen = 0
     /// 系统声音嘅开始 / 讲完回调（试听状态、冇出声自动重试）。
     private lazy var observer: SynthObserver = {
         let o = SynthObserver()
@@ -42,7 +47,7 @@ final class Speaker: ObservableObject {
     func stop() {
         speakGeneration += 1
         playGeneration += 1
-        previewing = false
+        endPreview()
         serverPlayer.stop()
         synth.stopSpeaking(at: .immediate)
     }
@@ -51,7 +56,7 @@ final class Speaker: ObservableObject {
     /// 开关由 Announcer 管（关咗唔会叫到呢度，除非用户亲手撳「再聽一次」）。
     func speak(_ text: String) {
         speakGeneration += 1
-        previewing = false
+        endPreview()   // 新嘅播报取代试听
         lastSpoken = text
         settings.ensureScanned()
         let language = settings.language
@@ -72,7 +77,7 @@ final class Speaker: ObservableObject {
             synth.stopSpeaking(at: .immediate)
             AppStore.debugEvent("tts phone-cache: \(text)")
             serverPlayer.play(file: file) { [weak self] outcome in
-                if outcome == .failedBeforeAudio { self?.playSystem(text, language: language) } else { self?.previewing = false }
+                if outcome == .failedBeforeAudio { self?.playSystem(text, language: language) }
             }
         case .server(let url):
             activateSession()
@@ -103,13 +108,12 @@ final class Speaker: ObservableObject {
                 self.server?.noteFailure()
                 self.playSystem(text, language: language)
             case .finished:
-                self.previewing = false
                 self.server?.noteSuccess()
                 if let t = self.serverPlayer.lastFirstAudio {
                     print("[voice] server first audio \(String(format: "%.2f", t))s")
                     AppStore.debugEvent("tts server first-audio \(String(format: "%.2f", t))s total \(String(format: "%.1f", Date().timeIntervalSince(started)))s: \(text)")
                 }
-            case .stopped: self.previewing = false
+            case .stopped: break
             }
         }
     }
@@ -139,39 +143,58 @@ final class Speaker: ObservableObject {
 
     /// 设定页「聲音」嗰粒主「試聽」：同真播报行同一条路——连到 Mac 语音服务器就用豆包小何把声，连唔到先用系统声音
     /// （用户 10-16：试听都要係豆包把声，唔好又係系统声）。返回 false = 媒体音量係 0。
+    /// text：试听句子（nil = 语言嘅试听句）；key：边个掣（见 previewKey）。
     @discardableResult
-    func previewCurrent(language: SpokenLanguage) -> Bool {
-        guard server?.speechURL != nil else { return preview(settings.active, language: language) }
-        speak(language.sample)
-        previewing = true
-        let gen = speakGeneration
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(15))
-            if let self, self.speakGeneration == gen { self.previewing = false }
-        }
+    func previewCurrent(language: SpokenLanguage, text: String? = nil, key: String = "current") -> Bool {
+        guard server?.speechURL != nil else { return preview(settings.active, language: language, text: text, key: key) }
+        speak(text ?? language.sample)
+        trackPreview(key)
         return AVAudioSession.sharedInstance().outputVolume > 0.02
     }
 
     /// 设定页「試聽」：用指定嘅声音讲试听句子（唔理开关）。讲紧期间 previewing = true。
     /// 返回 false = 媒体音量係 0（静音掣唔影响，但音量调到最细就听唔到），叫人按音量加。
     @discardableResult
-    func preview(_ v: VoiceInfo?, language: SpokenLanguage) -> Bool {
-        play(language.sample, voice: v, language: language)
-        previewing = true
-        // 保险：回调冇嚟都唔好一直显示「正在播放」
-        let gen = playGeneration
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(15))
-            if let self, self.playGeneration == gen { self.previewing = false }
-        }
+    func preview(_ v: VoiceInfo?, language: SpokenLanguage, text: String? = nil, key: String? = nil) -> Bool {
+        endPreview()
+        play(text ?? language.sample, voice: v, language: language)
+        trackPreview(key ?? v?.id ?? "current")
         return AVAudioSession.sharedInstance().outputVolume > 0.02
+    }
+
+    /// 试听开始：个掣即刻变「正在播放…」，睇住真系讲紧（系统声音 / 服务器声 / 手机缓存都系 isSpeaking），
+    /// 开始咗又静咗 0.45 秒 = 讲完；6 秒都未开始（冇声）、20 秒上限都变返。stop() / 新播报会即刻变返。
+    private func trackPreview(_ key: String) {
+        previewGen += 1
+        let gen = previewGen
+        previewKey = key
+        previewing = true
+        AppStore.debugEvent("preview start \(key)")
+        Task { @MainActor [weak self] in
+            let start = Date()
+            var started = false, quiet = 0
+            while Date().timeIntervalSince(start) < 20 {
+                try? await Task.sleep(for: .milliseconds(150))
+                guard let self, self.previewGen == gen else { return }
+                if self.isSpeaking { started = true; quiet = 0 } else { quiet += 1 }
+                if started && quiet >= 3 { break }
+                if !started && Date().timeIntervalSince(start) > 6 { break }
+            }
+            guard let self, self.previewGen == gen else { return }
+            self.endPreview()
+        }
+    }
+
+    private func endPreview() {
+        previewGen += 1
+        if previewing { previewing = false; AppStore.debugEvent("preview end") }
+        if previewKey != nil { previewKey = nil }
     }
 
     private func play(_ text: String, voice v: VoiceInfo?, language: SpokenLanguage) {
         serverPlayer.stop()
         activateSession()
         synth.stopSpeaking(at: .immediate)
-        previewing = false
         // 一定要指明边把声（只写语言会拎到最低档；普通话只会揀 zh-CN 声，见 VoicePicker）。
         let voice = v.flatMap(systemVoice) ?? fallback(language)
         let pace = settings.pace
@@ -200,9 +223,7 @@ final class Speaker: ObservableObject {
             self.synth.stopSpeaking(at: .immediate)
             self.synth = AVSpeechSynthesizer()
             self.activateSession()
-            let wasPreviewing = self.previewing
             self.enqueue(make())
-            self.previewing = wasPreviewing
         }
     }
 
@@ -217,9 +238,7 @@ final class Speaker: ObservableObject {
         batchStarted = true
     }
 
-    fileprivate func synthEnded(_ id: ObjectIdentifier) {
-        if id == batchLast { previewing = false }
-    }
+    fileprivate func synthEnded(_ id: ObjectIdentifier) {}
 
     private func systemVoice(_ v: VoiceInfo) -> AVSpeechSynthesisVoice? {
         if let c = voiceCache[v.id] { return c }
@@ -277,6 +296,29 @@ final class Listener: ObservableObject {
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
 
+    /// 卡出咗之后自动开咪听答案（2026-10-17 用户测试）：复述卡等「好 / 不要」、帮助卡等用户再讲一次。
+    /// 张卡照显示（唔转「聽緊」卡）；冇人讲就静静鸡收咪。nil = 用户自己撳咪。stop() 会清走。
+    enum Answer: Equatable { case confirm, retry }
+    var answering: Answer?
+    /// 讲完停一停（有字之后 endPause 冇新字），或者一直冇讲嘢（start 嘅 idle 秒）就叫一次：当讲完，唔使撳「講完」。
+    /// 每次 start 前设；stop() 会清走（首次使用「試一次」有自己嘅计时）。
+    var onSilence: (() -> Void)?
+    static let endPause: Duration = .seconds(2)
+    private var silence: Task<Void, Never>?
+    /// 自动开咪嘅一次请求（新卡 / 撳咗掣就作废）。
+    private(set) var answerGen = 0
+    func nextAnswerGen() -> Int { answerGen += 1; return answerGen }
+
+    private func armSilence(_ d: Duration) {
+        silence?.cancel()
+        guard onSilence != nil else { return }
+        silence = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: d)
+            guard let self, !Task.isCancelled, self.isListening else { return }
+            self.onSilence?()
+        }
+    }
+
     func requestAuth() {
         SFSpeechRecognizer.requestAuthorization { status in
             Task { @MainActor in
@@ -286,7 +328,8 @@ final class Listener: ObservableObject {
         AVAudioApplication.requestRecordPermission { _ in }
     }
 
-    func start() throws {
+    /// idle：一直冇讲嘢几耐就当讲完（要设 onSilence）。
+    func start(idle: Double = 15) throws {
         transcript = ""
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .defaultToSpeaker])
@@ -314,6 +357,7 @@ final class Listener: ObservableObject {
             Task { @MainActor in self.received(text) }
         }
         isListening = true
+        armSilence(.seconds(idle))
     }
 
     /// 停顿之后 iOS 有时会由头再认（新一段字唔包含之前嗰段）：前面嗰段留低，接埋；空字唔好盖走已经认到嘅字。
@@ -324,15 +368,60 @@ final class Listener: ObservableObject {
         guard isListening else { return }
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
-        if lastPartial.count >= 4, t.count * 2 <= lastPartial.count, t.first != lastPartial.first {
-            committed += lastPartial
+        // 新一段明显短咗、开头唔同、又唔系旧嗰段嘅一截（识别改紧字）：当係停顿后由头再认
+        if lastPartial.count >= 4, t.count * 2 <= lastPartial.count, t.first != lastPartial.first, !lastPartial.contains(t) {
+            committed = Self.joined(committed: committed, latest: lastPartial)
         }
         lastPartial = t
-        transcript = committed + t
+        transcript = Self.joined(committed: committed, latest: t)
+        armSilence(Self.endPause)
+    }
+
+    /// 前面认好嘅一段 + 最新一段（2026-10-17 用户测试：「帮我约我的帮我帮我约」字叠埋）。纯逻辑，有单元测试。
+    /// - 用户由头再讲（新一段同旧段开头两个字一样）或者新一段已经包含旧段：只要新嗰段；
+    /// - 旧段尾同新段头重叠：只留一次；
+    /// - 紧接重复嘅词（「帮我帮我约」）收埋。
+    nonisolated static func joined(committed: String, latest: String) -> String {
+        var c = committed
+        if c.count >= 2, latest.hasPrefix(String(c.prefix(2))) || latest.contains(c) {
+            c = ""
+        } else if let k = overlap(c, latest) {
+            c.removeLast(k)
+        }
+        return collapseRepeats(c + latest)
+    }
+
+    /// a 尾同 b 头重叠几多个字（最少 2 个）。
+    nonisolated static func overlap(_ a: String, _ b: String) -> Int? {
+        let x = Array(a), y = Array(b)
+        guard min(x.count, y.count) >= 2 else { return nil }
+        for k in stride(from: min(x.count, y.count), through: 2, by: -1) where x.suffix(k).elementsEqual(y.prefix(k)) { return k }
+        return nil
+    }
+
+    /// 紧接重复嘅 2–6 个字只留一次（「帮我帮我约」→「帮我约」、「好的好的」→「好的」）。一个字嘅叠字（「慢慢」）唔郁。
+    nonisolated static func collapseRepeats(_ s: String) -> String {
+        var c = Array(s)
+        var i = 0
+        while i < c.count {
+            var removed = false
+            for n in stride(from: min(6, (c.count - i) / 2), through: 2, by: -1)
+            where c[i..<i + n].elementsEqual(c[i + n..<i + 2 * n]) && c[i..<i + n].contains(where: { !$0.isPunctuation && !$0.isWhitespace }) {
+                c.removeSubrange(i + n..<i + 2 * n)
+                removed = true
+                break
+            }
+            if !removed { i += 1 }
+        }
+        return String(c)
     }
 
     @discardableResult
     func stop() -> String {
+        silence?.cancel()
+        silence = nil
+        onSilence = nil
+        answering = nil
         engine.stop()
         engine.inputNode.removeTap(onBus: 0)
         request?.endAudio()

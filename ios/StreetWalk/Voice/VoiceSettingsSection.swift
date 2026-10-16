@@ -34,21 +34,28 @@ struct VoiceSettingsSection: View {
     }
 }
 
-/// 「試聽」掣：讲紧就变「正在播放…」（撳咗一定见到反应），讲完变返。
+/// 「試聽」掣：讲紧就变「正在播放…」（底色变橙、撳咗一定见到反应），讲完 / 被打断变返；播緊再撳 = 停。
+/// key：边个掣（"current" 主掣、"assistant" 助手把声、系统声音 id），只有讲紧嗰个掣变。
 struct PreviewButton: View {
     @ObservedObject var speaker: Speaker
+    var key = "current"
+    var title = L.t("試聽", "试听")
+    var wide = true
     var action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            Label(speaker.previewing ? L.t("播緊⋯", "正在播放…") : L.t("試聽", "试听"),
-                  systemImage: speaker.previewing ? "speaker.wave.2.fill" : "play.fill")
-                .symbolEffect(.variableColor.iterative, isActive: speaker.previewing && !DS.reduceMotion)
-                .frame(maxWidth: .infinity)
+        let on = speaker.previewing && speaker.previewKey == key
+        Button { on ? speaker.stop() : action() } label: {
+            Label(on ? L.t("播緊⋯", "正在播放…") : title, systemImage: on ? "speaker.wave.2.fill" : "play.fill")
+                .labelStyle(.titleAndIcon)
+                .symbolEffect(.variableColor.iterative, isActive: on && !DS.reduceMotion)
+                .frame(maxWidth: wide ? .infinity : nil)
+                .fixedSize(horizontal: !wide, vertical: false)
         }
         .buttonStyle(.dsSecondary)
-        .disabled(speaker.previewing)
-        .animation(DS.motion(DS.snappy), value: speaker.previewing)
+        .background(on ? DS.accentSoft : Color.clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .animation(DS.motion(DS.snappy), value: on)
+        .accessibilityHint(on ? L.t("撳一下停", "点一下停止") : "")
     }
 }
 
@@ -122,11 +129,8 @@ private struct VoiceRow: View {
             .accessibilityAddTraits(on ? .isSelected : [])
             .accessibilityHint(L.t("撳兩下轉用呢把聲", "点两下换成这个声音"))
 
-            Button { store.previewVoice(voice) } label: {
-                Label(L.t("試聽", "试听"), systemImage: "play.fill").labelStyle(.titleAndIcon).fixedSize()
-            }
-            .buttonStyle(.dsSecondary)
-            .accessibilityLabel(L.t("試聽\(voice.displayName)", "试听\(voice.displayName)"))
+            PreviewButton(speaker: store.speaker, key: voice.id, wide: false) { store.previewVoice(voice) }
+                .accessibilityLabel(L.t("試聽\(voice.displayName)", "试听\(voice.displayName)"))
         }
         .padding(.vertical, 4)
     }
@@ -311,7 +315,7 @@ extension AppStore {
 
     /// 试听：清走排紧嘅播报，即刻用呢把声讲试听句子。聆听中唔讲。读屏开着就等佢读完个掣先讲。
     /// current：「聲音」主掣——试听真播报会用嘅声（连到 Mac 就係豆包小何）；「進階」逐把系统声音试听就唔使。
-    func previewVoice(_ v: VoiceInfo?, current: Bool = false) {
+    func previewVoice(_ v: VoiceInfo?, current: Bool = false, text: String? = nil, key: String = "current") {
         // 聆听中唔讲（会录埋入去），但要话俾人知点解冇声
         guard !listening else {
             showToastSilently(L.t("聽緊你講嘢，講完先試聽。", "正在听你说话，说完再试听。"))
@@ -323,9 +327,9 @@ extension AppStore {
         if UIAccessibility.isVoiceOverRunning {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(0.8))
-                if !(current ? speaker.previewCurrent(language: language) : speaker.preview(v, language: language)) { volumeHint() }
+                if !(current ? speaker.previewCurrent(language: language, text: text, key: key) : speaker.preview(v, language: language)) { volumeHint() }
             }
-        } else if !(current ? speaker.previewCurrent(language: language) : speaker.preview(v, language: language)) {
+        } else if !(current ? speaker.previewCurrent(language: language, text: text, key: key) : speaker.preview(v, language: language)) {
             volumeHint()
         }
     }
@@ -379,10 +383,9 @@ private struct VoiceServerSection: View {
                     .buttonStyle(.dsSecondary)
             }
             if server.speechURL != nil {
-                Button { store.sayAgain(L.t("你好，我係街坊行嘅語音助手，有咩想問就撳咪同我講。", "你好，我是街坊行的语音助手，有什么想问就按麦克风跟我说。")) } label: {
-                    Label(L.t("試聽助手把聲", "试听助手的声音"), systemImage: "play.fill")
+                PreviewButton(speaker: store.speaker, key: "assistant", title: L.t("試聽助手把聲", "试听助手的声音"), wide: false) {
+                    store.previewVoice(nil, current: true, text: L.t("你好，我係街坊行嘅語音助手，有咩想問就撳咪同我講。", "你好，我是街坊行的语音助手，有什么想问就按麦克风跟我说。"), key: "assistant")
                 }
-                .buttonStyle(.dsSecondary)
             }
         } header: {
             Text(L.t("語音助手（Mac）", "语音助手（Mac）")).ds(.caption)

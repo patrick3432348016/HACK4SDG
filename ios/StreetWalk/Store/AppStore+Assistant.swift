@@ -90,7 +90,7 @@ extension AppStore {
 
     /// 显示服务器嘅一步（问、揀、复述、结果）。
     func showAssistant(_ reply: AssistantReply, heard: String) {
-        let card = AssistantFlow.card(reply, lookup: assistantLookup)
+        var card = AssistantFlow.card(reply, lookup: assistantLookup)
         if card.kind == .info && reply.status == .info {
             // 今日一句、天气、B 嘅固定句之类：照讲 B 嘅内容（转繁体）
             voiceCard = VoiceCard(heard: heard, title: card.title, detail: card.detail, needsConfirm: false, intent: .unknown, assistant: card)
@@ -99,13 +99,20 @@ extension AppStore {
             if AssistantFlow.policy(reply) != "weather" { assistant.reset() }
             return
         }
+        // 约人讲咗行几耐（「散步一個鐘」）：B 嘅确认卡冇呢样，手机自己讲埋（完成后写入约会理由）
+        if card.kind == .confirm, card.action?.kind == "invite", let walk = TemplateAI.parseDuration(heard) {
+            let how = TemplateAI.walkPhrase(walk)
+            if card.title.hasSuffix(L.t("一齊行", "一起走")) { card.title = String(card.title.dropLast(3)) + how } else { card.title += "，" + how }
+            card.spoken += "，" + how
+        }
         voiceCard = VoiceCard(heard: heard, title: card.title, detail: card.detail, needsConfirm: card.kind == .confirm,
                               intent: .unknown, assistant: card)
         switch card.kind {
         case .confirm:
             if let p = card.action?.placeID, landmark(p) != nil { scene.highlightLandmark(p); focus(onLandmark: p) }
             let s = card.spoken.trimmingCharacters(in: CharacterSet(charactersIn: "。？?！! "))
-            say(L.t("\(s)。啱就撳「好」。", "\(s)。没问题就按「好的」。"), prompt: true)   // 同复述卡个掣一样（普通话掣写「好的」）
+            say(Self.confirmPrompt(s), prompt: true)   // 讲「好」或者撳掣都得（普通话掣写「好的」）
+            listenForAnswer(.confirm)
         case .choosePlace:
             if let p = card.options.first?.id, landmark(p) != nil { scene.highlightLandmark(p) }
             say(card.spoken, prompt: true)
@@ -116,6 +123,8 @@ extension AppStore {
             return
         default:
             say(card.spoken, prompt: card.waitsForUser)
+            // 问紧几时 / 行几耐：手机识别讲完就再开咪，直接答就得
+            if card.kind == .ask { listenForAnswer(.retry) }
         }
         if card.endsConversation { assistant.reset() }
     }
@@ -224,7 +233,8 @@ extension AppStore {
                 place = landmark(lm)?.name
                 let id = receipt.flatMap(UUID.init(uuidString:)) ?? UUID()
                 if !appointments.contains(where: { $0.id == id }) {
-                    let reasonText = landmark(lm).map { reason(for: $0, at: at) } ?? ""
+                    let walk = TemplateAI.parseDuration(heard).map(Self.walkNote) ?? ""
+                    let reasonText = (landmark(lm).map { reason(for: $0, at: at) } ?? "") + walk
                     let appt = Appointment(id: id, partnerID: pid, date: at, landmarkID: lm, reason: reasonText, status: .waiting)
                     appointments.insert(appt, at: 0)
                     supabase?.adoptServerInvite(appt)

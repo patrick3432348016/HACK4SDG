@@ -112,12 +112,14 @@ struct VoicePickerTests {
         #expect(VoiceInfo(id: "x", name: "X", language: "yue-HK", tier: .standard).subtitle == "標準")
     }
 
-    @Test func 正常用系统语速_慢只慢少少靠停顿() {
-        // 放慢音节会令低档粤语声逐个字读（用户 10-11 反映），所以「正常」= 系统默认，「慢」只慢少少、句之间停耐啲
+    @Test func 正常用系统语速_慢快拉开() {
+        // 「正常」= 系统默认（10-11）；10-17 用户测试：慢同正常差唔多 → 慢明显慢、句之间停耐啲，快明显快
         #expect(SpeechPace.normal.rate == AVSpeechUtteranceDefaultSpeechRate)
-        #expect(SpeechPace.slow.rate < SpeechPace.normal.rate && SpeechPace.slow.rate >= 0.45)
-        #expect(SpeechPace.fast.rate > SpeechPace.normal.rate)
-        #expect(SpeechPace.slow.pauseAfterSentence > SpeechPace.normal.pauseAfterSentence)
+        #expect(SpeechPace.normal.rate - SpeechPace.slow.rate >= 0.08)
+        #expect(SpeechPace.fast.rate - SpeechPace.normal.rate >= 0.05)
+        #expect(SpeechPace.slow.pauseAfterSentence >= 0.6 && SpeechPace.fast.pauseAfterSentence < SpeechPace.normal.pauseAfterSentence)
+        // 豆包声（服务器收 0.7–1.3）：慢 / 快同正常差 25%
+        #expect(TTSRoute.speed(.slow) <= 0.8 && TTSRoute.speed(.fast) >= 1.2 && TTSRoute.speed(.slow) >= 0.7 && TTSRoute.speed(.fast) <= 1.3)
     }
 
     @Test func 按句拆_逗号唔拆_唔加空格() {
