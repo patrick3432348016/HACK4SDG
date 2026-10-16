@@ -31,7 +31,7 @@ struct SettingsView: View {
                 Section {
                     BigSegments(options: AppLang.allCases, selection: Binding(get: { AppLanguage.shared.current }, set: { l in
                         AppLanguage.shared.choose(l)
-                        store.previewVoice(VoiceSettings.shared.active)
+                        store.previewVoice(VoiceSettings.shared.active, current: true)
                     }), label: \.label)
                     .padding(.vertical, 8)
                     .accessibilityLabel(L.t("語言", "语言"))

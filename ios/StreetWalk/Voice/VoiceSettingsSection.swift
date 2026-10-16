@@ -18,11 +18,11 @@ struct VoiceSettingsSection: View {
                 Text(L.t("語速", "语速"))
                 BigSegments(options: SpeechPace.allCases, selection: Binding(get: { v.pace }, set: { p in
                     v.pace = p
-                    store.previewVoice(v.active)
+                    store.previewVoice(v.active, current: true)
                 }), label: \.label)
             }
             .padding(.vertical, 8)
-            PreviewButton(speaker: store.speaker) { store.previewVoice(v.active) }
+            PreviewButton(speaker: store.speaker) { store.previewVoice(v.active, current: true) }
                 .padding(.vertical, 4)
         } header: {
             Text(L.t("聲音", "声音")).ds(.caption)
@@ -310,7 +310,8 @@ extension AppStore {
     }
 
     /// 试听：清走排紧嘅播报，即刻用呢把声讲试听句子。聆听中唔讲。读屏开着就等佢读完个掣先讲。
-    func previewVoice(_ v: VoiceInfo?) {
+    /// current：「聲音」主掣——试听真播报会用嘅声（连到 Mac 就係豆包小何）；「進階」逐把系统声音试听就唔使。
+    func previewVoice(_ v: VoiceInfo?, current: Bool = false) {
         // 聆听中唔讲（会录埋入去），但要话俾人知点解冇声
         guard !listening else {
             showToastSilently(L.t("聽緊你講嘢，講完先試聽。", "正在听你说话，说完再试听。"))
@@ -322,9 +323,9 @@ extension AppStore {
         if UIAccessibility.isVoiceOverRunning {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(0.8))
-                if !speaker.preview(v, language: language) { volumeHint() }
+                if !(current ? speaker.previewCurrent(language: language) : speaker.preview(v, language: language)) { volumeHint() }
             }
-        } else if !speaker.preview(v, language: language) {
+        } else if !(current ? speaker.previewCurrent(language: language) : speaker.preview(v, language: language)) {
             volumeHint()
         }
     }

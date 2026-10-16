@@ -72,7 +72,7 @@ final class Speaker: ObservableObject {
             synth.stopSpeaking(at: .immediate)
             AppStore.debugEvent("tts phone-cache: \(text)")
             serverPlayer.play(file: file) { [weak self] outcome in
-                if outcome == .failedBeforeAudio { self?.playSystem(text, language: language) }
+                if outcome == .failedBeforeAudio { self?.playSystem(text, language: language) } else { self?.previewing = false }
             }
         case .server(let url):
             activateSession()
@@ -103,12 +103,13 @@ final class Speaker: ObservableObject {
                 self.server?.noteFailure()
                 self.playSystem(text, language: language)
             case .finished:
+                self.previewing = false
                 self.server?.noteSuccess()
                 if let t = self.serverPlayer.lastFirstAudio {
                     print("[voice] server first audio \(String(format: "%.2f", t))s")
                     AppStore.debugEvent("tts server first-audio \(String(format: "%.2f", t))s total \(String(format: "%.1f", Date().timeIntervalSince(started)))s: \(text)")
                 }
-            case .stopped: break
+            case .stopped: self.previewing = false
             }
         }
     }
@@ -134,6 +135,21 @@ final class Speaker: ObservableObject {
 
     private func playSystem(_ text: String, language: SpokenLanguage) {
         play(text, voice: settings.active, language: language)
+    }
+
+    /// 设定页「聲音」嗰粒主「試聽」：同真播报行同一条路——连到 Mac 语音服务器就用豆包小何把声，连唔到先用系统声音
+    /// （用户 10-16：试听都要係豆包把声，唔好又係系统声）。返回 false = 媒体音量係 0。
+    @discardableResult
+    func previewCurrent(language: SpokenLanguage) -> Bool {
+        guard server?.speechURL != nil else { return preview(settings.active, language: language) }
+        speak(language.sample)
+        previewing = true
+        let gen = speakGeneration
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(15))
+            if let self, self.speakGeneration == gen { self.previewing = false }
+        }
+        return AVAudioSession.sharedInstance().outputVolume > 0.02
     }
 
     /// 设定页「試聽」：用指定嘅声音讲试听句子（唔理开关）。讲紧期间 previewing = true。
