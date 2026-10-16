@@ -278,6 +278,7 @@ private struct MainScene: View {
             reserved.append(CGRect(x: micCenter.x - DS.micSize / 2 - 4, y: micCenter.y - DS.micSize / 2 - 4,
                                    width: DS.micSize + 8, height: DS.micSize / 2 + 4))
             reserved.append(CGRect(x: width / 2 - 90, y: height - 48, width: 180, height: 48))   // 「睇大啲」掣
+            if store.mapSource == .fallback { reserved.append(CGRect(x: 0, y: safe.top + DS.gap + 44, width: width, height: 40)) }   // 示例屋邨说明
         }
         return ZStack(alignment: .topLeading) {
             DioramaView(controller: store.scene, onTap: handleSceneTap)
@@ -302,19 +303,42 @@ private struct MainScene: View {
                 .frame(width: width, height: height, alignment: .bottomLeading)
                 .allowsHitTesting(false)
             if !full { expandHandle }
+            if store.mapSource == .fallback && !full { sampleBadge }
         }
         .frame(width: width, height: height)
         .background(Color(uiColor: SceneStyle.background))
         .clipped()
-        // 向下拉放大、向上拉收细（同其他 App 一样）；同撳地标唔撞（要拉过 30pt 先算）
+        // 向下拉放大、向上拉收细（同其他 App 一样）；同撳地标唔撞（要拉过 30pt 先算）。
+        // 双指捏合 / 拖动系郁镜头（DioramaView），啱啱双指郁过就唔当系拉。
         .simultaneousGesture(
             DragGesture(minimumDistance: 30)
                 .onEnded { v in
-                    guard !full, abs(v.translation.height) > abs(v.translation.width) else { return }
+                    guard !full, abs(v.translation.height) > abs(v.translation.width),
+                          CACurrentMediaTime() - store.scene.lastMultiTouch > 0.5 else { return }
                     if v.translation.height > 40, !expanded { expanded = true; Haptics.select() }
                     else if v.translation.height < -40, expanded { expanded = false; Haptics.select() }
                 }
         )
+        // 「睇大啲 / 收細」：手指放大、平移都还原
+        .onChange(of: expanded) { _, _ in store.scene.resetUserCamera() }
+    }
+
+    /// 用紧内置示例屋邨（攞唔到你附近嘅地图）：一直讲明，唔好当系你附近（B-3）。
+    private var sampleBadge: some View {
+        Label(L.t("示例屋邨（\(store.map?.placeName ?? "皇后山邨")），唔係你附近", "示例屋邨（\(store.map?.placeName ?? "皇后山邨")），不是你家附近"),
+              systemImage: "info.circle")
+            .font(.system(size: creditSize, weight: .semibold))
+            .dynamicTypeSize(...DynamicTypeSize.xLarge)
+            .lineLimit(2)
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(.thinMaterial, in: Capsule())
+            .padding(.leading, DS.side)
+            .padding(.top, safe.top + DS.gap + 44 + 6)
+            .frame(width: width, height: height, alignment: .topLeading)
+            .allowsHitTesting(false)
+            .accessibilityLabel(L.t("而家顯示緊示例屋邨，唔係你附近。可以去設定重新揀樓。", "现在显示的是示例屋邨，不是你家附近。可以到设置里重新选楼。"))
     }
 
     /// 底部中间一粒细掣：「向下拉睇大啲」/「收細」，话俾人知幅地图拉得大。

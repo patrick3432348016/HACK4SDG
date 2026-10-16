@@ -626,7 +626,8 @@ private struct OnbPickHomeStep: View {
     var body: some View {
         VStack(spacing: 8) {
             if manual { instruction.transition(DS.slide(.top)) }
-            if let t = store.toast {
+            // 冇估到点解（示例屋邨、唔喺屋企）已经一直写喺说明卡，提示唔使再叠一次
+            if let t = store.toast, !(manual && t == store.mapNotice) {
                 Label(t, systemImage: "exclamationmark.circle.fill")
                     .ds(.caption)
                     .fixedSize(horizontal: false, vertical: true)
@@ -699,6 +700,10 @@ private struct OnbPickHomeStep: View {
                 if store.pendingHome == nil {
                     Text(L.t("撳一下你住嗰座樓", "点一下你住的那栋楼")).ds(.bodyBold)
                     Text(L.t("橙色嘅係住宅樓", "橙色的是住宅楼")).ds(.caption).foregroundStyle(.secondary)
+                    // 点解冇幫你估（攞唔到位置 / 地图、唔喺屋企）：一直显示，唔好一闪就冇（A-2）
+                    if let n = store.mapNotice {
+                        Text(n).ds(.caption).foregroundStyle(.secondary)
+                    }
                 } else {
                     Text(L.t("唔係呢座？撳第二座就得", "不是这栋？点另一栋就行")).ds(.bodyBold)
                 }

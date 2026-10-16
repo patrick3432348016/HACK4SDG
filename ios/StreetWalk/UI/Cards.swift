@@ -270,6 +270,12 @@ struct InfoCard: View {
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                 facts(lm, shade: shade)
+                // B-4：测试员问「系咪真嘅？」→ 讲明两行点嚟
+                Text(factSource)
+                    .ds(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
             }
             .accessibilityElement(children: .combine)
 
@@ -355,6 +361,15 @@ struct InfoCard: View {
             .menuStyle(.button)
             .buttonStyle(.dsPrimary)
         }
+    }
+
+    /// 「有冇櫈」「曬唔曬」点嚟：櫈系地图资料（OpenStreetMap 标咗凳、涼亭、公园等），曬唔曬系按太阳位置同模型入面嘅楼影即时计。
+    /// 示例屋邨、演示时间都讲明。
+    private var factSource: String {
+        let sample = store.mapSource == .fallback ? L.t("示範資料：示例屋邨，唔係你附近。", "示范数据：示例屋邨，不是你家附近。") : ""
+        let sun = store.demoHour != nil ? L.t("按演示時間太陽位置", "按演示时间太阳位置") : L.t("按而家太陽位置", "按现在太阳位置")
+        return sample + L.t("櫈：睇地圖資料；曬唔曬：\(sun)同樓影推算，大約準。",
+                            "凳子：看地图资料；晒不晒：\(sun)和楼影推算，大概准。")
     }
 
     @ViewBuilder private func facts(_ lm: Landmark, shade: Int) -> some View {

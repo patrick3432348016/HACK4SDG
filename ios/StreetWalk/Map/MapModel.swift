@@ -43,6 +43,8 @@ struct Building: Codable, Identifiable {
 
     var centroid: Vec2 { Polygon.centroid(outline) }
     var isTower: Bool { height >= 25 }
+    /// 似住宅：住宅楼，加上只标 building=yes、10 层以上的楼（香港不少私人楼只这样标）。
+    var looksLikeHome: Bool { kind == .residential || (kind == .other && tag == "yes" && levels >= 10) }
 }
 
 enum POIKind: String, Codable {
@@ -283,7 +285,7 @@ struct MapModel: Codable {
     private func markHomeCandidates(around c: Vec2?) -> [Building] {
         let r = Self.pickSize / 2
         func local(_ b: Building) -> Bool { c.map { abs(b.centroid.x - $0.x) <= r && abs(b.centroid.y - $0.y) <= r } ?? true }
-        func homeLike(_ b: Building) -> Bool { b.kind == .residential || (b.kind == .other && b.tag == "yes" && b.levels >= 10) }
+        func homeLike(_ b: Building) -> Bool { b.looksLikeHome }
         func general(_ b: Building) -> Bool { b.kind == .other || b.kind == .commercial }
         var fitCache: [Int64: Bool] = [:]
         func fits(_ b: Building) -> Bool {
