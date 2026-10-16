@@ -17,7 +17,7 @@ App 嘅「连续对话」（`ios/StreetWalk/Store/AppStore+Conversation.swift`�
 ### 组员第一次用（自己部 Mac 开语音服务器）
 
 ```sh
-git clone https://github.com/patrick3432348016/HACK4SDG.git && cd HACK4SDG && git checkout prototype/ios-3d-diorama
+git clone https://github.com/patrick3432348016/HACK4SDG.git && cd HACK4SDG && git checkout main
 tools/voice_server.sh        # 第一次自动建 Python 环境（约 1 分钟，要 Python 3.10+ 或 uv）；之后即开即用
 ```
 手机同 Mac 连同一个 Wi-Fi，App 自动搵到；撳咪就同 AI 倾。App 安装见 `ios/真机安装说明.md`。
