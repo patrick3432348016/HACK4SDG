@@ -18,11 +18,20 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         /// 未登录（未完成首次使用 / 未有网名）。
         case idle
         case online
-        /// 上一次请求因为冇网络 / 服务器暂时唔得而失败：界面显示「未連線」。
+        /// 真係连唔到：系统话冇网络（持续 pathGrace 秒），或者连续 2 次请求失败、而且失败咗 failGrace 秒以上。界面显示「未連線」。
+        /// 单次超时、Realtime 重连、App 啱啱返前台嗰下唔算（测试员 D-1：明明有网都成日显示「未联网」）。
         case offline
     }
     private(set) var status: Status = .idle
     var isOffline: Bool { status == .offline }
+    /// 系统唔俾呢个 App 用流动数据（设定入面「無線數據 / 流動數據」揀咗淨係 Wi-Fi 或者關）：
+    /// 用流量时所有请求都会失败，界面要讲清楚去设定开，唔好只讲「未連線」。
+    private(set) var cellularDenied = false
+    /// 系统话冇网络持续几耐先显示「未連線」（Wi-Fi 换流量中间会短暂冇网）。
+    static let pathGrace: TimeInterval = 3
+    /// 请求连续失败：第一次失败之后几耐、至少几次先显示「未連線」。
+    static let failGrace: TimeInterval = 8
+    static let failCount = 2
 
     @ObservationIgnored var onEvent: ((CommunityEvent) -> Void)?
     var isSimulated: Bool { false }
@@ -68,6 +77,13 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
     @ObservationIgnored private var lastBackgroundRun: Date?
     private let monitor = NWPathMonitor()
     @ObservationIgnored private var monitorStarted = false
+    /// 网络状态（去抖用）：系统网络通唔通、几时开始唔通；请求连续失败几多次、第一次几时。
+    @ObservationIgnored private var pathOK = true
+    @ObservationIgnored private var pathDownSince: Date?
+    @ObservationIgnored private var failStreak = 0
+    @ObservationIgnored private var failingSince: Date?
+    @ObservationIgnored private var lastFailAt: Date?
+    @ObservationIgnored private var offlineCheck: Task<Void, Never>?
     private let dir: URL
     let log: Bool
 
@@ -129,6 +145,8 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
     /// App 返前台 / 退后台（AppStore.appActive）。
     func setForeground(_ on: Bool) {
         foreground = on
+        // 返前台嗰下（旧连线失效、Realtime 重连）唔好即刻当冇网：失败重新计
+        if on { failStreak = 0; failingSince = nil }
         guard active else { return }
         if on { startForegroundWork() } else { stopForegroundWork(); saveCacheNow() }
     }
@@ -151,18 +169,73 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         monitorStarted = true
         monitor.pathUpdateHandler = { [weak self] path in
             let ok = path.status == .satisfied
-            Task { @MainActor in
-                guard let self, self.active else { return }
-                if ok {
-                    self.retryDelay = 5
-                    self.flush()
-                    if self.foreground, self.myID != nil { self.scheduleRefresh([.neighbors, .board, .meetups, .signals]) }
-                } else if self.myID != nil || !self.outbox.isEmpty {
-                    self.status = .offline
-                }
-            }
+            let cellDenied = !ok && path.unsatisfiedReason == .cellularDenied
+            Task { @MainActor in self?.pathChanged(ok: ok, cellularDenied: cellDenied) }
         }
         monitor.start(queue: DispatchQueue(label: "streetwalk.backend.path"))
+    }
+
+    private func pathChanged(ok: Bool, cellularDenied denied: Bool) {
+        let wasOK = pathOK
+        pathOK = ok
+        if cellularDenied != denied { cellularDenied = denied }
+        if ok {
+            pathDownSince = nil
+            // 网络返嚟 / 换咗网络：之前嘅失败唔再计，「未連線」即刻收起（再连唔到会重新显示）
+            if !wasOK { failStreak = 0; failingSince = nil }
+            if status == .offline, failStreak < Self.failCount { status = myID != nil ? .online : .idle }
+            guard active else { return }
+            retryDelay = 5
+            flush()
+            if foreground, myID != nil { scheduleRefresh([.neighbors, .board, .meetups, .signals]) }
+        } else {
+            if pathDownSince == nil { pathDownSince = Date() }
+            updateOffline()
+        }
+    }
+
+    /// 请求成功（或者服务器有回应）：即刻收起「未連線」。
+    private func markOnline() {
+        failStreak = 0
+        failingSince = nil
+        if status != .online { status = .online }
+    }
+
+    /// 一次请求因为网络 / 服务器暂时唔得而失败：记低，够次数、够时间先显示「未連線」；第一次失败几秒后再试一次确认。
+    private func noteFailure() {
+        let now = Date()
+        if let last = lastFailAt, now.timeIntervalSince(last) > 60 { failStreak = 0; failingSince = nil }   // 好耐之前嘅失败唔计
+        lastFailAt = now
+        failStreak += 1
+        if failingSince == nil { failingSince = now }
+        if failStreak == 1, active, foreground, myID != nil { scheduleRefresh([.neighbors], delay: 4) }
+        updateOffline()
+    }
+
+    /// 按去抖规则决定显唔显示「未連線」；未够钟就迟啲再睇。
+    private func updateOffline() {
+        let now = Date()
+        var wait: TimeInterval?
+        var down = false
+        if !pathOK, let since = pathDownSince {
+            let left = Self.pathGrace - now.timeIntervalSince(since)
+            if left <= 0 { down = true } else { wait = left }
+        }
+        if !down, failStreak >= 1, let since = failingSince {
+            let left = Self.failGrace - now.timeIntervalSince(since)
+            if failStreak >= Self.failCount && left <= 0 { down = true } else if left > 0 { wait = min(wait ?? left, left) }
+        }
+        if down {
+            if status != .offline, myID != nil || !outbox.isEmpty { status = .offline }
+            return
+        }
+        guard let wait else { return }
+        offlineCheck?.cancel()
+        offlineCheck = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(wait + 0.1))
+            guard !Task.isCancelled else { return }
+            self?.updateOffline()
+        }
     }
 
     /// 后台被叫醒（BGAppRefresh、定位唤醒）：送出排队嘅写入，拉一次街坊、约会、信号。
@@ -530,16 +603,16 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
 
     private func json<T: Encodable>(_ v: T) -> Data? { try? BackendCoding.encoder.encode(v) }
 
-    private func markOnline() { if status != .online { status = .online } }
-
     private func handle(_ error: Error, during what: String) {
         if log { print("[backend] \(what) ✗ \(error)") }
         guard let e = error as? BackendError else { return }
         switch e {
-        case .offline: status = .offline
+        case .offline: noteFailure()
         case .notSignedIn:
             Task { if await self.api.userID == nil { self.myID = nil; self.status = .idle } }
-        case .rejected: break
+        case .rejected:
+            // 服务器有回应（只係呢个请求唔啱）：网络係通嘅，唔好一直显示「未連線」
+            if myID != nil { markOnline() }
         }
     }
 
@@ -854,7 +927,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
                 return
             } catch let e as BackendError where e.isRetryable {
                 last = e
-                status = .offline
+                noteFailure()
                 if attempt == 0 { try? await Task.sleep(for: .seconds(2)) }
             }
         }
@@ -907,6 +980,9 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         pendingAsks = [:]
         tripHandlers = [:]
         lastTrips = [:]
+        failStreak = 0
+        failingSince = nil
+        offlineCheck?.cancel(); offlineCheck = nil
         status = .idle
     }
 

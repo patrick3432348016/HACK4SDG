@@ -6,6 +6,21 @@ import Foundation
 /// （-demoMode NO = 关演示模式，用真机碰一碰；后端用 LocalTestLinker，3 秒后扮对方配上。）
 extension AppStore {
     func runScriptBump() {
+        // 截图自检：-scriptBump -uiPreview bumpSearching / bumpRanging / bumpTimeout：直接摆出碰一碰画面（唔开超宽带、唔连伺服器）。
+        // bumpSearching 等 12 秒会变「仲未搵到」+ 大「用二維碼」掣。
+        if let p = LaunchArgs.value("-uiPreview"), p.hasPrefix("bump") {
+            Task { @MainActor in
+                while map == nil { try? await Task.sleep(for: .milliseconds(200)) }
+                tab = .neighbors
+                bumpStage = .searching
+                switch p {
+                case "bumpTimeout": bumpProgress = .failed(.timeout)
+                case "bumpRanging": bumpProgress = .ranging(0.42)
+                default: bumpProgress = .searching
+                }
+            }
+            return
+        }
         Task { @MainActor in
             while map == nil { try? await Task.sleep(for: .milliseconds(200)) }
             let t0 = Date()

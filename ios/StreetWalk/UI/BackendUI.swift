@@ -169,15 +169,31 @@ struct IncomingFindCard: View {
 // MARK: - 未連線
 
 /// 真后端连唔到（冇网络 / 服务器暂时唔得）：主画面左上细细一粒。写入已经排队，连返就自动送出。
+/// 系统唔俾街坊行用流动数据（测试员 D-1 / D-5：开流量都显示「未联网」）：改讲「未允許用流量」，撳一下去设定开。
 struct OfflineChip: View {
+    @Environment(AppStore.self) private var store
+
     var body: some View {
-        Label(L.t("未連線", "未联网"), systemImage: "wifi.slash")
+        if store.supabase?.cellularDenied == true {
+            Button { openSettings() } label: {
+                chip(L.t("未允許用流動數據", "没允许用流量"), symbol: "antenna.radiowaves.left.and.right.slash")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(L.t("街坊行未允許用流動數據", "街坊行没有被允许使用流量"))
+            .accessibilityHint(L.t("撳一下去設定，打開「流動數據」或者「無線數據」。", "点一下去设置，打开「无线数据」或「蜂窝数据」。"))
+        } else {
+            chip(L.t("未連線", "未联网"), symbol: "wifi.slash")
+                .accessibilityLabel(L.t("未連線。你做嘅改動會留住，連返網就會送出。", "未联网。你的改动会保留，联网后就会发送。"))
+        }
+    }
+
+    private func chip(_ text: String, symbol: String) -> some View {
+        Label(text, systemImage: symbol)
             .ds(.captionBold)
             .foregroundStyle(.primary)
             .padding(.horizontal, 12)
             .frame(minHeight: 40)
             .background(.regularMaterial, in: Capsule())
             .overlay(Capsule().strokeBorder(Color.orange.opacity(0.6), lineWidth: 1.5))
-            .accessibilityLabel(L.t("未連線。你做嘅改動會留住，連返網就會送出。", "未联网。你的改动会保留，联网后就会发送。"))
     }
 }

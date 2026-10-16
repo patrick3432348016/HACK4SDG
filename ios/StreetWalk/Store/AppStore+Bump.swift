@@ -34,7 +34,27 @@ extension AppStore {
             self?.bumpMatched(m)
         })
         // 唔支援嘅手机会即刻报失败：唔好先讲「貼近」再讲「唔支援」。
-        if bumpProgress == .searching { say(L.t("將手機貼近對方手機。", "把手机贴近对方的手机。")) }
+        // D-4：顶部对顶部会弹「隔空投送」，叫人并排 / 背对背、隔一拳就得。
+        if bumpProgress == .searching {
+            say(L.t("兩部手機並排或者背對背靠近，隔一個拳頭就得，唔好頂部對頂部。", "两台手机并排或背对背靠近，隔一个拳头就行，不要顶部对顶部。"))
+        }
+    }
+
+    /// 搵咗 BumpTuning.slowSearch 秒都未搵到对方部手机（BumpView 计时叫）：讲一次点样检查，提示可以用二维码（D-5 / D-6）。
+    func bumpSearchSlow() {
+        guard bumpStage == .searching, bumpQR == nil, bumpProgress == .searching || bumpProgress == .needsLocalNetwork else { return }
+        Haptics.light()
+        say(L.t("仲未搵到對方。兩部手機都要開住 Wi-Fi 同藍牙，唔使連網絡。或者撳「用二維碼」。",
+                "还没找到对方。两台手机都要打开 Wi-Fi 和蓝牙，不用连网络。也可以点「用二维码」。"))
+    }
+
+    /// 系统唔俾街坊行用流量（设定入面「無線數據 / 流動數據」）：用流量时配对一定失败（D-5）。
+    var cellularDenied: Bool { supabase?.cellularDenied == true }
+
+    /// 用流量但系统唔俾：讲清楚去设定开。
+    var cellularDeniedHint: String {
+        L.t("設定入面未允許「街坊行」用流動數據。撳「去設定」打開「流動數據」（或者將「無線數據」改做「無線局域網與流動網絡」），或者連 Wi-Fi。",
+            "设置里没有允许「街坊行」用流量。点「去设置」，把「无线数据」改成「WLAN与蜂窝网络」（或者打开「蜂窝数据」），也可以连上 Wi-Fi。")
     }
 
     /// 停晒碰一碰、二维码嘅工作（唔改画面）。
@@ -58,7 +78,7 @@ extension AppStore {
             if old != u { say(L.t("要允許「本地網絡」，先搵到對方部手機。", "要允许「本地网络」，才能找到对方的手机。")) }
         case .failed(let f):
             Haptics.warning()
-            say("\(f.title)。\(f.hint)")
+            say("\(f.title)。\(f == .network && cellularDenied ? cellularDeniedHint : f.hint)")
         case .searching, .linking, .paired:
             break
         }
@@ -154,7 +174,7 @@ extension AppStore {
             } catch is CancellationError {
                 return
             } catch {
-                bumpQR?.note = L.t("網絡有問題，再試緊…", "网络有问题，正在重试…")
+                bumpQR?.note = cellularDenied ? cellularDeniedHint : L.t("網絡有問題，再試緊…", "网络有问题，正在重试…")
             }
             guard !Task.isCancelled, bumpQR?.mode == .show(code) else { return }
             code = PairCode.random()   // 过咗期：换个新码再等
@@ -174,7 +194,7 @@ extension AppStore {
             }
         } catch is CancellationError {
         } catch {
-            qrFailed(L.t("網絡有問題，睇下有冇上網，再掃一次。", "网络有问题，看看有没有联网，再扫一次。"))
+            qrFailed(cellularDenied ? cellularDeniedHint : L.t("網絡有問題，睇下有冇上網，再掃一次。", "网络有问题，看看有没有联网，再扫一次。"))
         }
     }
 
