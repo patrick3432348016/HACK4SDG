@@ -151,8 +151,9 @@ extension AppStore {
         let known = residents.filter { $0.isMe || $0.isNeighbor }
         let ctx = AIContext(residents: known, landmarks: landmarks, now: now, walking: walk != nil, finding: find != nil)
         var intent = ai.parseVoice(text, context: ctx)
-        // 问天气：手机自己答（天文台），唔交服务器（普通话服务器唔答天气；粤语都即刻答）。
-        if renamingNow == nil, intent == .unknown, TemplateAI.asksWeather(text) { showWeatherAnswer(text); return }
+        // 问天气：普通话（B 嘅服务器普通话唔答天气）或者连唔到 Mac 时手机自己答（天文台）；粤语有服务器就照旧交俾 B（分区、逐个钟、「咁聽日呢」都答到）。
+        if renamingNow == nil, intent == .unknown, TemplateAI.asksWeather(text),
+           VoiceSettings.shared.language == .mandarin || !VoiceServer.shared.status.isConnected { showWeatherAnswer(text); return }
         // 地标卡撳咗「講新名」：成句当新名（A02）。
         if let id = renamingNow {
             switch intent {
@@ -281,7 +282,8 @@ extension AppStore {
             detail = nil
         }
         voiceCard = VoiceCard(heard: text, title: title, detail: detail, needsConfirm: false, intent: .unknown,
-                              assistant: AssistantCard(kind: .info, title: title, detail: detail, spoken: title, conversationID: ""))
+                              assistant: AssistantCard(kind: .info, title: title, detail: detail, spoken: title, conversationID: ""),
+                              sticky: s == .emergency)
         say(title, prompt: true)
     }
 

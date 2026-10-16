@@ -452,7 +452,7 @@ private struct HeardCard: View {
         .task(id: card.id) {
             appeared = true
             // 读屏开着就不自动收（要时间找「撤回」）；平时 8 秒，长者也来得及按。语音助手要用户揀 / 补嘢嘅卡唔自动收。
-            guard !card.needsConfirm, !voiceOver, card.assistant?.waitsForUser != true, card.assistant?.kind != .notUnderstood else { return }
+            guard !card.needsConfirm, !card.sticky, !voiceOver, card.assistant?.waitsForUser != true, card.assistant?.kind != .notUnderstood else { return }
             try? await Task.sleep(for: .seconds(8))
             if !Task.isCancelled, store.voiceCard?.id == card.id { store.voiceCard = nil }
         }

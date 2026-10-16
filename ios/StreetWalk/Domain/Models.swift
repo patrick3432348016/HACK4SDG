@@ -237,6 +237,8 @@ struct VoiceCard: Identifiable, Equatable {
     var reportID: UUID? = nil
     /// 组员 B 语音助手（Mac 服务器）嘅一步：揀人 / 揀地点 / 补资料 / 复述确认 / 结果。nil = 手机模板嘅卡。见 Store/AppStore+Assistant.swift。
     var assistant: AssistantCard? = nil
+    /// 求救卡：唔自动收（要用户自己关），读屏或者慌张时都来得及睇。
+    var sticky = false
 }
 
 enum Weather: Equatable {
