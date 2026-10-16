@@ -9,6 +9,8 @@ struct SettingsView: View {
     @State private var confirmMove = false
     @State private var editingNickname = false
     @State private var showAdvanced = false
+    /// 截图自检：-voiceSettings x -uiPreview settingsProfile(End) / help / privacyPolicy / privacyScrolled / feedback / feedbackFailed 直接推入去嗰页。
+    @State private var previewPage: String?
 
     var body: some View {
         @Bindable var store = store
@@ -41,34 +43,68 @@ struct SettingsView: View {
                     Text(L.t("文字同播報一齊轉。", "文字和播报一起切换。")).ds(.caption)
                 }
 
+                // 每项下面一行小字：讲清楚系乜、喺边度见到、边个见到（测试反馈 K-1）
                 Section {
                     Button { editingNickname = true } label: {
-                        LabeledContent(L.t("網名", "网名")) {
-                            Text(store.nickname.isEmpty ? L.t("未有", "还没有") : store.nickname).foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            LabeledContent(L.t("網名", "网名")) {
+                                Text(store.nickname.isEmpty ? L.t("未有", "还没有") : store.nickname).foregroundStyle(.secondary)
+                            }
+                            .frame(minHeight: 44)
+                            rowNote(L.t("排行榜同街坊見到你叫呢個名，唔使用真名。", "排行榜上和邻居看到的就是这个名字，不用写真名。"))
                         }
-                        .frame(minHeight: 56)
+                        .padding(.vertical, 6)
                     }
                     .foregroundStyle(.primary)
                     .accessibilityHint(L.t("改排行榜上用嘅網名", "改排行榜上用的网名"))
-                    LabeledContent(L.t("住喺", "住在")) {
-                        Text(store.me.blockName ?? store.map?.placeName ?? "—").foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        LabeledContent(L.t("住喺", "住在")) {
+                            Text(store.me.blockName ?? store.map?.placeName ?? "—").foregroundStyle(.secondary)
+                        }
+                        .frame(minHeight: 44)
+                        rowNote(L.t("「今日」頁幅地圖以呢座樓做中心。只有用碰一碰加咗嘅街坊先見到你住邊座。", "「今天」页的地图以这栋楼为中心。只有用碰一碰加过的邻居，才看得到你住哪栋。"))
                     }
-                    .frame(minHeight: 56)
+                    .padding(.vertical, 6)
+                    .accessibilityElement(children: .combine)
                     Button { confirmMove = true } label: { Text(L.t("改我住嘅樓", "改我住的楼")).frame(minHeight: 56) }
-                    floorRow
-                    DSMenuPicker(title: L.t("出行方式", "出行方式"), selection: Binding(get: { store.mobilityChoice }, set: { store.setAvatar(mobility: $0) }),
-                                 options: Mobility.allCases, label: \.label)
-                    DSMenuPicker(title: L.t("年齡層", "年龄层"), selection: Binding(get: { store.ageChoice }, set: { store.setLook(age: $0) }),
-                                 options: AgeGroup.allCases, label: \.label)
-                    skinRow
-                    colorRow
+                    VStack(alignment: .leading, spacing: 2) {
+                        floorRow
+                        rowNote(L.t("只有用碰一碰加咗嘅街坊先見到你住幾樓。", "只有用碰一碰加过的邻居，才看得到你住几楼。"))
+                    }
+                    .padding(.bottom, 6)
+                    VStack(alignment: .leading, spacing: 2) {
+                        DSMenuPicker(title: L.t("出行方式", "出行方式"), selection: Binding(get: { store.mobilityChoice }, set: { store.setAvatar(mobility: $0) }),
+                                     options: Mobility.allCases, label: \.label)
+                        rowNote(L.t("地圖上代表你嘅小人係行路、拎拐杖、坐輪椅定推BB車。揀「輪椅」，坐輪椅出門都會自動記錄散步。", "地图上代表你的卡通小人是走路、拄拐杖、坐轮椅还是推婴儿车。选「轮椅」后，坐轮椅出门也能自动记录散步。"))
+                    }
+                    .padding(.bottom, 6)
+                    VStack(alignment: .leading, spacing: 2) {
+                        DSMenuPicker(title: L.t("年齡層", "年龄层"), selection: Binding(get: { store.ageChoice }, set: { store.setLook(age: $0) }),
+                                     options: AgeGroup.allCases, label: \.label)
+                        rowNote(L.t("只係改小人個樣：「長者」白頭髮，「後生」細粒啲。", "只改变卡通小人的样子：「长者」是白头发，「年轻人」个子小一点。"))
+                    }
+                    .padding(.bottom, 6)
+                    VStack(alignment: .leading, spacing: 2) {
+                        rowTitle(L.t("膚色", "肤色"))
+                        rowNote(L.t("小人嘅膚色。", "卡通小人的皮肤颜色。"))
+                        skinRow
+                    }
+                    .padding(.top, 8)
+                    VStack(alignment: .leading, spacing: 2) {
+                        rowTitle(L.t("衫嘅顏色", "衣服颜色"))
+                        rowNote(L.t("地圖上你個小人著呢個顏色嘅衫，街坊一睇就認得係你。", "地图上你的卡通小人穿这个颜色的衣服，邻居一看就认出是你。"))
+                        colorRow
+                    }
+                    .padding(.top, 8)
+                    .id("profileColor")
                 } header: {
                     Text(L.t("我嘅資料", "我的资料")).ds(.caption)
                 } footer: {
                     if !store.demoMode {
-                        Text(L.t("同區嘅人見到你嘅網名、小人同連續日數；座數同樓層只有碰過一碰嘅街坊見到。", "同区的人能看到你的网名、形象和连续天数；楼栋和楼层只有碰过一碰的邻居能看到。")).ds(.caption)
+                        Text(L.t("附近嘅人見到你嘅網名、小人同連續日數；住邊座、幾樓，只有用碰一碰加咗嘅街坊先見到。", "附近的人能看到你的网名、卡通小人和连续天数；住哪栋、几楼，只有用碰一碰加过的邻居才看得到。")).ds(.caption)
                     }
                 }
+                .id("profile")
 
                 Section {
                     Toggle(L.t("出門提醒", "出门提醒"), isOn: $store.remindAll).tint(DS.accent).frame(minHeight: 56)
@@ -130,7 +166,22 @@ struct SettingsView: View {
             }
             .ds(.body)
             .tint(DS.accent)
+            .navigationDestination(item: $previewPage) { p in
+                switch p {
+                case "help": HelpView()
+                case "feedback", "feedbackFailed": FeedbackView()
+                default: PrivacyPolicyView()
+                }
+            }
             .onAppear {
+                // 截图用：-uiPreview settingsProfile 捲去「我嘅資料」；其余推入「幫助」「私隱政策」「提意見」
+                if let p = LaunchArgs.value("-uiPreview"), ["settingsProfile", "settingsProfileEnd", "help", "privacyPolicy", "privacyScrolled", "feedback", "feedbackFailed"].contains(p) {
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .seconds(0.8))
+                        if p.hasPrefix("settingsProfile") { proxy.scrollTo(p.hasSuffix("End") ? "profileColor" : "profile", anchor: p.hasSuffix("End") ? .bottom : .top) } else { previewPage = p }
+                    }
+                    return
+                }
                 // 截图用：-voiceSettings voiceList 打开就捲去「聲音」嗰段（voiceGuideEnd = 指引卡底）；揀把声 / 指引喺「進階」入面，先打开
                 guard LaunchArgs.has("-voiceSettings") else { return }
                 let id = LaunchArgs.value("-voiceSettings").flatMap { $0.hasPrefix("voice") ? $0 : nil } ?? "voice"
@@ -208,6 +259,18 @@ struct SettingsView: View {
             Text(store.demoMode ? L.t("演示模式：街坊關係、約會、反映、改過嘅地標名、散步紀錄都只存喺你部手機。地圖資料 © OpenStreetMap；天氣：香港天文台。", "演示模式：邻居关系、约会、反馈、改过的地标名、散步记录都只存在你的手机里。地图数据 © OpenStreetMap；天气：香港天文台。")
                  : L.t("行過嘅路線、屋企位置只存喺你部手機。伺服器（新加坡）只有網名、小人、屋企附近嘅格子、連續日數、每日分鐘同落腳地標、街坊關係同約會；清除會一齊刪走。地圖資料 © OpenStreetMap；天氣：香港天文台。", "走过的路线、家的位置只存在你的手机里。服务器（新加坡）只有网名、形象、家附近的格子、连续天数、每日分钟和落脚地标、邻居关系和约会；清除会一起删掉。地图数据 © OpenStreetMap；天气：香港天文台。")).ds(.caption)
         }
+    }
+
+    /// 每项下面嘅说明小字。
+    private func rowNote(_ text: String) -> some View {
+        Text(text).ds(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 冇掣嘅一行（肤色、颜色）嘅标题。
+    private func rowTitle(_ text: String) -> some View {
+        Text(text).ds(.body).accessibilityAddTraits(.isHeader)
     }
 
     /// 楼层：两粒 56pt 大掣（系统 Stepper 嘅 −/+ 得 32pt 高，长者撳唔中）。字大排唔落一行就将掣放落第二行。

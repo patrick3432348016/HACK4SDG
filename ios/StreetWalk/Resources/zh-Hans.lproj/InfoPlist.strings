@@ -1,0 +1,20 @@
+/* 系统权限框说明（普通话，简体）：iPhone 系统语言系简体中文时用（测试反馈 A-6）。
+   粤语版喺 zh-HK.lproj；两边都要同 StreetWalk-Info.plist / 工程 INFOPLIST_KEY_* 嘅内容对得上。 */
+
+"CFBundleDisplayName" = "街坊行";
+
+"NSLocationWhenInUseUsageDescription" = "用你家附近的街道和楼房，搭出一个立体小地图；散步时用定位画出你走过的路。路线只留在这部手机上，不会上传，对外只说地标。";
+
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "选「始终允许」，你出门散步时，就算手机锁屏也会自动记录，还可以让你的邻居知道你出门了。你家在哪里只留在这部手机上，对外只说地标。";
+
+"NSMicrophoneUsageDescription" = "听你说话，比如「约陈太明天一起散步」。";
+
+"NSMotionUsageDescription" = "检测你是不是在走路，自动记录散步，不用按任何按钮；锁屏时走的路，打开 App 时会补上分钟和步数。";
+
+"NSSpeechRecognitionUsageDescription" = "把你说的话转成文字，让 App 明白你想做什么。";
+
+"NSLocalNetworkUsageDescription" = "碰一碰加邻居时，用来找到身边的另一部手机；也用来连接同一个 Wi-Fi 里的语音服务，让读出来的声音更自然。";
+
+"NSNearbyInteractionUsageDescription" = "碰一碰时，测量两部手机离得有多近；找邻居时，在附近指出他在哪个方向。";
+
+"NSCameraUsageDescription" = "手机不支持碰一碰时，用相机扫邻居的二维码来加邻居；找邻居时，在很近的距离用相机帮你指出他在哪个方向。";

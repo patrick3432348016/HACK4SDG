@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 首次使用 5 步（UX 报告第五节）：① 欢迎（讲用途）② 私隐三句 ③ 屋企（定位 → 估你住边座）④ 樓層同網名 ⑤ 試一次撳咪。
 /// 每步屏幕最多两句话、大字；每步出现时只讲一句（≤ 8 秒），换步先停上一句（onbHush）。
-/// 设定「改我住嘅樓」都用呢个流程，但只行 ③④。顶部进度点固定，内容按方向滑入淡出。
+/// 设定「改我住嘅樓」都用呢个流程，但只行 ③④。顶部「第几步，共几步」固定，内容按方向滑入淡出。
 struct OnboardingFlow: View {
     @Environment(AppStore.self) private var store
     /// 往回走时新内容从左边进来。
@@ -180,25 +180,23 @@ extension AppStore {
     }
 }
 
-// MARK: - 进度点
+// MARK: - 进度（文字）
 
+/// 「第 1 步，共 5 步」：测试反馈 A-1，以前一排小圆点似翻页点，长者以为可以左右扫；改成直接讲第几步。
 private struct OnbProgressDots: View {
     var current: Int
     var total: Int
 
     var body: some View {
-        HStack(spacing: 8) {
-            ForEach(0..<total, id: \.self) { i in
-                Capsule()
-                    .fill(i <= current ? DS.accent : Color.primary.opacity(0.18))
-                    .opacity(i < current ? 0.45 : 1)
-                    .frame(width: i == current ? 28 : 8, height: 8)
-            }
-        }
-        .animation(DS.motion(DS.spring), value: current)
-        .animation(DS.motion(DS.spring), value: total)
-        .accessibilityElement()
-        .accessibilityLabel(L.t("第 \(current + 1) 步，共 \(total) 步", "第 \(current + 1) 步，共 \(total) 步"))
+        Text(L.t("第 \(current + 1) 步，共 \(total) 步", "第 \(current + 1) 步，共 \(total) 步"))
+            .ds(.captionBold)
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .contentTransition(.numericText())
+            .animation(DS.motion(DS.spring), value: current)
+            .animation(DS.motion(DS.spring), value: total)
     }
 }
 
@@ -350,13 +348,13 @@ private struct OnbWelcomeStep: View {
 struct PrivacyRows: View {
     static var rows: [(symbol: String, text: String)] { [
         ("figure.walk", L.t("你行街嘅時候自動記錄，唔使撳掣；定位揀「始終允許」，鎖咗機出門都會記。行過嘅路線同屋企位置只留喺你部手機。", "你散步时自动记录，不用按按钮；定位选「始终允许」，锁屏出门也会记。走过的路线和家的位置只留在你的手机里。")),
-        ("building.2", L.t("同區嘅人（未碰過）：只見到你嘅網名、小人同連續日數；唔會見到你住邊座、幾樓。", "同区的人（没碰过）：只看到你的网名、形象和连续天数；看不到你住哪栋、几楼。")),
-        ("person.2.fill", L.t("碰過一碰嘅街坊：仲會見到你住邊座幾樓、今日一句，同埋你出門時喺邊個地標附近。對外只講地標，唔顯示地圖坐標。", "碰过一碰的邻居：还能看到你住哪栋几楼、今日一句，以及你出门时在哪个地标附近。对外只说地标，不显示地图坐标。")),
-        ("doc.text.magnifyingglass", L.t("你嘅反映會匿名，夠 10 人先交俾社工同屋邨管理。", "你的反馈会匿名，满 10 人才交给社工和屋邨管理。")),
-        ("network", L.t("地圖資料向 OpenStreetMap 攞你附近一格；講嘢可能要經 Apple 辨認。", "地图数据从 OpenStreetMap 获取你附近一格；说话可能要经 Apple 识别。")),
+        ("building.2", L.t("同區嘅人（未加做街坊）：只見到你嘅網名、小人同連續日數；唔會見到你住邊座、幾樓。", "附近还没加为邻居的人：只看到你的网名、卡通小人和连续天数，看不到你住哪栋、几楼。")),
+        ("person.2.fill", L.t("用碰一碰加咗嘅街坊：仲會見到你住邊座幾樓、今日一句，同埋你出門時喺邊個地標附近。對外只講地標，唔顯示地圖坐標。", "用碰一碰加过的邻居：还能看到你住哪栋、几楼，今天走过哪些地方，还有你出门时正在哪个地标附近。对外只说地标，不显示地图坐标。")),
+        ("doc.text.magnifyingglass", L.t("你嘅反映會匿名，夠 10 人先交俾社工同屋邨管理。", "你对地点的反馈是匿名的，同一个地方有 10 个人反馈了，才会交给社工和屋邨管理处。")),
+        ("network", L.t("地圖資料向 OpenStreetMap 攞你附近一格；講嘢可能要經 Apple 辨認。", "地图数据来自 OpenStreetMap，只下载你家附近一格；说话时可能要经过苹果的语音识别。")),
     ] }
     /// 读出来的一段（和上面几行内容一致；设定页「讀出嚟」用）。
-    static var spoken: String { L.t("你行街會自動記錄，定位揀始終允許，鎖咗機出門都會記，路線同屋企位置只留喺你部手機。同區嘅人只見到你嘅網名、小人同連續日數，唔見到你住邊座幾樓。碰過一碰嘅街坊先見到你住邊座幾樓、今日一句，同你出門時喺邊個地標附近。反映會匿名，夠十個人先交俾社工同屋邨管理。", "你散步会自动记录，定位选始终允许，锁屏出门也会记，路线和家的位置只留在你的手机里。同区的人只看到你的网名、形象和连续天数，看不到你住哪栋几楼。碰过一碰的邻居才能看到你住哪栋几楼、今日一句，和你出门时在哪个地标附近。反馈会匿名，满十个人才交给社工和屋邨管理。") }
+    static var spoken: String { L.t("你行街會自動記錄，定位揀始終允許，鎖咗機出門都會記，路線同屋企位置只留喺你部手機。同區嘅人只見到你嘅網名、小人同連續日數，唔見到你住邊座幾樓。用碰一碰加咗嘅街坊先見到你住邊座幾樓、今日一句，同你出門時喺邊個地標附近。反映會匿名，夠十個人先交俾社工同屋邨管理。", "你散步会自动记录，定位选始终允许，锁屏出门也会记，路线和家的位置只留在你的手机里。附近的人只看到你的网名、卡通小人和连续天数，看不到你住哪栋、几楼。用碰一碰加过的邻居，才能看到你住哪栋几楼、今天走过哪些地方，和你出门时在哪个地标附近。地点反馈是匿名的，同一个地方有十个人反馈了，才会交给社工和屋邨管理处。") }
 
     var appeared = true
 
@@ -396,10 +394,10 @@ private struct OnbConsentStep: View {
     private var points: [(symbol: String, text: String)] { [
         ("lock.fill", L.t("行過嘅路只留喺你部手機。", "走过的路只留在你的手机里。")),
         ("eye.slash.fill", L.t("唔識你嘅人，只見到你個網名。", "不认识你的人，只看到你的网名。")),
-        ("person.2.fill", L.t("碰過一碰嘅街坊，先知你住邊座。", "碰过一碰的邻居，才知道你住哪栋。")),
+        ("person.2.fill", L.t("用碰一碰加咗嘅街坊，先知你住邊座。", "用碰一碰加过的邻居，才知道你住哪栋。")),
     ] }
 
-    static var spoken: String { L.t("你行過嘅路只留喺手機。碰過一碰嘅街坊先知你住邊座。", "你走过的路只留在手机里。碰过一碰的邻居才知道你住哪栋。") }
+    static var spoken: String { L.t("你行過嘅路只留喺手機。用碰一碰加咗嘅街坊先知你住邊座。", "你走过的路只留在手机里。用碰一碰加过的邻居，才知道你住哪栋。") }
 
     var body: some View {
         ScrollView {
