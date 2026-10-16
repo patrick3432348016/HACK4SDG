@@ -97,6 +97,20 @@ extension AppStore {
         Haptics.light()
     }
 
+    /// 邻居页搜索（D-3）：按网名、座数、楼层过滤；唔理空格、大小写、繁简（打「陈」搵到「陳太」、打「8楼」搵到「8 樓」）。空白 = 全部。
+    func neighbors(matching query: String) -> [Resident] {
+        let q = Self.searchKey(query)
+        guard !q.isEmpty else { return neighbors }
+        return neighbors.filter { r in
+            [r.name, r.blockName ?? "", r.placeLabel].contains { Self.searchKey($0).contains(q) }
+        }
+    }
+
+    nonisolated static func searchKey(_ s: String) -> String {
+        let simple = s.applyingTransform(StringTransform("Hant-Hans"), reverse: false) ?? s
+        return simple.lowercased().filter { !$0.isWhitespace }
+    }
+
     // MARK: - F6 出门提醒
 
     /// 而家喺唔喺接收提醒嘅时段。

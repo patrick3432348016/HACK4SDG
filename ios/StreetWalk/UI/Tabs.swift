@@ -39,19 +39,27 @@ struct TodayTab: View {
 
     var body: some View {
         let hero = Self.hero(store)
+        // 测试反馈 J-3：由上到下一条主线 —— ① 今日三件事（第一日）→ ② 最急嘅主角卡
+        // → ③ 今日行咗几耐 · 连续几日（次要信息卡第一行；全页只出一次，散步中由主角卡讲）→ ④ 其他。
         VStack(alignment: .leading, spacing: 16) {
             FirstDayCard()      // 第一日「今日三件事」（自己判断显唔显示；做完三件由用户撳「收起」）
-            heroCard(hero)
-                .id(heroKey(hero))
-                .transition(.tabsInsert)
-            LocationCards()     // 係咪搬咗屋、自动记录未开齐（LocationViews）
+            // 「今日三件事」已经有「見到街坊碰一碰」：唔再叠多张「第一步 · 仲未有街坊」（两张待办讲同一件事）
+            if !(hero == .noNeighbors && store.showsFirstDay) {
+                heroCard(hero)
+                    .id(heroKey(hero))
+                    .transition(.tabsInsert)
+            }
             minorRows(hero)
+            LocationCards()     // 係咪搬咗屋、自动记录未开齐（LocationViews）：以前夹喺主角卡同「今日行咗」中间
             if store.walk != nil {
                 reportCard.transition(.tabsInsert)
             }
             landmarksCard
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        #if DEBUG
+        .task { if UIPreview.is("firstDay") { store.startFirstDay() } }   // 截图自检：-uiPreview firstDay（出「今日三件事」）
+        #endif
         .animation(DS.motion(DS.spring), value: heroKey(hero))
         .animation(DS.motion(DS.spring), value: store.outNeighbors.map(\.id))
         .animation(DS.motion(DS.spring), value: store.walk == nil)
@@ -863,7 +871,6 @@ struct BoardTab: View {
 /// 排行榜「我那行」：固定在排行榜可见区底部、标签栏之上（MainView 放入安全区）。
 struct BoardMyRow: View {
     @Environment(AppStore.self) private var store
-    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         let ranking = store.ranking
@@ -878,16 +885,8 @@ struct BoardMyRow: View {
                 .contentTransition(.numericText(value: Double(rank)))
                 .frame(minWidth: 28, alignment: .trailing)
             AvatarBadge(me, size: 48, medal: me.hasMedal)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(me.listName).ds(.bodyBold).fixedSize(horizontal: false, vertical: true)
-                // 大字号时只留名次和名，固定行不要占掉半个列表（今日一句读屏照读）
-                if !me.todayLine.isEmpty && !typeSize.isAccessibilitySize {
-                    Text(me.todayLine)
-                        .ds(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-            }
+            // 测试反馈 J-3：唔再出自己嘅今日一句（「今天走了 N 分钟」/「今天走到…」），今日页已经有，呢行只讲名次同连续日数
+            Text(me.listName).ds(.bodyBold).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             BoardStreak(days: me.streakDays)
         }
@@ -904,7 +903,7 @@ struct BoardMyRow: View {
         .padding(.bottom, 8)
         .animation(DS.motion(DS.spring), value: rank)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(L.t("你排第 \(rank) 名，\(me.listName)，連續 \(me.streakDays) 日，\(me.todayLine)", "你排第 \(rank) 名，\(me.listName)，连续 \(me.streakDays) 天，\(me.todayLine)"))
+        .accessibilityLabel(L.t("你排第 \(rank) 名，\(me.listName)，連續 \(me.streakDays) 日", "你排第 \(rank) 名，\(me.listName)，连续 \(me.streakDays) 天"))
     }
 }
 
@@ -927,27 +926,33 @@ private struct BoardStreak: View {
 
 // MARK: - 街坊
 
-/// 街坊：约你嘅（最上面，卡上直接回覆）→ 我嘅约会 → 我嘅街坊（约佢行 + 出门提醒）→ 碰一碰。
-/// 未有街坊时碰一碰用橙色主按钮、放最上面；有街坊就放最底、用次按钮（UX 评审 5 / 第四节）。
+/// 街坊：碰一碰（大掣，永远喺最上面）→ 约你嘅（卡上直接回覆）→ 我嘅约会 → 我嘅街坊（可收埋、可搜索）。
+/// 测试反馈 D-3：以前有街坊时碰一碰放最底，100 个街坊就要划过 100 张卡先见到 → 改放最上面。
+/// 一屏只一个橙色主按钮：有人约你时「好」系主按钮，碰一碰就用淡橙底 + 橙框（照样够醒目）。
 struct NeighborsTab: View {
     @Environment(AppStore.self) private var store
     @State private var taps = 0
     @State private var toggles = 0
     @State private var unlinking: Resident?
+    /// 「我的邻居」展开 / 收起：nil = 未撳过，按人数揀（≤ 3 个展开，多过 3 个收埋）。
+    @State private var listOpen: Bool?
+    @State private var searching = false
+    @State private var query = ""
+    @FocusState private var searchFocused: Bool
+    @ScaledMetric(relativeTo: .body) private var bumpIcon: CGFloat = 34
 
     var body: some View {
         let lonely = store.neighbors.isEmpty
+        let open = listOpen ?? (store.neighbors.count <= 3)
         VStack(alignment: .leading, spacing: 16) {
+            bumpButton(primary: store.invitations.isEmpty)
+            bumpNote
+
             if !store.invitations.isEmpty {
                 TabSectionHeader(text: L.t("約你嘅（\(store.invitations.count)）", "约你的（\(store.invitations.count)）"))
                 ForEach(store.invitations) { a in
                     invitationCard(a).transition(.tabsInsert)
                 }
-            }
-
-            if lonely {
-                bumpButton(primary: store.invitations.isEmpty)
-                bumpNote
             }
 
             if !store.myAppointments.isEmpty {
@@ -964,21 +969,38 @@ struct NeighborsTab: View {
                 .transition(.tabsInsert)
             }
 
-            TabSectionHeader(text: L.t("我嘅街坊", "我的邻居"))
+            neighborsHeader(open: open)
             if lonely {
                 emptyState.transition(.opacity)
-            } else {
+            } else if searching {
+                searchField
+                let found = store.neighbors(matching: query)
+                if found.isEmpty {
+                    Text(L.t("搵唔到「\(query)」。試吓打網名，或者座數、樓層。", "没找到「\(query)」。试试输入网名，或者楼栋、楼层。"))
+                        .ds(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    ForEach(found) { n in neighborCard(n) }
+                }
+            } else if open {
                 ForEach(store.neighbors) { n in
                     neighborCard(n).transition(.tabsInsert)
                 }
-                bumpButton(primary: false)
-                bumpNote
+            } else {
+                collapsedRow.transition(.opacity)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(DS.motion(DS.spring), value: store.invitations)
         .animation(DS.motion(DS.spring), value: store.myAppointments)
         .animation(DS.motion(DS.spring), value: store.neighbors)
+        .animation(DS.motion(DS.spring), value: open)
+        .animation(DS.motion(DS.spring), value: searching)
+        .onChange(of: store.neighbors.isEmpty) { _, empty in if empty { searching = false; query = "" } }
+        #if DEBUG
+        .task { previewSetup() }
+        #endif
         .sensoryFeedback(.impact(weight: .light), trigger: taps)
         .sensoryFeedback(.selection, trigger: toggles)
         .confirmationDialog(unlinking.map { L.t("唔再同\($0.name)做街坊？", "不再和\($0.name)做邻居？") } ?? "", isPresented: Binding(get: { unlinking != nil }, set: { if !$0 { unlinking = nil } }), titleVisibility: .visible) {
@@ -991,22 +1013,150 @@ struct NeighborsTab: View {
         }
     }
 
+    /// 碰一碰大掣（最少 88 高，字跟设定嘅字体大小）：图标 + 两行字。
     private func bumpButton(primary: Bool) -> some View {
         Button {
             guard store.bumpStage == .idle else { return }
             taps += 1
             store.startBump()
         } label: {
-            Label {
-                Text(L.t("碰一碰加街坊", "碰一碰加邻居"))
-            } icon: {
+            HStack(spacing: 16) {
                 Image(systemName: "iphone.radiowaves.left.and.right")
+                    .font(.system(size: bumpIcon, weight: .semibold))
+                    .frame(minWidth: bumpIcon * 1.3)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L.t("碰一碰加街坊", "碰一碰加邻居")).ds(.bodyBold)
+                    Text(L.t("見到面，手機碰一下", "见面时，手机碰一下")).ds(.caption).opacity(0.9)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
             }
-            .padding(.vertical, primary ? 8 : 0)
-            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .tabButtonStyle(primary: primary)
+        .buttonStyle(BumpButtonStyle(primary: primary))
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(L.t("見到面，兩部手機碰一下就做街坊", "见面时两部手机碰一下就成为邻居"))
     }
+
+    /// 「我的邻居（N）⌄」：撳标题收埋 / 展开；右边🔍搜索（网名、座数、楼层）。冇街坊就只出标题。
+    private func neighborsHeader(open: Bool) -> some View {
+        let count = store.neighbors.count
+        return HStack(spacing: 8) {
+            if count == 0 {
+                TabSectionHeader(text: L.t("我嘅街坊", "我的邻居"))
+            } else {
+                Button {
+                    toggles += 1
+                    if searching { searching = false; query = ""; listOpen = true } else { listOpen = !open }
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(L.t("我嘅街坊（\(count)）", "我的邻居（\(count)）"))
+                            .ds(.bodyBold)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Image(systemName: "chevron.down")
+                            .ds(.captionBold)
+                            .foregroundStyle(DS.accentInk)
+                            .rotationEffect(.degrees(open || searching ? 0 : -90))
+                            .accessibilityHidden(true)
+                    }
+                    .frame(minHeight: 48)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityValue(open || searching ? L.t("展開咗", "已展开") : L.t("收埋咗", "已收起"))
+                .accessibilityHint(open || searching ? L.t("撳一下收埋", "点一下收起") : L.t("撳一下展開", "点一下展开"))
+                Spacer(minLength: 8)
+                Button {
+                    toggles += 1
+                    if searching {
+                        searching = false
+                        query = ""
+                    } else {
+                        searching = true
+                    }
+                } label: {
+                    Image(systemName: searching ? "xmark" : "magnifyingglass")
+                        .ds(.bodyBold)
+                        .foregroundStyle(DS.accentInk)
+                        .frame(minWidth: 52, minHeight: 52)
+                        .background(Color(.tertiarySystemFill), in: Circle())
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(searching ? L.t("唔搵喇", "关闭搜索") : L.t("搵街坊", "搜索邻居"))
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
+            TextField(L.t("打網名或者座數", "输入网名或楼栋"), text: $query)
+                .focused($searchFocused)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+            if !query.isEmpty {
+                Button { query = "" } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary).frame(minWidth: 44, minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L.t("清除", "清除"))
+            }
+        }
+        .ds(.body)
+        .padding(.horizontal, 16)
+        .frame(minHeight: 56)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(DS.accent.opacity(0.5), lineWidth: 1.5))
+        .transition(.opacity)
+        .task { searchFocused = true }   // 一打开就出键盘
+    }
+
+    /// 收埋咗：一行小人头像 +「展開 N 位街坊」，成行撳得。
+    private var collapsedRow: some View {
+        let ns = store.neighbors
+        return Button {
+            toggles += 1
+            listOpen = true
+        } label: {
+            HStack(spacing: 12) {
+                HStack(spacing: -14) {
+                    ForEach(ns.prefix(3)) { n in
+                        AvatarBadge(n, size: 44)
+                            .overlay(Circle().strokeBorder(Color(.secondarySystemGroupedBackground), lineWidth: 2))
+                    }
+                }
+                .accessibilityHidden(true)
+                Text(L.t("展開 \(ns.count) 位街坊", "展开 \(ns.count) 位邻居"))
+                    .ds(.body)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.down").ds(.captionBold).foregroundStyle(DS.accentInk).accessibilityHidden(true)
+            }
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .dsCard()
+            .contentShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    #if DEBUG
+    /// 截图自检：-uiPreview neighborsMany（全部示範居民变街坊，睇收埋）/ neighborsSearch（再打开搜索）。配 -debugCommands「tab neighbors」。
+    private func previewSetup() {
+        guard UIPreview.is("neighborsMany") || UIPreview.is("neighborsSearch") else { return }
+        for i in store.residents.indices where !store.residents[i].isMe { store.residents[i].isNeighbor = true }
+        if UIPreview.is("neighborsSearch") { searching = true; query = "陈" }   // 简体打都搵到繁体名（AppStore.neighbors(matching:)）
+    }
+    #endif
 
     @ViewBuilder private var bumpNote: some View {
         if store.community.isSimulated {
@@ -1172,6 +1322,20 @@ private extension View {
     /// 一屏只一个主按钮：primary 为 false 时用次按钮。
     @ViewBuilder func tabButtonStyle(primary: Bool) -> some View {
         if primary { buttonStyle(.dsPrimary) } else { buttonStyle(.dsSecondary) }
+    }
+}
+
+/// 邻居页碰一碰大掣：主按钮 = 橙底白字；唔系主按钮（有人约你时）= 淡橙底 + 橙框 + 深橙字，照样醒目。
+private struct BumpButtonStyle: ButtonStyle {
+    let primary: Bool
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: DS.radius, style: .continuous)
+        configuration.label
+            .foregroundStyle(primary ? Color.white : DS.accentInk)
+            .background(primary ? AnyShapeStyle(DS.accent) : AnyShapeStyle(DS.accentSoft), in: shape)
+            .overlay(shape.strokeBorder(primary ? Color.clear : DS.accent, lineWidth: 2))
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(DS.motion(DS.snappy), value: configuration.isPressed)
     }
 }
 
