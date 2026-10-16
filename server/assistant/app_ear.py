@@ -54,19 +54,21 @@ def add_ear_route(app, settings, lan_caller):
     async def ear(socket: WebSocket):
         await socket.accept()
         counted = False
+        cmn = False  # 手机揀咗普通话（hello.locale == "zh-CN"）：之后嘅讯息用普通话（手机直接显示）
         try:
             if settings.doubao is None:
                 raise AssistantError("EAR_NOT_CONFIGURED", "語音伺服器未設定豆包識別。", 503)
             hello = json.loads(await asyncio.wait_for(socket.receive_text(), timeout=10))
             if not isinstance(hello, dict) or hello.get("locale", "zh-HK") not in {"zh-HK", "zh-CN"}:
                 raise ValueError()
+            cmn = hello.get("locale") == "zh-CN"
             token = hello.get("token")
             if isinstance(token, str) and token and len(token) <= 4096:
                 await app.state.business.identity(token)       # Supabase 核实，唔收自报身份
             elif not (settings.speech_lan_open and lan_caller(socket)):
                 raise AssistantError("UNAUTHORIZED", "請先登入。", 401)
             if getattr(app.state, "ear_connections", 0) >= MAX_EARS:
-                raise AssistantError("BUSY", "太多人同時講緊，請稍後再試。", 429)
+                raise AssistantError("BUSY", "太多人同时在说话，请稍后再试。" if cmn else "太多人同時講緊，請稍後再試。", 429)
             app.state.ear_connections = getattr(app.state, "ear_connections", 0) + 1
             counted = True
             async with httpx.AsyncClient(timeout=httpx.Timeout(25, connect=8), follow_redirects=False) as client:
@@ -83,10 +85,11 @@ def add_ear_route(app, settings, lan_caller):
                 await socket.send_json({"type": "error", "code": exc.code, "message": exc.message})
         except TimeoutError:
             with suppress(Exception):
-                await socket.send_json({"type": "error", "code": "SESSION_TIMEOUT", "message": "講咗十分鐘，請再撳一次咪。"})
+                message = "说了十分钟，请再按一次麦克风。" if cmn else "講咗十分鐘，請再撳一次咪。"
+                await socket.send_json({"type": "error", "code": "SESSION_TIMEOUT", "message": message})
         except Exception:
             with suppress(Exception):
-                await socket.send_json({"type": "error", "code": "EAR_FAILED", "message": "豆包識別連唔到。"})
+                await socket.send_json({"type": "error", "code": "EAR_FAILED", "message": "连不上豆包识别。" if cmn else "豆包識別連唔到。"})
         finally:
             if counted:
                 app.state.ear_connections -= 1

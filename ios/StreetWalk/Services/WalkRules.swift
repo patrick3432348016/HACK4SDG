@@ -188,9 +188,9 @@ struct LeaveRequest: Hashable {
         // 先睇明讲嘅「N 日」，再睇「一個禮拜」（「下星期」只係讲由几时开始）
         if let m = t.range(of: "[0-9一二兩两三四五六七八九十]+[日天]", options: .regularExpression), let n = number(String(t[m].dropLast())) {
             r.days = n
-        } else if ["兩個禮拜", "兩個星期", "兩星期", "两个礼拜", "两个星期", "两星期", "两周"].contains(where: t.contains) {
+        } else if ["兩個禮拜", "兩個星期", "兩星期", "两个礼拜", "两个星期", "两星期", "两周", "兩周", "兩週"].contains(where: t.contains) {
             r.days = 14
-        } else if ["一個禮拜", "一個星期", "成個禮拜", "成個星期", "一星期", "一周", "一週", "一个礼拜", "一个星期", "整个星期"].contains(where: t.contains) {
+        } else if ["一個禮拜", "一個星期", "成個禮拜", "成個星期", "一星期", "一周", "一週", "一个礼拜", "一个星期", "整个星期", "整個星期", "整個禮拜"].contains(where: t.contains) {
             r.days = 7
         }
         r.days = max(1, min(maxDays, r.days))

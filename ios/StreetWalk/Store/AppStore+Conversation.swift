@@ -5,8 +5,8 @@ import Foundation
 //
 // 撳一下咪 = 开始倾，唔使每句再撳：
 // - 耳：手机收音 → Mac 语音服务器 → 豆包流式识别，讲完一句（豆包判定停顿）自动出字（VoiceEar）；
-// - 脑：手机先认 App 自己做嘅指令（找人、改约、取消约、反映、地标改名…，TemplateAI）；其余交 B 嘅豆包理解
-//   （/v1/assistant/turn：B 嘅范围规则、天文台天气、约人确认卡），同撳咪讲一句完全一样（handle）；
+// - 脑：手机先认求救 / 问医疗 / 问天气（两种语言都喺手机答），同 App 自己做嘅指令（找人、改约、取消约、反映、地标改名…，
+//   TemplateAI）；其余交 B 嘅豆包理解（/v1/assistant/turn：B 嘅范围规则、约人确认卡），同撳咪讲一句完全一样（handle）；
 // - 嘴：小何（同收音共用一部 engine，开咗回声消除）：用户一开口就停（插嘴，B 嘅做法）。
 // 影响别人嘅动作照旧要亲手撳「好」：对住复述卡讲「好」唔会代撳（B 同我哋嘅规则）；讲「唔好」就撤回。
 // 再撳咪 / 「傾完」/ 45 秒冇人讲嘢 / 十分钟上限 / App 退后台 → 收咪。连唔到 Mac → 照旧用手机识别（Listener）。
@@ -125,11 +125,12 @@ extension AppStore {
     }
 
     /// 一句讲完：同撳咪讲一句一样处理（handle），只系复述卡等紧撳「好」时，「好」「唔好」特别处理。
+    /// 求救 / 问医疗唔当「好 / 唔好」，照样交 handle（安全先行）。
     func conversationTurn(_ text: String) {
-        if let card = voiceCard, card.needsConfirm {
+        if let card = voiceCard, card.needsConfirm, TemplateAI.safety(text) == nil {
             switch Self.yesNo(text) {
             case .yes?:
-                say(L.t("請撳「好」確認。", "请按「好」确认。"), prompt: true)
+                say(L.t("請撳「好」確認。", "请按「好的」确认。"), prompt: true)   // 同复述卡个掣一样
                 return
             case .no?:
                 rejectVoice()
@@ -147,11 +148,15 @@ extension AppStore {
     nonisolated static func yesNo(_ text: String) -> YesNo? {
         let t = text.filter { !$0.isPunctuation && !$0.isWhitespace }
         guard (1...6).contains(t.count) else { return nil }
-        let no = ["唔好", "唔係", "唔要", "取消", "唔使", "不要", "不是", "不用", "算啦", "算了"]
+        // 先认否定：「不好」「不对」「不可以」「唔得」「唔可以」都含「好 / 對 / 可以 / 得」，唔可以当「好」。
+        let no = ["唔好", "唔係", "唔要", "取消", "唔使", "不要", "不是", "不用", "算啦", "算了",
+                  "不好", "不對", "不对", "不可以", "不行", "不確認", "不确认", "唔得", "唔可以", "唔啱", "唔確認"]
         if no.contains(where: t.contains) { return .no }
+        let yes = ["好", "係", "啱", "可以", "確認", "确认", "得", "OK", "ok", "是", "对", "對"]
+        // 否定字紧接「好 / 係 / 得…」（「唔OK」「沒確認」）都系否定
+        if yes.contains(where: { w in ["唔", "不", "冇", "沒", "没", "未", "別", "别"].contains { t.contains($0 + w) } }) { return .no }
         // 「好」类只认好短嘅（「好呀」「係呀」「可以呀」）；「好想約阿芳」系新请求
         guard t.count <= 3 else { return nil }
-        let yes = ["好", "係", "啱", "可以", "確認", "确认", "得", "OK", "ok", "是", "对", "對"]
         if yes.contains(where: t.contains) { return .yes }
         return nil
     }

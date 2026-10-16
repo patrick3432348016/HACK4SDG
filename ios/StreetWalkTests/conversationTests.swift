@@ -26,6 +26,16 @@ struct ConversationRuleTests {
         #expect(AppStore.yesNo("北區今日天氣點") == nil)
     }
 
+    @Test func 否定先认_不好唔得唔会当好() {
+        // 「不好」「唔得」「不可以」含「好 / 得 / 可以」，以前当咗「好」（连续对话豆包嘅字已转繁体：不對）
+        for t in ["不好", "不对", "不對", "不可以", "不行", "唔好", "唔得", "唔可以", "唔係", "不好。", "唔得呀"] {
+            #expect(AppStore.yesNo(t) == .no, "\(t)")
+        }
+        for t in ["好", "好的", "可以", "係", "對", "得"] {
+            #expect(AppStore.yesNo(t) == .yes, "\(t)")
+        }
+    }
+
     @Test func 回声保险() {
         let spoken = ["全港預報參考，10月13日：天晴。日間乾燥及炎熱。"]
         #expect(AppStore.looksLikeEcho("日間乾燥", spoken: spoken))

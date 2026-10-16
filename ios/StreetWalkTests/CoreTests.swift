@@ -120,6 +120,34 @@ struct VoiceTests {
     @Test func 听唔明() {
         #expect(ai.parseVoice("今日天氣幾好", context: ctx()) == .unknown)
     }
+
+    @Test func 请几日假() {
+        #expect(ai.parseVoice("請三日假", context: ctx()) == .leave)
+        #expect(ai.parseVoice("聽日請兩日假", context: ctx()) == .leave)
+        #expect(ai.parseVoice("請一個禮拜假", context: ctx()) == .leave)
+    }
+
+    @Test func 问热唔当反映() {
+        // 问天气，唔记「好曬」
+        for q in ["今日熱唔熱", "聽日會唔會好熱", "今日好熱呀？", "會唔會落雨"] {
+            #expect(ai.parseVoice(q, context: ctx()) == .unknown, "\(q)")
+            #expect(TemplateAI.asksWeather(q), "\(q)")
+        }
+        #expect(ai.parseVoice("呢度好曬", context: ctx()) == .report(.sunny))
+        #expect(ai.parseVoice("太陽好大", context: ctx()) == .report(.sunny))
+    }
+
+    @Test func 求救同问医疗() {
+        for s in ["救命呀", "救我", "我跌親", "跌倒咗起唔到身", "心口好痛", "唞唔到氣", "佢暈低咗", "流緊血", "快啲叫白車", "幫我報警"] {
+            #expect(TemplateAI.safety(s) == .emergency, "\(s)")
+        }
+        for s in ["我應該食咩藥", "要唔要食藥", "睇咩醫生好", "使唔使睇醫生"] {
+            #expect(TemplateAI.safety(s) == .medical, "\(s)")
+        }
+        for s in ["幫我約阿芳", "約陳太聽日下晝三點一齊行", "今日天氣點", "呢度好曬", "喺藥房門口等"] {
+            #expect(TemplateAI.safety(s) == nil, "\(s)")
+        }
+    }
 }
 
 struct StoreTests {

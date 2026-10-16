@@ -126,7 +126,7 @@ extension AppStore {
             return [L.t("改做下晝\(alt)點", "改到下午\(alt)点"), L.t("改去\(other.name)", "改到\(other.name)"), L.t("取消同\(p.name)嘅約", "取消和\(p.name)的约会"), L.t("今日請假", "今天请假")]
         }
         // 反映只喺散步时讲（F10）；唔散步时唔建议。改地标名好少用、仲会以为改咗地名（UX 报告 33），唔建议；
-        // 问天气：有 Mac 服务器由 B 嘅豆包答，冇就手机答天文台嗰句（showNotUnderstood）。
+        // 问天气：手机自己答天文台嗰句（showWeatherAnswer，唔交服务器）。
         let weather = [L.t("今日天氣點", "今天天气怎么样")]
         let find = residents.first(where: { $0.isNeighbor && !$0.isMe && $0.isOut }).map { [L.t("過去搵\($0.name)", "去找\($0.name)")] } ?? []
         return (name.map { [L.t("約\($0)聽日下晝三點一齊行", "约\($0)明天下午三点一起走")] } ?? []) + weather + find + [L.t("今日請假", "今天请假")]
@@ -145,10 +145,14 @@ extension AppStore {
 
     /// 听到 / 揀咗一句之后：手机模板先认，约人同听唔明嘅交俾组员 B 嘅助手。
     private func routeHeard(_ text: String) {
+        // 安全先行（两种语言、有冇 Mac 服务器都一样）：求救叫打 999；问食咩藥 / 睇咩醫生叫问医生（B 嘅规则只喺粤语服务器有）。
+        if let s = TemplateAI.safety(text) { showSafety(s, heard: text); return }
         // 只俾 AI 睇我同街坊（非街坊连名都唔传，A03）。讲非街坊个名 = 听唔明，唔会讲出佢住几楼。
         let known = residents.filter { $0.isMe || $0.isNeighbor }
         let ctx = AIContext(residents: known, landmarks: landmarks, now: now, walking: walk != nil, finding: find != nil)
         var intent = ai.parseVoice(text, context: ctx)
+        // 问天气：手机自己答（天文台），唔交服务器（普通话服务器唔答天气；粤语都即刻答）。
+        if renamingNow == nil, intent == .unknown, TemplateAI.asksWeather(text) { showWeatherAnswer(text); return }
         // 地标卡撳咗「講新名」：成句当新名（A02）。
         if let id = renamingNow {
             switch intent {
@@ -227,13 +231,7 @@ extension AppStore {
     /// 问天气：冇 Mac 服务器都答（天文台嗰句，同「今日」页一样）。
     func showNotUnderstood(_ text: String) {
         phrasePicker = false
-        if TemplateAI.asksWeather(text) {
-            let answer = tryAnswer
-            voiceCard = VoiceCard(heard: text, title: answer, detail: nil, needsConfirm: false, intent: .unknown,
-                                  assistant: AssistantCard(kind: .info, title: answer, spoken: answer, conversationID: ""))
-            say(answer)
-            return
-        }
+        if TemplateAI.asksWeather(text) { showWeatherAnswer(text); return }
         let title: String
         switch TemplateAI.topic(text) {
         case .invite? where neighbors.isEmpty, .find? where neighbors.isEmpty:
@@ -254,6 +252,39 @@ extension AppStore {
         say(title.hasSuffix("：") ? String(title.dropLast()) + "，" + example : title, prompt: true)
     }
 
+    /// 问天气：手机答天文台嗰句（同「今日」页一样）；问聽日就加埋天文台嘅聽日降雨机会。
+    func showWeatherAnswer(_ text: String) {
+        phrasePicker = false
+        var answer = tryAnswer
+        if TemplateAI.parseDay(TemplateAI.toHant(text)) == 1, !hko.demoOverride, let psr = hko.report?.tomorrowPSR, !psr.isEmpty {
+            answer = Self.oneSentence([answer, L.t("天文台話聽日降雨機會\(psr)", "天文台说明天降雨概率\(psr)")])
+        }
+        voiceCard = VoiceCard(heard: text, title: answer, detail: nil, needsConfirm: false, intent: .unknown,
+                              assistant: AssistantCard(kind: .info, title: answer, spoken: answer, conversationID: ""))
+        say(answer)
+    }
+
+    /// 求救 / 问医疗（TemplateAI.safety）：唔做任何 App 动作，出卡兼即刻讲。等紧确认嘅复述卡先撤回。
+    func showSafety(_ s: TemplateAI.Safety, heard text: String) {
+        phrasePicker = false
+        if voiceCard?.needsConfirm == true { rejectVoice() }
+        assistantGen = UUID()   // 服务器仲答紧上一句：答返嚟都唔好盖住呢张卡
+        assistant.reset()
+        hush()
+        let title: String, detail: String?
+        switch s {
+        case .emergency:
+            title = L.t("有危險請即刻打 999 求助，或者叫身邊嘅人幫手。", "有危险请马上打 999 求助，或者叫身边的人帮忙。")
+            detail = L.t("呢個 App 唔會自動幫你打電話。", "这个 App 不会自动帮你打电话。")
+        case .medical:
+            title = L.t("呢個我幫唔到，請問醫生或者藥劑師。", "这个我帮不了，请问医生或药剂师。")
+            detail = nil
+        }
+        voiceCard = VoiceCard(heard: text, title: title, detail: detail, needsConfirm: false, intent: .unknown,
+                              assistant: AssistantCard(kind: .info, title: title, detail: detail, spoken: title, conversationID: ""))
+        say(title, prompt: true)
+    }
+
     /// 撳得嘅例句：只出而家真係做得到嘅（有街坊先出约人 / 找人；散步先出反映；天气手机都答到）。
     var voiceExamples: [String] {
         var out: [String] = []
@@ -267,11 +298,11 @@ extension AppStore {
         return Array(out.prefix(3))
     }
 
-    /// 要撳「好」嘅复述卡：画面同语音一齐出（§4），讲埋点样确认。
+    /// 要撳「好」嘅复述卡：画面同语音一齐出（§4），讲埋点样确认（同个掣一样：粤语「好」、普通话「好的」）。
     private func showConfirm(_ card: VoiceCard, spoken: String? = nil) {
         voiceCard = card
         let s = (spoken ?? card.title).trimmingCharacters(in: CharacterSet(charactersIn: "。？?！! "))
-        say(L.t("\(s)。啱就撳「好」。", "\(s)。没问题就按「好」。"), prompt: true)
+        say(L.t("\(s)。啱就撳「好」。", "\(s)。没问题就按「好的」。"), prompt: true)
     }
 
     /// 改名、反映嘅说明：未接伺服器时唔好讲成已经同步咗（A69）。

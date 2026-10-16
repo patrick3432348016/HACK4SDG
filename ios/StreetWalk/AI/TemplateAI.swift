@@ -11,7 +11,7 @@ struct TemplateAI: AIService {
         let text = Self.toHant(raw.replacingOccurrences(of: " ", with: ""))
         guard !text.isEmpty else { return .unknown }
 
-        if ["請假", "告假", "请假", "休息一天", "休息一日", "今日唔行", "今天不走", "今天不去走"].contains(where: text.contains) { return .leave }
+        if Self.asksLeave(text) { return .leave }
 
         // 改约 / 取消约：要讲到时间或地标，免得同改地标名撞。
         let partnerHit = context.residents.first { !$0.isMe && (text.contains($0.name) || text.contains("\($0.floor)樓") || text.contains("\($0.floor)層")) }
@@ -39,7 +39,7 @@ struct TemplateAI: AIService {
 
         if context.finding, text.hasPrefix("我喺") || text.hasPrefix("我在") || text.hasPrefix("我到") { return .broadcast(raw) }
 
-        if Self.sunnyWords.contains(where: text.contains) { return .report(.sunny) }
+        if Self.isSunnyReport(text) { return .report(.sunny) }
         if Self.noSeatWords.contains(where: text.contains) { return .report(.noSeat) }
         if Self.roughWords.contains(where: text.contains) { return .report(.rough) }
 
@@ -65,12 +65,74 @@ struct TemplateAI: AIService {
     static let sunnyWords = ["好曬", "太曬", "很曬", "曬得", "好熱", "太熱", "很熱", "熱死", "太陽好大", "太陽很大", "太陽太大", "冇遮", "沒遮", "沒有遮", "沒有樹蔭", "沒有陰"]
     static let noSeatWords = ["冇櫈", "冇凳", "無櫈", "沒有凳", "沒凳", "沒有椅", "沒椅", "沒地方坐", "沒有地方坐", "冇位坐", "沒得坐", "坐不了", "唔夠櫈"]
     static let roughWords = ["難行", "唔好行", "難走", "不好走", "路不平", "路爛", "路很爛", "好滑", "很滑", "路滑"]
-    static let weatherWords = ["天氣", "天气", "落雨", "下雨", "會唔會熱", "熱不熱", "熱唔熱", "幾多度", "多少度", "氣溫", "溫度", "颱風", "打風"]
+    static let weatherWords = ["天氣", "天气", "落雨", "下雨", "會唔會熱", "熱不熱", "熱唔熱", "幾多度", "多少度", "幾度", "氣溫", "溫度", "颱風", "打風"]
+    /// 冷熱晴雨：问句（「今天会很热吗」「明天冷不冷」）或者讲今日 / 聽日（「今天很热」）就当问天气。
+    static let feelWords = ["熱", "曬", "太陽", "雨", "凍", "冷", "晴", "風"]
+    /// 讲明「呢度」先算反映呢个位（「这里好晒」「呢度好曬」）。
+    static let hereWords = ["呢度", "呢處", "呢邊", "呢個位", "這裡", "這裏", "這兒", "這邊", "這個位", "此處"]
 
-    /// 问天气（手机冇 Mac 服务器都答到：天文台嗰句）。
+    /// 问天气（手机自己答：天文台嗰句）。「今天会很热吗」「明天热不热」「会不会下雨」「今日熱唔熱」都系。
     static func asksWeather(_ raw: String) -> Bool {
-        let t = toHant(raw)
-        return weatherWords.contains(where: t.contains)
+        let t = toHant(raw.replacingOccurrences(of: " ", with: ""))
+        if weatherWords.contains(where: t.contains) { return true }
+        return feelWords.contains(where: t.contains) && (isQuestion(t) || parseDay(t) != nil)
+    }
+
+    /// 曬 / 熱只喺讲紧「呢度」先当反映（「这里好晒」「呢度好曬」「太陽好大」）；
+    /// 问句（「今天会很热吗」）、讲今日聽日 / 天气（「今天很热」）系问天气，唔记反映。t 已转繁体。
+    static func isSunnyReport(_ t: String) -> Bool {
+        guard sunnyWords.contains(where: t.contains), !isQuestion(t) else { return false }
+        if hereWords.contains(where: t.contains) { return true }
+        return parseDay(t) == nil && !weatherWords.contains(where: t.contains)
+    }
+
+    /// 问句：「嗎」「？」「咩」「幾多」「點樣」…、A唔A / A不A（熱唔熱、會不會、要不要），或者句尾「呢」。t 已转繁体。
+    static func isQuestion(_ t: String) -> Bool {
+        let markers = ["嗎", "吗", "?", "？", "咩", "乜", "幾多", "多少", "點樣", "怎", "如何", "係咪", "是否", "有冇", "有沒有", "什麼", "甚麼", "幾時"]
+        if markers.contains(where: t.contains) || t.trimmingCharacters(in: .punctuationCharacters.union(.whitespaces)).hasSuffix("呢") { return true }
+        let c = Array(t)
+        guard c.count >= 3 else { return false }
+        for i in 1..<(c.count - 1) where (c[i] == "唔" || c[i] == "不") && c[i - 1] == c[i + 1] { return true }
+        return false
+    }
+
+    /// 请假：「請假」「聽日請假」，或者「請三天假」「请3天假」「請兩日假」「请一个星期假」（請同假中间系日数）。t 已转繁体。
+    static func asksLeave(_ t: String) -> Bool {
+        if ["請假", "告假", "请假", "請個假", "休息一天", "休息一日", "今日唔行", "今天不走", "今天不去走"].contains(where: t.contains) { return true }
+        return t.range(of: "[請请告][個个]?[0-9一二兩两三四五六七八九十半幾几成整]*[個个]?(日|天|星期|禮拜|礼拜|周|週)假", options: .regularExpression) != nil
+    }
+
+    // MARK: - 安全（手机先认：两种语言、有冇 Mac 服务器都一样，唔交服务器）
+
+    enum Safety: Equatable { case emergency, medical }
+
+    /// 紧急求助只认好明确嘅讲法（唔会将「帮我约阿芳」当求救）；问食咩藥 / 睇咩醫生当医疗问题。
+    static func safety(_ raw: String) -> Safety? {
+        let s = raw.filter { !$0.isWhitespace }
+        let t = toHant(s)
+        if [s, t].contains(where: { x in emergencyWords.contains(where: x.contains) })
+            || t.range(of: "(胸口|心口).{0,3}(痛|疼)", options: .regularExpression) != nil { return .emergency }
+        if isMedicalQuestion(t) { return .medical }
+        return nil
+    }
+
+    /// 普通话（简繁都列）+ 粤语 + B 服务器嘅讲法（voice_policy.py URGENT）。胸口痛 / 心口痛另外用正则（「胸口好痛」都算）。
+    static let emergencyWords = ["救命", "救我", "摔倒", "跌倒", "跌親", "跌亲", "起不來", "起不来", "起唔到身",
+                                 "喘不過氣", "喘不过气", "透不過氣", "透不过气", "唞唔到氣", "唞唔到气", "透唔到氣", "透唔到气",
+                                 "呼吸困難", "呼吸困难", "暈倒", "晕倒", "暈低", "晕低", "流血", "流緊血", "流紧血",
+                                 "叫救護車", "叫救护车", "叫白車", "叫白车", "報警", "报警", "我想自殺", "我想自杀", "我想死"]
+
+    /// 问食咩藥 / 睇咩醫生（繁体）。
+    static let medicalWords = ["什麼藥", "甚麼藥", "咩藥", "乜藥", "乜嘢藥", "咩嘢藥", "邊種藥", "哪種藥", "哪個藥",
+                               "什麼醫生", "甚麼醫生", "哪個醫生", "咩醫生", "乜醫生", "邊個醫生", "什麼科", "甚麼科", "哪個科", "咩科", "邊科",
+                               "要不要看醫生", "要唔要睇醫生", "使唔使睇醫生", "用不用看醫生", "需不需要看醫生", "需唔需要睇醫生", "要看醫生嗎", "要睇醫生嗎"]
+
+    /// 问医疗：上面嘅讲法，或者讲到「藥」又系问句（「要不要吃药」「可以食止痛藥嗎」）；藥房、藥店系地方，唔算。
+    static func isMedicalQuestion(_ t: String) -> Bool {
+        if medicalWords.contains(where: t.contains) { return true }
+        var d = t
+        for place in ["藥房", "藥店", "藥行", "藥局", "藥劑師"] { d = d.replacingOccurrences(of: place, with: "") }
+        return d.contains("藥") && isQuestion(d)
     }
 
     /// 听唔明嘅句子大概想做乜（用嚟讲点解做唔到）：约人 / 找人 / 反映。
@@ -224,5 +286,10 @@ struct TemplateAI: AIService {
         if h < 12 { return L.t("朝早 \(h) 點", "早上 \(h) 点") }
         if h == 12 { return L.t("中午 12 點", "中午 12 点") }
         return h < 18 ? L.t("下晝 \(h - 12) 點", "下午 \(h - 12) 点") : L.t("夜晚 \(h - 12) 點", "晚上 \(h - 12) 点")
+    }
+
+    /// 约会钟点：整点同 hourLabel 一样；有分钟就讲埋（自己揀 16:45 →「下晝 4 點 45 分」）。
+    static func timeLabel(hour h: Int, minute m: Int) -> String {
+        m == 0 ? hourLabel(h) : hourLabel(h) + L.t(" \(m) 分", " \(m) 分")
     }
 }

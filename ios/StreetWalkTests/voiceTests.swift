@@ -148,13 +148,56 @@ struct VoiceFlowTests {
         s.checkLate(&f)
         #expect(!f.latePrompt)
 
-        // 冇喺找人画面：横幅问要唔要打电话
+        // 冇喺找人画面：横幅提一次；冇陳太电话号码（PhoneBook 全空）就唔出「打電話」，叫佢喺附近搵吓
         let t = makeStore()
         t.demoHour = 16 + 12.0 / 60
         t.appointments = [Appointment(partnerID: "chan", date: AppStore.today(at: 16), landmarkID: "shelter-1", reason: "", status: .accepted)]
         t.checkAppointments()
-        #expect(t.banner?.action == .call("chan"))
+        #expect(t.banner?.action == BannerItem.Action.none)
+        #expect(t.banner?.text == "同陳太約咗今日下晝 4 點，過咗 10 分鐘。仲未見到嘅話，喺附近搵吓。")
         #expect(t.appointments[0].status == .accepted)
+    }
+
+    @Test func 约会钟点有分钟就讲埋() {
+        let s = makeStore()
+        #expect(s.dayTimeLabel(AppStore.today(at: 16.75)) == "今日下晝 4 點 45 分")
+        #expect(s.dayTimeLabel(AppStore.today(at: 16)) == "今日下晝 4 點", "整点照旧")
+        #expect(s.dayLabel(AppStore.today(at: 16.75, dayOffset: 1)) == "聽日")
+        #expect(AppStore.clockLabel(AppStore.today(at: 9.5)) == "朝早 9 點 30 分")
+        // 只改日子：分钟保留
+        let a = Appointment(partnerID: "chan", date: AppStore.today(at: 16.75, dayOffset: 1), landmarkID: "shelter-1", reason: "", status: .accepted)
+        #expect(s.changed(a, day: 2, hour: nil, landmarkID: nil).date == AppStore.today(at: 16.75, dayOffset: 2))
+        // 过期通知都讲埋分钟
+        let items = NotificationPlan.items([a], now: Date(), partner: { _ in "陳太" }, place: { _ in "涼亭" })
+        #expect(items.first { $0.id.hasSuffix("-expire") }?.body == "同陳太下晝 4 點 45 分喺涼亭嘅約過咗時間，收埋咗。")
+    }
+
+    @Test func 我嘅約會包埋今日() {
+        let s = makeStore()
+        let later = Appointment(partnerID: "chan", date: AppStore.today(at: 8, dayOffset: 1), landmarkID: "shelter-1", reason: "", status: .waiting)
+        let today = Appointment(partnerID: "chan", date: AppStore.today(at: 16.75), landmarkID: "shelter-1", reason: "", status: .accepted)
+        s.appointments = [later, today]
+        #expect(s.myAppointments.map(\.id) == [today.id, later.id], "今日嘅都列，按时间排")
+        #expect(s.upcomingAppointments.map(\.id) == [later.id], "今日页照旧分开列今日同之后")
+    }
+
+    @Test func 求救同问医疗手机先答() {
+        let s = makeStore()
+        s.handle("救命")
+        #expect(s.voiceCard?.title == "有危險請即刻打 999 求助，或者叫身邊嘅人幫手。")
+        #expect(s.voiceCard?.needsConfirm == false)
+        s.handle("要唔要食藥")
+        #expect(s.voiceCard?.title == "呢個我幫唔到，請問醫生或者藥劑師。")
+        // 复述卡等紧撳「好」：求救先撤回张卡，唔会改名
+        s.handle("涼亭改名做大樹底")
+        #expect(s.voiceCard?.needsConfirm == true)
+        s.handle("我跌親，起唔到身")
+        #expect(s.voiceCard?.title.contains("999") == true)
+        #expect(s.landmark("shelter-1")?.name == "涼亭")
+        // 问天气：手机答，唔记反映
+        s.handle("今日熱唔熱")
+        #expect(s.voiceCard?.assistant?.kind == .info)
+        #expect(s.reports.isEmpty)
     }
 
     @Test func 约会到达估计按对方剩低嘅路() {

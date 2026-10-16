@@ -507,10 +507,13 @@ struct FindOverlay: View {
     }
 
     private func lateCard(_ p: Resident) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
+        // 冇对方电话号码就唔出「打電話」（撳咗只会话未有号码），叫佢喺附近搵吓。
+        let canCall = PhoneBook.number(for: p.id) != nil
+        return VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
                 FSPopSymbol(name: "clock.fill", size: 26, color: DS.accent)
-                Text(L.t("過咗約定時間 10 分鐘，仲未見到\(p.name)。要唔要打電話俾佢？", "过了约定时间 10 分钟，还没见到\(p.name)。要不要给对方打电话？"))
+                Text(L.t("過咗約定時間 10 分鐘，仲未見到\(p.name)。", "过了约定时间 10 分钟，还没见到\(p.name)。")
+                     + (canCall ? L.t("要唔要打電話俾佢？", "要不要给对方打电话？") : L.t("喺附近搵吓。", "在附近找找。")))
                     .ds(.body)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -519,16 +522,18 @@ struct FindOverlay: View {
                 Button {
                     withAnimation(DS.motion(DS.spring)) { store.find?.latePrompt = false }
                 } label: {
-                    Text(L.t("再等等", "再等等"))
+                    Text(L.t("再等等", "再等等")).frame(maxWidth: canCall ? nil : .infinity)
                 }
                 .buttonStyle(.dsSecondary)
-                Button {
-                    store.call(p.id)
-                    withAnimation(DS.motion(DS.spring)) { store.find?.latePrompt = false }
-                } label: {
-                    Label(L.t("打電話", "打电话"), systemImage: "phone.fill").frame(maxWidth: .infinity)
+                if canCall {
+                    Button {
+                        store.call(p.id)
+                        withAnimation(DS.motion(DS.spring)) { store.find?.latePrompt = false }
+                    } label: {
+                        Label(L.t("打電話", "打电话"), systemImage: "phone.fill").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.dsPrimary)
                 }
-                .buttonStyle(.dsPrimary)
             }
         }
         .padding(16)

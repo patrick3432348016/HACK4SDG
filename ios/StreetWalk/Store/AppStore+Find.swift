@@ -194,7 +194,10 @@ extension AppStore {
               appointments[i].lateAsked != true, now.timeIntervalSince(appointments[i].date) > 600 else { return }
         appointments[i].lateAsked = true
         f.latePrompt = true
-        say(L.t("過咗約定時間 10 分鐘，仲未見到\(resident(f.partnerID)?.name ?? "")。要唔要打電話俾佢？", "过了约定时间 10 分钟，还没见到\(resident(f.partnerID)?.name ?? "")。要不要给他打电话？"), prompt: true)
+        // 冇对方电话号码（PhoneBook 而家全空）就唔问打唔打电话，叫佢喺附近搵吓（同 lateCard 一样）。
+        let name = resident(f.partnerID)?.name ?? ""
+        let next = PhoneBook.number(for: f.partnerID) != nil ? L.t("要唔要打電話俾佢？", "要不要给他打电话？") : L.t("喺附近搵吓。", "在附近找找。")
+        say(L.t("過咗約定時間 10 分鐘，仲未見到\(name)。", "过了约定时间 10 分钟，还没见到\(name)。") + next, prompt: true)
     }
 
     /// 演示：将时间拨到约定时间后 11 分钟，等自动检查问「要唔要打電話」（唔再直接弹卡）。

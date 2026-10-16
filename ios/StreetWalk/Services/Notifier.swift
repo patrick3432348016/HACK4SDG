@@ -76,7 +76,7 @@ enum NotificationPlan {
             }
             let expireAt = a.date.addingTimeInterval(expireAfter)
             if expireAt > now {
-                let hour = TemplateAI.hourLabel(AppStore.hk.component(.hour, from: a.date))
+                let hour = AppStore.clockLabel(a.date)   // 有分钟就讲埋（16:45）
                 out.append(Item(id: "appt-\(a.id.uuidString)-expire", at: expireAt, body: L.t("同\(who)\(hour)喺\(spot)嘅約過咗時間，收埋咗。", "和\(who)\(hour)在\(spot)的约已过时间，已收起。")))
             }
         }

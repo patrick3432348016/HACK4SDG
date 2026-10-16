@@ -65,6 +65,46 @@ struct MandarinVoiceTests {
         #expect(TemplateAI.topic("约李先生明天一起走") == .invite)
     }
 
+    @Test func 普通话请几天假() {
+        for s in ["请三天假", "请3天假", "请两天假", "请一个星期假", "我想请个三天假", "請兩天假"] {
+            #expect(ai.parseVoice(s, context: ctx()) == .leave, "\(s)")
+        }
+        #expect(LeaveRequest.parse("请三天假") == LeaveRequest(startOffset: 0, days: 3))
+        #expect(LeaveRequest.parse("请3天假") == LeaveRequest(startOffset: 0, days: 3))
+        #expect(LeaveRequest.parse("请两天假") == LeaveRequest(startOffset: 0, days: 2))
+        #expect(LeaveRequest.parse("请一个星期假") == LeaveRequest(startOffset: 0, days: 7))
+        #expect(LeaveRequest.parse("明天请两天假") == LeaveRequest(startOffset: 1, days: 2))
+        // 连续对话：豆包嘅字已转繁体
+        #expect(LeaveRequest.parse("請兩天假") == LeaveRequest(startOffset: 0, days: 2))
+        #expect(LeaveRequest.parse("請一個星期假") == LeaveRequest(startOffset: 0, days: 7))
+        #expect(LeaveRequest.parse("請兩周假") == LeaveRequest(startOffset: 0, days: 14))
+    }
+
+    @Test func 普通话问热唔当反映() {
+        for q in ["今天会很热吗", "明天热不热", "会不会下雨", "今天很热", "这里会不会很热", "明天冷不冷"] {
+            #expect(ai.parseVoice(q, context: ctx()) == .unknown, "\(q)")
+            #expect(TemplateAI.asksWeather(q), "\(q)")
+        }
+        // 讲明「这里」先系反映
+        #expect(ai.parseVoice("这里好晒", context: ctx()) == .report(.sunny))
+        #expect(ai.parseVoice("这里太晒", context: ctx()) == .report(.sunny))
+        #expect(!TemplateAI.asksWeather("约陈太明天下午三点一起走"))
+        #expect(!TemplateAI.asksWeather("这里没有凳子"))
+    }
+
+    @Test func 普通话求救同问医疗() {
+        for s in ["救命", "救我", "我摔倒了", "我跌倒了起不来", "胸口好痛", "胸口疼", "喘不过气", "呼吸困难", "我老伴晕倒了", "流血了", "快叫救护车", "帮我报警"] {
+            #expect(TemplateAI.safety(s) == .emergency, "\(s)")
+        }
+        for s in ["我头痛吃什么药", "要不要吃药", "感冒该看什么医生", "要不要看医生", "可以吃止痛药吗"] {
+            #expect(TemplateAI.safety(s) == .medical, "\(s)")
+        }
+        // 唔好误认：「帮我」唔系求救；药房系地方
+        for s in ["帮我约阿芳", "约陈太明天下午三点一起走", "今天天气怎么样", "这里太晒", "约陈太在药房门口见", "请三天假", "好的"] {
+            #expect(TemplateAI.safety(s) == nil, "\(s)")
+        }
+    }
+
     @Test func 普通话改约取消改名() {
         #expect(ai.parseVoice("取消和陈太的约会", context: ctx()) == .cancelMeetup(partnerID: "chan"))
         #expect(ai.parseVoice("不约了", context: ctx()) == .cancelMeetup(partnerID: nil))

@@ -209,7 +209,9 @@ extension AppStore {
         let cal = Self.hk
         if hour != nil || day != nil {
             let base = day.map { cal.startOfDay(for: now).addingTimeInterval(Double($0) * 86400) } ?? cal.startOfDay(for: a.date)
-            a.date = base.addingTimeInterval(Double(hour ?? cal.component(.hour, from: a.date)) * 3600)
+            // 只改日子：钟点连分钟都保留（自己揀咗 16:45，「改到聽日」都系 16:45）
+            let minute = hour == nil ? Double(cal.component(.minute, from: a.date)) * 60 : 0
+            a.date = base.addingTimeInterval(Double(hour ?? cal.component(.hour, from: a.date)) * 3600 + minute)
             // 冇讲日子、只讲钟点，而嗰个钟今日已经过咗：当係聽日。
             if day == nil, a.date <= now { a.date = a.date.addingTimeInterval(86400) }
         }
@@ -310,11 +312,15 @@ extension AppStore {
                 showBanner(BannerItem(symbol: "bell.fill", text: text, action: .depart(a.id), actionTitle: L.t("出發", "出发")))
                 say(text)
             } else if a.status == .accepted, a.lateAsked != true, left < -600, left >= -3600, findAppointment != a.id {
-                // F8：过咗约定时间 10 分钟（冇喺找人画面）：问一次要唔要打电话（A20）。
+                // F8：过咗约定时间 10 分钟（冇喺找人画面）：提一次（A20）。有对方电话先问要唔要打；
+                // 冇号码（PhoneBook 而家全空）就唔出「打電話」（撳咗只会话未有号码），叫佢喺附近搵吓。
                 appointments[i].lateAsked = true
                 let name = resident(a.partnerID)?.name ?? L.t("街坊", "邻居")
-                let text = L.t("同\(name)約咗\(dayTimeLabel(a.date))，過咗 10 分鐘。要唔要打電話俾佢？", "和\(name)约了\(dayTimeLabel(a.date))，已过 10 分钟。要不要打电话给他？")
-                showBanner(BannerItem(symbol: "clock.fill", text: text, action: .call(a.partnerID), actionTitle: L.t("打電話", "打电话")))
+                let canCall = PhoneBook.number(for: a.partnerID) != nil
+                let text = L.t("同\(name)約咗\(dayTimeLabel(a.date))，過咗 10 分鐘。", "和\(name)约了\(dayTimeLabel(a.date))，已过 10 分钟。")
+                    + (canCall ? L.t("要唔要打電話俾佢？", "要不要打电话给他？") : L.t("仲未見到嘅話，喺附近搵吓。", "还没见到的话，在附近找找。"))
+                showBanner(canCall ? BannerItem(symbol: "clock.fill", text: text, action: .call(a.partnerID), actionTitle: L.t("打電話", "打电话"))
+                                   : BannerItem(symbol: "clock.fill", text: text))
                 say(text, prompt: true)
             } else if left < -3600, findAppointment != a.id {
                 // 过咗约定时间一个钟都冇碰头：收埋，唔再提。
@@ -351,21 +357,33 @@ extension AppStore {
         return appointments.filter { !cal.isDate($0.date, inSameDayAs: now) && $0.date > now && $0.isOpen && !($0.fromPartner && $0.status == .waiting) }
             .sorted { $0.date < $1.date }
     }
+    /// 「街坊」页「我嘅約會」：今日嘅（未完成）+ 之后几日，按时间排（以前只列之后几日，今日约好嘅睇唔到）。
+    var myAppointments: [Appointment] {
+        (todaysAppointments + upcomingAppointments).sorted { $0.date < $1.date }
+    }
 
-    /// 按日差讲：琴日 / 今日 / 聽日 / 後日，再远就讲几月几号星期几（A62）。
+    /// 按日差讲：琴日 / 今日 / 聽日 / 後日，再远就讲几月几号星期几（A62）；钟点有分钟就讲埋（「今日下晝 4 點 45 分」）。
     func dayTimeLabel(_ d: Date) -> String {
+        dayLabel(d) + Self.clockLabel(d)
+    }
+
+    /// 只讲日子：琴日 / 今日 / 聽日 / 後日 / 几月几号（星期几）。
+    func dayLabel(_ d: Date) -> String {
         let cal = Self.hk
         let diff = cal.dateComponents([.day], from: cal.startOfDay(for: now), to: cal.startOfDay(for: d)).day ?? 0
-        let day: String
         switch diff {
-        case -1: day = L.t("琴日", "昨天")
-        case 0: day = L.t("今日", "今天")
-        case 1: day = L.t("聽日", "明天")
-        case 2: day = L.t("後日", "后天")
+        case -1: return L.t("琴日", "昨天")
+        case 0: return L.t("今日", "今天")
+        case 1: return L.t("聽日", "明天")
+        case 2: return L.t("後日", "后天")
         default:
             let wd = ["日", "一", "二", "三", "四", "五", "六"][(cal.component(.weekday, from: d) + 6) % 7]
-            day = "\(cal.component(.month, from: d))月\(cal.component(.day, from: d))日（星期\(wd)）"
+            return "\(cal.component(.month, from: d))月\(cal.component(.day, from: d))日（星期\(wd)）"
         }
-        return day + TemplateAI.hourLabel(cal.component(.hour, from: d))
+    }
+
+    /// 约会钟点（香港时间）：「下晝 4 點」；自己揀咗 16:45 就係「下晝 4 點 45 分」。
+    nonisolated static func clockLabel(_ d: Date) -> String {
+        TemplateAI.timeLabel(hour: hk.component(.hour, from: d), minute: hk.component(.minute, from: d))
     }
 }

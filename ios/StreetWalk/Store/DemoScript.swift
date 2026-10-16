@@ -39,7 +39,7 @@ extension AppStore {
             await step(41, "去") { startGoing(); cap(L.t("50 米內震動，大箭咀指住對方，唔用地圖", "50 米内震动，大箭头指着对方，不用地图"), "Within 50 m: haptics and a big arrow, no map") }
             await step(62, "語音約陳太") { cap(L.t("講一句就約好：AI 揀有樓遮、有櫈、兩個都近嘅地方", "说一句就约好：AI 选有楼遮阴、有凳子、离两人都近的地方"), "Say one sentence — AI picks a shaded spot with seats, near you both") ; handle(L.t("約陳太聽日下晝三點一齊行", "约陈太明天下午三点一起走")) }
             await step(68, "好") { confirmVoice() }
-            await step(73, "應承") { cap(L.t("影響別人嘅動作，一定先複述再按「好」", "影响别人的操作，一定先复述再按「好」"), "Anything that affects others is read back for confirmation first") }
+            await step(73, "應承") { cap(L.t("影響別人嘅動作，一定先複述再按「好」", "影响别人的操作，一定先复述再按「好的」"), "Anything that affects others is read back for confirmation first") }
             await step(79, "天氣 + 遮蔭") { banner = nil; setDemoHour(15); setWeather(.hot); cap(L.t("天文台天氣 + 樓影遮蔭：建議幾點出門", "天文台天气 + 楼影遮阴：建议几点出门"), "HK Observatory weather + building shade: when to head out") }
             await step(87, "反映：呢度好曬") { banner = nil; report(.sunny); cap(L.t("講一句「呢度好曬」，記低喺最近嘅地標", "说一句「这里太晒」，记在最近的地标"), "Say \"too sunny here\" — it's pinned to the nearest landmark") }
             await step(92, "月尾報告") { showReport = true; cap(L.t("月報：只出 10 人以上嘅匿名匯總，交社工同屋邨管理", "月报：只出 10 人以上的匿名汇总，交社工和屋苑管理"), "Monthly report: anonymous, 10+ residents only, for social workers & estate management") }

@@ -78,11 +78,7 @@ extension AppStore {
             placeName: { [weak self] id in self?.landmark(id)?.name },
             placeDetail: { [weak self] id, at in self?.assistantPlaceDetail(id, at: at) },
             timeLabel: { [weak self] d in self?.dayTimeLabel(d) ?? "" },
-            dayLabel: { [weak self] d in
-                guard let self else { return "" }
-                let full = self.dayTimeLabel(d)
-                return String(full.dropLast(TemplateAI.hourLabel(Self.hk.component(.hour, from: d)).count))
-            })
+            dayLabel: { [weak self] d in self?.dayLabel(d) ?? "" })
     }
 
     /// 地点按钮下面嘅一行：你行几耐、嗰陣有冇遮、有冇櫈。
@@ -109,7 +105,7 @@ extension AppStore {
         case .confirm:
             if let p = card.action?.placeID, landmark(p) != nil { scene.highlightLandmark(p); focus(onLandmark: p) }
             let s = card.spoken.trimmingCharacters(in: CharacterSet(charactersIn: "。？?！! "))
-            say(L.t("\(s)。啱就撳「好」。", "\(s)。没问题就按「好」。"), prompt: true)
+            say(L.t("\(s)。啱就撳「好」。", "\(s)。没问题就按「好的」。"), prompt: true)   // 同复述卡个掣一样（普通话掣写「好的」）
         case .choosePlace:
             if let p = card.options.first?.id, landmark(p) != nil { scene.highlightLandmark(p) }
             say(card.spoken, prompt: true)

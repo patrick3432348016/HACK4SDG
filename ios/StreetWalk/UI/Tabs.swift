@@ -163,7 +163,8 @@ struct TodayTab: View {
         let soon = left <= 30 * 60 && left > -3600
         return heroFrame(L.t("今日約會", "今天的约会"), symbol: "calendar.badge.checkmark") {
             personLine(p, L.t("約咗\(name)", "约了\(name)"), "\(store.dayTimeLabel(a.date)) · \(place)", demo: p?.isDemo == true)
-            Label(L.t("\(name)應承咗", "\(name)答应了"), systemImage: "checkmark.circle.fill")
+            // 两部手机都见到呢张卡（应承嗰个都系）：唔讲边个应承，只讲约好咗
+            Label(L.t("約好咗", "约好了"), systemImage: "checkmark.circle.fill")
                 .ds(.captionBold)
                 .foregroundStyle(DS.accentInk)
             ViewThatFits(in: .horizontal) {
@@ -924,10 +925,10 @@ struct NeighborsTab: View {
                 bumpNote
             }
 
-            if !store.upcomingAppointments.isEmpty {
+            if !store.myAppointments.isEmpty {
                 TabSectionHeader(text: L.t("我嘅約會", "我的约会"))
                 VStack(spacing: 0) {
-                    ForEach(Array(store.upcomingAppointments.enumerated()), id: \.element.id) { i, a in
+                    ForEach(Array(store.myAppointments.enumerated()), id: \.element.id) { i, a in
                         VStack(spacing: 0) {
                             if i > 0 { Divider() }
                             upcomingRow(a)
@@ -951,7 +952,7 @@ struct NeighborsTab: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(DS.motion(DS.spring), value: store.invitations)
-        .animation(DS.motion(DS.spring), value: store.upcomingAppointments)
+        .animation(DS.motion(DS.spring), value: store.myAppointments)
         .animation(DS.motion(DS.spring), value: store.neighbors)
         .sensoryFeedback(.impact(weight: .light), trigger: taps)
         .sensoryFeedback(.selection, trigger: toggles)
