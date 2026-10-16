@@ -62,7 +62,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     private var personState: [String: ScenePerson] = [:]
     private var pathGrid: PathGrid?
 
-    // 相机：固定俯角和方位，只由流程自动移动（场景只看不操作，没有拖动、缩放）。
+    // 相机：固定俯角和方位，由流程自动移动；用户可以双指缩放、双指平移（_zoom / _pan，叠喺流程镜头上面），双击复位。
     private let cameraNode = SCNNode()
     private let sunNode = SCNNode()
     private let ambientNode = SCNNode()
@@ -70,6 +70,9 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     private let azimuth: Float = 45 * .pi / 180      // 从东南方看
     private var _target = Vec2(x: -72, y: 72)
     private var _distance: Float = 2.35
+    /// 用户双指平移（米，加喺流程镜头 target 上）同缩放（乘喺 distance 上，< 1 = 放大）。
+    private var _pan = Vec2.zero
+    private var _zoom: Float = 1
     /// 镜头对准的地面点（米）。镜头飞行和跟随在渲染线程改，所以加锁。
     private(set) var target: Vec2 {
         get { locked { _target } }
@@ -127,6 +130,8 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     private(set) var isDark = UITraitCollection.current.userInterfaceStyle == .dark
     private var traits: UITraitCollection { UITraitCollection(userInterfaceStyle: isDark ? .dark : .light) }
     private var highlighted: (ids: Set<Int64>, color: UIColor?) = ([], nil)
+    /// 选楼画面嘅染色（highlightPick）；nil = 唔喺选楼。
+    private var pickHighlight: (candidates: Set<Int64>, selected: Int64?)?
     private var highlightedLandmark: String?
     /// 当前被调成半透明的楼（切深浅色重建后补回）。
     private var faded: Set<Int64> = []
@@ -148,6 +153,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
 
     func load(map: MapModel, landmarks: [Landmark], animated: Bool) {
         locked { _map = map }
+        clearUserCamera()   // 换底座（选楼、改楼、返上一步）：镜头每次都由流程框好，唔带返上次手指放大
         pathGrid = PathGrid(map: map)
         [plinthNode, buildingsNode, treesNode, landmarksNode, routesNode, peopleNode].forEach { $0.childNodes.forEach { $0.removeFromParentNode() } }
         locked { towerNodes = [:]; pickableNodes = [:]; landmarkNodes = [:]; personNodes = [:]; personState = [:] }
@@ -156,6 +162,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         // 阴影范围跟着底座大小走，小底座的影子更清楚。
         sunNode.light?.orthographicScale = map.size * Double(SceneStyle.scale) * 0.75
         highlighted = ([], nil)
+        pickHighlight = nil
         highlightedLandmark = nil
         traits.performAsCurrent {
             buildPlinth(map)
@@ -180,7 +187,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
             buildTrees(map)
             setLandmarks(lms)
         }
-        highlightBuildings(highlighted.ids, color: highlighted.color)
+        if let p = pickHighlight { highlightPick(candidates: p.candidates, selected: p.selected) } else { highlightBuildings(highlighted.ids, color: highlighted.color) }
         highlightLandmark(highlightedLandmark)
         for (id, node) in towerNodes where faded.contains(id) { node.opacity = 0.25 }
     }
@@ -408,7 +415,8 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     }
 
     private func applyCamera() {
-        let (tg, dist) = locked { (_target, _distance) }
+        let (tg0, dist0, pan, zoom) = locked { (_target, _distance, _pan, _zoom) }
+        let tg = tg0 + pan, dist = dist0 * zoom
         let t = scenePoint(tg)
         let far: Float = 4
         let horiz = cos(pitch) * far
@@ -419,14 +427,23 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     }
 
     /// 减少动态效果时不飞，直接跳到位。
-    func setCamera(target t: Vec2, distance d: Float, animated: Bool, duration: Double = 0.75) {
+    /// keepZoom = false：连手指放大都还原（总览、选楼）。
+    func setCamera(target t: Vec2, distance d: Float, animated: Bool, duration: Double = 0.75, keepZoom: Bool = true) {
         let half = (map?.half ?? 280) - 30
         let clamped = Vec2(x: max(-half, min(half, t.x)), y: max(-half, min(half, t.y)))
+        // 流程换镜头：双指平移作废（target 已经换咗），手指放大嘅倍数保留（撳地标唔会突然缩返细）。
+        // 平移并入起点，飞过去时画面唔会跳。
+        let (pan, zoom) = locked { () -> (Vec2, Float) in
+            let r = (_pan, _zoom); _pan = .zero
+            if !keepZoom { _zoom = 1 }
+            return r
+        }
+        if !keepZoom { userAdjusted = false }
         guard animated, !reduceMotion else {
             cameraNode.removeAction(forKey: "fly")
             target = clamped; distance = d; applyCamera(); return
         }
-        let from = (target, distance)
+        let from = (target + pan, distance * (keepZoom ? 1 : zoom))
         let action = SCNAction.customAction(duration: duration) { [weak self] _, e in
             guard let self else { return }
             let x = Double(e) / duration
@@ -452,7 +469,99 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         let size = map?.size ?? 560
         return Float(LaunchArgs.value("-ovd").flatMap(Double.init) ?? (size < 400 ? 0.88 * size / 200 : 2.35 * size / 560))
     }
-    func resetCamera() { setCamera(target: overviewTarget, distance: overviewDistance, animated: true) }
+    func resetCamera() { setCamera(target: overviewTarget, distance: overviewDistance, animated: true, keepZoom: false) }
+
+    // MARK: - 手势：双指缩放 / 平移（单指照旧：撳地标、向下拉放大）
+
+    /// 用户双指郁过镜头、未复位。双击复位只喺呢个时候先等（唔郁过就唔拖慢撳地标）。
+    private(set) var userAdjusted = false
+    /// 最近一次双指手势嘅时间：SwiftUI 嘅「向下拉放大」见到啱啱双指郁过就唔当拉。
+    private(set) var lastMultiTouch: CFTimeInterval = 0
+    /// 放大上限：底座总览嘅 1/4（大约睇到 50 m 一带）；缩细下限：总览或者流程镜头再细 1/4（成个底座仲睇得到）。
+    private var zoomRange: ClosedRange<Float> {
+        let d = locked { _distance }
+        let lo = overviewDistance * 0.25, hi = max(d, overviewDistance) * 1.25
+        return (lo / max(d, 0.001))...(hi / max(d, 0.001))
+    }
+
+    /// 屏幕上一点对住嘅地面点（米）。按而家嘅镜头直接计（正交投影：画面中心 = target + pan，
+    /// orthographicScale = 半个画面高嘅场景单位）；唔用 unprojectPoint，佢用上一帧嘅投影，同一轮先放大再拖会计错。
+    func groundPoint(at p: CGPoint) -> Vec2? {
+        guard let v = view, v.bounds.height > 0, let cam = cameraNode.camera else { return nil }
+        let (tg, pan) = locked { (_target, _pan) }
+        let upp = cam.orthographicScale * 2 / Double(v.bounds.height)          // 场景单位 / 点
+        let s = Double(SceneStyle.scale)
+        let dx = Double(p.x - v.bounds.midX) * upp / s                          // 米，向右
+        let dy = Double(p.y - v.bounds.midY) * upp / s / Double(sin(pitch))     // 米，向镜头（屏幕向下）
+        let az = Double(azimuth)
+        let right = Vec2(x: cos(az), y: sin(az)), toward = Vec2(x: sin(az), y: -cos(az))
+        return tg + pan + right * dx + toward * dy
+    }
+
+    /// 平移限喺底座入面（画面中心唔会拖出模型）。
+    private func clampPan(_ p: Vec2) -> Vec2 {
+        let lim = (map?.half ?? 100) - 15
+        let tg = target
+        return Vec2(x: max(-lim - tg.x, min(lim - tg.x, p.x)), y: max(-lim - tg.y, min(lim - tg.y, p.y)))
+    }
+
+    private func touched() {
+        lastMultiTouch = CACurrentMediaTime()
+        userAdjusted = true
+        cameraNode.removeAction(forKey: "fly")
+    }
+
+    /// 双指捏合：以两指中间为中心放大缩细（嗰点地面留喺手指下面）。
+    func userZoom(by scale: CGFloat, around p: CGPoint) {
+        guard scale > 0 else { return }
+        touched()
+        let (z0, pan0) = locked { (_zoom, _pan) }
+        let z = min(zoomRange.upperBound, max(zoomRange.lowerBound, z0 / Float(scale)))
+        guard abs(z - z0) > 1e-5 else { return }
+        var pan = pan0
+        // 正交镜头：地面绕画面中心 C 按 f 缩放；要 P 唔郁，中心移去 P + (C − P)·f。
+        if let P = groundPoint(at: p) {
+            let C = target + pan0, f = Double(z / z0)
+            pan = pan0 + (P + (C - P) * f - C)
+        }
+        let clamped = clampPan(pan)
+        locked { _zoom = z; _pan = clamped }
+        applyCamera()
+    }
+
+    /// 双指拖动：手指下面嗰点地面跟住手指走。
+    func userPan(from a: CGPoint, to b: CGPoint) {
+        touched()
+        guard let pa = groundPoint(at: a), let pb = groundPoint(at: b) else { return }
+        let pan = clampPan(locked { _pan } + (pa - pb))
+        locked { _pan = pan }
+        applyCamera()
+    }
+
+    /// 双击、「睇大啲 / 收細」：手指放大、平移全部还原，返去流程摆好嘅镜头。
+    func resetUserCamera(animated: Bool = true) {
+        guard userAdjusted else { return }
+        userAdjusted = false
+        let (z0, p0) = locked { (_zoom, _pan) }
+        guard animated, !reduceMotion else { clearUserCamera(); return }
+        let duration = 0.45
+        let action = SCNAction.customAction(duration: duration) { [weak self] _, e in
+            guard let self else { return }
+            let x = Double(e) / duration
+            let k = 1 - exp(-7 * x) * (1 + 7 * x)
+            self.locked { self._zoom = z0 + (1 - z0) * Float(k); self._pan = p0 * (1 - k) }
+            self.applyCamera()
+        }
+        cameraNode.removeAction(forKey: "fly")
+        cameraNode.runAction(.sequence([action, .run { [weak self] _ in self?.locked { self?._zoom = 1; self?._pan = .zero } }]), forKey: "fly")
+    }
+
+    /// 即刻清走手指放大、平移（换底座、选楼画面用）。
+    func clearUserCamera() {
+        userAdjusted = false
+        locked { _zoom = 1; _pan = .zero }
+        applyCamera()
+    }
 
     // MARK: - 命中
 
@@ -481,6 +590,10 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     /// 深色时深灰楼体正片叠底不够亮：先叠一层暖色压掉蓝，再加橙色自发光。
     func highlightBuildings(_ ids: Set<Int64>, color: UIColor?) {
         highlighted = (ids, color)
+        if pickHighlight != nil {
+            pickHighlight = nil
+            buildingsNode.childNode(withName: "low", recursively: false)?.geometry?.materials.forEach { $0.multiply.contents = UIColor.white }
+        }
         // 选楼：可以揀嘅楼用实心橙（以前太淡，近肉色，长者搵唔到）；揀中嗰座再深一档。
         let tint = color ?? (ids.count == 1 ? UIColor(red: 0.86, green: 0.40, blue: 0.22, alpha: 1)
                                             : UIColor(red: 0.95, green: 0.62, blue: 0.42, alpha: 1))
@@ -495,6 +608,35 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
                 $0.emission.contents = on && isDark ? (color ?? glow) : UIColor.black
             }
         }
+        SCNTransaction.commit()
+    }
+
+    /// 选楼画面（K-2：每次一样）：可以揀嘅楼一律浅橙；揀中嗰座深橙、加发光；其他楼（包括矮楼）灰色，唔会同可以揀嘅混埋。
+    func highlightPick(candidates: Set<Int64>, selected: Int64?) {
+        pickHighlight = (candidates, selected)
+        highlighted = ([], nil)
+        let light = UIColor(red: 0.97, green: 0.68, blue: 0.48, alpha: 1)
+        let deep = UIColor(red: 0.84, green: 0.33, blue: 0.12, alpha: 1)
+        let gray = isDark ? UIColor(white: 0.62, alpha: 1) : UIColor(white: 0.80, alpha: 1)
+        let warm = UIColor(red: 1, green: 0.78, blue: 0.5, alpha: 1)
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = 0.35
+        for (id, node) in pickableNodes {
+            let sel = id == selected, cand = candidates.contains(id)
+            node.geometry?.materials.forEach {
+                if sel {
+                    $0.multiply.contents = isDark ? warm : deep
+                    $0.emission.contents = isDark ? UIColor(red: 0.85, green: 0.36, blue: 0.05, alpha: 1) : UIColor(red: 0.30, green: 0.08, blue: 0, alpha: 1)
+                } else if cand {
+                    $0.multiply.contents = isDark ? warm : light
+                    $0.emission.contents = isDark ? UIColor(red: 0.40, green: 0.20, blue: 0.06, alpha: 1) : UIColor.black
+                } else {
+                    $0.multiply.contents = gray
+                    $0.emission.contents = UIColor.black
+                }
+            }
+        }
+        buildingsNode.childNode(withName: "low", recursively: false)?.geometry?.materials.forEach { $0.multiply.contents = gray }
         SCNTransaction.commit()
     }
 

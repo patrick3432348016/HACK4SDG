@@ -20,16 +20,25 @@ extension AppStore {
         let gen = mapLoadGen
         loadingMap = true
         mapNotice = nil
+        // 当初系喺示例屋邨揀嘅楼（攞唔到位置 / 地图）：继续用示例屋邨并讲明，唔好去拉示例嗰格嘅真地图，
+        // 扮成「你附近」（B-3：测试员见到皇后山邨嘅「大快活門口」，以为系自己附近）。改楼先会换返真地图。
+        let sampleHome: Bool = {
+            guard case .main = phase else { return false }
+            let d = UserDefaults.standard
+            return d.bool(forKey: "onboarded") && d.bool(forKey: Self.homeFromSampleKey)
+        }()
         // 已经揀咗楼：直接装我屋企嗰格（唔使等定位，喺外面打开都唔会换底座）。
         let homeTile: TileKey? = {
-            guard case .main = phase, let s = UserDefaults.standard.string(forKey: "homeTile") else { return nil }
+            guard case .main = phase, !sampleHome, let s = UserDefaults.standard.string(forKey: "homeTile") else { return nil }
             let p = s.split(separator: ",").compactMap { Int($0) }
             return p.count == 2 ? TileKey(ix: p[0], iy: p[1]) : nil
         }()
-        let loc = homeTile == nil ? await mapService.currentLocation() : nil
+        let loc = homeTile == nil && !sampleHome ? await mapService.currentLocation() : nil
         guard gen == mapLoadGen else { return }
         let loaded: (MapModel, MapService.Source)
-        if let tile = homeTile ?? loc.map(TileKey.snap) {
+        if sampleHome {
+            loaded = (MapService.fallback(), .fallback)
+        } else if let tile = homeTile ?? loc.map(TileKey.snap) {
             loaded = await mapService.load(tile: tile)
         } else {
             // 拿不到位置：不要假装是你附近，直接用内置示例屋邨，并说明。
@@ -44,18 +53,21 @@ extension AppStore {
         mapSource = source
         if case .onboarding = phase {
             let me = loc.flatMap { TileKey.snap($0) == m.tile ? LocalProjection(origin: m.center).toLocal($0) : nil }
-            let notice: String? = loc == nil ? L.t("攞唔到你嘅位置，而家用緊示例屋邨（\(m.placeName)）。", "获取不到你的位置，现在使用示例小区（\(m.placeName)）。")
-                : source == .fallback ? L.t("攞唔到地圖資料，而家用緊示例屋邨（\(m.placeName)）。", "获取不到地图数据，现在使用示例小区（\(m.placeName)）。") : nil
+            let notice: String? = loc == nil ? L.t("攞唔到你嘅位置，所以冇幫你估。而家用緊示例屋邨（\(m.placeName)），唔係你附近。", "拿不到你的位置，所以没帮你猜。现在先显示示例屋邨（\(m.placeName)），不是你家附近。")
+                : source == .fallback ? L.t("暫時攞唔到你附近嘅地圖，所以冇幫你估。而家用緊示例屋邨（\(m.placeName)），唔係你附近。", "暂时拿不到你附近的地图，所以没帮你猜。现在先显示示例屋邨（\(m.placeName)），不是你家附近。") : nil
             showPickHome(near: me, notice: notice, animated: animated)
         } else {
             var homeID = home.flatMap { id in m.building(id: id) != nil ? id : nil }
             if homeID == nil {
                 if let t = homeTile, m.tile != t {
                     // 拉不到我屋企那格（离线又没缓存）：显示示例屋邨，但不把示例的楼当成你屋企。
-                    noticeMap(L.t("暫時攞唔到你屋企附近嘅地圖，而家顯示緊示例屋邨。", "暂时获取不到你家附近的地图，现在显示示例小区。"), delay: 1)
+                    noticeMap(L.t("暫時攞唔到你屋企附近嘅地圖，而家顯示緊示例屋邨。", "暂时拿不到你家附近的地图，现在先显示示例屋邨。"), delay: 1)
                 } else {
                     homeID = defaultHome(in: m)
                 }
+            } else if sampleHome {
+                noticeMap(L.t("而家顯示緊示例屋邨（\(m.placeName)），唔係你附近。喺屋企開定位，去設定「重新揀樓」就換到你附近。",
+                              "现在显示的是示例屋邨（\(m.placeName)），不是你家附近。在家打开定位，到设置里「重新选楼」就能换成你家附近。"), delay: 1)
             }
             installDiorama(home: homeID, animated: animated)
             loadingMap = false
@@ -71,7 +83,7 @@ extension AppStore {
         if let me, v.hasHomeCandidate {
             // 画面不是以我为中心（附近没有可选的楼）：讲清楚，免得以为橙色那几座就是我附近。
             let p = v.scenePoint(LocalProjection(origin: full.center).toGeo(me))
-            if max(abs(p.x), abs(p.y)) > v.half { notice = notice ?? L.t("你附近未有住宅樓資料，而家顯示緊離你最近嘅住宅樓。", "你附近还没有住宅楼数据，现在显示离你最近的住宅楼。") }
+            if max(abs(p.x), abs(p.y)) > v.half { notice = notice ?? L.t("你而家附近冇住宅樓（可能唔喺屋企），所以冇幫你估。而家顯示緊離你最近嘅住宅樓。", "你现在附近没有住宅楼（可能不在家），所以没帮你猜。现在显示的是离你最近的住宅楼。") }
         }
         if !v.hasHomeCandidate {
             full = full.addingPlaceholderHome(at: me ?? .zero).map
@@ -82,26 +94,36 @@ extension AppStore {
         install(v, home: nil, animated: animated)
         pickCamera(animated: false)
         loadingMap = false
+        pendingHome = nil
         phase = .onboarding(.pickHome)
         highlightResidential(true)
         // 知道你喺边、附近有住宅楼：先替你揀最近嗰座，问「你係咪住XX樓？」（唔啱先自己揀，见 OnbPickHomeStep）。
-        if let me, notice == nil, let id = guessHome(in: v, at: v.scenePoint(LocalProjection(origin: full.center).toGeo(me))) { pickHome(id) }
+        // 估唔到都要讲点解（A-2：喺学校装，冇估又冇讲，以为坏咗）。
+        if let me, notice == nil {
+            if let id = guessHome(in: v, at: v.scenePoint(LocalProjection(origin: full.center).toGeo(me))) { pickHome(id) }
+            else { notice = L.t("你而家附近冇住宅樓（可能唔喺屋企），所以冇幫你估。撳你住嗰座，或者返到屋企再揀。", "你现在附近没有住宅楼（可能不在家），所以没帮你猜。请点你住的那栋，或者回家后再选。") }
+        }
         // 等「你係咪住…」/「撳一下你住嗰座樓」说完再说。
         if let notice { noticeMap(notice, delay: 2.5) }
     }
 
     /// 选楼画面全屏看整个底座（主界面的总览按上半屏调的，这里另算；数值按 300 m 调，再按边长缩放）。
+    /// 每次都一样（K-2）：选楼系全屏，唔用主画面「今日」页嗰个裁细咗嘅视窗比例（以前由设定改楼会放大到只见一块地），
+    /// 手指放大亦还原。
     func pickCamera(animated: Bool) {
         guard let v = map else { return }
         let k = v.size / 300
-        scene.setCamera(target: Vec2(x: -65 * k, y: 65 * k), distance: Float(2.85 * k), animated: animated)
+        scene.viewportScale = 1
+        scene.setCamera(target: Vec2(x: -65 * k, y: 65 * k), distance: Float(2.85 * k), animated: animated, keepZoom: false)
     }
 
-    /// 估你住边座：脚下嗰座住宅楼，冇就最近嗰座（120 米以外唔估，交俾你自己揀）。
+    /// 估你住边座：脚下嗰座可以揀嘅楼，冇就最近嗰座真住宅楼（120 米以外唔估，交俾你自己揀）。
+    /// 附近冇住宅楼时放宽出嚟嘅一般建筑（学校、商铺旁边）唔估「最近」：你多数唔喺屋企（A-2）。
     func guessHome(in v: MapModel, at p: Vec2) -> Int64? {
         let homes = v.buildings.filter { $0.kind == .residential }
         if let b = homes.first(where: { Polygon.contains($0.outline, p) }) { return b.id }
-        guard let b = homes.min(by: { $0.centroid.distance(to: p) < $1.centroid.distance(to: p) }), b.centroid.distance(to: p) <= 120 else { return nil }
+        let real = homes.filter { fullMap?.building(id: $0.id)?.looksLikeHome ?? true }
+        guard let b = real.min(by: { $0.centroid.distance(to: p) < $1.centroid.distance(to: p) }), b.centroid.distance(to: p) <= 120 else { return nil }
         return b.id
     }
 
@@ -109,7 +131,6 @@ extension AppStore {
     func pickHomeManually() {
         pendingHome = nil
         highlightResidential(true)
-        pickCamera(animated: true)
     }
 
     /// 选楼画面里可以揀嘅楼（住宅楼）。
@@ -122,7 +143,7 @@ extension AppStore {
         fullMap = MapService.fallback()
         mapSource = .fallback
         pendingHome = nil
-        showPickHome(near: nil, notice: L.t("而家用緊示例屋邨（\(fullMap?.placeName ?? "皇后山邨")）。", "现在使用示例小区（\(fullMap?.placeName ?? "皇后山邨")）。"), animated: true)
+        showPickHome(near: nil, notice: L.t("而家用緊示例屋邨（\(fullMap?.placeName ?? "皇后山邨")），唔係你附近。", "现在先显示示例屋邨（\(fullMap?.placeName ?? "皇后山邨")），不是你家附近。"), animated: true)
     }
 
     /// 地图有状况（示例屋邨、示意楼）：mapNotice 留给画面显示，再用提示说一次（字 + 声）。
@@ -162,15 +183,23 @@ extension AppStore {
     /// 可以选做屋企的楼。选楼画面已把可选的楼标成住宅楼（没有住宅资料时放宽到一般建筑或示意楼，见 MapModel.pickView）。
     func residentialBuildings() -> [Building] { map?.buildings.filter { $0.kind == .residential } ?? [] }
 
+    /// 选楼染色（K-2：每次一样）：可以揀嘅楼一律浅橙，揀中嗰座深橙加发光，其他楼灰。
+    /// 选楼画面用固定嘅日光（上午、东南）：夜晚揀楼橙色都睇得清，每次一样；离开选楼就用返真太阳。
     func highlightResidential(_ on: Bool) {
-        scene.highlightBuildings(on ? Set(residentialBuildings().map(\.id)) : [], color: nil)
+        if on {
+            scene.setSun(SolarPosition(elevation: 50, azimuth: 135), animated: false)
+            scene.highlightPick(candidates: Set(residentialBuildings().map(\.id)), selected: pendingHome)
+        } else {
+            scene.highlightBuildings([], color: nil)
+            updateSun(animated: false)
+        }
     }
 
+    /// 揀中一座：只换染色，镜头唔郁（以前飞埋去放到好大，有时得一块地；要睇清楚可以双指放大）。
     func pickHome(_ id: Int64) {
-        guard let b = map?.building(id: id), b.kind == .residential else { toast(L.t("請揀一座亮咗橙色嘅樓", "请选一座亮橙色的楼")); return }
+        guard map?.building(id: id)?.kind == .residential else { toast(L.t("請揀一座亮咗橙色嘅樓", "请选一座亮橙色的楼")); return }
         pendingHome = id
-        scene.highlightBuildings([id], color: nil)
-        scene.setCamera(target: b.centroid, distance: 1.2, animated: true)
+        highlightResidential(true)
         Haptics.select()
     }
 
@@ -243,7 +272,38 @@ extension AppStore {
         checkAppointments()
         uploadProfile()     // 真后端：座数、连续天数跟返而家（一样就唔再传）
         runScriptIfNeeded()
+        showMapPreviewIfNeeded()
     }
+
+    /// 截图自检（模拟器点不到）：-uiPreview landmarkCard 打开第一个地标卡；-uiPreview changeHome 由设定「重新揀樓」入选楼画面。只做一次。
+    private func showMapPreviewIfNeeded() {
+        guard !Self.mapPreviewShown else { return }
+        if UIPreview.is("landmarkCard"), let id = landmarks.first?.id {
+            Self.mapPreviewShown = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.select(.landmark(id)) }
+        } else if UIPreview.is("mapZoom") {
+            // 当双指喺画面中间放大两倍，再向右拖 60 点（检查放大方向、手指下面嘅地面跟住手指）
+            Self.mapPreviewShown = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                guard let v = self.scene.view else { return }
+                let c = CGPoint(x: v.bounds.midX, y: v.bounds.midY)
+                self.scene.userZoom(by: 2, around: c)
+                self.scene.userPan(from: c, to: CGPoint(x: c.x + 60, y: c.y))
+            }
+        } else if UIPreview.is("changeHome") || UIPreview.is("changeHomePick") {
+            Self.mapPreviewShown = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.beginChangeHome() }
+            // changeHomePick：入到选楼之后自己揀第一座（睇「就係呢座」卡）
+            if UIPreview.is("changeHomePick") {
+                Task { @MainActor in
+                    while self.phase != .onboarding(.pickHome) { try? await Task.sleep(for: .milliseconds(300)) }
+                    try? await Task.sleep(for: .seconds(3))
+                    if let b = self.residentialBuildings().first(where: { $0.id != self.pendingHome }) { self.pickHome(b.id) }
+                }
+            }
+        }
+    }
+    @MainActor private static var mapPreviewShown = false
 
     /// 圈成员变了（关演示模式、清除纪录）：指向已不在圈里、或不再是街坊的人的找人、选中、提议、提醒、复述卡都收起，
     /// 不会留下关不掉的卡，非街坊也不会留在场景。
