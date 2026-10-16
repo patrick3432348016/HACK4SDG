@@ -56,9 +56,9 @@ struct SettingsView: View {
                     .frame(minHeight: 56)
                     Button { confirmMove = true } label: { Text(L.t("改我住嘅樓", "改我住的楼")).frame(minHeight: 56) }
                     floorRow
-                    DSMenuPicker(title: L.t("小人", "形象"), selection: Binding(get: { store.mobilityChoice }, set: { store.setAvatar(mobility: $0) }),
+                    DSMenuPicker(title: L.t("出行方式", "出行方式"), selection: Binding(get: { store.mobilityChoice }, set: { store.setAvatar(mobility: $0) }),
                                  options: Mobility.allCases, label: \.label)
-                    DSMenuPicker(title: L.t("年紀", "年龄"), selection: Binding(get: { store.ageChoice }, set: { store.setLook(age: $0) }),
+                    DSMenuPicker(title: L.t("年齡層", "年龄层"), selection: Binding(get: { store.ageChoice }, set: { store.setLook(age: $0) }),
                                  options: AgeGroup.allCases, label: \.label)
                     skinRow
                     colorRow
@@ -82,6 +82,16 @@ struct SettingsView: View {
                     // 由、到一樣當全日（A66）
                     Text(store.remindFrom == store.remindTo ? L.t("「由」同「到」一樣，即係全日都會通知你。每個街坊仲可以喺「街坊」頁分開開關。", "「从」和「到」一样，就是全天都会通知你。每个邻居还可以在「邻居」页单独开关。")
                          : L.t("只喺呢段時間通知你\(store.remindFrom > store.remindTo ? "（跨夜）" : "")。每個街坊仲可以喺「街坊」頁分開開關。", "只在这段时间通知你\(store.remindFrom > store.remindTo ? "（跨夜）" : "")。每个邻居还可以在「邻居」页单独开关。")).ds(.caption)
+                }
+
+                // 测试反馈：设定要有隐私政策同帮助反馈（放喺「進階」上面，唔使展开就见到）
+                Section {
+                    NavigationLink { HelpView() } label: {
+                        Label(L.t("幫助同意見", "帮助与反馈"), systemImage: "questionmark.circle").frame(minHeight: 56)
+                    }
+                    NavigationLink { PrivacyPolicyView() } label: {
+                        Label(L.t("私隱政策", "隐私政策"), systemImage: "hand.raised").frame(minHeight: 56)
+                    }
                 }
 
                 // 進階：开发同排查用嘅嘢，平时收埋（长者见到 IP 地址会惊）
@@ -109,7 +119,7 @@ struct SettingsView: View {
                     .accessibilityValue(showAdvanced ? L.t("打開咗", "已展开") : L.t("收埋咗", "已收起"))
                 } footer: {
                     if !showAdvanced {
-                        Text(L.t("語音伺服器、揀把聲、下載聲音、定位、演示模式、私隱、清除紀錄", "语音服务器、选声音、下载声音、定位、演示模式、隐私、清除记录")).ds(.caption)
+                        Text(L.t("語音伺服器、揀把聲、下載聲音、定位、演示模式、清除紀錄", "语音服务器、选声音、下载声音、定位、演示模式、清除记录")).ds(.caption)
                     }
                 }
                 .id("advanced")
@@ -190,13 +200,6 @@ struct SettingsView: View {
         } footer: {
             Text(LaunchArgs.has("-demo") ? L.t("而家用演示參數開啟，唔可以喺度關。", "现在用演示参数开启，不能在这里关。")
                  : L.t("演示模式會加入示範街坊、示範紀錄同右上角嘅演示選單。關咗之後用真伺服器：排行榜係附近真人，要兩部手機碰一碰先做到街坊。", "演示模式会加入示范邻居、示范记录和右上角的演示菜单。关掉之后用真服务器：排行榜是附近真人，要两部手机碰一碰才能成为邻居。")).ds(.caption)
-        }
-
-        Section {
-            PrivacyRows().padding(.vertical, 8)
-            Button(L.t("讀出嚟", "读出来")) { store.sayAgain(PrivacyRows.spoken) }.frame(minHeight: 56)
-        } header: {
-            Text(L.t("私隱：邊個見到乜", "隐私：谁能看到什么")).ds(.caption)
         }
 
         Section {

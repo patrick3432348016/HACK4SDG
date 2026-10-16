@@ -151,12 +151,20 @@ private struct MainLayout: View {
     let size: CGSize
     let safe: EdgeInsets
     @State private var scroll = MainScrolls()
+    /// 测试反馈：向下拉地图以为会放大 → 向下拉 / 撳「睇大啲」放大到约 2/3 屏，向上拉 / 撳「收細」返原位。
+    @State private var sceneExpanded = UIPreview.is("sceneExpanded")   // 截图自检：-uiPreview sceneExpanded
 
     var body: some View {
         let full = store.findFullScreen
-        // 场景只喺「今日」页（用户 10-12 拍板：约 25%）；排行榜、街坊只留顶部一条放设定掣，成页俾内容（UX 报告 6）
+        // 场景只喺「今日」页；排行榜、街坊只留顶部一条放设定掣，成页俾内容（UX 报告 6）
         let band = safe.top + DS.gap + 44 + 8
-        let sceneH = full ? size.height : store.tab == .today ? max(band + 60, (size.height * DS.sceneFraction).rounded()) : band
+        let todayH = sceneExpanded ? (size.height * 0.66).rounded() : max(band + 60, (size.height * DS.sceneFraction).rounded())
+        let sceneH = full ? size.height : store.tab == .today ? todayH : band
+        // 模型由灵动岛下面开始画（测试反馈：灵动岛遮住）。模型大细同场景高度无关（高度变只裁上下）；
+        // 模型画面高度 ≈ 屏幕高 × k（k 越大模型越大）。以前 k = 0.42；测试反馈话太细 → 平时 0.45（成个模型刚好放得落），
+        // 放大时 0.62（再大约 1.4 倍，左右裁少少，以屋企为中心）。
+        let sceneArea = full ? sceneH : sceneH - safe.top
+        let viewportScale = full ? Float(1) : Float(sceneArea / (size.height * (sceneExpanded ? 0.62 : 0.45)))
         let showScene = full || store.tab == .today
         let tabH = max(DS.tabBarHeight, safe.bottom + 49)
         let micCenter = CGPoint(x: size.width - DS.side - DS.micSize / 2, y: sceneH)
@@ -174,11 +182,8 @@ private struct MainLayout: View {
                 .accessibilityHidden(full)
 
             // 场景 + 标签（唔喺「今日」页时收起，但保留 SceneKit 状态唔销毁）
-            MainScene(width: size.width, height: sceneH, safe: safe, micCenter: micCenter, full: full)
-                .onChange(of: sceneH, initial: true) { _, h in
-                    // 场景矮咗：模型大细唔变，只裁上下（以屋企为中心）
-                    store.scene.viewportScale = full ? 1 : Float(min(1, h / (size.height * 0.42)))
-                }
+            MainScene(width: size.width, height: sceneH, safe: safe, micCenter: micCenter, full: full, expanded: $sceneExpanded)
+                .onChange(of: viewportScale, initial: true) { _, v in store.scene.viewportScale = v }
                 .opacity(showScene ? 1 : 0)
                 .allowsHitTesting(showScene)
                 .accessibilityHidden(!showScene)
@@ -231,6 +236,9 @@ private struct MainLayout: View {
         .frame(width: size.width, height: size.height)
         .animation(DS.motion(DS.spring), value: full)
         .animation(DS.motion(DS.snappy), value: store.tab)
+        .animation(DS.motion(DS.spring), value: sceneExpanded)
+        .onChange(of: store.tab) { _, _ in sceneExpanded = false }
+        .onChange(of: full) { _, _ in sceneExpanded = false }
     }
 }
 
@@ -260,6 +268,7 @@ private struct MainScene: View {
     let safe: EdgeInsets
     let micCenter: CGPoint
     let full: Bool
+    @Binding var expanded: Bool
     @ScaledMetric(relativeTo: .caption2) private var creditSize: CGFloat = 13
 
     var body: some View {
@@ -268,11 +277,14 @@ private struct MainScene: View {
         if !full {
             reserved.append(CGRect(x: micCenter.x - DS.micSize / 2 - 4, y: micCenter.y - DS.micSize / 2 - 4,
                                    width: DS.micSize + 8, height: DS.micSize / 2 + 4))
+            reserved.append(CGRect(x: width / 2 - 90, y: height - 48, width: 180, height: 48))   // 「睇大啲」掣
         }
         return ZStack(alignment: .topLeading) {
             DioramaView(controller: store.scene, onTap: handleSceneTap)
                 .accessibilityLabel(L.t("你附近嘅立體地圖", "你附近的立体地图"))
                 .accessibilityHint(L.t("地標喺「今日」頁嘅「附近地標」都揀得到", "地标在「今天」页的「附近地标」也能选"))
+                // 由灵动岛 / 状态栏下面开始画，唔俾灵动岛遮住模型（找人全屏照旧铺满）
+                .padding(.top, full ? 0 : safe.top)
             // 状态栏可读：顶部一层很淡的渐变（浅色白、深色黑）。
             LinearGradient(colors: [Color(.systemBackground).opacity(0.55), Color(.systemBackground).opacity(0)],
                            startPoint: .top, endPoint: .bottom)
@@ -289,9 +301,42 @@ private struct MainScene: View {
                 .padding(.bottom, 6)
                 .frame(width: width, height: height, alignment: .bottomLeading)
                 .allowsHitTesting(false)
+            if !full { expandHandle }
         }
         .frame(width: width, height: height)
+        .background(Color(uiColor: SceneStyle.background))
         .clipped()
+        // 向下拉放大、向上拉收细（同其他 App 一样）；同撳地标唔撞（要拉过 30pt 先算）
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30)
+                .onEnded { v in
+                    guard !full, abs(v.translation.height) > abs(v.translation.width) else { return }
+                    if v.translation.height > 40, !expanded { expanded = true; Haptics.select() }
+                    else if v.translation.height < -40, expanded { expanded = false; Haptics.select() }
+                }
+        )
+    }
+
+    /// 底部中间一粒细掣：「向下拉睇大啲」/「收細」，话俾人知幅地图拉得大。
+    private var expandHandle: some View {
+        Button {
+            expanded.toggle()
+            Haptics.select()
+        } label: {
+            Label(expanded ? L.t("收細地圖", "收小地图") : L.t("睇大啲", "看大一点"),
+                  systemImage: expanded ? "chevron.up" : "chevron.down")
+                .font(.system(size: creditSize + 2, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 36)
+                .background(.thinMaterial, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .dynamicTypeSize(...DynamicTypeSize.xLarge)
+        .padding(.bottom, 6)
+        .frame(width: width, height: height, alignment: .bottom)
+        .accessibilityHint(L.t("地圖亦可以向下拉放大", "地图也可以往下拉放大"))
     }
 
     private func handleSceneTap(_ hit: DioramaController.Hit?) {

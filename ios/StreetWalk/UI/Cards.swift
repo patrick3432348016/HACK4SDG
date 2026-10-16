@@ -10,6 +10,7 @@ struct ProposalCard: View {
     @Environment(AppStore.self) private var store
     @State private var taps = 0
     @State private var cancelling: Appointment?
+    @State private var customizing = false
 
     var body: some View {
         if let p = store.proposal, p.options.indices.contains(p.index) {
@@ -22,6 +23,9 @@ struct ProposalCard: View {
             }
             .sensoryFeedback(.impact(weight: .light), trigger: taps)
             .cancelMeetupDialog($cancelling)
+            .sheet(isPresented: $customizing) {
+                CustomMeetupSheet(initial: p.options[p.index]).environment(store)
+            }
         }
     }
 
@@ -60,6 +64,16 @@ struct ProposalCard: View {
             .background(DS.accentSoft, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .animation(DS.motion(DS.spring), value: current)
             .accessibilityElement(children: .combine)
+
+            // 测试反馈：时间地点要可以撳入去自己揀，行几耐都可以喺度定
+            Button { customizing = true } label: {
+                Label(L.t("自己揀時間、地點、行幾耐", "自己选时间、地点、走多久"), systemImage: "slider.horizontal.3")
+                    .ds(.captionBold)
+                    .foregroundStyle(DS.accentInk)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
 
             Button { store.confirmProposal() } label: {
                 Text(L.t("好", "好")).frame(maxWidth: .infinity)
@@ -202,7 +216,7 @@ struct ProposalCard: View {
 
 // MARK: - 点场景里的地标 / 人
 
-/// 点地标：名字、有冇櫈、而家有冇陰、「約街坊喺度」（主按钮）、「改名」（细字）；点人：喺边、「約佢行」或「過去搵佢」。
+/// 点地标：名字、有冇櫈、而家有冇陰（普通文字，唔似掣）、「約街坊喺度」（主按钮）；点人：喺边、「約佢行」或「過去搵佢」。
 struct InfoCard: View {
     @Environment(AppStore.self) private var store
     @State private var taps = 0
@@ -250,10 +264,14 @@ struct InfoCard: View {
                 closeButton
             }
 
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) { facts(lm, shade: shade) }
-                VStack(alignment: .leading, spacing: 8) { facts(lm, shade: shade) }
+            // 测试反馈：「没凳子」「太阳下山了」做成胶囊似掣、以为撳得 → 改成普通说明文字，前面讲明「呢度而家」
+            VStack(alignment: .leading, spacing: 6) {
+                Text(L.t("呢度而家：", "这里现在："))
+                    .ds(.caption)
+                    .foregroundStyle(.secondary)
+                facts(lm, shade: shade)
             }
+            .accessibilityElement(children: .combine)
 
             if renaming {
                 VStack(alignment: .leading, spacing: 12) {
@@ -292,21 +310,8 @@ struct InfoCard: View {
                 }
                 .transition(DS.slide(.bottom))
             } else {
-                VStack(spacing: 4) {
-                    meetHereButton(lm)
-                    // 改名好少用：细字连结（UX 评审 15）
-                    Button {
-                        taps += 1
-                        store.renaming = lm.id
-                    } label: {
-                        Label(L.t("改名", "改名"), systemImage: "pencil")
-                            .ds(.caption)
-                            .foregroundStyle(DS.accentInk)
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
+                // 测试反馈：「改名」唔知做咩用 → 拎走入口（讲「改名叫…」仍然得）
+                meetHereButton(lm)
                 .transition(.opacity)
             }
         }
@@ -353,7 +358,7 @@ struct InfoCard: View {
     }
 
     @ViewBuilder private func facts(_ lm: Landmark, shade: Int) -> some View {
-        CardFact(symbol: lm.hasSeat ? "chair.lounge.fill" : "chair.lounge", text: lm.hasSeat ? L.t("有櫈", "有凳子") : L.t("冇櫈", "没凳子"))
+        CardFact(symbol: lm.hasSeat ? "chair.lounge.fill" : "chair.lounge", text: lm.hasSeat ? L.t("有櫈可以坐", "有凳子可以坐") : L.t("冇櫈坐", "没有凳子坐"))
         let fact = store.shadeFact(lm.id)
         CardFact(symbol: fact.symbol, text: fact.text)
             .contentTransition(.numericText(value: Double(shade)))
@@ -502,10 +507,73 @@ private struct CardFact: View {
         } icon: {
             Image(systemName: symbol).foregroundStyle(DS.accent)
         }
-        .ds(.caption)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color(.tertiarySystemFill), in: Capsule())
+        .ds(.body)
+        .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .combine)
+    }
+}
+
+
+// MARK: - 自己揀时间地点
+
+/// 约人卡「自己揀」：日期时间（15 分钟一格，由而家到两个星期后）、地点（附近地标）、一齐行几耐。
+struct CustomMeetupSheet: View {
+    @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @State private var date: Date
+    @State private var landmarkID: String
+    @State private var minutes = 30
+    private static let durations = [15, 30, 45, 60, 90]
+
+    init(initial: MeetProposal) {
+        _date = State(initialValue: initial.date)
+        _landmarkID = State(initialValue: initial.landmarkID)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    DatePicker(L.t("時間", "时间"), selection: $date,
+                               in: store.now...store.now.addingTimeInterval(14 * 86400),
+                               displayedComponents: [.date, .hourAndMinute])
+                        .datePickerStyle(.graphical)
+                        .tint(DS.accent)
+                } header: { Text(L.t("幾時", "什么时候")).ds(.caption) }
+
+                Section {
+                    Picker(L.t("地點", "地点"), selection: $landmarkID) {
+                        ForEach(store.landmarks) { lm in
+                            Text(lm.hasSeat ? L.t("\(lm.name)（有櫈）", "\(lm.name)（有凳子）") : lm.name).tag(lm.id)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                } header: { Text(L.t("喺邊度等", "在哪里见")).ds(.caption) }
+
+                Section {
+                    Picker(L.t("行幾耐", "走多久"), selection: $minutes) {
+                        ForEach(Self.durations, id: \.self) { m in Text(L.t("\(m) 分鐘", "\(m) 分钟")).tag(m) }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.vertical, 6)
+                } header: { Text(L.t("一齊行幾耐", "一起走多久")).ds(.caption) }
+            }
+            .navigationTitle(L.t("自己揀", "自己选"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L.t("取消", "取消")) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L.t("用呢個", "用这个")) {
+                        store.setCustomProposal(date: date, landmarkID: landmarkID, minutes: minutes)
+                        dismiss()
+                    }
+                    .bold()
+                }
+            }
+        }
+        .presentationDetents([.large])
     }
 }

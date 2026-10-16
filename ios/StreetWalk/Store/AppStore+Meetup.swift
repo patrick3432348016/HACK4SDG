@@ -88,6 +88,19 @@ extension AppStore {
     }
 
     /// 地点理由：遮荫按画面上的楼大约计（唔计树荫）。
+    /// 测试反馈：时间地点要可以自己揀、行几耐都可以自己定。用自己揀嘅替换而家显示嗰个选项（「換個時間 / 地方」照旧轮住换）。
+    /// 行几耐写入理由（理由会同步俾对方，佢都见到）。
+    func setCustomProposal(date: Date, landmarkID: String, minutes: Int) {
+        guard var p = proposal, p.options.indices.contains(p.index), let lm = landmark(landmarkID) else { return }
+        guard date > now else { toast(L.t("嗰個時間已經過咗，揀過第二個。", "那个时间已经过了，换一个吧。")); return }
+        let walk = L.t("，一齊行 \(minutes) 分鐘", "，一起走 \(minutes) 分钟")
+        p.options[p.index] = MeetProposal(date: date, landmarkID: lm.id, reason: reason(for: lm, at: date) + walk)
+        proposal = p
+        scene.highlightLandmark(lm.id)
+        focus(onLandmark: lm.id)
+        Haptics.select()
+    }
+
     func reason(for l: Landmark, at d: Date) -> String {
         let s = shade?.shade(landmarkID: l.id, at: d) ?? 0
         return (shade?.isSunUp(at: d) == false ? L.t("嗰陣已經日落", "那时已经日落") : s >= 0.5 ? L.t("嗰陣有樓遮住", "那时有楼挡着") : L.t("嗰陣會曬", "那时会晒")) + (l.hasSeat ? L.t("、有櫈", "、有凳子") : "")

@@ -36,12 +36,12 @@ enum TextSize: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// 「今日」页上面 3D 场景占屏幕高度（排行榜、街坊冇场景）。用户 10-12 拍板：由 42% 改约 25%，等内容区有重心；字大再缩。
+    /// 「今日」页上面 3D 场景占屏幕高度（排行榜、街坊冇场景）。用户 10-12 拍板改约 25%；10-16 测试反馈「太细、太靠上、灵动岛遮住」→ 加大到约 38%（模型由灵动岛下面开始画）；字大再缩。向下拉可以再放大（MainLayout）。
     var sceneFraction: CGFloat {
         switch self {
-        case .small, .standard: return 0.25
-        case .large: return 0.22
-        case .xlarge: return 0.18
+        case .small, .standard: return 0.38
+        case .large: return 0.34
+        case .xlarge: return 0.30
         }
     }
 

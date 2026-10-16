@@ -263,12 +263,19 @@ private struct OnbWelcomeStep: View {
     var onSkip: () -> Void
     @State private var appeared = false
 
-    static var spoken: String { L.t("街坊行幫你記錄每日散步，約隔籬街坊一齊行。", "街坊行帮你记录每天散步，约隔壁邻居一起走。") }
+    static var spoken: String { L.t("街坊行幫你記錄每日散步，約隔籬街坊一齊行；上面幅地圖幫你哋搵到對方。", "街坊行帮你记录每天散步，约隔壁邻居一起走；上面的地图帮你们找到对方。") }
 
-    private var features: [(symbol: String, badge: String, text: String)] { [
-        ("figure.walk", "location.fill", L.t("出門自動記錄散步", "出门自动记录散步")),
-        ("person.2.fill", "iphone.radiowaves.left.and.right", L.t("見面碰一碰做街坊", "见面碰一碰做邻居")),
-        ("mic.fill", "figure.2", L.t("撳咪約街坊一齊行", "按麦克风约邻居一起走")),
+    /// 测试反馈：做成卡片似可以撳嘅掣 → 改成普通介绍列表（细图标、冇卡片底、多一行解释），一眼睇得出系「介绍」唔系「功能入口」。
+    /// 第四行讲上面嗰幅小地图（测试反馈：唔知地图有咩用）。
+    private var features: [(symbol: String, text: String, detail: String)] { [
+        ("figure.walk", L.t("自動記錄散步", "自动记录散步"),
+         L.t("出門行就會記，唔使撳任何嘢。", "出门走路就会记，不用点任何东西。")),
+        ("person.2.fill", L.t("碰一碰做街坊", "碰一碰成为邻居"),
+         L.t("同隔籬見面時，兩部手機靠埋一碰。", "和隔壁见面时，两部手机靠在一起碰一下。")),
+        ("map.fill", L.t("地圖幫你搵到對方", "地图帮你找到对方"),
+         L.t("「今日」頁上面係你屋企附近嘅地圖，街坊出咗門會喺地圖上出現。", "「今天」页上面是你家附近的地图，邻居出门了会在地图上出现。")),
+        ("mic.fill", L.t("講一句就約到人", "说一句就能约人"),
+         L.t("撳右上角個咪，講「約佢聽日行」。", "点右上角的麦克风，说「约他明天一起走」。")),
     ] }
 
     var body: some View {
@@ -278,17 +285,25 @@ private struct OnbWelcomeStep: View {
                     .ds(.title)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
+                Text(L.t("街坊行可以幫你：", "街坊行可以帮你："))
+                    .ds(.body)
+                    .foregroundStyle(.secondary)
 
-                VStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 22) {
                     ForEach(Array(features.enumerated()), id: \.offset) { i, f in
-                        HStack(spacing: 16) {
-                            OnbBadgeIcon(symbol: f.symbol, badge: f.badge)
-                            Text(f.text)
-                                .ds(.bodyBold)
-                                .fixedSize(horizontal: false, vertical: true)
+                        HStack(alignment: .top, spacing: 14) {
+                            Image(systemName: f.symbol)
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundStyle(DS.accent)
+                                .frame(width: 32, height: 32)
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(f.text).ds(.bodyBold)
+                                Text(f.detail).ds(.caption).foregroundStyle(.secondary)
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
                             Spacer(minLength: 0)
                         }
-                        .dsCard()
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared || DS.reduceMotion ? 0 : 16)
                         .animation(DS.motion(DS.spring).delay(0.1 + Double(i) * 0.12), value: appeared)

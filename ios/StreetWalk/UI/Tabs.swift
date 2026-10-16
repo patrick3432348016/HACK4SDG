@@ -40,7 +40,7 @@ struct TodayTab: View {
     var body: some View {
         let hero = Self.hero(store)
         VStack(alignment: .leading, spacing: 16) {
-            FirstDayCard()      // 第一日「今日三件事」（自己判断显唔显示，做完三件就冇）
+            FirstDayCard()      // 第一日「今日三件事」（自己判断显唔显示；做完三件由用户撳「收起」）
             heroCard(hero)
                 .id(heroKey(hero))
                 .transition(.tabsInsert)
@@ -56,6 +56,7 @@ struct TodayTab: View {
         .animation(DS.motion(DS.spring), value: store.outNeighbors.map(\.id))
         .animation(DS.motion(DS.spring), value: store.walk == nil)
         .animation(DS.motion(DS.spring), value: store.todaysAppointments)
+        .animation(DS.motion(DS.spring), value: store.upcomingAppointments)
         .animation(DS.motion(DS.spring), value: store.weatherTip)
         .animation(DS.motion(DS.spring), value: store.answeredReports)
         .sensoryFeedback(.impact(weight: .medium), trigger: taps)
@@ -332,6 +333,11 @@ struct TodayTab: View {
                 minorRow { inviteRow(a) }
             }
             ForEach(appts) { a in
+                Divider()
+                minorRow { appointmentRow(a) }
+            }
+            // 测试反馈：约咗聽日之后「今日」页乜都冇 → 之后几日约好 / 等紧确认嘅都列出（最多 3 个）
+            ForEach(store.upcomingAppointments.prefix(3)) { a in
                 Divider()
                 minorRow { appointmentRow(a) }
             }
