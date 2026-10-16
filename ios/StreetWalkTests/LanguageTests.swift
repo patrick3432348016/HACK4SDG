@@ -51,6 +51,20 @@ struct MandarinVoiceTests {
         #expect(ai.parseVoice("我在凉亭", context: ctx(finding: true)) == .broadcast("我在凉亭"))
     }
 
+    @Test func 普通话常见讲法更宽松() {
+        // 只讲「邻居」：约 / 找第一个街坊（测试员 10-12：「约邻居明天一起走」被当听不明白）
+        #expect(ai.parseVoice("约邻居明天一起走", context: ctx()) == .invite(partnerID: "chan", day: 1, hour: nil))
+        #expect(ai.parseVoice("我想和邻居明天早上散步", context: ctx()) == .invite(partnerID: "chan", day: 1, hour: 8))
+        #expect(ai.parseVoice("找邻居", context: ctx()) == .goFind(partnerID: "chan"))
+        #expect(ai.parseVoice("陈太明天下午三点散步", context: ctx()) == .invite(partnerID: "chan", day: 1, hour: 15))
+        #expect(ai.parseVoice("这里没地方坐", context: ctx()) == .report(.noSeat))
+        #expect(ai.parseVoice("太阳很大", context: ctx()) == .report(.sunny))
+        // 唔识嘅名唔会乱约
+        #expect(ai.parseVoice("约李先生明天一起走", context: ctx()) == .unknown)
+        #expect(TemplateAI.asksWeather("今天天气怎么样"))
+        #expect(TemplateAI.topic("约李先生明天一起走") == .invite)
+    }
+
     @Test func 普通话改约取消改名() {
         #expect(ai.parseVoice("取消和陈太的约会", context: ctx()) == .cancelMeetup(partnerID: "chan"))
         #expect(ai.parseVoice("不约了", context: ctx()) == .cancelMeetup(partnerID: nil))

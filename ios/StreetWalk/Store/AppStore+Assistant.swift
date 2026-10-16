@@ -114,9 +114,10 @@ extension AppStore {
             if let p = card.options.first?.id, landmark(p) != nil { scene.highlightLandmark(p) }
             say(card.spoken, prompt: true)
         case .notUnderstood:
-            say(card.spoken, prompt: true)
-            voiceCard = nil
-            phrasePicker = true
+            // 字已经认到：复述 + 例句，唔好话「冇聽明白」（见 showNotUnderstood）
+            assistant.reset()
+            showNotUnderstood(heard)
+            return
         default:
             say(card.spoken, prompt: card.waitsForUser)
         }

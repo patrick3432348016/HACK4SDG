@@ -126,8 +126,8 @@ extension AppStore {
             return [L.t("改做下晝\(alt)點", "改到下午\(alt)点"), L.t("改去\(other.name)", "改到\(other.name)"), L.t("取消同\(p.name)嘅約", "取消和\(p.name)的约会"), L.t("今日請假", "今天请假")]
         }
         // 反映只喺散步时讲（F10）；唔散步时唔建议。改地标名好少用、仲会以为改咗地名（UX 报告 33），唔建议；
-        // 有 Mac 语音服务器（B 嘅豆包）先建议问天气（手机模板答唔到）。
-        let weather = assistantURL != nil ? [L.t("北區今日天氣點", "北区今天天气怎么样")] : []
+        // 问天气：有 Mac 服务器由 B 嘅豆包答，冇就手机答天文台嗰句（showNotUnderstood）。
+        let weather = [L.t("今日天氣點", "今天天气怎么样")]
         let find = residents.first(where: { $0.isNeighbor && !$0.isMe && $0.isOut }).map { [L.t("過去搵\($0.name)", "去找\($0.name)")] } ?? []
         return (name.map { [L.t("約\($0)聽日下晝三點一齊行", "约\($0)明天下午三点一起走")] } ?? []) + weather + find + [L.t("今日請假", "今天请假")]
     }
@@ -218,9 +218,53 @@ extension AppStore {
             let name = resident(a.partnerID)?.name ?? L.t("街坊", "邻居")
             showConfirm(VoiceCard(heard: text, title: L.t("取消同\(name)\(dayTimeLabel(a.date))嘅約", "取消和\(name)\(dayTimeLabel(a.date))的约"), detail: L.t("會話俾\(name)知", "会告诉\(name)"), needsConfirm: true, intent: intent, appointmentID: a.id))
         case .unknown:
-            say(L.t("唔好意思，我未聽明白。可以再講一次，或者揀一句。", "不好意思，我没听明白。可以再说一次，或者选一句。"), prompt: true)
-            phrasePicker = true
+            showNotUnderstood(text)
         }
+    }
+
+    /// 听到咗字但唔知做乜（手机模板 / Mac 助手都认唔到）：唔好话「冇聽清楚」（用户睇到字已经认咗）。
+    /// 复述听到嘅句子，讲清楚点解做唔到，再俾两三句撳得嘅例句（撳 = 讲咗嗰句）。
+    /// 问天气：冇 Mac 服务器都答（天文台嗰句，同「今日」页一样）。
+    func showNotUnderstood(_ text: String) {
+        phrasePicker = false
+        if TemplateAI.asksWeather(text) {
+            let answer = tryAnswer
+            voiceCard = VoiceCard(heard: text, title: answer, detail: nil, needsConfirm: false, intent: .unknown,
+                                  assistant: AssistantCard(kind: .info, title: answer, spoken: answer, conversationID: ""))
+            say(answer)
+            return
+        }
+        let title: String
+        switch TemplateAI.topic(text) {
+        case .invite? where neighbors.isEmpty, .find? where neighbors.isEmpty:
+            title = L.t("你仲未有街坊。見到面喺「街坊」頁碰一碰，之後就約得、搵得。", "你还没有邻居。见面时在「街坊」页碰一碰，之后就能约、能找。")
+        case .invite?:
+            title = L.t("想約邊個、幾時？講埋個名同時間，例如：", "想约谁、什么时候？说上名字和时间，比如：")
+        case .find?:
+            title = L.t("想搵邊個？講埋個名，例如：", "想找谁？说上名字，比如：")
+        case .report? where walk == nil:
+            title = L.t("散步嗰陣講「呢度冇櫈」「呢度好曬」，我會記喺附近嘅地標。", "散步时说「这里没有凳子」「这里太晒」，我会记在附近的地标。")
+        default:
+            title = L.t("呢句我未識做。可以噉講：", "这句我还不会做。可以这样说：")
+        }
+        let chips = voiceExamples
+        voiceCard = VoiceCard(heard: text, title: title, detail: nil, needsConfirm: false, intent: .unknown,
+                              assistant: AssistantCard(kind: .notUnderstood, title: title, spoken: title, chips: chips, conversationID: ""))
+        let example = chips.first.map { L.t("例如「\($0)」。", "比如「\($0)」。") } ?? ""
+        say(title.hasSuffix("：") ? String(title.dropLast()) + "，" + example : title, prompt: true)
+    }
+
+    /// 撳得嘅例句：只出而家真係做得到嘅（有街坊先出约人 / 找人；散步先出反映；天气手机都答到）。
+    var voiceExamples: [String] {
+        var out: [String] = []
+        if let n = neighbors.first {
+            out.append(L.t("約\(n.name)聽日下晝三點一齊行", "约\(n.name)明天下午三点一起走"))
+            if let o = neighbors.first(where: { $0.isOut }) { out.append(L.t("過去搵\(o.name)", "去找\(o.name)")) }
+        }
+        if walk != nil { out.append(L.t("呢度冇櫈", "这里没有凳子")) }
+        out.append(L.t("今日天氣點", "今天天气怎么样"))
+        if out.count < 3 { out.append(L.t("今日請假", "今天请假")) }
+        return Array(out.prefix(3))
     }
 
     /// 要撳「好」嘅复述卡：画面同语音一齐出（§4），讲埋点样确认。

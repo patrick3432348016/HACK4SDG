@@ -11,7 +11,7 @@ struct TemplateAI: AIService {
         let text = Self.toHant(raw.replacingOccurrences(of: " ", with: ""))
         guard !text.isEmpty else { return .unknown }
 
-        if text.contains("請假") || text.contains("告假") || text.contains("请假") { return .leave }
+        if ["請假", "告假", "请假", "休息一天", "休息一日", "今日唔行", "今天不走", "今天不去走"].contains(where: text.contains) { return .leave }
 
         // 改约 / 取消约：要讲到时间或地标，免得同改地标名撞。
         let partnerHit = context.residents.first { !$0.isMe && (text.contains($0.name) || text.contains("\($0.floor)樓") || text.contains("\($0.floor)層")) }
@@ -39,19 +39,48 @@ struct TemplateAI: AIService {
 
         if context.finding, text.hasPrefix("我喺") || text.hasPrefix("我在") || text.hasPrefix("我到") { return .broadcast(raw) }
 
-        if ["好曬", "好晒", "好熱", "太曬", "太熱", "很曬", "很熱", "曬得很"].contains(where: text.contains) { return .report(.sunny) }
-        if ["冇櫈", "冇凳", "無櫈", "沒有凳", "沒凳", "沒有椅", "沒椅", "沒地方坐"].contains(where: text.contains) { return .report(.noSeat) }
-        if ["難行", "唔好行", "難走", "不好走", "路不平"].contains(where: text.contains) { return .report(.rough) }
+        if Self.sunnyWords.contains(where: text.contains) { return .report(.sunny) }
+        if Self.noSeatWords.contains(where: text.contains) { return .report(.noSeat) }
+        if Self.roughWords.contains(where: text.contains) { return .report(.rough) }
 
-        let partner = context.residents.first { !$0.isMe && (text.contains($0.name) || text.contains("\($0.floor)樓") || text.contains("\($0.floor)層")) }
-        if let p = partner {
-            if (text.contains("搵") || text.contains("過去") || text.contains("找")) && !text.contains("約") { return .goFind(partnerID: p.id) }
-            if text.contains("約") || text.contains("一齊行") || text.contains("一起") {
-                let day = Self.parseDay(text) ?? 0
-                return .invite(partnerID: p.id, day: day, hour: parseHour(text))
-            }
+        // 讲到名 / 楼层就揀嗰个；只讲「鄰居 / 街坊」（普通话常见：「约邻居明天一起走」「找邻居」）就揀一个街坊：
+        // 找人揀喺外面嗰个，约人揀第一个。
+        let others = context.residents.filter { !$0.isMe }
+        let named = others.first { text.contains($0.name) || text.contains("\($0.floor)樓") || text.contains("\($0.floor)層") }
+        let generic = Self.genericNeighborWords.contains(where: text.contains)
+        let wantsFind = Self.findWords.contains(where: text.contains) && !text.contains("約")
+        let wantsInvite = Self.inviteWords.contains(where: text.contains)
+        if wantsFind, let p = named ?? (generic ? others.first(where: \.isOut) ?? others.first : nil) { return .goFind(partnerID: p.id) }
+        if wantsInvite, let p = named ?? (generic ? others.first : nil) {
+            let day = Self.parseDay(text) ?? 0
+            return .invite(partnerID: p.id, day: day, hour: parseHour(text))
         }
         return .unknown
+    }
+
+    // 关键词（已转繁体；粤语 + 普通话常见讲法）。
+    static let inviteWords = ["約", "一齊行", "一齊去", "一起", "散步", "行街", "陪我", "走走", "去走", "出去行"]
+    static let findWords = ["搵", "找", "過去", "去見", "見見", "見下"]
+    static let genericNeighborWords = ["鄰居", "街坊", "朋友", "老友"]
+    static let sunnyWords = ["好曬", "太曬", "很曬", "曬得", "好熱", "太熱", "很熱", "熱死", "太陽好大", "太陽很大", "太陽太大", "冇遮", "沒遮", "沒有遮", "沒有樹蔭", "沒有陰"]
+    static let noSeatWords = ["冇櫈", "冇凳", "無櫈", "沒有凳", "沒凳", "沒有椅", "沒椅", "沒地方坐", "沒有地方坐", "冇位坐", "沒得坐", "坐不了", "唔夠櫈"]
+    static let roughWords = ["難行", "唔好行", "難走", "不好走", "路不平", "路爛", "路很爛", "好滑", "很滑", "路滑"]
+    static let weatherWords = ["天氣", "天气", "落雨", "下雨", "會唔會熱", "熱不熱", "熱唔熱", "幾多度", "多少度", "氣溫", "溫度", "颱風", "打風"]
+
+    /// 问天气（手机冇 Mac 服务器都答到：天文台嗰句）。
+    static func asksWeather(_ raw: String) -> Bool {
+        let t = toHant(raw)
+        return weatherWords.contains(where: t.contains)
+    }
+
+    /// 听唔明嘅句子大概想做乜（用嚟讲点解做唔到）：约人 / 找人 / 反映。
+    enum Topic { case invite, find, report }
+    static func topic(_ raw: String) -> Topic? {
+        let t = toHant(raw.replacingOccurrences(of: " ", with: ""))
+        if inviteWords.contains(where: t.contains) { return .invite }
+        if findWords.contains(where: t.contains) { return .find }
+        if ["反映", "報告", "投訴"].contains(where: t.contains) { return .report }
+        return nil
     }
 
     /// 简体转繁体（ICU）；转唔到就原样。

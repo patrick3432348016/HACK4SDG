@@ -321,8 +321,11 @@ extension ListeningCard {
     /// 改名中只要讲新名；其他时候举一句做例子。
     fileprivate func hint(_ phrases: [String]) -> String {
         if store.renamingNow != nil { return L.t("講新名，例如「\(phrases.first ?? "大樹底")」", "说新名字，例如「\(phrases.first ?? "大树下")」") }
-        if store.conversing { return L.t("講啦，講完唔使撳，我會答你。例如「北區今日天氣點」", "说吧，说完不用按，我会回答。例如「北区今天天气怎样」") }
-        return L.t("講啦，例如「\(phrases.first ?? "今日請假")」", "说吧，例如「\(phrases.first ?? "今天请假")」")
+        // 第一次用都知道个咪做乜：一句讲用途，再举一句例子（下面仲有撳得嘅例句）
+        let purpose = L.t("講一句，我幫你做：約街坊散步、問天氣、搵街坊、散步時反映冇櫈。", "说一句话，我帮你做：约邻居散步、问天气、找邻居、散步时反映没凳子。")
+        let example = phrases.first ?? L.t("今日天氣點", "今天天气怎么样")
+        if store.conversing { return purpose + L.t("講完唔使撳，我會答你。例如「\(example)」", "说完不用按，我会回答。比如「\(example)」") }
+        return purpose + L.t("講完撳「講完」。例如「\(example)」", "说完点「说完了」。比如「\(example)」")
     }
 }
 
@@ -449,7 +452,7 @@ private struct HeardCard: View {
         .task(id: card.id) {
             appeared = true
             // 读屏开着就不自动收（要时间找「撤回」）；平时 8 秒，长者也来得及按。语音助手要用户揀 / 补嘢嘅卡唔自动收。
-            guard !card.needsConfirm, !voiceOver, card.assistant?.waitsForUser != true else { return }
+            guard !card.needsConfirm, !voiceOver, card.assistant?.waitsForUser != true, card.assistant?.kind != .notUnderstood else { return }
             try? await Task.sleep(for: .seconds(8))
             if !Task.isCancelled, store.voiceCard?.id == card.id { store.voiceCard = nil }
         }
