@@ -58,9 +58,13 @@ struct VoiceFlowTests {
     @Test func 讲非街坊个名唔会讲出楼层() {
         let s = makeStore()
         s.handle("約黃太聽日行")
-        #expect(s.voiceCard == nil)
         #expect(!(s.toast ?? "").contains("3 樓"))
-        #expect(s.phrasePicker, "当听唔明")
+        let title = s.voiceCard?.title ?? ""
+        #expect(title.contains("3 樓") == false)
+        // 当听唔明：复述听到嘅字 + 撳得嘅例句（唔再话「冇聽明白」）
+        #expect(s.voiceCard?.assistant?.kind == .notUnderstood)
+        #expect(s.voiceCard?.heard == "約黃太聽日行")
+        #expect(!(s.voiceCard?.assistant?.chips.isEmpty ?? true))
     }
 
     @Test func 播送讲乜就播乜() {

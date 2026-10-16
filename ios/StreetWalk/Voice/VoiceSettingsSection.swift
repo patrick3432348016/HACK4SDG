@@ -22,18 +22,33 @@ struct VoiceSettingsSection: View {
                 }), label: \.label)
             }
             .padding(.vertical, 8)
-            Button { store.previewVoice(v.active) } label: {
-                Label(L.t("試聽", "试听"), systemImage: "play.fill").frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.dsSecondary)
-            .padding(.vertical, 4)
+            PreviewButton(speaker: store.speaker) { store.previewVoice(v.active) }
+                .padding(.vertical, 4)
         } header: {
             Text(L.t("聲音", "声音")).ds(.caption)
         } footer: {
-            Text(v.enabled ? L.t("有新消息會讀出嚟。", "有新消息会读出来。") : L.t("閂咗：唔會自動讀出嚟，字照樣喺畫面顯示；撳「再聽一次」仍然會讀。", "关闭后：不会自动读出来，文字照样在画面显示；点「再听一次」仍然会读。"))
+            Text(v.enabled ? L.t("有人約你、街坊出門、改約等新消息，開住 App 時會讀出嚟（靜音模式都會讀，大細聲跟手機音量）。", "有人约你、邻居出门、改约等新消息，开着 App 时会读出来（静音模式也会读，音量跟手机音量）。") : L.t("閂咗：唔會自動讀出嚟，字照樣喺畫面顯示；撳「再聽一次」仍然會讀。", "关闭后：不会自动读出来，文字照样在画面显示；点「再听一次」仍然会读。"))
                 .ds(.caption)
         }
         .id("voice")
+    }
+}
+
+/// 「試聽」掣：讲紧就变「正在播放…」（撳咗一定见到反应），讲完变返。
+struct PreviewButton: View {
+    @ObservedObject var speaker: Speaker
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(speaker.previewing ? L.t("播緊⋯", "正在播放…") : L.t("試聽", "试听"),
+                  systemImage: speaker.previewing ? "speaker.wave.2.fill" : "play.fill")
+                .symbolEffect(.variableColor.iterative, isActive: speaker.previewing && !DS.reduceMotion)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.dsSecondary)
+        .disabled(speaker.previewing)
+        .animation(DS.motion(DS.snappy), value: speaker.previewing)
     }
 }
 
@@ -296,17 +311,35 @@ extension AppStore {
 
     /// 试听：清走排紧嘅播报，即刻用呢把声讲试听句子。聆听中唔讲。读屏开着就等佢读完个掣先讲。
     func previewVoice(_ v: VoiceInfo?) {
-        guard !listening else { return }
+        // 聆听中唔讲（会录埋入去），但要话俾人知点解冇声
+        guard !listening else {
+            showToastSilently(L.t("聽緊你講嘢，講完先試聽。", "正在听你说话，说完再试听。"))
+            return
+        }
         announcer.hold(speaker)
         _ = announcer.release()
         let language = VoiceSettings.shared.language
         if UIAccessibility.isVoiceOverRunning {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(0.8))
-                speaker.preview(v, language: language)
+                if !speaker.preview(v, language: language) { volumeHint() }
             }
-        } else {
-            speaker.preview(v, language: language)
+        } else if !speaker.preview(v, language: language) {
+            volumeHint()
+        }
+    }
+
+    /// 媒体音量调到最细：试听有播但听唔到。只出字（唔读，免得盖住试听）。
+    private func volumeHint() {
+        showToastSilently(L.t("手機音量太細，按側邊「大聲」掣。", "手机音量太小，请按侧边的音量加键。"))
+    }
+
+    /// 只出字唔读（toast() 会读出嚟，会截断啱啱开始嘅试听）。
+    private func showToastSilently(_ s: String) {
+        toast = s
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3.5))
+            if self.toast == s { self.toast = nil }
         }
     }
 }
