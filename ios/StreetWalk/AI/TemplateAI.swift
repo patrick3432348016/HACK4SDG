@@ -18,7 +18,7 @@ struct TemplateAI: AIService {
         if text.contains("唔約") || text.contains("不約") || (text.contains("取消") && (text.contains("約") || partnerHit != nil)) {
             return .cancelMeetup(partnerID: partnerHit?.id)
         }
-        if !text.contains("改名"), let r = ["改去", "改喺", "改在", "改到", "改做", "改成", "改返", "改回"].compactMap({ text.range(of: $0) }).first {
+        if !text.contains("改名"), let r = Self.changeMarkers.compactMap({ text.range(of: $0) }).first {
             let before = String(text[..<r.lowerBound]), after = String(text[r.upperBound...])
             let lm = context.landmarks.filter { after.contains($0.name) }.max { $0.name.count < $1.name.count }   // 名有包含关系时揀最长
             let hour = parseHour(after)
@@ -150,31 +150,168 @@ struct TemplateAI: AIService {
         s.applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? s
     }
 
-    /// 後日 / 後天 → 2；聽日 / 明天 / 明日 → 1；今日 / 今天 → 0。
+    /// 後日 / 後天 → 2；聽日 / 明天 / 明日 / 聽朝 / 明早 → 1；今日 / 今天 → 0。
     static func parseDay(_ t: String) -> Int? {
         if t.contains("後日") || t.contains("後天") { return 2 }
-        if t.contains("聽日") || t.contains("明天") || t.contains("明日") { return 1 }
+        if ["聽日", "明天", "明日", "聽朝", "聽晚", "明早", "明晚"].contains(where: t.contains) { return 1 }
         if t.contains("今日") || t.contains("今天") { return 0 }
         return nil
     }
 
-    /// "下晝三點" → 15；"朝早8點" → 8；普通话 "下午三点" → 15。
+    /// 改约嘅讲法（「改到下晝四點」）：后面先系新时间 / 地点。
+    static let changeMarkers = ["改去", "改喺", "改在", "改到", "改做", "改成", "改返", "改回"]
+
+    /// "下晝三點" → 15；"朝早8點" → 8；普通话 "下午三点" → 15；"三點十五" → 15（分钟见 parseClock）。
     func parseHour(_ t: String) -> Int? {
-        let digits: [Character: Int] = ["一": 1, "二": 2, "兩": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10]
-        let t = Self.toHant(t)
-        guard let r = t.range(of: "[0-9一二兩三四五六七八九十]+點", options: .regularExpression) else {
-            if t.contains("朝早") || t.contains("早上") { return 8 }
-            if t.contains("下晝") || t.contains("下午") { return 16 }
-            if t.contains("夜晚") || t.contains("晚上") { return 19 }
-            return nil
+        if let c = Self.parseClock(t) { return c.hour }
+        let t = Self.toHant(t.filter { !$0.isWhitespace })
+        // 讲咗钟点但唔喺 5–21 点（例如「夜晚十一點」）：唔约，唔好改用「朝早 / 下晝」估
+        if Self.clockRange(t) != nil || t.range(of: Self.colonPattern, options: .regularExpression) != nil { return nil }
+        if Self.amWords.contains(where: t.contains) { return 8 }
+        if t.contains("中午") { return 12 }
+        if Self.pmWords.contains(where: t.contains) { return Self.eveningWords.contains(where: t.contains) ? 19 : 16 }
+        return nil
+    }
+
+    // MARK: - 钟点同分钟、行几耐（2026-10-17 用户测试：认唔到整点、半点以外嘅时间，又唔可以讲行几耐）
+
+    static let hourPattern = "([0-9]{1,2}|[一二兩三四五六七八九十]{1,3})點"
+    static let colonPattern = "[0-9]{1,2}:[0-5][0-9]"
+    static let amWords = ["朝早", "早上", "上午", "早晨", "清早", "朝頭早", "聽朝", "今朝", "明早"]
+    static let eveningWords = ["夜晚", "晚上", "傍晚", "黃昏", "今晚", "聽晚", "明晚"]
+    static let pmWords = ["下晝", "下午", "晏晝", "中午"] + eveningWords
+
+    /// 讲咗几点几分（24 小时制）：「三點十五」「3點20分」「三點一刻」「下午兩點三刻」「八點零五」「三點半」「15:20」「三點差五分」，
+    /// 粤语「三點三」（= 3:15）「三點踏九」「三點兩個字」「三點一個骨」。
+    /// 冇讲上下午：一至四點当下晝（约散步唔会约凌晨）。唔喺 5–21 点返回 nil。纯逻辑，有单元测试。
+    static func parseClock(_ raw: String) -> (hour: Int, minute: Int)? {
+        let t = toHant(raw.filter { !$0.isWhitespace }).replacingOccurrences(of: "：", with: ":")
+        var hour: Int?, minute = 0
+        if let r = t.range(of: colonPattern, options: .regularExpression) {
+            let parts = t[r].split(separator: ":")
+            hour = Int(parts[0])
+            minute = Int(parts[1]) ?? 0
+        } else if let r = clockRange(t) {
+            hour = number(String(t[r].dropLast()))
+            minute = minutes(after: t[r.upperBound...])
         }
-        let s = String(t[r].dropLast())
-        var h = Int(s) ?? 0
-        if h == 0 {
-            if s == "十" { h = 10 } else if s.hasPrefix("十") { h = 10 + (digits[s.last!] ?? 0) } else { h = s.reduce(0) { $0 * 10 + (digits[$1] ?? 0) } }
+        guard var h = hour, (0...23).contains(h) else { return nil }
+        if pmWords.contains(where: t.contains) {
+            if h < 12 { h += 12 }
+        } else if !amWords.contains(where: t.contains), (1...4).contains(h) {
+            h += 12
         }
-        if (t.contains("下晝") || t.contains("下午") || t.contains("夜晚") || t.contains("晚上")) && h < 12 { h += 12 }
-        return (5...21).contains(h) ? h : nil
+        let total = h * 60 + minute   // 「差五分」系负数
+        h = total / 60
+        return (5...21).contains(h) ? (h, total % 60) : nil
+    }
+
+    /// 第一个「几點」（「早一點」「快一點」「一點點」嘅「一點」係「少少」，唔系钟点）。
+    static func clockRange(_ t: String) -> Range<String.Index>? {
+        var from = t.startIndex
+        while let r = t.range(of: hourPattern, options: .regularExpression, range: from..<t.endIndex) {
+            let before = r.lowerBound > t.startIndex ? t[t.index(before: r.lowerBound)] : nil
+            let after = r.upperBound < t.endIndex ? t[r.upperBound] : nil
+            let little = t[r] == "一點" && (before.map { "早快慢遲晚有差多少好大細小再近遠高低耐".contains($0) } == true || after == "點" || after == "兒")
+            if !little { return r }
+            from = r.upperBound
+        }
+        return nil
+    }
+
+    /// 「點」后面嘅分钟（「三點差五分」返回 -5）。
+    private static func minutes(after s: Substring) -> Int {
+        let s = String(s.prefix(6))
+        if s.hasPrefix("半") { return 30 }
+        for (w, m) in [("一刻", 15), ("1刻", 15), ("兩刻", 30), ("三刻", 45), ("3刻", 45), ("一個骨", 15), ("三個骨", 45), ("個字", 5)] where s.hasPrefix(w) { return m }
+        let num = "([0-9]{1,2}|[零〇一二兩三四五六七八九十]{1,3})"
+        if s.hasPrefix("差一刻") { return -15 }
+        if s.hasPrefix("差"), let r = s.range(of: "^差" + num, options: .regularExpression), let n = number(String(s[r].dropFirst())), (1...30).contains(n) { return -n }
+        if s.hasPrefix("踏"), let r = s.range(of: "^踏" + num, options: .regularExpression), let n = number(String(s[r].dropFirst())), (1...11).contains(n) { return n * 5 }
+        // 数字由长到短试（「十五一齊行」嘅「十五一」唔系数字，要「十五」）
+        guard let all = s.range(of: "^" + num, options: .regularExpression) else { return 0 }
+        var len = s[all].count, n: Int?
+        while len > 0, n == nil { n = number(String(s.prefix(len))); if n == nil { len -= 1 } }
+        guard let n else { return 0 }
+        let digits = String(s.prefix(len)), rest = s.dropFirst(len)
+        if rest.hasPrefix("個字") { return (1...11).contains(n) ? n * 5 : 0 }
+        if rest.hasPrefix("分") { return (0...59).contains(n) ? n : 0 }
+        // 两个字以上（「十五」「四十五」「零五」「20」）就系分钟
+        if digits.count >= 2 { return (0...59).contains(n) ? n : 0 }
+        // 得一个数字（「三點三」）：粤语讲法，每个数字 5 分钟；后面要冇字或者係「喺 / 去 / 散步」之类（「三點一齊行」嘅「一」唔系分钟）。
+        // 普通话「三点三」唔常讲（会当「三点」）。
+        let next = rest.first
+        let ok = next == nil || next!.isPunctuation || "喺在去到出見见等散行走落嚟來来吧呀啊啦左鐘鐘前".contains(next!)
+        guard ok, !L.isCmn, (1...11).contains(n) else { return 0 }
+        return n * 5
+    }
+
+    /// 讲咗嘅分钟（冇讲 = 0）。改约只睇「改到」后面（「三點嘅約改到四點十五」= 15）。
+    static func spokenMinute(_ raw: String) -> Int {
+        let t = toHant(raw.filter { !$0.isWhitespace })
+        let after = changeMarkers.compactMap { t.range(of: $0) }.first.map { String(t[$0.upperBound...]) } ?? t
+        return max(0, parseClock(after)?.minute ?? 0)
+    }
+
+    /// 「十五」「二十」「四十五」「兩」「零五」「05」→ 数字；唔识返回 nil。
+    static func number(_ s: String) -> Int? {
+        if let n = Int(s) { return n }
+        let d: [Character: Int] = ["零": 0, "〇": 0, "一": 1, "二": 2, "兩": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9]
+        let c = Array(s)
+        if c.count == 2, c[0] == "零" || c[0] == "〇" { return d[c[1]] }
+        if let i = c.firstIndex(of: "十") {
+            guard i <= 1, c.count - i <= 2 else { return nil }
+            let tens = i == 0 ? 1 : d[c[0]]
+            let ones = i == c.count - 1 ? 0 : d[c[i + 1]]
+            guard let tens, let ones else { return nil }
+            return tens * 10 + ones
+        }
+        return c.count == 1 ? d[c[0]] : nil
+    }
+
+    /// 一齊行几耐（分钟）：「走四十分鐘」「散步一個鐘」「行半個鐘」「一個半小時」「40分钟」。5–240 分钟先算。
+    /// 「最多行十五分鐘」系 B 服务器问嘅「最多行几远」，唔当；「三點半鐘」系钟点；「十分鐘後」系几时，都唔当。纯逻辑，有单元测试。
+    static func parseDuration(_ raw: String) -> Int? {
+        let t = toHant(raw.filter { !$0.isWhitespace })
+        let num = "([0-9]{1,3}|[一二兩三四五六七八九十]{1,4})"
+        // 中间嘅 Bool：前面係「點」就唔当（「三點半鐘」系钟点）
+        let rules: [(String, Bool, (Int?) -> Int?)] = [
+            ("([0-9]{1,2}|[一二兩三四五六七八九十]{1,3})?個半(?:鐘頭|鐘|鍾|小時)", false, { ($0 ?? 1) * 60 + 30 }),
+            ("半(?:個)?(?:鐘頭|鐘|鍾|小時)", true, { _ in 30 }),
+            (num + "(?:個鐘頭|個鐘|個鍾|個小時|鐘頭|小時)", false, { $0.map { $0 * 60 } }),
+            (num + "(?:分鐘|分鍾)", false, { $0 }),
+        ]
+        for (pattern, notAfterClock, value) in rules {
+            guard let re = try? NSRegularExpression(pattern: pattern) else { continue }
+            let ns = t as NSString
+            for m in re.matches(in: t, range: NSRange(location: 0, length: ns.length)) {
+                let before = ns.substring(to: m.range.location)
+                let after = ns.substring(from: m.range.location + m.range.length)
+                if String(before.suffix(3)).contains("最多") || String(before.suffix(3)).contains("最遠") || (notAfterClock && before.hasSuffix("點"))
+                    || ["後", "前", "之後", "以內", "以内"].contains(where: after.hasPrefix) { continue }
+                let said = m.numberOfRanges > 1 && m.range(at: 1).location != NSNotFound
+                let n = said ? number(ns.substring(with: m.range(at: 1))) : nil
+                if said, n == nil { continue }
+                if let v = value(n), (5...240).contains(v) { return v }
+            }
+        }
+        return nil
+    }
+
+    /// 「一齊行 40 分鐘」「一齊行一個鐘」（普通话「一起走半个小时」）。
+    static func walkPhrase(_ m: Int) -> String {
+        let d = durationLabel(m)
+        return L.t("一齊行", "一起走") + (d.first.map { $0.isASCII && $0.isNumber } == true ? " " : "") + d
+    }
+
+    /// 「40 分鐘」「半個鐘」「一個鐘」「一個半鐘」（普通话「半个小时」「一个小时」）。
+    static func durationLabel(_ m: Int) -> String {
+        let h = m / 60
+        let hs = h == 1 ? L.t("一", "一") : h == 2 ? L.t("兩", "两") : "\(h)"
+        if m == 30 { return L.t("半個鐘", "半个小时") }
+        if m % 60 == 0 { return L.t("\(hs)個鐘", "\(hs)个小时") }
+        if m % 60 == 30 { return L.t("\(hs)個半鐘", "\(hs)个半小时") }
+        return L.t("\(m) 分鐘", "\(m) 分钟")
     }
 
     // MARK: - 生成句子

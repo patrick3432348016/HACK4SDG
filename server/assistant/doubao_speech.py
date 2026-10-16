@@ -2,7 +2,7 @@
 
 请求同 B 嘅 Doubao.synthesize（doubao.py）一样：TTS 2.0 单向流式、PCM 24 kHz、explicit_dialect=yue、B 揀嘅语速；
 只系改成同步版本，交俾 SpeechService（sovits.py）嘅工作线程用，缓存、边合成边传、预热全部共用。
-普通话（zh-CN）唔加方言参数。语速：App「語速」0.9 / 1.0 / 1.1 → 喺 B 嘅基准（speech_rate，默认 -15）上下 10。
+普通话（zh-CN）唔加方言参数。语速：App「語速」0.75 / 1.0 / 1.25 → 喺 B 嘅基准（speech_rate，默认 -15）上下 25（10-17 拉开）。
 密钥只喺 Mac 服务器（voice-runtime/doubao.json），唔会去到手机；日志唔印密钥同厂商原始错误。
 """
 from __future__ import annotations

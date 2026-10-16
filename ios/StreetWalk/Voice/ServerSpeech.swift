@@ -33,12 +33,13 @@ enum TTSRoute: Equatable {
     /// 开始咗之后几耐冇新数据当断线（秒）。
     static let stallTimeout: TimeInterval = 10
 
-    /// 设定「語速」→ 服务器 speed_factor。
+    /// 设定「語速」→ 服务器 speed（服务器收 0.7–1.3）。豆包：喺 B 嘅基准 speech_rate（-15）上下加减 (speed - 1) × 100，
+    /// 即慢 -40、正常 -15、快 +10（10-17 用户测试：0.9 / 1.1 差别唔明显，拉开）。
     static func speed(_ pace: SpeechPace) -> Double {
         switch pace {
-        case .slow: return 0.9
+        case .slow: return 0.75
         case .normal: return 1.0
-        case .fast: return 1.1
+        case .fast: return 1.25
         }
     }
 }

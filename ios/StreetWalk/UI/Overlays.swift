@@ -230,6 +230,8 @@ struct VoiceOverlay: View {
     private var mode: Mode {
         // 连续对话：有卡（答案 / 复述卡）又未开口就睇卡，一开口就睇字幕
         if store.conversing, let c = store.voiceCard, store.heardPartial.isEmpty { return .heard(c.id) }
+        // 卡出咗之后自动开咪听答案（复述卡等「好 / 不要」、帮助卡等再讲一次）：张卡照显示，卡上有「正在听」一行
+        if store.listening, store.listener.answering != nil, let c = store.voiceCard { return .heard(c.id) }
         if store.listening { return .listening }
         if store.phrasePicker { return .picker }
         if let c = store.voiceCard { return .heard(c.id) }
@@ -421,6 +423,10 @@ private struct HeardCard: View {
             if let d = card.detail, !d.isEmpty {
                 Text(d).ds(.caption).foregroundStyle(.secondary)
             }
+            // 截图自检：-uiPreview answerRow（模拟器冇语音识别权限，自动开唔到咪）
+            if store.listening && !store.conversing && store.listener.answering != nil || UIPreview.is("answerRow") {
+                AnswerListeningRow(listener: store.listener, confirm: card.needsConfirm)
+            }
             if let a = card.assistant, !card.needsConfirm {
                 AssistantStepView(card: a)
             } else if card.needsConfirm {
@@ -456,6 +462,36 @@ private struct HeardCard: View {
             try? await Task.sleep(for: .seconds(8))
             if !Task.isCancelled, store.voiceCard?.id == card.id { store.voiceCard = nil }
         }
+    }
+}
+
+/// 卡出咗之后自动开咪（手机识别）：讲明可以直接讲，同埋实时显示听到嘅字。讲完停一停就自动处理。
+private struct AnswerListeningRow: View {
+    @ObservedObject var listener: Listener
+    let confirm: Bool
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "waveform")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(DS.accent)
+                .symbolEffect(.variableColor.iterative.reversing, isActive: !DS.reduceMotion)
+                .accessibilityHidden(true)
+            Text(listener.transcript.isEmpty
+                 ? (confirm ? L.t("聽緊⋯可以直接講「好」或者「唔好」", "正在听…可以直接说「好」或「不要」") : L.t("聽緊⋯可以直接再講一次", "正在听…可以直接再说一次"))
+                 : "「\(listener.transcript)」")
+                .ds(.caption)
+                .foregroundStyle(listener.transcript.isEmpty ? Color.secondary : Color.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .contentTransition(.opacity)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+        .background(DS.accentSoft, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.updatesFrequently)
     }
 }
 
@@ -512,6 +548,7 @@ private struct AssistantStepView: View {
                 HStack {
                     Spacer(minLength: 0)
                     Button {
+                        store.stopAnswerListening()
                         store.hush()
                         store.voiceCard = nil
                         if card.waitsForUser { store.assistantReject(VoiceCard(heard: "", title: "", needsConfirm: false, intent: .unknown, assistant: card)) }

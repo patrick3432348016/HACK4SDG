@@ -126,8 +126,8 @@ struct VoiceInfo: Equatable, Hashable, Sendable, Identifiable {
 }
 
 /// 语速三档。默认「正常」= 系统默认 0.5。
-/// 以前用 0.42：低档粤语声一放慢就逐个字读、词同词唔连（用户 10-11 反映「每个字自己读自己的」），
-/// 所以「慢」只係慢少少（0.46），清楚主要靠句同句之间停一停（每句一个 utterance + postUtteranceDelay），唔拉长每个音节。
+/// 10-11：「正常」以前用 0.42，低档粤语声逐个字读（「每个字自己读自己的」），所以正常改返 0.5。
+/// 10-17 用户测试：「慢」同「正常」差唔多（0.46 太近）。拉开：慢 0.4 + 句同句停耐啲（长者听得清），快 0.57、几乎唔停。
 enum SpeechPace: String, CaseIterable, Sendable {
     case slow, normal, fast
 
@@ -142,18 +142,18 @@ enum SpeechPace: String, CaseIterable, Sendable {
     /// AVSpeechUtterance.rate（0–1，系统默认 0.5）。
     var rate: Float {
         switch self {
-        case .slow: return 0.46
+        case .slow: return 0.4
         case .normal: return 0.5      // AVSpeechUtteranceDefaultSpeechRate
-        case .fast: return 0.55
+        case .fast: return 0.57
         }
     }
 
     /// 每句讲完停几耐（秒）。
     var pauseAfterSentence: TimeInterval {
         switch self {
-        case .slow: return 0.45
+        case .slow: return 0.7
         case .normal: return 0.25
-        case .fast: return 0.1
+        case .fast: return 0.05
         }
     }
 

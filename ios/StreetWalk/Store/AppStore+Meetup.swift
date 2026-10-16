@@ -186,9 +186,9 @@ extension AppStore {
     }
 
     /// 直接改（语音"改做下晝 4 點""改去涼亭"复述确认后）。
-    func changeMeetup(_ id: UUID, day: Int?, hour: Int?, landmarkID: String?) {
+    func changeMeetup(_ id: UUID, day: Int?, hour: Int?, minute: Int = 0, landmarkID: String?) {
         guard let i = appointments.firstIndex(where: { $0.id == id }), appointments[i].isOpen else { toast(L.t("呢個約會已經冇咗。", "这个约会已经没有了。")); return }
-        var a = changed(appointments[i], day: day, hour: hour, landmarkID: landmarkID)
+        var a = changed(appointments[i], day: day, hour: hour, minute: minute, landmarkID: landmarkID)
         guard a.date > now else { toast(L.t("嗰個時間已經過咗，揀過第二個。", "那个时间已经过了，换一个吧。")); return }
         // 冇变就唔好将已约好嘅打返做「等緊確認」、或者将对方嘅邀请变成我嘅反提议（A84）。
         guard a.date != appointments[i].date || a.landmarkID != appointments[i].landmarkID else { toast(L.t("時間地點都冇變，照舊。", "时间地点都没变，照旧。")); return }
@@ -203,15 +203,15 @@ extension AppStore {
         Haptics.success()
     }
 
-    /// 改咗之后嘅样子（未保存）：冇讲嘅部分保留原来的。
-    func changed(_ a: Appointment, day: Int?, hour: Int?, landmarkID: String?) -> Appointment {
+    /// 改咗之后嘅样子（未保存）：冇讲嘅部分保留原来的。minute：语音讲咗「四點十五」嘅分钟。
+    func changed(_ a: Appointment, day: Int?, hour: Int?, minute: Int = 0, landmarkID: String?) -> Appointment {
         var a = a
         let cal = Self.hk
         if hour != nil || day != nil {
             let base = day.map { cal.startOfDay(for: now).addingTimeInterval(Double($0) * 86400) } ?? cal.startOfDay(for: a.date)
             // 只改日子：钟点连分钟都保留（自己揀咗 16:45，「改到聽日」都系 16:45）
-            let minute = hour == nil ? Double(cal.component(.minute, from: a.date)) * 60 : 0
-            a.date = base.addingTimeInterval(Double(hour ?? cal.component(.hour, from: a.date)) * 3600 + minute)
+            let seconds = hour == nil ? Double(cal.component(.minute, from: a.date)) * 60 : Double(minute) * 60
+            a.date = base.addingTimeInterval(Double(hour ?? cal.component(.hour, from: a.date)) * 3600 + seconds)
             // 冇讲日子、只讲钟点，而嗰个钟今日已经过咗：当係聽日。
             if day == nil, a.date <= now { a.date = a.date.addingTimeInterval(86400) }
         }
