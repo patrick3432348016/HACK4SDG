@@ -24,12 +24,13 @@ struct BumpPortedFromBTests {
         #expect(!r4)
     }
 
-    @Test func 读数中断唔可以凑够时间() {
+    /// 2026-10-17（D-2）：一两下冇读数唔清零（贴近时超宽带成日漏读数）；够近嘅读数断太耐先重新计时。
+    @Test func 读数断太耐先重新计时() {
         var gate = bGate()
         let r5 = gate.update(distance: 0.20, at: 0)
         #expect(!r5)
         let r6 = gate.update(distance: 0.20, at: 1)
-        #expect(!r6)
+        #expect(!r6, "断咗 1 秒（> maxGap）：由 1 秒重新计")
         let r7 = gate.update(distance: nil, at: 1.1)
         #expect(!r7)
         let r8 = gate.update(distance: 0.20, at: 1.2)
@@ -39,7 +40,20 @@ struct BumpPortedFromBTests {
         let r10 = gate.update(distance: -1, at: 1.4)
         #expect(!r10)
         let r11 = gate.update(distance: 0.20, at: 1.5)
-        #expect(!r11)
+        #expect(r11, "中间几下坏读数唔清零，够 0.5 秒就算")
+        var g2 = bGate()
+        _ = g2.update(distance: 0.20, at: 0)
+        _ = g2.update(distance: nil, at: 0.2)
+        let r11b = g2.update(distance: nil, at: 0.45)
+        #expect(!r11b)
+        let r11c = g2.update(distance: 0.20, at: 0.6)
+        #expect(!r11c, "够近读数断咗 0.6 秒（> 0.35）：重新计")
+        let r11d = g2.update(distance: 0.35, at: 0.8)
+        #expect(!r11d, "门限边缘（0.30–0.40）唔计时")
+        let r11e = g2.update(distance: 0.20, at: 0.9)
+        #expect(!r11e)
+        let r11f = g2.update(distance: 0.20, at: 1.1)
+        #expect(r11f, "边缘抖动唔清零：由 0.6 计到 1.1")
     }
 
     @Test func 远咗一下重新计时() {
@@ -217,25 +231,29 @@ struct BumpWireTests {
     }
 
     @Test func 距离提示同进度环() {
-        #expect(BumpTuning.nearDistance == 0.20 && BumpTuning.dwell == 0.4)
+        // 2026-10-17（D-2 / D-4）：30 厘米（隔一拳）保持 0.8 秒就算，唔使贴死。
+        #expect(BumpTuning.nearDistance == 0.30 && BumpTuning.dwell == 0.8)
+        #expect(BumpTuning.searchTimeout == 30 && BumpTuning.slowSearch < BumpTuning.searchTimeout, "D-6：30 秒失败，之前先提示用二维码")
         #expect(BumpTuning.progress(nil) == 0)
         #expect(BumpTuning.progress(1.5) == 0)
         #expect(BumpTuning.progress(BumpTuning.nearDistance) == 1)
         #expect(BumpTuning.progress(0.05) == 1)
-        #expect((0.4...0.6).contains(BumpTuning.progress(0.6)))
-        #expect(BumpTuning.hint(0.8) == "靠近啲")
-        #expect(BumpTuning.hint(0.35) == "再近啲")
-        #expect(BumpTuning.hint(0.15) == "好！拎穩唔好郁")
+        #expect((0.4...0.6).contains(BumpTuning.progress(0.75)))
+        #expect(BumpTuning.hint(0.9) == "靠近啲")
+        #expect(BumpTuning.hint(0.45) == "再近啲")
+        #expect(BumpTuning.hint(0.25) == "好！拎穩唔好郁")
         #expect(BumpTuning.hint(nil) == "量緊距離…")
         var gate = ProximityGate()
-        let r25 = gate.update(distance: 0.25, at: 0)
-        #expect(!r25, "预设门限 20 厘米：25 厘米唔算")
-        let r26 = gate.update(distance: 0.15, at: 0.1)
+        let r25 = gate.update(distance: 0.35, at: 0)
+        #expect(!r25, "预设门限 30 厘米：35 厘米唔算")
+        let r26 = gate.update(distance: 0.25, at: 0.1)
         #expect(!r26)
-        let r27 = gate.update(distance: 0.15, at: 0.3)
+        let r27 = gate.update(distance: nil, at: 0.4)
         #expect(!r27)
-        let r28 = gate.update(distance: 0.15, at: 0.5)
-        #expect(r28)
+        let r28 = gate.update(distance: 0.25, at: 0.6)
+        #expect(!r28)
+        let r29 = gate.update(distance: 0.25, at: 1.0)
+        #expect(r29, "漏咗一下读数都照计")
     }
 
     @Test func 失败都有广东话解释() {
@@ -424,6 +442,36 @@ struct NearbyBumpFlowTests {
         #expect(updB.last == .failed(.peerLeft))
         #expect(b.phase == .idle)
         b.cancel()
+    }
+
+    /// D-2：中途超宽带出错 / 断线（唔係对方撳取消）：两部都静静重新搵，唔使撳「再試」，最后照样配上。
+    @Test func 中途出错静静重新搵() async throws {
+        let server = FakePairServer()
+        server.profiles = ["A": FakePairServer.peer("A", "甲"), "B": FakePairServer.peer("B", "乙")]
+        let ra = FakeRanging(), rb = FakeRanging()
+        ra.distances = []; rb.distances = []
+        ra.hold = 0.8; rb.hold = 0.8   // 第一轮一直唔够近
+        let a = NearbyBumpService(ranging: { ra }, searchTimeout: 25), b = NearbyBumpService(ranging: { rb }, searchTimeout: 25)
+        a.linker = FakeLinker("A", server)
+        b.linker = FakeLinker("B", server)
+        var foundA: BumpMatch?, foundB: BumpMatch?
+        var updA: [BumpUpdate] = [], updB: [BumpUpdate] = []
+        a.startSearching(candidates: [], onUpdate: { updA.append($0) }, onFound: { foundA = $0 })
+        b.startSearching(candidates: [], onUpdate: { updB.append($0) }, onFound: { foundB = $0 })
+        func ranging(_ u: [BumpUpdate]) -> Bool { u.contains { if case .ranging = $0 { true } else { false } } }
+        func failed(_ u: [BumpUpdate]) -> Bool { u.contains { if case .failed = $0 { true } else { false } } }
+        var deadline = Date().addingTimeInterval(15)
+        while !(ranging(updA) && ranging(updB)), Date() < deadline { try await Task.sleep(for: .milliseconds(100)) }
+        #expect(ranging(updA) && ranging(updB), "两部都开始量：\(updA) / \(updB)")
+        ra.hold = 0.1; rb.hold = 0.1   // 重新开始之后就够近
+        ra.onFailure?(.other)          // A 嘅超宽带出错
+        deadline = Date().addingTimeInterval(20)
+        while (foundA == nil || foundB == nil), Date() < deadline, !failed(updA), !failed(updB) {
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        a.cancel(); b.cancel()
+        #expect(!failed(updA) && !failed(updB), "唔应该报失败：\(updA) / \(updB)")
+        #expect(foundA == .linked(FakePairServer.peer("B", "乙")) && foundB == .linked(FakePairServer.peer("A", "甲")))
     }
 }
 

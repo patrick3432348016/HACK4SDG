@@ -5,8 +5,12 @@ import SwiftUI
 /// MainView 在 bumpStage == .searching 时全屏显示；找到对方后由 MainView 关掉。
 /// 真机（2026-10-10）：搵緊身邊部手機 → 靠近啲 → 再近啲 → 成功，中间一个进度环显示距离（组员 B 原型嘅进度环）；
 /// 失败讲清楚原因，提供「用二維碼」「再試」「去設定」。二维码画面见 BumpQRViews.swift。
+/// 2026-10-17：教人并排 / 背对背、隔一拳（顶部对顶部会弹「隔空投送」，D-4）；搵咗 12 秒都未搵到对方，
+/// 「用二維碼」变大掣、提示开 Wi-Fi 同蓝牙（D-5 / D-6）；系统唔俾用流量就讲去设定开（D-5）。
 struct BumpView: View {
     @Environment(AppStore.self) private var store
+    /// 搵咗 BumpTuning.slowSearch 秒都未搵到对方部手机。
+    @State private var slow = false
 
     var body: some View {
         let progress = store.bumpProgress
@@ -47,13 +51,14 @@ struct BumpView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .contentTransition(.opacity)
                     .accessibilityAddTraits(.isHeader)
-                Text(Self.hint(p))
+                Text(hintText(p))
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .animation(DS.motion(DS.snappy), value: Self.title(p))
+            .animation(DS.motion(DS.snappy), value: slow)
 
             Spacer(minLength: 0)
 
@@ -61,6 +66,30 @@ struct BumpView: View {
         }
         .padding(.horizontal, DS.side)
         .padding(.bottom, 16)
+        // 未搵到对方部手机：计时，够钟就提示（再试 / 静静重新搵返到「搵緊」会重新计）。
+        .task(id: Self.finding(p)) {
+            slow = false
+            guard Self.finding(p) else { return }
+            try? await Task.sleep(for: .seconds(BumpTuning.slowSearch))
+            guard !Task.isCancelled else { return }
+            slow = true
+            store.bumpSearchSlow()
+        }
+    }
+
+    /// 仲未搵到对方部手机（未连上）。
+    static func finding(_ p: BumpUpdate) -> Bool { p == .searching || p == .needsLocalNetwork }
+
+    /// 系统唔俾用流量而配对因网络失败：要去设定。
+    private func cellularBlocked(_ p: BumpUpdate) -> Bool { p == .failed(.network) && store.cellularDenied }
+
+    private func hintText(_ p: BumpUpdate) -> String {
+        if slow, p == .searching {
+            return L.t("仲未搵到對方部手機。兩部手機都要開住 Wi-Fi 同藍牙（唔使連網絡），都停喺呢頁。亦可以改用二維碼。",
+                       "还没找到对方的手机。两台手机都要打开 Wi-Fi 和蓝牙（不用连网络），都停在这一页。也可以改用二维码。")
+        }
+        if cellularBlocked(p) { return store.cellularDeniedHint }
+        return Self.hint(p)
     }
 
     @ViewBuilder
@@ -75,7 +104,7 @@ struct BumpView: View {
                 }
                 .buttonStyle(.dsPrimary)
                 HStack(spacing: 8) {
-                    if f.needsSettings {
+                    if f.needsSettings || cellularBlocked(p) {
                         Button { openSettings() } label: { Text(L.t("去設定", "去设置")).frame(maxWidth: .infinity) }
                             .buttonStyle(.dsSecondary)
                     } else if f.canRetry {
@@ -91,13 +120,23 @@ struct BumpView: View {
                 .buttonStyle(.dsSecondary)
         default:
             VStack(spacing: 8) {
-                Button { store.bumpUseQR() } label: {
-                    Label(L.t("用二維碼", "用二维码"), systemImage: "qrcode").frame(maxWidth: .infinity)
+                // 搵咗一阵都未搵到：「用二維碼」变大掣，唔使等到失败（D-6）。
+                if slow && Self.finding(p) {
+                    Button { store.bumpUseQR() } label: {
+                        Label(L.t("用二維碼", "用二维码"), systemImage: "qrcode").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.dsPrimary)
+                    .transition(.opacity)
+                } else {
+                    Button { store.bumpUseQR() } label: {
+                        Label(L.t("用二維碼", "用二维码"), systemImage: "qrcode").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.dsSecondary)
                 }
-                .buttonStyle(.dsSecondary)
                 Button { store.cancelBump() } label: { Text(L.t("取消", "取消")).frame(maxWidth: .infinity) }
                     .buttonStyle(.dsSecondary)
             }
+            .animation(DS.motion(DS.snappy), value: slow)
         }
     }
 
@@ -115,9 +154,10 @@ struct BumpView: View {
 
     static func hint(_ p: BumpUpdate) -> String {
         switch p {
-        case .searching: return L.t("兩部手機都要開住呢頁，慢慢貼埋一齊。", "两部手机都要打开这页，慢慢靠在一起。")
+        case .searching: return L.t("兩部手機都開住呢頁，並排或者背對背靠近，隔一個拳頭就得。唔好頂部對頂部；彈出「隔空投送」就撳「取消」。",
+                                    "两台手机都打开这一页，并排或背对背靠近，隔一个拳头就行。不要顶部对顶部；弹出「隔空投送」就点「取消」。")
         case .needsLocalNetwork: return L.t("彈出問你嗰陣撳「允許」。撳錯咗就去「設定」打開，或者用二維碼。", "弹窗询问时点「允许」。点错了就去「设置」打开，或者用二维码。")
-        case .ranging: return L.t("兩部手機慢慢貼埋，拎穩一陣。", "两部手机慢慢靠近，拿稳一会儿。")
+        case .ranging: return L.t("並排或者背對背，隔一個拳頭就得，拎穩一秒。唔使貼埋。", "并排或背对背，隔一个拳头就行，拿稳一秒。不用贴在一起。")
         case .nearMe: return L.t("你部已經夠近，等對方部都量到。", "你的已经够近了，等对方的也测到。")
         case .linking: return L.t("唔好走開，就快好。", "别走开，马上就好。")
         case .paired: return L.t("你哋而家係街坊。", "你们现在是邻居了。")
@@ -138,7 +178,7 @@ private struct BumpRing: View {
             case .searching, .needsLocalNetwork:
                 FSBumpIllustration()
                     .accessibilityElement()
-                    .accessibilityLabel(L.t("碰一碰：將你部手機貼近對方部手機，就會加做街坊", "碰一碰：把你的手机靠近对方的手机，就能加为邻居"))
+                    .accessibilityLabel(L.t("碰一碰：兩部手機並排或者背對背靠近，隔一個拳頭，就會加做街坊", "碰一碰：两台手机并排或背对背靠近，隔一个拳头，就能加为邻居"))
             default:
                 Circle()
                     .stroke(DS.accent.opacity(0.15), lineWidth: 16)
@@ -228,32 +268,43 @@ struct BumpPopSymbol: View {
     }
 }
 
-/// 两部手机慢慢靠近，中间一圈圈涟漪。
+/// 两部手机并排慢慢靠近、停喺隔一拳（唔係顶部对顶部，唔使贴埋：D-4），中间一圈圈涟漪；下面一粒字讲「並排 · 隔一拳」。
 private struct FSBumpIllustration: View {
     var body: some View {
         ZStack {
             FSRipples()
             if DS.reduceMotion {
-                phones(close: false)
+                phones(close: true)
             } else {
                 PhaseAnimator([false, true]) { close in
                     phones(close: close)
                 } animation: { close in
-                    close ? .spring(response: 0.9, dampingFraction: 0.7).delay(0.5)
-                          : .spring(response: 1.1, dampingFraction: 0.9).delay(0.8)
+                    close ? .spring(response: 0.9, dampingFraction: 0.8).delay(0.5)
+                          : .spring(response: 1.1, dampingFraction: 0.9).delay(1.0)
                 }
             }
+            Label(L.t("並排 · 隔一個拳頭", "并排 · 隔一个拳头"), systemImage: "arrow.left.and.right")
+                .ds(.captionBold)
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(.regularMaterial, in: Capsule())
+                .offset(y: 112)
         }
     }
 
+    /// 两部都企直、平排；靠近之后中间留一拳位，有个左右箭咀。
     private func phones(close: Bool) -> some View {
         ZStack {
             FSPhoneOutline(tint: DS.accent)
-                .rotationEffect(.degrees(close ? 9 : -3))
-                .offset(x: close ? -42 : -100, y: close ? -4 : 0)
+                .offset(x: close ? -52 : -104, y: -14)
             FSPhoneOutline(tint: Palette.person(0))
-                .rotationEffect(.degrees(close ? -9 : 3))
-                .offset(x: close ? 42 : 100, y: close ? -4 : 0)
+                .offset(x: close ? 52 : 104, y: -14)
+            Image(systemName: "arrow.left.and.right")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(DS.accent)
+                .offset(y: -14)
+                .opacity(close ? 1 : 0)
         }
     }
 }
