@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- 和自动生成的 Info.plist 合并。只放 INFOPLIST_KEY_* 表达唔到的键（数组、后台模式）同真功能要用的权限说明。
-     放喺 StreetWalk/ 文件夹外面：文件夹同步会把里面的 plist 当资源复制，同生成的 Info.plist 撞名。 -->
+     放喺 StreetWalk/ 文件夹外面：文件夹同步会把里面的 plist 当资源复制，同生成的 Info.plist 撞名。
+     权限说明仲有本地化版本：StreetWalk/Resources/zh-Hans.lproj（普通话）、zh-HK.lproj（粤语）嘅 InfoPlist.strings，改呢度要一齐改。 -->
 <plist version="1.0">
 <dict>
 	<!-- F1 真机自动记录、出门检测：离开屋企时系统喺后台叫醒 App，散步期间继续用定位。 -->

@@ -4,10 +4,13 @@ import SwiftUI
 struct StreetWalkApp: App {
     /// 系统喺背景开 App（离开屋企、到访、大范围移动）时冇画面：靠 AppDelegate 一启动就接好定位事件。
     @UIApplicationDelegateAdaptor(StreetWalkAppDelegate.self) private var appDelegate
-    @State private var store = AppStore.launch()
+    @State private var store: AppStore
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        // 第一次开：按 iOS 系统语言揀界面语言（简体 → 普通话）；要喺 AppStore.launch 之前（佢一建就用到 L.t）
+        AppLanguage.prepareForLaunch()
+        _store = State(initialValue: AppStore.launch())
         VoiceSettings.shared.followAppLanguage()   // 播报语言跟界面语言（-lang cmn / 设定页揀过）
     }
 
@@ -28,6 +31,7 @@ final class StreetWalkAppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         // 系统喺背景开（定位事件）：SwiftUI App 未必带 .location，所以都睇埋而家係唔係喺背景
         let background = launchOptions?[.location] != nil || application.applicationState == .background
+        AppLanguage.prepareForLaunch()   // 通常 StreetWalkApp.init 已经做咗（已揀过就唔郁）
         _ = AppStore.launch()
         if background { LocationMonitor.shared.noteLocationLaunch() }
         return true

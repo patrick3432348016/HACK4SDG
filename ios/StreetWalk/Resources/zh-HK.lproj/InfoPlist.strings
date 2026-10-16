@@ -1,0 +1,21 @@
+/* 系统权限框说明（粤语，繁体）：香港 / 繁体中文 / 其他语言用（开发地区 zh-HK）。
+   一定要有呢个文件夹：App 只得 zh-Hans.lproj 嘅话，iOS 会俾香港用户都用简体（实测 Bundle.preferredLocalizations）。
+   内容同 StreetWalk-Info.plist / 工程 INFOPLIST_KEY_* 一样；改其中一边要两边一齐改。 */
+
+"CFBundleDisplayName" = "街坊行";
+
+"NSLocationWhenInUseUsageDescription" = "用你附近嘅街道同樓宇砌出屋邨模型；散步時用定位畫出你行過嘅路。路線只留喺呢部手機，唔會上傳，對外只講地標。";
+
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "揀「始終允許」，你出門散步時就算手機鎖咗都會自動記錄，亦可以話俾你嘅街坊知你出咗門。你屋企喺邊只會留喺呢部手機，對外只講地標。";
+
+"NSMicrophoneUsageDescription" = "聽你講嘢，例如「約陳太聽日一齊行」。";
+
+"NSMotionUsageDescription" = "偵測你行緊路，自動記錄散步，唔使撳任何掣；鎖咗機時行嘅路，打開 App 時補返分鐘同步數。";
+
+"NSSpeechRecognitionUsageDescription" = "將你講嘅廣東話轉成文字，等 App 明白你想做乜。";
+
+"NSLocalNetworkUsageDescription" = "碰一碰加街坊時，用嚟搵到身邊另一部手機；亦用嚟連接同一個 Wi-Fi 入面嘅語音服務，令讀出嚟嘅聲更自然。";
+
+"NSNearbyInteractionUsageDescription" = "碰一碰時量度兩部手機有幾近；搵街坊時喺附近指出佢喺邊個方向。";
+
+"NSCameraUsageDescription" = "手機唔支援碰一碰時，用鏡頭掃街坊嘅二維碼加街坊；搵街坊時喺好近嘅距離，用鏡頭幫手指出佢喺邊個方向。";
