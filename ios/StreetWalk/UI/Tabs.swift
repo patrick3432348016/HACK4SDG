@@ -376,6 +376,11 @@ struct TodayTab: View {
                 if let tip = store.paceTip {
                     Label(tip, systemImage: "chair.lounge.fill").ds(.caption).fixedSize(horizontal: false, vertical: true)
                 }
+                // A-3：自己结束散步（自动开始、手动开始都得）
+                Button { taps += 1; store.endWalkByUser() } label: {
+                    Label(L.t("結束散步", "结束散步"), systemImage: "stop.circle.fill").lineLimit(1).frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.dsSecondary)
             } else {
                 Text(L.t("今日行咗 \(store.todayMinutes) 分鐘 · 連續 \(me.streakDays) 日", "今天走了 \(store.todayMinutes) 分钟 · 连续 \(me.streakDays) 天"))
                     .ds(.body)
@@ -384,6 +389,16 @@ struct TodayTab: View {
                 if store.streakHasDemo { DemoBadge(text: L.t("含示範紀錄", "含示范记录")) }
                 if !me.todayLine.isEmpty {
                     TypeInText(text: me.todayLine).ds(.caption).foregroundStyle(.secondary)
+                }
+                // A-3：自己撳开始散步（即刻记录、播报）；出门自动认唔到时都可以用
+                if store.find == nil {
+                    Button { taps += 1; store.startManualWalk() } label: {
+                        Label(L.t("而家出去行吓（開始記錄）", "现在出去走走（开始记录）"), systemImage: "figure.walk")
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.dsSecondary)
                 }
                 leaveRow(me)
             }
@@ -531,7 +546,17 @@ struct TodayTab: View {
     // MARK: 散步中：快捷反映
 
     private var reportCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        // A-3：散步中一定见到「结束散步」：今日行紧嗰行（statusRow）收埋咗（主角卡就係散步卡）时放喺呢度
+        let showEnd = Self.hero(store) == .walking
+        return VStack(alignment: .leading, spacing: 12) {
+            // 放最上面：唔使碌落去都见到
+            if showEnd {
+                Button { taps += 1; store.endWalkByUser() } label: {
+                    Label(L.t("結束散步", "结束散步"), systemImage: "stop.circle.fill").lineLimit(1).frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.dsPrimary)
+                .padding(.bottom, 4)
+            }
             HStack(spacing: 8) {
                 Text(L.t("呢度點樣？", "这里怎么样？")).ds(.captionBold)
                 Spacer(minLength: 0)

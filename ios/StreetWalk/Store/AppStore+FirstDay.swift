@@ -16,11 +16,25 @@ struct FirstDayProgress: Codable, Equatable {
     var finishedAt: Date?
     /// 做齐之后卡已经收埋（唔再出）。
     var closed: Bool?
+    /// 用户自己撳过个勾（J-2）：true 自己打勾、false 自己取消；nil 跟自动判断。
+    var walkMark: Bool?
+    var bumpMark: Bool?
+    var inviteMark: Bool?
 
     static let walkGoal = 10
 
+    enum Item { case walk, bump, invite }
+
     var walked: Bool { (walkMinutes ?? 0) >= Self.walkGoal }
-    var doneCount: Int { [walked, bumped == true, invited == true].filter { $0 }.count }
+    /// 而家打咗勾未（用户自己撳过就跟用户）。
+    func isDone(_ i: Item) -> Bool {
+        switch i {
+        case .walk: return walkMark ?? walked
+        case .bump: return bumpMark ?? (bumped == true)
+        case .invite: return inviteMark ?? (invited == true)
+        }
+    }
+    var doneCount: Int { [isDone(.walk), isDone(.bump), isDone(.invite)].filter { $0 }.count }
     var allDone: Bool { doneCount == 3 }
 }
 
@@ -44,6 +58,7 @@ extension AppStore {
     func firstDayWalked(_ minutes: Int) {
         guard var f = firstDay, f.finishedAt == nil, minutes > 0 else { return }
         f.walkMinutes = (f.walkMinutes ?? 0) + minutes
+        if f.walkMark == false, f.walked { f.walkMark = nil }     // 自己取消咗勾之后再行够 10 分钟：自动打返勾
         firstDay = f
         firstDayCheck()
     }
@@ -58,6 +73,48 @@ extension AppStore {
             say(L.t("今日三件事做齊晒，好叻！", "今天三件事都做完了，真棒！"))
         }
         if f != firstDay { firstDay = f }
+    }
+
+    /// 任务卡上打咗勾未：「出去行」连行紧嗰次都计（A-3：走满 10 分钟即刻打勾，唔使等返屋企）。
+    func firstDayDone(_ i: FirstDayProgress.Item) -> Bool {
+        guard let f = firstDay else { return false }
+        if i == .walk, f.walkMark == nil, let w = walk, (f.walkMinutes ?? 0) + w.minutes >= FirstDayProgress.walkGoal { return true }
+        return f.isDone(i)
+    }
+
+    var firstDayDoneCount: Int { [FirstDayProgress.Item.walk, .bump, .invite].filter { firstDayDone($0) }.count }
+
+    /// J-2：撳一件事个勾：打咗勾就取消、未打就打勾（用户自己话事，存档）。
+    /// 取消「出去行 10 分钟」由 0 分钟重新计，之后再行够 10 分钟会自动再打勾。
+    func firstDayToggle(_ item: FirstDayProgress.Item) {
+        guard var f = firstDay else { return }
+        let on = !firstDayDone(item)
+        switch item {
+        case .walk:
+            if on { f.walkMark = true } else { f.walkMark = false; f.walkMinutes = 0 }
+        case .bump: f.bumpMark = on
+        case .invite: f.inviteMark = on
+        }
+        if !f.allDone {
+            f.finishedAt = nil
+        } else if f.finishedAt == nil {
+            f.finishedAt = Date()
+            say(L.t("今日三件事做齊晒，好叻！", "今天三件事都做完了，真棒！"))
+        }
+        firstDay = f
+        Haptics.light()
+    }
+
+    /// 截图自检（-uiPreview firstDay）：任务卡行咗 4 分钟、碰过一碰、约好咗陳太聽日朝早 8 點（地图装好先摆）。
+    func previewFirstDayIfNeeded() {
+        guard UIPreview.is("firstDay") else { return }
+        Task { @MainActor [weak self] in
+            while self?.map == nil || self?.landmarks.isEmpty == true { try? await Task.sleep(for: .milliseconds(300)) }
+            guard let self else { return }
+            let day = Self.hk.startOfDay(for: self.now.addingTimeInterval(86400)).addingTimeInterval(8 * 3600)
+            self.appointments = [Appointment(partnerID: "chan", date: day, landmarkID: self.landmarks[0].id, reason: "", status: .accepted)]
+            self.firstDay = FirstDayProgress(started: Date(), walkMinutes: 4, bumped: true, invited: true)
+        }
     }
 
     /// 做齐之后收埋任务卡。

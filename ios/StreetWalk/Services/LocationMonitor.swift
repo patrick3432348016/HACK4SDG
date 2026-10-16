@@ -44,6 +44,8 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
     var showAlwaysAsk = false
     /// 今日页「係咪搬咗屋」卡读过边句（每句只读一次）。
     @ObservationIgnored var spokenPrompt: String?
+    /// 今次开 App 弹过解释页（定位「未问」时每次开 App 只问一次）。
+    @ObservationIgnored private(set) var offeredThisLaunch = false
 
     /// 完成咗首次使用（同意咗）先开监察。
     var enabled = false { didSet { if enabled != oldValue { refreshMonitoring() } } }
@@ -247,6 +249,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
     }
 
     func markAlwaysOffered() {
+        offeredThisLaunch = true
         alwaysOffered = true
         UserDefaults.standard.set(true, forKey: Keys.alwaysOffered)
     }
