@@ -41,33 +41,68 @@ struct StopDetector {
 }
 
 /// F1 真机：按定位点判断几时开始、几时收尾。
+/// 测试反馈 C-1：以前要精度 ≤30 m、扣埋误差离家 55 m 先开始，香港楼密精度成日 30–45 m，行到 100 m 都唔开始。
 struct LiveWalkGate {
     static let homeRadius = 40.0     // 我屋企 40 m 内算返到屋企
-    static let leaveRadius = 55.0    // 扣埋误差都离开 55 m 先算出门（大过返屋企阈值，唔会一开一收）
+    static let leaveRadius = 50.0    // 扣埋误差都离开 50 m 先算出门（大过返屋企阈值 10 m，唔会一开一收）
     static let maxStart = 400.0      // 400 m 外先开始唔算（喺别区落车行路唔係「出門」）
-    static let goodAcc = 30.0        // 开始、画轨迹要精度 ≤30 m
+    static let goodAcc = 45.0        // 开始要精度 ≤45 m（以前 30 m：楼密嘅地方成日开唔到）
+    static let trailAcc = 40.0       // 画轨迹要精度 ≤40 m（再差就只计时间）
     static let homeAcc = 50.0        // 放宽嘅返屋企判断只接受精度 ≤50 m
     static let confirmGap: TimeInterval = 5   // 要两个相隔 ≥5 秒嘅好点先开始（防定位跳一下）
+    /// 收尾之后 90 秒内唔自动再开始（喺门口附近定位跳嚟跳去时唔会一开一收、讲过不停）。
+    static let restartGap: TimeInterval = 90
+    /// 自己撳「结束散步」而仲喺外面：返到屋企之前唔自动再开始（最多 3 个钟）。
+    static let userEndQuiet: TimeInterval = 3 * 3600
 
     enum Action: Equatable { case none, start, step, minutesOnly, finish }
 
     private(set) var pendingSince: Date?
+    /// 自己撳「现在出去走走」时仲喺屋企：未行出屋企之前唔会因为「喺屋企」收尾。
+    var awaitingLeave = false
+    /// 呢个时间之前唔自动开始（untilHome：返到屋企就提早解除）。
+    private(set) var quietUntil: Date?
+    private(set) var quietUntilHome = false
 
     /// 精度差（屋企楼里）时放宽：扣掉误差仍在 40 m 内、精度唔差过 50 m、唔超过 100 m。
     static func isHome(fromHome d: Double, acc: Double) -> Bool {
         d < homeRadius || (acc <= homeAcc && d - acc < homeRadius && d < 100)
     }
 
-    /// moving：Core Motion 而家判断喺行路（轮椅：唔係停低）。
+    /// 扣埋误差都离开屋企 50 m（出门）。
+    static func isAway(fromHome d: Double, acc: Double) -> Bool { d - acc > leaveRadius }
+
+    /// 一段时间内唔自动开始。
+    mutating func quiet(until t: Date, untilHome: Bool = false) {
+        quietUntil = t
+        quietUntilHome = untilHome
+        pendingSince = nil
+    }
+
+    /// moving：而家行紧路（Core Motion，或者定位速度似行路；轮椅：唔係停低）。
     /// maxStart：几远以内开始都算出门（由屋企行出去、区域监察迟报时放宽，见 TriggerRules.maxStart）。
     mutating func decide(fromHome d: Double, acc: Double, at t: Date, recording: Bool, moving: Bool,
                          maxStart: Double = LiveWalkGate.maxStart) -> Action {
         if recording {
             pendingSince = nil
+            let step: Action = acc <= Self.trailAcc ? .step : .minutesOnly
+            if awaitingLeave {
+                if Self.isAway(fromHome: d, acc: acc) { awaitingLeave = false }
+                return step
+            }
             if Self.isHome(fromHome: d, acc: acc) { return .finish }
-            return acc <= Self.goodAcc ? .step : .minutesOnly
+            return step
         }
-        guard moving, acc <= Self.goodAcc, d - acc > Self.leaveRadius, d < maxStart else { pendingSince = nil; return .none }
+        if let q = quietUntil {
+            if t >= q || (quietUntilHome && Self.isHome(fromHome: d, acc: acc)) {
+                quietUntil = nil
+                quietUntilHome = false
+            } else {
+                pendingSince = nil
+                return .none
+            }
+        }
+        guard moving, acc <= Self.goodAcc, Self.isAway(fromHome: d, acc: acc), d < maxStart else { pendingSince = nil; return .none }
         guard let s = pendingSince else { pendingSince = t; return .none }
         guard t.timeIntervalSince(s) >= Self.confirmGap else { return .none }
         pendingSince = nil

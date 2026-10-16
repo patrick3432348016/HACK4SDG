@@ -1,6 +1,7 @@
 import CoreLocation
 import CoreMotion
 import Foundation
+import UIKit
 
 /// 真机散步检测：Core Motion 判断开始 / 停止行路，只在行路（或正在记录）时开准确定位。
 /// 记录紧散步时锁机 / 退后台都继续定位（allowsBackgroundLocationUpdates）；有「始终允许」时，
@@ -8,6 +9,8 @@ import Foundation
 /// 其余背景时段（例如 App 被扫走）：返前台时用 Core Motion 嘅活动纪录同计步器补记（AppStore.backfill）。
 /// 精确位置只在手机上换算成场景坐标，不上传、不存盘。模拟器和演示模式不启用，继续用演示散步；
 /// 模拟器加启动参数 -simWalk 就只靠定位速度判断行路（冇 Core Motion，开发测试用）。
+/// 测试反馈 C-1：App 喺前台（亮住屏）时一直开准确定位，唔等 Core Motion 先开；只有「使用 App 期间」权限都认到出门。
+/// 唔会喺街上弹定位权限框：权限喺首次使用后嘅解释页问（AlwaysAskSheet），或者自己撳「现在出去走走」时先问。
 @MainActor
 final class WalkDetector: NSObject, CLLocationManagerDelegate {
     enum Event {
@@ -46,6 +49,19 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
     private(set) var lastFixAt: Date?
     private(set) var lastFix: (GeoPoint, accuracy: Double)?
     private var lastSpeed = -1.0
+    /// Core Motion 最近一次话坐车 / 踩单车：之后 2 分钟唔信定位速度当行路。
+    private var ridingAt: Date?
+
+    /// 而家当行紧路：Core Motion 话行紧，或者定位速度似行路（0.4–3 m/s，啱啱坐过车唔算）。
+    /// Core Motion 有时慢几十秒先报、或者「运动与健身」冇开，靠定位速度补。
+    var stepping: Bool {
+        if moving { return true }
+        if let r = ridingAt, Date().timeIntervalSince(r) < 120 { return false }
+        return lastSpeed >= 0.4 && lastSpeed <= 3
+    }
+
+    /// App 喺前台（包括弹紧系统框）。
+    static var inForeground: Bool { UIApplication.shared.applicationState != .background }
 
     /// 用到先建（一建就可能弹「运动与健身」权限框，要等同意页之后、真机先建）。
     private lazy var motion = CMMotionActivityManager()
@@ -124,7 +140,8 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
     func start() {
         guard Self.isAvailable, !running else { return }
         running = true
-        if recording && !catchingUp { setLocating(true) }
+        // 前台：即刻开准确定位（出门 50 m 就认到）；后台：记录紧先开
+        if !catchingUp { setLocating(recording) }
         // -simWalk：冇 Core Motion，一直开定位睇速度
         if Self.locationOnly { setLocating(true); return }
         motion.startActivityUpdates(to: .main) { [weak self] a in
@@ -136,6 +153,7 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
             self.watchStill(still)
             if riding {
                 self.moving = false
+                self.ridingAt = Date()
                 self.leftHomeAt = nil      // 坐咗车：之后唔再当係由屋企行出去
                 self.onEvent?(.riding)
             } else if moving {
@@ -173,6 +191,7 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
         lastFixAt = nil
         lastFix = nil
         gate = LiveWalkGate()
+        gate.quiet(until: Date().addingTimeInterval(LiveWalkGate.restartGap))   // 啱啱收尾：唔好即刻又开始
         if countingSteps { pedometer.stopUpdates(); countingSteps = false }
     }
 
@@ -192,10 +211,15 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
         applyMode()
     }
 
-    /// 只在需要时开准确定位，省电（-simWalk 运行期间一直开）。
+    /// 只在需要时开准确定位，省电（-simWalk 运行期间一直开；App 喺前台、检测开紧都一直开）。
     func setLocating(_ on: Bool) {
-        wantFine = on || (Self.locationOnly && running)
+        wantFine = on || (running && (Self.locationOnly || Self.inForeground))
         applyMode()
+    }
+
+    /// 自己撳「现在出去走走」：未问过定位就问（使用 App 期间）。自动检测唔会喺街上弹框。
+    func requestWhenInUseIfNeeded() {
+        if location.authorizationStatus == .notDetermined { location.requestWhenInUseAuthorization() }
     }
 
     /// 准确：行紧路 / 记录紧；粗略：keepAlive（背景醒住等行路）；否则关。
@@ -205,7 +229,8 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
         guard m != mode else { return }
         mode = m
         guard m != .off else { location.stopUpdatingLocation(); return }
-        if location.authorizationStatus == .notDetermined { location.requestWhenInUseAuthorization() }
+        // 未允许定位唔开（唔好喺街上弹权限框）；之后允许咗由 locationManagerDidChangeAuthorization 再开
+        guard location.authorizationStatus != .notDetermined else { return }
         location.desiredAccuracy = m == .fine ? kCLLocationAccuracyBest : kCLLocationAccuracyThreeKilometers
         location.distanceFilter = m == .fine ? 3 : 500
         location.pausesLocationUpdatesAutomatically = false
@@ -288,4 +313,14 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
     }
 
     nonisolated func locationManager(_ m: CLLocationManager, didFailWithError error: Error) {}
+
+    /// 喺解释页 / 设定允许咗定位：要定位嘅话即刻开。
+    nonisolated func locationManagerDidChangeAuthorization(_ m: CLLocationManager) {
+        Task { @MainActor in
+            let s = self.location.authorizationStatus
+            guard self.mode != .off, s == .authorizedWhenInUse || s == .authorizedAlways else { return }
+            self.mode = .off        // 当未开过，重新开
+            self.applyMode()
+        }
+    }
 }

@@ -7,6 +7,8 @@ struct WalkTrack {
     var stops = StopDetector()
     /// 今次嘅落脚点（地标 id）。
     var stopIDs: [String] = []
+    /// 自己撳「现在出去走走」开始（A-3）：分钟按钟计，唔使等定位。
+    var manual = false
     /// 演示：喺呢个有櫈嘅地标停一停，形成落脚点。
     var pauseAt: Vec2?
     var pauseSeat: String?
@@ -31,7 +33,8 @@ extension AppStore {
     /// 落脚点吸附到 60 m 内最近嘅地标；再远就唔算，唔好乱讲地标。
     static let stopSnap = 60.0
 
-    func startWalk() {
+    /// manual：用户自己撳「现在出去走走」（演示模式 / 模拟器用演示散步）。
+    func startWalk(manual: Bool = false) {
         guard walk == nil, find == nil, map != nil else { return }
         let start = scene.nearestWalkable(scene.homeTarget + Vec2(x: 0, y: -18))
         var near = Array(landmarks.sorted { $0.pos.distance(to: start) < $1.pos.distance(to: start) }.prefix(3))
@@ -52,25 +55,67 @@ extension AppStore {
         route += scene.route(from: prev, to: start).dropFirst()
         // 自己撳「出門」先切去今日页；真机自动开始唔切页（A92）
         tab = .today
-        beginWalk(route: route)
+        beginWalk(route: route, manual: manual)
         track.pauseAt = seat?.0
         track.pauseSeat = seat?.1
         startTicker()
     }
 
-    private func beginWalk(route: [Vec2], start: Date = Date(), live: Bool = false) {
+    private func beginWalk(route: [Vec2], start: Date = Date(), live: Bool = false, manual: Bool = false) {
         walk = WalkSession(start: start, route: route)
         track = WalkTrack()
+        track.manual = manual
         if !live { track.stops = StopDetector(radius: Self.demoStopRadius) }
         if live { walkDetector.startSteps(from: start) }
-        community.publishOuting(landmarkID: nearestLandmark(to: route[0])?.id)
+        community.publishOuting(landmarkID: nearestLandmark(to: route[0])?.id)     // 出门提醒（E-1）：自动 / 手动开始都发
         paceTip = nil
-        say(L.t("偵測到你出咗門，開始記錄，唔使撳任何掣。", "检测到你出门了，开始记录，不用按任何按钮。"))
+        say(manual ? L.t("好，開始記錄今次散步。行完撳「結束散步」，返到屋企都會自動停。", "好，开始记录这次散步。走完点「结束散步」，回到家也会自动停。")
+                   : L.t("偵測到你出咗門，開始記錄，唔使撳任何掣。", "检测到你出门了，开始记录，不用按任何按钮。"))
         Haptics.light()
         scene.followID = "me"
         scene.setCamera(target: route[0], distance: scene.overviewDistance * 0.85, animated: true)
         syncScene()
         walkBegan(live: live)      // 定位纪录、背景通知（AppStore+Location）
+    }
+
+    /// A-3：自己撳「现在出去走走（开始记录）」：即刻开始记录同播报。真机用定位（未行出屋企前唔会因为喺屋企收尾）；
+    /// 演示模式、冇动作感应（模拟器）就用演示散步。走满 10 分钟「今日三件事」照样打勾。
+    func startManualWalk() {
+        guard walk == nil, find == nil, let m = map else { return }
+        let d = walkDetector
+        guard WalkDetector.isAvailable, !demoMode, phase == .main else { startWalk(manual: true); return }
+        if !d.running { startWalkDetection() }
+        d.requestWhenInUseIfNeeded()
+        // 之前锁机时已经行紧嘅一段先补记，今次由而家计
+        settlePendingWalk(stoppedAt: Date())
+        d.pendingWalk = nil
+        let home = scene.nearestWalkable(scene.homeTarget + Vec2(x: 0, y: -18))
+        var first = home, here: Vec2?, away = false
+        if let fix = d.lastFix, let at = d.lastFixAt, Date().timeIntervalSince(at) < 120 {
+            let p = m.scenePoint(fix.0)
+            let lim = m.half - 4
+            here = p
+            first = Vec2(x: max(-lim, min(lim, p.x)), y: max(-lim, min(lim, p.y)))
+            away = LiveWalkGate.isAway(fromHome: p.distance(to: scene.homeTarget), acc: fix.accuracy)
+        }
+        d.recording = true
+        d.gate.awaitingLeave = !away
+        d.trail = here.map { abs($0.x) <= m.half - 4 && abs($0.y) <= m.half - 4 ? [$0] : [] } ?? []
+        tab = .today
+        beginWalk(route: [first], start: Date(), live: true, manual: true)
+        track.lastPoint = here
+        d.setLocating(true)
+        startTicker()       // 手动散步：分钟按钟计（企定唔郁都照计）
+    }
+
+    /// A-3：自己撳「结束散步」。真机按而家计分钟；仲喺外面就等返到屋企先再自动开始（唔会即刻又「检测到你出门了」）。
+    func endWalkByUser() {
+        guard walk != nil else { return }
+        let d = walkDetector
+        guard d.recording else { finishWalk(reason: .user); return }     // 演示散步
+        let away = d.lastFix != nil && !lastFixAtHome
+        finishLiveWalk(endAt: Date(), reason: .user)
+        if away { d.gate.quiet(until: Date().addingTimeInterval(LiveWalkGate.userEndQuiet), untilHome: true) }
     }
 
     func remainingRoute(_ w: WalkSession) -> [Vec2] {
@@ -113,8 +158,9 @@ extension AppStore {
         }
         if var f = find { tickFind(&f, dt); find = f }
         else if var w = walk, !walkDetector.recording { tickWalk(&w, dt) }
-        // 真机散步由定位推动，不用计时器
-        if find == nil && (walk == nil || walkDetector.recording) { ticker?.cancel(); ticker = nil }
+        else if walk != nil, track.manual { liveMinutes() }      // 手动开始嘅真机散步：分钟按钟计
+        // 真机散步由定位推动，不用计时器（手动开始嘅要计分钟）
+        if find == nil && (walk == nil || (walkDetector.recording && !track.manual)) { ticker?.cancel(); ticker = nil }
     }
 
     func tickWalk(_ w: inout WalkSession, _ dt: Double) {
@@ -162,7 +208,7 @@ extension AppStore {
         community.publishOuting(landmarkID: l.id)
     }
 
-    enum WalkEnd { case home, stopped, riding }
+    enum WalkEnd { case home, stopped, riding, user }
 
     /// 收尾。endAt：真机按几时停低 / 最后定位计分钟。
     func finishWalk(endAt: Date? = nil, reason: WalkEnd = .home) {
@@ -170,7 +216,7 @@ extension AppStore {
         walkingWith = nil
         let live = walkDetector.recording
         var minutes = w.minutes
-        if live, let end = endAt ?? walkDetector.lastFixAt { minutes = max(0, Int(end.timeIntervalSince(w.start) / 60)) }
+        if live, let end = endAt ?? (track.manual ? Date() : walkDetector.lastFixAt) { minutes = max(0, Int(end.timeIntervalSince(w.start) / 60)) }
         // 真机：唔够 2 分钟又行唔到 100 m（定位跳咗一下），唔记录（A74）
         let tooShort = live && minutes < 2 && track.distance < 100
         let t = track
@@ -193,6 +239,7 @@ extension AppStore {
         case (_, .home): say(L.t("返到屋企喇。今日行咗 \(m) 分鐘，經過 \(w.passed.count) 個地方。而家已經隱身。", "到家了。今天走了 \(m) 分钟，经过 \(w.passed.count) 个地方。现在已经隐身。"))
         case (_, .stopped): say(L.t("停低咗一陣，今次散步記好咗：行咗 \(m) 分鐘。而家已經隱身。", "停了一会儿，这次散步已记好：走了 \(m) 分钟。现在已经隐身。"))
         case (_, .riding): say(L.t("上咗車，今次散步記好咗：行咗 \(m) 分鐘。而家已經隱身。", "上车了，这次散步已记好：走了 \(m) 分钟。现在已经隐身。"))
+        case (_, .user): say(L.t("好，今次散步記好咗：行咗 \(m) 分鐘。而家已經隱身。", "好，这次散步记好了：走了 \(m) 分钟。现在已经隐身。"))
         }
         Haptics.success()
         walkEnded(live: live, minutes: m, places: w.passed.count, reason: reason, recorded: !tooShort)   // AppStore+Location
@@ -214,7 +261,11 @@ extension AppStore {
         let since = takeBackgroundMark()
         let resuming = d.recording && walk != nil
         // 返前台：睇完活动纪录先开定位、判断开始 / 收尾（唔好俾第一个定位抢先收尾或者开始，A55）
-        guard resuming || since != nil else { d.start(); return }
+        guard resuming || since != nil else {
+            d.start()
+            d.setLocating(d.moving || d.recording)     // 前台：一直开准确定位（已经开紧检测都要，C-1）
+            return
+        }
         if since != nil { d.pendingWalk = nil }     // 由 mark 起重新睇过
         d.catchUps += 1
         d.start()
@@ -232,6 +283,8 @@ extension AppStore {
         guard d.running else { return }
         let mark = d.recording ? (walk?.start ?? Date()) : min(d.pendingWalk?.start ?? Date(), Date())
         UserDefaults.standard.set(mark, forKey: Self.backgroundKey)
+        // 前台先一直开嘅准确定位：退后台就按返行唔行路（记录紧照开）
+        if !d.recording { d.setLocating(d.moving) }
     }
 
     func takeBackgroundMark() -> Date? {
@@ -339,7 +392,7 @@ extension AppStore {
             let stillFor = Date().timeIntervalSince(since)
             let end = max(since, w.start)
             // 停低 5 分钟又喺屋企附近（楼里 GPS 差，可能一直收唔到 40 m 内嘅点）
-            if stillFor >= 5 * 60 - 5, let fix = d.lastFix, let m = map,
+            if stillFor >= 5 * 60 - 5, !d.gate.awaitingLeave, let fix = d.lastFix, let m = map,
                m.scenePoint(fix.0).distance(to: scene.homeTarget) - fix.accuracy < Self.nearHome {
                 finishLiveWalk(endAt: end)
             } else if stillFor >= 10 * 60 - 5 {
@@ -353,9 +406,9 @@ extension AppStore {
             let p = m.scenePoint(g)
             let inside = abs(p.x) <= m.half - 4 && abs(p.y) <= m.half - 4
             let fromHome = p.distance(to: scene.homeTarget)
-            switch d.gate.decide(fromHome: fromHome, acc: acc, at: d.lastFixAt ?? Date(), recording: d.recording, moving: d.moving, maxStart: d.maxStart) {
+            switch d.gate.decide(fromHome: fromHome, acc: acc, at: d.lastFixAt ?? Date(), recording: d.recording, moving: d.stepping, maxStart: d.maxStart) {
             case .finish: finishLiveWalk()
-            case .step: liveStep(p, inside: inside)
+            case .step: liveStep(p, inside: inside, half: m.half)
             case .minutesOnly: liveMinutes()
             case .start:
                 // 底座外都照样开始（A06）：镜头同起点夹返入底座，轨迹只画底座内
@@ -388,8 +441,8 @@ extension AppStore {
         }
     }
 
-    /// 真机：每个新定位点接到轨迹上；走出底座的点不画，只计时间、距离、落脚点。
-    func liveStep(_ p: Vec2, inside: Bool) {
+    /// 真机：每个新定位点接到轨迹上；走出底座的点不画，只计时间、距离、落脚点，小人停喺底座边（C-2）。
+    func liveStep(_ p: Vec2, inside: Bool, half: Double) {
         liveMinutes()
         if let last = track.lastPoint { track.distance += last.distance(to: p) }
         track.lastPoint = p
@@ -404,12 +457,23 @@ extension AppStore {
             scene.setTrail(d.trail)
             walk = w
             syncScene()
+        } else if !inside {
+            // 行出模型：小人停喺最近嘅底座边（唔画出去嗰段路）
+            let lim = half - 4
+            let edge = Vec2(x: max(-lim, min(lim, p.x)), y: max(-lim, min(lim, p.y)))
+            guard w.route.last.map({ $0.distance(to: edge) >= 3 }) ?? true else { return }
+            w.route = d.trail + [edge]
+            w.travelled = pathLength(w.route)
+            walk = w
+            syncScene()
         }
     }
 
+    /// 散步分钟：自动开始嘅按最后定位计（坐低唔郁唔计）；手动开始嘅按钟计。
     func liveMinutes() {
-        guard let s = walk?.start, let t = walkDetector.lastFixAt else { return }
-        walk?.minutes = max(0, Int(t.timeIntervalSince(s) / 60))
+        guard let s = walk?.start, let t = track.manual ? Date() : walkDetector.lastFixAt else { return }
+        let m = max(0, Int(t.timeIntervalSince(s) / 60))
+        if walk?.minutes != m { walk?.minutes = m }
     }
 
     // MARK: - F4 请假（请假日连续天数唔断、唔加）

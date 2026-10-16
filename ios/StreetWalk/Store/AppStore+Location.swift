@@ -43,6 +43,7 @@ extension AppStore {
         lm.activate()
         if let s = LaunchArgs.value("-simNights"), let g = Self.parseGeo(s) { lm.simulateNights(at: g) }
         if UIPreview.is("alwaysAsk") { lm.showAlwaysAsk = true }
+        previewFirstDayIfNeeded()       // 截图自检：-uiPreview firstDay（AppStore+FirstDay）
     }
 
     nonisolated static func parseGeo(_ s: String) -> GeoPoint? {
@@ -67,7 +68,11 @@ extension AppStore {
         UserDefaults.standard.set(mapSource == .fallback, forKey: Self.homeFromSampleKey)
         LocationMonitor.shared.enabled = true
         syncHomeLocation()
-        offerAlwaysIfNeeded()
+        // 首次设定完就问「始终允许」（C-1：唔好等到行出街先弹框）；等「搞掂！…」讲完先出解释页
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            self?.offerAlwaysIfNeeded()
+        }
     }
 
     /// 装好地图（populate）：屋企位置交俾 LocationMonitor 登记屋企范围。
@@ -78,12 +83,13 @@ extension AppStore {
         LocationMonitor.shared.setHome(m.geoPoint(b.centroid), picked: picked)
     }
 
-    /// 第一次真散步记好、返到嚟（唔喺散步中）先自动弹一次「始终允许」解释页（UX 报告问题 24：要用时先问）。
-    /// 演示、自动脚本唔弹。之后只喺今日页卡同设定提。
+    /// 「始终允许」解释页（测试反馈 C-1）：完成首次设定就弹一次，喺屋企一次问清楚（以前等第一次散步之后先问，
+    /// 结果行出街先弹系统框）。之后只喺今日页卡同设定提；但定位变返「未问」（例如以前揀咗「允许一次」），
+    /// 每次打开 App 都再问一次，唔好留到喺街上先问。散步中、演示、自动脚本唔弹。
     func offerAlwaysIfNeeded() {
         let lm = LocationMonitor.shared
-        guard phase == .main, !demoMode, !skipsPermissionPrompt, !changingHome, lm.auth != .authorizedAlways, !lm.alwaysOffered else { return }
-        guard walk == nil, walkLog.values.contains(where: { !$0.demo && $0.walks > 0 }) else { return }
+        guard phase == .main, !demoMode, !skipsPermissionPrompt, !changingHome, lm.auth != .authorizedAlways, walk == nil, !lm.showAlwaysAsk else { return }
+        guard !lm.alwaysOffered || (lm.auth == .notDetermined && !lm.offeredThisLaunch) else { return }
         lm.markAlwaysOffered()
         lm.showAlwaysAsk = true
     }
@@ -214,6 +220,7 @@ extension AppStore {
         case .home: why = L.t("返到屋企", "回到家")
         case .stopped: why = L.t("喺外面停低咗", "在外面停下了")
         case .riding: why = L.t("上咗車", "上车了")
+        case .user: why = L.t("你撳咗結束散步", "你点了结束散步")
         }
         LocationMonitor.shared.record(.walkEnd, recorded ? L.t("\(why)：行咗 \(minutes) 分鐘，經過 \(places) 個地方", "\(why)：走了 \(minutes) 分钟，经过 \(places) 个地方") : L.t("\(why)：太短，唔記錄", "\(why)：太短，不记录"))
         if recorded, !isInBackground {
