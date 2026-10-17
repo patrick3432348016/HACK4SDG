@@ -21,9 +21,9 @@ struct SettingsView: View {
                 Section {
                     TextSizePicker().padding(.vertical, 8)
                 } header: {
-                    Text(L.t("字體大小", "字体大小")).ds(.caption)
+                    Text(L.t("字體大小", "字体大小", "Text size")).ds(.caption)
                 } footer: {
-                    Text(L.t("撳一下即刻轉，成個 App 一齊變。", "点一下马上生效，整个 App 一起变。")).ds(.caption)
+                    Text(L.t("撳一下即刻轉，成個 App 一齊變。", "点一下马上生效，整个 App 一起变。", "Tap once to change. The whole app changes together.")).ds(.caption)
                 }
                 .id("textSize")
 
@@ -31,102 +31,100 @@ struct SettingsView: View {
 
                 // 界面同播报一齐转；默认粤语。演示 / 截图可以用启动参数 -lang cmn。
                 Section {
-                    BigSegments(options: AppLang.allCases, selection: Binding(get: { AppLanguage.shared.current }, set: { l in
-                        AppLanguage.shared.choose(l)
-                        store.previewVoice(VoiceSettings.shared.active, current: true)
-                    }), label: \.label)
+                    // 三种语言：一行排唔落（「普通话（简体）」太长）就上下排
+                    LanguageChooser { store.languageChanged() }
                     .padding(.vertical, 8)
-                    .accessibilityLabel(L.t("語言", "语言"))
+                    .accessibilityLabel(L.t("語言", "语言", "Language"))
                 } header: {
-                    Text(L.t("語言", "语言")).ds(.caption)
+                    Text(L.t("語言", "语言", "Language")).ds(.caption)
                 } footer: {
-                    Text(L.t("文字同播報一齊轉。", "文字和播报一起切换。")).ds(.caption)
+                    Text(L.t("文字同播報一齊轉。", "文字和播报一起切换。", "Words and voice change together.")).ds(.caption)
                 }
 
                 // 每项下面一行小字：讲清楚系乜、喺边度见到、边个见到（测试反馈 K-1）
                 Section {
                     Button { editingNickname = true } label: {
                         VStack(alignment: .leading, spacing: 2) {
-                            LabeledContent(L.t("網名", "网名")) {
-                                Text(store.nickname.isEmpty ? L.t("未有", "还没有") : store.nickname).foregroundStyle(.secondary)
+                            LabeledContent(L.t("網名", "网名", "Nickname")) {
+                                Text(store.nickname.isEmpty ? L.t("未有", "还没有", "Not set") : store.nickname).foregroundStyle(.secondary)
                             }
                             .frame(minHeight: 44)
-                            rowNote(L.t("排行榜同街坊見到你叫呢個名，唔使用真名。", "排行榜上和邻居看到的就是这个名字，不用写真名。"))
+                            rowNote(L.t("排行榜同街坊見到你叫呢個名，唔使用真名。", "排行榜上和邻居看到的就是这个名字，不用写真名。", "Neighbours and the leaderboard see this name. No need for your real name."))
                         }
                         .padding(.vertical, 6)
                     }
                     .foregroundStyle(.primary)
-                    .accessibilityHint(L.t("改排行榜上用嘅網名", "改排行榜上用的网名"))
+                    .accessibilityHint(L.t("改排行榜上用嘅網名", "改排行榜上用的网名", "Change your leaderboard nickname"))
                     VStack(alignment: .leading, spacing: 2) {
-                        LabeledContent(L.t("住喺", "住在")) {
-                            Text(store.me.blockName ?? store.map?.placeName ?? "—").foregroundStyle(.secondary)
+                        LabeledContent(L.t("住喺", "住在", "I live in")) {
+                            Text(store.homeBlockShown ?? store.map?.shownPlaceName ?? "—").foregroundStyle(.secondary)
                         }
                         .frame(minHeight: 44)
-                        rowNote(L.t("「今日」頁幅地圖以呢座樓做中心。只有用碰一碰加咗嘅街坊先見到你住邊座。", "「今天」页的地图以这栋楼为中心。只有用碰一碰加过的邻居，才看得到你住哪栋。"))
+                        rowNote(L.t("「今日」頁幅地圖以呢座樓做中心。只有用碰一碰加咗嘅街坊先見到你住邊座。", "「今天」页的地图以这栋楼为中心。只有用碰一碰加过的邻居，才看得到你住哪栋。", "The map on the Today tab is centred on this block. Only neighbours added by tapping phones can see your block."))
                     }
                     .padding(.vertical, 6)
                     .accessibilityElement(children: .combine)
-                    Button { confirmMove = true } label: { Text(L.t("改我住嘅樓", "改我住的楼")).frame(minHeight: 56) }
+                    Button { confirmMove = true } label: { Text(L.t("改我住嘅樓", "改我住的楼", "Change my block")).frame(minHeight: 56) }
                     VStack(alignment: .leading, spacing: 2) {
                         floorRow
-                        rowNote(L.t("只有用碰一碰加咗嘅街坊先見到你住幾樓。", "只有用碰一碰加过的邻居，才看得到你住几楼。"))
+                        rowNote(L.t("只有用碰一碰加咗嘅街坊先見到你住幾樓。", "只有用碰一碰加过的邻居，才看得到你住几楼。", "Only neighbours added by tapping phones can see your floor."))
                     }
                     .padding(.bottom, 6)
                     VStack(alignment: .leading, spacing: 2) {
-                        DSMenuPicker(title: L.t("出行方式", "出行方式"), selection: Binding(get: { store.mobilityChoice }, set: { store.setAvatar(mobility: $0) }),
+                        DSMenuPicker(title: L.t("出行方式", "出行方式", "How you get around"), selection: Binding(get: { store.mobilityChoice }, set: { store.setAvatar(mobility: $0) }),
                                      options: Mobility.allCases, label: \.label)
-                        rowNote(L.t("地圖上代表你嘅小人係行路、拎拐杖、坐輪椅定推BB車。揀「輪椅」，坐輪椅出門都會自動記錄散步。", "地图上代表你的卡通小人是走路、拄拐杖、坐轮椅还是推婴儿车。选「轮椅」后，坐轮椅出门也能自动记录散步。"))
+                        rowNote(L.t("地圖上代表你嘅小人係行路、拎拐杖、坐輪椅定推BB車。揀「輪椅」，坐輪椅出門都會自動記錄散步。", "地图上代表你的卡通小人是走路、拄拐杖、坐轮椅还是推婴儿车。选「轮椅」后，坐轮椅出门也能自动记录散步。", "Your figure on the map walks, uses a stick, a wheelchair or pushes a pram. Choose \"Wheelchair\" and wheelchair outings are recorded too."))
                     }
                     .padding(.bottom, 6)
                     VStack(alignment: .leading, spacing: 2) {
-                        DSMenuPicker(title: L.t("年齡層", "年龄层"), selection: Binding(get: { store.ageChoice }, set: { store.setLook(age: $0) }),
+                        DSMenuPicker(title: L.t("年齡層", "年龄层", "Age group"), selection: Binding(get: { store.ageChoice }, set: { store.setLook(age: $0) }),
                                      options: AgeGroup.allCases, label: \.label)
-                        rowNote(L.t("只係改小人個樣：「長者」白頭髮，「後生」細粒啲。", "只改变卡通小人的样子：「长者」是白头发，「年轻人」个子小一点。"))
+                        rowNote(L.t("只係改小人個樣：「長者」白頭髮，「後生」細粒啲。", "只改变卡通小人的样子：「长者」是白头发，「年轻人」个子小一点。", "Only changes how your figure looks: \"Senior\" has white hair, \"Young\" is smaller."))
                     }
                     .padding(.bottom, 6)
                     VStack(alignment: .leading, spacing: 2) {
-                        rowTitle(L.t("膚色", "肤色"))
-                        rowNote(L.t("小人嘅膚色。", "卡通小人的皮肤颜色。"))
+                        rowTitle(L.t("膚色", "肤色", "Skin colour"))
+                        rowNote(L.t("小人嘅膚色。", "卡通小人的皮肤颜色。", "Your figure's skin colour."))
                         skinRow
                     }
                     .padding(.top, 8)
                     VStack(alignment: .leading, spacing: 2) {
-                        rowTitle(L.t("衫嘅顏色", "衣服颜色"))
-                        rowNote(L.t("地圖上你個小人著呢個顏色嘅衫，街坊一睇就認得係你。", "地图上你的卡通小人穿这个颜色的衣服，邻居一看就认出是你。"))
+                        rowTitle(L.t("衫嘅顏色", "衣服颜色", "Shirt colour"))
+                        rowNote(L.t("地圖上你個小人著呢個顏色嘅衫，街坊一睇就認得係你。", "地图上你的卡通小人穿这个颜色的衣服，邻居一看就认出是你。", "Your figure wears this colour on the map, so neighbours know it's you."))
                         colorRow
                     }
                     .padding(.top, 8)
                     .id("profileColor")
                 } header: {
-                    Text(L.t("我嘅資料", "我的资料")).ds(.caption)
+                    Text(L.t("我嘅資料", "我的资料", "About me")).ds(.caption)
                 } footer: {
                     if !store.demoMode {
-                        Text(L.t("附近嘅人見到你嘅網名、小人同連續日數；住邊座、幾樓，只有用碰一碰加咗嘅街坊先見到。", "附近的人能看到你的网名、卡通小人和连续天数；住哪栋、几楼，只有用碰一碰加过的邻居才看得到。")).ds(.caption)
+                        Text(L.t("附近嘅人見到你嘅網名、小人同連續日數；住邊座、幾樓，只有用碰一碰加咗嘅街坊先見到。", "附近的人能看到你的网名、卡通小人和连续天数；住哪栋、几楼，只有用碰一碰加过的邻居才看得到。", "People nearby see your nickname, figure and streak. Your block and floor are only for neighbours added by tapping phones.")).ds(.caption)
                     }
                 }
                 .id("profile")
 
                 Section {
-                    Toggle(L.t("出門提醒", "出门提醒"), isOn: $store.remindAll).tint(DS.accent).frame(minHeight: 56)
+                    Toggle(L.t("出門提醒", "出门提醒", "Out-and-about alerts"), isOn: $store.remindAll).tint(DS.accent).frame(minHeight: 56)
                     if store.remindAll {
-                        DSMenuPicker(title: L.t("由", "从"), selection: $store.remindFrom, options: Array(5..<24), label: TemplateAI.hourLabel)
-                        DSMenuPicker(title: "到", selection: $store.remindTo, options: Array(6..<24), label: TemplateAI.hourLabel)
+                        DSMenuPicker(title: L.t("由", "从", "From"), selection: $store.remindFrom, options: Array(5..<24), label: TemplateAI.hourLabel)
+                        DSMenuPicker(title: L.t("到", "到", "To"), selection: $store.remindTo, options: Array(6..<24), label: TemplateAI.hourLabel)
                     }
                 } header: {
-                    Text(L.t("街坊出門話我知", "邻居出门告诉我")).ds(.caption)
+                    Text(L.t("街坊出門話我知", "邻居出门告诉我", "Tell me when neighbours go out")).ds(.caption)
                 } footer: {
                     // 由、到一樣當全日（A66）
-                    Text(store.remindFrom == store.remindTo ? L.t("「由」同「到」一樣，即係全日都會通知你。每個街坊仲可以喺「街坊」頁分開開關。", "「从」和「到」一样，就是全天都会通知你。每个邻居还可以在「邻居」页单独开关。")
-                         : L.t("只喺呢段時間通知你\(store.remindFrom > store.remindTo ? "（跨夜）" : "")。每個街坊仲可以喺「街坊」頁分開開關。", "只在这段时间通知你\(store.remindFrom > store.remindTo ? "（跨夜）" : "")。每个邻居还可以在「邻居」页单独开关。")).ds(.caption)
+                    Text(store.remindFrom == store.remindTo ? L.t("「由」同「到」一樣，即係全日都會通知你。每個街坊仲可以喺「街坊」頁分開開關。", "「从」和「到」一样，就是全天都会通知你。每个邻居还可以在「邻居」页单独开关。", "\"From\" and \"To\" are the same, so alerts come all day. You can also turn each neighbour on or off in the Neighbours tab.")
+                         : L.t("只喺呢段時間通知你\(store.remindFrom > store.remindTo ? "（跨夜）" : "")。每個街坊仲可以喺「街坊」頁分開開關。", "只在这段时间通知你\(store.remindFrom > store.remindTo ? "（跨夜）" : "")。每个邻居还可以在「邻居」页单独开关。", "Alerts only during these hours\(store.remindFrom > store.remindTo ? " (overnight)" : ""). You can also turn each neighbour on or off in the Neighbours tab.")).ds(.caption)
                 }
 
                 // 测试反馈：设定要有隐私政策同帮助反馈（放喺「進階」上面，唔使展开就见到）
                 Section {
                     NavigationLink { HelpView() } label: {
-                        Label(L.t("幫助同意見", "帮助与反馈"), systemImage: "questionmark.circle").frame(minHeight: 56)
+                        Label(L.t("幫助同意見", "帮助与反馈", "Help & feedback"), systemImage: "questionmark.circle").frame(minHeight: 56)
                     }
                     NavigationLink { PrivacyPolicyView() } label: {
-                        Label(L.t("私隱政策", "隐私政策"), systemImage: "hand.raised").frame(minHeight: 56)
+                        Label(L.t("私隱政策", "隐私政策", "Privacy policy"), systemImage: "hand.raised").frame(minHeight: 56)
                     }
                 }
 
@@ -137,8 +135,8 @@ struct SettingsView: View {
                     } label: {
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(L.t("進階", "高级")).ds(.bodyBold)
-                                Text(L.t("畀幫手設定嘅人用", "给帮忙设置的人用")).ds(.caption).foregroundStyle(.secondary)
+                                Text(L.t("進階", "高级", "Advanced")).ds(.bodyBold)
+                                Text(L.t("畀幫手設定嘅人用", "给帮忙设置的人用", "For the person helping you set up")).ds(.caption).foregroundStyle(.secondary)
                             }
                             Spacer(minLength: 8)
                             Image(systemName: "chevron.down")
@@ -151,11 +149,11 @@ struct SettingsView: View {
                         .contentShape(Rectangle())
                     }
                     .foregroundStyle(.primary)
-                    .accessibilityLabel(L.t("進階，畀幫手設定嘅人用", "高级，给帮忙设置的人用"))
-                    .accessibilityValue(showAdvanced ? L.t("打開咗", "已展开") : L.t("收埋咗", "已收起"))
+                    .accessibilityLabel(L.t("進階，畀幫手設定嘅人用", "高级，给帮忙设置的人用", "Advanced, for the person helping you set up"))
+                    .accessibilityValue(showAdvanced ? L.t("打開咗", "已展开", "Open") : L.t("收埋咗", "已收起", "Closed"))
                 } footer: {
                     if !showAdvanced {
-                        Text(L.t("語音伺服器、揀把聲、下載聲音、定位、演示模式、清除紀錄", "语音服务器、选声音、下载声音、定位、演示模式、清除记录")).ds(.caption)
+                        Text(L.t("語音伺服器、揀把聲、下載聲音、定位、演示模式、清除紀錄", "语音服务器、选声音、下载声音、定位、演示模式、清除记录", "Voice server, voices, downloads, location, demo mode, clear records")).ds(.caption)
                     }
                 }
                 .id("advanced")
@@ -203,7 +201,7 @@ struct SettingsView: View {
                 }
             }
           }
-            .navigationTitle(L.t("設定", "设置"))
+            .navigationTitle(L.t("設定", "设置", "Settings"))
             .navigationBarTitleDisplayMode(.inline)
             // 实色导航栏：往下拉时内容唔会同「設定」标题叠埋（UX 评审 29）
             .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
@@ -211,28 +209,28 @@ struct SettingsView: View {
             .toolbar {
                 // 标题和「完成」都用设计规范字号（系统默认 17pt 太小）；导航栏高度固定，特大字都封顶喺 xxLarge。
                 ToolbarItem(placement: .principal) {
-                    Text(L.t("設定", "设置")).ds(.bodyBold).accessibilityAddTraits(.isHeader)
+                    Text(L.t("設定", "设置", "Settings")).ds(.bodyBold).accessibilityAddTraits(.isHeader)
                         .dynamicTypeSize(...DynamicTypeSize.xxLarge)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button { store.showSettings = false } label: { Text("完成").ds(.bodyBold).dynamicTypeSize(...DynamicTypeSize.xxLarge) }.foregroundStyle(DS.accent)
+                    Button { store.showSettings = false } label: { Text(L.t("完成", "完成", "Done")).ds(.bodyBold).dynamicTypeSize(...DynamicTypeSize.xxLarge) }.foregroundStyle(DS.accent)
                 }
             }
             .sheet(isPresented: $editingNickname) {
                 NicknameSheet().environment(store)
             }
-            .confirmationDialog(L.t("清除全部紀錄？", "清除全部记录？"), isPresented: $confirmClear, titleVisibility: .visible) {
-                Button("清除", role: .destructive) { store.clearAllData(); store.populate() }
-                Button(L.t("唔清", "不清除"), role: .cancel) {}
+            .confirmationDialog(L.t("清除全部紀錄？", "清除全部记录？", "Clear all records?"), isPresented: $confirmClear, titleVisibility: .visible) {
+                Button(L.t("清除", "清除", "Clear"), role: .destructive) { store.clearAllData(); store.populate() }
+                Button(L.t("唔清", "不清除", "Keep"), role: .cancel) {}
             } message: {
-                Text(store.demoMode ? L.t("街坊、約會、反映、散步紀錄同過夜位置都會刪走，冇得還原。", "邻居、约会、反馈、散步记录和过夜位置都会删掉，无法还原。")
-                     : L.t("街坊、約會、反映、散步紀錄同過夜位置都會刪走（連伺服器上嘅），冇得還原。", "邻居、约会、反馈、散步记录和过夜位置都会删掉（包括服务器上的），无法还原。"))
+                Text(store.demoMode ? L.t("街坊、約會、反映、散步紀錄同過夜位置都會刪走，冇得還原。", "邻居、约会、反馈、散步记录和过夜位置都会删掉，无法还原。", "Neighbours, walk plans, reports, walk records and overnight places will be deleted. This cannot be undone.")
+                     : L.t("街坊、約會、反映、散步紀錄同過夜位置都會刪走（連伺服器上嘅），冇得還原。", "邻居、约会、反馈、散步记录和过夜位置都会删掉（包括服务器上的），无法还原。", "Neighbours, walk plans, reports, walk records and overnight places will be deleted (on the server too). This cannot be undone."))
             }
-            .confirmationDialog(L.t("改我住嘅樓？", "改我住的楼？"), isPresented: $confirmMove, titleVisibility: .visible) {
-                Button(L.t("揀過座樓", "重新选楼")) { store.showSettings = false; store.beginChangeHome() }
-                Button(L.t("唔改", "不改"), role: .cancel) {}
+            .confirmationDialog(L.t("改我住嘅樓？", "改我住的楼？", "Change my block?"), isPresented: $confirmMove, titleVisibility: .visible) {
+                Button(L.t("揀過座樓", "重新选楼", "Choose again")) { store.showSettings = false; store.beginChangeHome() }
+                Button(L.t("唔改", "不改", "Don't change"), role: .cancel) {}
             } message: {
-                Text(L.t("會重新揀樓。之前嘅約會地點同反映位置會清走，街坊同散步紀錄保留。", "会重新选楼。之前的约会地点和反馈位置会清掉，邻居和散步记录保留。"))
+                Text(L.t("會重新揀樓。之前嘅約會地點同反映位置會清走，街坊同散步紀錄保留。", "会重新选楼。之前的约会地点和反馈位置会清掉，邻居和散步记录保留。", "You will choose your block again. Old walk plan places and report spots will be cleared. Neighbours and walk records stay."))
             }
         }
     }
@@ -244,20 +242,20 @@ struct SettingsView: View {
         LocationSettingsSection()
 
         Section {
-            Toggle("演示模式", isOn: Binding(get: { store.demoMode }, set: { store.setDemoMode($0) }))
+            Toggle(L.t("演示模式", "演示模式", "Demo mode"), isOn: Binding(get: { store.demoMode }, set: { store.setDemoMode($0) }))
                 .tint(DS.accent)
                 .frame(minHeight: 56)
                 .disabled(LaunchArgs.has("-demo"))
         } footer: {
-            Text(LaunchArgs.has("-demo") ? L.t("而家用演示參數開啟，唔可以喺度關。", "现在用演示参数开启，不能在这里关。")
-                 : L.t("演示模式會加入示範街坊、示範紀錄同右上角嘅演示選單。關咗之後用真伺服器：排行榜係附近真人，要兩部手機碰一碰先做到街坊。", "演示模式会加入示范邻居、示范记录和右上角的演示菜单。关掉之后用真服务器：排行榜是附近真人，要两部手机碰一碰才能成为邻居。")).ds(.caption)
+            Text(LaunchArgs.has("-demo") ? L.t("而家用演示參數開啟，唔可以喺度關。", "现在用演示参数开启，不能在这里关。", "Turned on by a demo setting. Cannot turn off here.")
+                 : L.t("演示模式會加入示範街坊、示範紀錄同右上角嘅演示選單。關咗之後用真伺服器：排行榜係附近真人，要兩部手機碰一碰先做到街坊。", "演示模式会加入示范邻居、示范记录和右上角的演示菜单。关掉之后用真服务器：排行榜是附近真人，要两部手机碰一碰才能成为邻居。", "Demo mode adds sample neighbours, sample records and a demo menu at the top right. Turn it off to use the real server: the leaderboard shows real people nearby, and you tap phones to add neighbours.")).ds(.caption)
         }
 
         Section {
-            Button(L.t("清除我嘅紀錄", "清除我的记录"), role: .destructive) { confirmClear = true }.frame(minHeight: 56)
+            Button(L.t("清除我嘅紀錄", "清除我的记录", "Clear my records"), role: .destructive) { confirmClear = true }.frame(minHeight: 56)
         } footer: {
-            Text(store.demoMode ? L.t("演示模式：街坊關係、約會、反映、改過嘅地標名、散步紀錄都只存喺你部手機。地圖資料 © OpenStreetMap；天氣：香港天文台。", "演示模式：邻居关系、约会、反馈、改过的地标名、散步记录都只存在你的手机里。地图数据 © OpenStreetMap；天气：香港天文台。")
-                 : L.t("行過嘅路線、屋企位置只存喺你部手機。伺服器（新加坡）只有網名、小人、屋企附近嘅格子、連續日數、每日分鐘同落腳地標、街坊關係同約會；清除會一齊刪走。地圖資料 © OpenStreetMap；天氣：香港天文台。", "走过的路线、家的位置只存在你的手机里。服务器（新加坡）只有网名、形象、家附近的格子、连续天数、每日分钟和落脚地标、邻居关系和约会；清除会一起删掉。地图数据 © OpenStreetMap；天气：香港天文台。")).ds(.caption)
+            Text(store.demoMode ? L.t("演示模式：街坊關係、約會、反映、改過嘅地標名、散步紀錄都只存喺你部手機。地圖資料 © OpenStreetMap；天氣：香港天文台。", "演示模式：邻居关系、约会、反馈、改过的地标名、散步记录都只存在你的手机里。地图数据 © OpenStreetMap；天气：香港天文台。", "Demo mode: neighbours, walk plans, reports, renamed landmarks and walk records are only kept on your phone. Map data © OpenStreetMap; weather: Hong Kong Observatory.")
+                 : L.t("行過嘅路線、屋企位置只存喺你部手機。伺服器（新加坡）只有網名、小人、屋企附近嘅格子、連續日數、每日分鐘同落腳地標、街坊關係同約會；清除會一齊刪走。地圖資料 © OpenStreetMap；天氣：香港天文台。", "走过的路线、家的位置只存在你的手机里。服务器（新加坡）只有网名、形象、家附近的格子、连续天数、每日分钟和落脚地标、邻居关系和约会；清除会一起删掉。地图数据 © OpenStreetMap；天气：香港天文台。", "Your routes and home location stay on your phone. The server (Singapore) only has your nickname, figure, the area near home, streak, daily minutes and stop landmarks, neighbours and walk plans. Clearing deletes them too. Map data © OpenStreetMap; weather: Hong Kong Observatory.")).ds(.caption)
         }
     }
 
@@ -277,21 +275,21 @@ struct SettingsView: View {
     private var floorRow: some View {
         let f = store.floorChoice
         let top = max(1, store.homeLevels)
-        let value = L.t("\(f) 樓", "\(f) 楼")
+        let value = L.t("\(f) 樓", "\(f) 楼", "\(f)/F")
         let buttons = HStack(spacing: 12) {
-            stepButton("minus", L.t("低一層", "低一层"), enabled: f > 1) { store.setFloor(f - 1) }
-            stepButton("plus", L.t("高一層", "高一层"), enabled: f < top) { store.setFloor(f + 1) }
+            stepButton("minus", L.t("低一層", "低一层", "One floor down"), enabled: f > 1) { store.setFloor(f - 1) }
+            stepButton("plus", L.t("高一層", "高一层", "One floor up"), enabled: f < top) { store.setFloor(f + 1) }
         }
         return ViewThatFits(in: .horizontal) {
             HStack(spacing: 12) {
-                Text(L.t("樓層", "楼层")).lineLimit(1)
+                Text(L.t("樓層", "楼层", "Floor")).lineLimit(1)
                 Spacer(minLength: 8)
                 Text(value).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
                 buttons
             }
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text(L.t("樓層", "楼层"))
+                    Text(L.t("樓層", "楼层", "Floor"))
                     Spacer(minLength: 8)
                     Text(value).monospacedDigit().foregroundStyle(.secondary)
                 }
@@ -300,7 +298,7 @@ struct SettingsView: View {
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(L.t("樓層", "楼层"))
+        .accessibilityLabel(L.t("樓層", "楼层", "Floor"))
         .accessibilityValue(value)
         .accessibilityAdjustableAction { d in
             switch d {
@@ -366,7 +364,68 @@ struct SettingsView: View {
     }
 }
 
+/// 揀界面语言（设定页、首次使用欢迎页共用）：粵語 / 普通话 / English，撳一下即时转，播报跟住转（AppLanguage.choose）。
+/// 一行排得落就一行，排唔落就上下排。short = 欢迎页用短名（唔写繁简）。
+struct LanguageChooser: View {
+    var short = false
+    var onChange: () -> Void = {}
+
+    private func name(_ l: AppLang) -> String {
+        guard short else { return l.label }
+        switch l {
+        case .yue: return "粵語"
+        case .cmn: return "普通话"
+        case .en: return "English"
+        }
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) { buttons }
+            VStack(spacing: 8) { buttons }
+        }
+    }
+
+    @ViewBuilder private var buttons: some View {
+        ForEach(AppLang.allCases, id: \.self) { l in
+            let on = AppLanguage.shared.current == l
+            Button {
+                guard !on else { return }
+                AppLanguage.shared.choose(l)
+                Haptics.select()
+                onChange()
+            } label: {
+                Text(name(l))
+                    .ds(on ? .bodyBold : .body)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .foregroundStyle(on ? Color.white : Color.primary)
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(on ? DS.accent : Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(on ? .isSelected : [])
+        }
+    }
+}
+
 extension AppStore {
+    /// 转咗界面语言：地标名、街坊今日一句等跟住转，再用新语言试读一句（播报语言 AppLanguage.choose 已经转咗）。
+    func languageChanged() {
+        populate()
+        syncScene()
+        previewVoice(VoiceSettings.shared.active, current: true)
+    }
+
+    /// 设定页「住喺」显示嘅楼名：英文界面有英文名用英文（me.blockName 系中文原名，上传用）。
+    var homeBlockShown: String? {
+        guard let id = scene.homeBuildingID, let m = map else { return me.blockName }
+        if MapModel.placeholderPos(id) != nil { return L.t("示意樓", "示意楼", "Sample block") }
+        return m.building(id: id)?.shownName ?? me.blockName
+    }
+
     /// 我住的楼有几层（选楼层的上限）。
     var homeLevels: Int { scene.homeBuildingID.flatMap { (fullMap ?? map)?.building(id: $0)?.levels } ?? 30 }
 

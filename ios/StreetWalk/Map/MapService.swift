@@ -10,9 +10,9 @@ final class MapService: NSObject, CLLocationManagerDelegate {
         /// 显示用。
         var label: String {
             switch self {
-            case .live: return L.t("實時", "实时")
-            case .cache: return L.t("地圖", "地图")   // 唔讲「快取」（UX 评审 16）
-            case .fallback: return L.t("示例", "示例")
+            case .live: return L.t("實時", "实时", "Live")
+            case .cache: return L.t("地圖", "地图", "Map")   // 唔讲「快取」（UX 评审 16）
+            case .fallback: return L.t("示例", "示例", "Sample")
             }
         }
     }

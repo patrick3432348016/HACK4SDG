@@ -9,18 +9,18 @@ struct HelpView: View {
     @Environment(AppStore.self) private var store
 
     private var faqs: [(q: String, a: String)] { [
-        (L.t("「今日」頁上面幅地圖係乜？", "「今天」页上面的地图是什么？"),
-         L.t("係你屋企附近 200 米。街坊出咗門，會喺佢附近嘅地標出現，等你哋搵到對方。撳地標可以睇有冇櫈、有冇陰，同約街坊喺度等。向下拉地圖可以睇大啲。", "是你家附近 200 米的范围。邻居出门后，会出现在他附近的地标旁边，方便你们找到对方。点一下地标，可以看那里有没有凳子、有没有树荫，也可以约邻居在那里见面。把地图往下拉，能看得更大。")),
-        (L.t("橙色個咪做咩用？", "橙色的麦克风有什么用？"),
-         L.t("撳一下就可以講嘢，唔使打字。例如：「約阿明聽日行」「今日天氣點」「搵阿明」；散步時講「呢度冇櫈」。講完佢會讀返俾你聽，影響到別人嘅事要你撳「好」先做。", "点一下就能说话，不用打字。比如：「约阿明明天一起散步」「今天天气怎么样」「找阿明」；散步时可以说「这里没凳子」。说完它会把听到的话读给你听；会影响到别人的事，要你点「好的」才会去做。")),
-        (L.t("點樣加街坊？", "怎样加邻居？"),
-         L.t("見到面，兩個人都打開街坊行，喺「街坊」頁撳「碰一碰加街坊」，兩部手機靠埋。加咗之後先見到對方住邊座、幾樓。", "见面时，两个人都打开街坊行，在「邻居」页点「碰一碰加邻居」，把两部手机靠在一起就加好了。加了以后，才能看到对方住哪栋、几楼。")),
-        (L.t("散步點樣記錄？", "散步怎么记录？"),
-         L.t("唔使撳任何嘢。定位揀「始終允許」，出門行就會自動記，返到屋企就計好。", "什么都不用点。定位选「始终允许」，出门走路就会自动记录，回到家就记好了。")),
-        (L.t("約咗人之後喺邊度睇？", "约好以后在哪里看？"),
-         L.t("「今日」頁會列出約好嘅時間同地點；「街坊」頁都有。想改時間、地點，撳嗰張卡就得。", "「今天」页会列出约好的时间和地点，「邻居」页也有。想改时间或地点，点一下那张卡片就行。")),
-        (L.t("字太細 / 聲太細？", "字太小、声音太小怎么办？"),
-         L.t("設定最上面「字體大小」揀大啲。讀出嚟嘅聲大細跟手機音量，撳手機側邊嘅音量掣調大；「聲音」嗰度可以揀語速，撳「試聽」試吓。手機靜音都會讀。", "在设置最上面的「字体大小」选大一点。读出来的声音大小跟着手机音量，按手机侧面的音量键调大；在「声音」那里可以调说话快慢，点「试听」听一下。手机开了静音也会读。")),
+        (L.t("「今日」頁上面幅地圖係乜？", "「今天」页上面的地图是什么？", "What is the map at the top of the Today tab?"),
+         L.t("係你屋企附近 200 米。街坊出咗門，會喺佢附近嘅地標出現，等你哋搵到對方。撳地標可以睇有冇櫈、有冇陰，同約街坊喺度等。向下拉地圖可以睇大啲。", "是你家附近 200 米的范围。邻居出门后，会出现在他附近的地标旁边，方便你们找到对方。点一下地标，可以看那里有没有凳子、有没有树荫，也可以约邻居在那里见面。把地图往下拉，能看得更大。", "It shows 200 metres around your home. When neighbours go out, they appear by the landmark near them, so you can find each other. Tap a landmark to see if it has seats or shade, or to invite a neighbour to meet there. Pull the map down to see it bigger.")),
+        (L.t("橙色個咪做咩用？", "橙色的麦克风有什么用？", "What is the orange mic for?"),
+         L.t("撳一下就可以講嘢，唔使打字。例如：「約阿明聽日行」「今日天氣點」「搵阿明」；散步時講「呢度冇櫈」。講完佢會讀返俾你聽，影響到別人嘅事要你撳「好」先做。", "点一下就能说话，不用打字。比如：「约阿明明天一起散步」「今天天气怎么样」「找阿明」；散步时可以说「这里没凳子」。说完它会把听到的话读给你听；会影响到别人的事，要你点「好的」才会去做。", "Tap it and speak, no typing. For example: \"Walk with Ming tomorrow\", \"What's the weather today?\", \"Find Ming\". On a walk, say \"No seats here\". It reads back what it heard. Anything that affects other people waits until you tap \"OK\".")),
+        (L.t("點樣加街坊？", "怎样加邻居？", "How do I add a neighbour?"),
+         L.t("見到面，兩個人都打開街坊行，喺「街坊」頁撳「碰一碰加街坊」，兩部手機靠埋。加咗之後先見到對方住邊座、幾樓。", "见面时，两个人都打开街坊行，在「邻居」页点「碰一碰加邻居」，把两部手机靠在一起就加好了。加了以后，才能看到对方住哪栋、几楼。", "When you meet, both open Kaifong Walk. On the Neighbours tab tap \"Tap phones to add a neighbour\" and hold the phones together. After that you can see each other's block and floor.")),
+        (L.t("散步點樣記錄？", "散步怎么记录？", "How are walks recorded?"),
+         L.t("唔使撳任何嘢。定位揀「始終允許」，出門行就會自動記，返到屋企就計好。", "什么都不用点。定位选「始终允许」，出门走路就会自动记录，回到家就记好了。", "No need to tap anything. Choose \"Always Allow\" for location. Walks are recorded when you go out, and saved when you get home.")),
+        (L.t("約咗人之後喺邊度睇？", "约好以后在哪里看？", "Where do I see my walk plans?"),
+         L.t("「今日」頁會列出約好嘅時間同地點；「街坊」頁都有。想改時間、地點，撳嗰張卡就得。", "「今天」页会列出约好的时间和地点，「邻居」页也有。想改时间或地点，点一下那张卡片就行。", "The Today tab lists the time and place you agreed. The Neighbours tab has them too. To change the time or place, tap the card.")),
+        (L.t("字太細 / 聲太細？", "字太小、声音太小怎么办？", "Text or voice too small?"),
+         L.t("設定最上面「字體大小」揀大啲。讀出嚟嘅聲大細跟手機音量，撳手機側邊嘅音量掣調大；「聲音」嗰度可以揀語速，撳「試聽」試吓。手機靜音都會讀。", "在设置最上面的「字体大小」选大一点。读出来的声音大小跟着手机音量，按手机侧面的音量键调大；在「声音」那里可以调说话快慢，点「试听」听一下。手机开了静音也会读。", "At the top of Settings, choose a bigger \"Text size\". The voice follows your phone volume, so press the volume buttons on the side. Under \"Voice\" you can change the speed and tap \"Preview\" to try it. It reads aloud even in silent mode.")),
     ] }
 
     var body: some View {
@@ -28,13 +28,13 @@ struct HelpView: View {
             // 测试反馈 K-3b：以前要「話畀幫你裝 App 嘅人知」，而家喺 App 入面直接写、直接发；放最上面一眼见到
             Section {
                 NavigationLink { FeedbackView() } label: {
-                    Label(L.t("寫意見畀我哋", "给我们提意见"), systemImage: "square.and.pencil").ds(.bodyBold).frame(minHeight: 56)
+                    Label(L.t("寫意見畀我哋", "给我们提意见", "Send us feedback"), systemImage: "square.and.pencil").ds(.bodyBold).frame(minHeight: 56)
                 }
                 .id("feedback")
             } header: {
-                Text(L.t("意見反饋", "意见反馈")).ds(.caption)
+                Text(L.t("意見反饋", "意见反馈", "Feedback")).ds(.caption)
             } footer: {
-                Text(L.t("邊度唔方便、睇唔明，都可以寫低，撳「發送」就會傳畀我哋。", "哪里不方便、哪里看不懂，都可以写下来，点「发送」就会发给我们。")).ds(.caption)
+                Text(L.t("邊度唔方便、睇唔明，都可以寫低，撳「發送」就會傳畀我哋。", "哪里不方便、哪里看不懂，都可以写下来，点「发送」就会发给我们。", "If anything is hard to use or unclear, write it down and tap \"Send\". It comes straight to us.")).ds(.caption)
             }
 
             ForEach(Array(faqs.enumerated()), id: \.offset) { i, f in
@@ -47,11 +47,11 @@ struct HelpView: View {
                     .padding(.vertical, 6)
                     .accessibilityElement(children: .combine)
                 } header: {
-                    if i == 0 { Text(L.t("常見問題", "常见问题")).ds(.caption) }
+                    if i == 0 { Text(L.t("常見問題", "常见问题", "Common questions")).ds(.caption) }
                 }
             }
         }
-        .settingsSubpage(L.t("幫助同意見", "帮助与反馈"))
+        .settingsSubpage(L.t("幫助同意見", "帮助与反馈", "Help & feedback"))
     }
 }
 
@@ -60,7 +60,7 @@ struct HelpView: View {
 /// 写意见：草稿存喺手机（@AppStorage，退出返嚟都喺度），发送成功先清；发唔到讲原因、草稿保留。
 struct FeedbackView: View {
     @Environment(AppStore.self) private var store
-    @AppStorage("feedback.draft") private var draft = UIPreview.is("feedback") || UIPreview.is("feedbackFailed") ? "地图上的字有点小，希望可以再大一点。" : ""
+    @AppStorage("feedback.draft") private var draft = UIPreview.is("feedback") || UIPreview.is("feedbackFailed") ? L.t("地圖上嘅字有啲細，希望可以再大啲。", "地图上的字有点小，希望可以再大一点。", "The words on the map are a bit small. Could they be bigger?") : ""
     @State private var state: SendState = .idle
     @FocusState private var editing: Bool
 
@@ -74,7 +74,7 @@ struct FeedbackView: View {
             Section {
                 ZStack(alignment: .topLeading) {
                     if draft.isEmpty {
-                        Text(L.t("喺度寫⋯（可以撳鍵盤上個咪講）", "在这里写……（也可以点键盘上的麦克风说）"))
+                        Text(L.t("喺度寫⋯（可以撳鍵盤上個咪講）", "在这里写……（也可以点键盘上的麦克风说）", "Write here… (or tap the mic on the keyboard to speak)"))
                             .ds(.body)
                             .foregroundStyle(.tertiary)
                             .padding(.top, 8)
@@ -87,7 +87,7 @@ struct FeedbackView: View {
                         .frame(minHeight: 180)
                         .scrollContentBackground(.hidden)
                         .focused($editing)
-                        .accessibilityLabel(L.t("意見內容", "意见内容"))
+                        .accessibilityLabel(L.t("意見內容", "意见内容", "Your feedback"))
                         .onChange(of: draft) { _, d in
                             if d.count > Self.limit { draft = String(d.prefix(Self.limit)) }
                             // 发送成功后再写新嘢：收起「收到」（发送成功清草稿嗰下唔算）
@@ -96,16 +96,16 @@ struct FeedbackView: View {
                 }
                 .padding(.vertical, 4)
             } header: {
-                Text(L.t("你嘅意見", "你的意见")).ds(.caption)
+                Text(L.t("你嘅意見", "你的意见", "Your feedback")).ds(.caption)
             } footer: {
-                Text(L.t("會匿名傳畀街坊行開發團隊（伺服器喺新加坡），連埋 App 版本同手機型號方便搵問題；唔會傳你嘅位置。", "会匿名发给街坊行开发团队（服务器在新加坡），同时附上 App 版本和手机型号，方便查问题；不会发送你的位置。")).ds(.caption)
+                Text(L.t("會匿名傳畀街坊行開發團隊（伺服器喺新加坡），連埋 App 版本同手機型號方便搵問題；唔會傳你嘅位置。", "会匿名发给街坊行开发团队（服务器在新加坡），同时附上 App 版本和手机型号，方便查问题；不会发送你的位置。", "Sent anonymously to the Kaifong Walk team (server in Singapore), with the app version and phone model to help find problems. Your location is not sent.")).ds(.caption)
             }
 
             Section {
                 Button(action: send) {
                     HStack(spacing: 10) {
                         if state == .sending { ProgressView().tint(.white) }
-                        Text(state == .sending ? L.t("發送緊⋯", "正在发送…") : L.t("發送", "发送"))
+                        Text(state == .sending ? L.t("發送緊⋯", "正在发送…", "Sending…") : L.t("發送", "发送", "Send"))
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -125,15 +125,15 @@ struct FeedbackView: View {
                 }
             }
         }
-        .settingsSubpage(L.t("提意見", "提意见"))
+        .settingsSubpage(L.t("提意見", "提意见", "Feedback"))
         .scrollDismissesKeyboard(.interactively)
-        .onAppear { if UIPreview.is("feedbackFailed") { state = .failed(L.t("冇網絡。", "没连上网络。")) } }
+        .onAppear { if UIPreview.is("feedbackFailed") { state = .failed(L.t("冇網絡。", "没连上网络。", "No network.")) } }
     }
 
     private var statusNote: (text: String, symbol: String, color: Color)? {
         switch state {
-        case .sent: return (L.t("收到，多謝你！我哋會睇。", "收到了，谢谢你！我们会认真看。"), "checkmark.circle.fill", .green)
-        case .failed(let why): return (L.t("\(why)未發送到，你寫嘅嘢已經保存，遲啲再撳「發送」。", "\(why)还没发出去，你写的内容已经保存，等一下再点「发送」。"), "exclamationmark.triangle.fill", .orange)
+        case .sent: return (L.t("收到，多謝你！我哋會睇。", "收到了，谢谢你！我们会认真看。", "Got it, thank you! We will read it."), "checkmark.circle.fill", .green)
+        case .failed(let why): return (L.t("\(why)未發送到，你寫嘅嘢已經保存，遲啲再撳「發送」。", "\(why)还没发出去，你写的内容已经保存，等一下再点「发送」。", "\(why) Not sent yet. What you wrote is saved. Tap \"Send\" again later."), "exclamationmark.triangle.fill", .orange)
         default: return nil
         }
     }
@@ -150,7 +150,7 @@ struct FeedbackView: View {
                 if draft.trimmingCharacters(in: .whitespacesAndNewlines) == body { draft = "" }
                 state = .sent
                 Haptics.success()
-                store.say(L.t("收到，多謝你嘅意見。", "收到了，谢谢你的意见。"))
+                store.say(L.t("收到，多謝你嘅意見。", "收到了，谢谢你的意见。", "Got it, thank you for your feedback."))
             } catch {
                 state = .failed(FeedbackSender.reason(error))
                 Haptics.warning()
@@ -183,8 +183,8 @@ enum FeedbackSender {
 
     /// 失败原因（一句，放喺「未發送到」前面）。
     static func reason(_ error: Error) -> String {
-        if let e = error as? BackendError, e.isRetryable { return L.t("連唔到網絡。", "没连上网络。") }
-        return L.t("伺服器暫時收唔到。", "服务器暂时收不到。")
+        if let e = error as? BackendError, e.isRetryable { return L.t("連唔到網絡。", "没连上网络。", "No network.") }
+        return L.t("伺服器暫時收唔到。", "服务器暂时收不到。", "The server can't take it right now.")
     }
 
     /// 手机型号代码（例如 iPhone15,4）；模拟器用佢模拟紧嘅型号。
@@ -202,22 +202,22 @@ struct PrivacyPolicyView: View {
     @Environment(AppStore.self) private var store
 
     private var sections: [(title: String, body: String)] { [
-        (L.t("我哋收乜", "我们收集什么"),
-         L.t("網名、小人樣、屋企附近嘅格子（約 400 米一格，冇門牌冇座標）、連續日數、每日行咗幾多分鐘、落腳嘅地標名、街坊關係同約會。", "网名、卡通小人的样子、家附近的格子（大约 400 米一格，没有门牌，也没有坐标）、连续天数、每天走了多少分钟、歇脚的地标名称、邻居关系和约会。")),
-        (L.t("只喺你部手機", "只存在你的手机里"),
-         L.t("行過嘅路線、屋企準確位置。住邊座幾樓會上傳，但只會畀用碰一碰加咗嘅街坊睇。", "走过的路线、家的准确位置。住哪栋、几楼会上传，但只给用碰一碰加过的邻居看。")),
-        (L.t("放喺邊", "存在哪里"),
-         L.t("伺服器喺新加坡（Supabase）。匿名登入，唔使電話號碼或者電郵。", "服务器在新加坡（Supabase）。匿名登录，不需要电话号码，也不需要邮箱。")),
-        (L.t("講嘢", "说话"),
-         L.t("只有撳咗咪先會聽。連到我哋嘅語音伺服器時，聲音經伺服器交俾豆包（火山引擎）轉做文字同理解，測試期間對話會記低用嚟搵錯；連唔到就用 iPhone 自帶嘅語音識別（蘋果）。", "只有点了麦克风才会听。连上我们的语音服务器时，声音会经服务器交给豆包（火山引擎）转成文字、理解意思；测试期间对话会被记下来，用来查找问题。连不上时，就用 iPhone 自带的语音识别（苹果）。")),
-        (L.t("反映", "地点反馈"),
-         L.t("「冇櫈」「太曬」呢類反映係匿名嘅，同一個地方夠十個人先交俾社工同屋邨管理。", "「没凳子」「太晒」这类反馈是匿名的，同一个地方有十个人反馈了，才会交给社工和屋邨管理处。")),
-        (L.t("意見", "意见"),
-         L.t("「幫助同意見」入面寫嘅意見會匿名傳畀開發團隊，連埋 App 版本同手機型號，用嚟改善 App；唔包你嘅位置。", "在「帮助与反馈」里写的意见，会匿名发给开发团队，同时附上 App 版本和手机型号，用来改进 App；不包含你的位置。")),
-        (L.t("刪除", "删除"),
-         L.t("設定 →「進階」→「清除我嘅紀錄」，手機同伺服器上你嘅資料會一齊刪走。", "设置 →「高级」→「清除我的记录」，手机和服务器上你的资料会一起删掉。")),
-        (L.t("資料來源", "数据来源"),
-         L.t("地圖資料 © OpenStreetMap；天氣：香港天文台。", "地图数据 © OpenStreetMap；天气：香港天文台。")),
+        (L.t("我哋收乜", "我们收集什么", "What we collect"),
+         L.t("網名、小人樣、屋企附近嘅格子（約 400 米一格，冇門牌冇座標）、連續日數、每日行咗幾多分鐘、落腳嘅地標名、街坊關係同約會。", "网名、卡通小人的样子、家附近的格子（大约 400 米一格，没有门牌，也没有坐标）、连续天数、每天走了多少分钟、歇脚的地标名称、邻居关系和约会。", "Your nickname, your figure's look, the area near your home (squares about 400 metres wide, no address or coordinates), your streak, daily walking minutes, names of landmarks you stop at, neighbours and walk plans.")),
+        (L.t("只喺你部手機", "只存在你的手机里", "Only on your phone"),
+         L.t("行過嘅路線、屋企準確位置。住邊座幾樓會上傳，但只會畀用碰一碰加咗嘅街坊睇。", "走过的路线、家的准确位置。住哪栋、几楼会上传，但只给用碰一碰加过的邻居看。", "Your routes and exact home location. Your block and floor are uploaded, but only neighbours added by tapping phones can see them.")),
+        (L.t("放喺邊", "存在哪里", "Where it is kept"),
+         L.t("伺服器喺新加坡（Supabase）。匿名登入，唔使電話號碼或者電郵。", "服务器在新加坡（Supabase）。匿名登录，不需要电话号码，也不需要邮箱。", "The server is in Singapore (Supabase). You sign in anonymously. No phone number or email needed.")),
+        (L.t("講嘢", "说话", "Speaking"),
+         L.t("只有撳咗咪先會聽。連到我哋嘅語音伺服器時，聲音經伺服器交俾豆包（火山引擎）轉做文字同理解，測試期間對話會記低用嚟搵錯；連唔到就用 iPhone 自帶嘅語音識別（蘋果）。", "只有点了麦克风才会听。连上我们的语音服务器时，声音会经服务器交给豆包（火山引擎）转成文字、理解意思；测试期间对话会被记下来，用来查找问题。连不上时，就用 iPhone 自带的语音识别（苹果）。", "It only listens after you tap the mic. When connected to our voice server, your voice goes through the server to Doubao (Volcano Engine) to turn it into text and understand it. During testing, conversations are saved to find problems. If the server can't be reached, the iPhone's own speech recognition (Apple) is used.")),
+        (L.t("反映", "地点反馈", "Place reports"),
+         L.t("「冇櫈」「太曬」呢類反映係匿名嘅，同一個地方夠十個人先交俾社工同屋邨管理。", "「没凳子」「太晒」这类反馈是匿名的，同一个地方有十个人反馈了，才会交给社工和屋邨管理处。", "Reports like \"No seats\" or \"Too sunny\" are anonymous. Only when 10 people report the same place is it passed to social workers and estate management.")),
+        (L.t("意見", "意见", "Feedback"),
+         L.t("「幫助同意見」入面寫嘅意見會匿名傳畀開發團隊，連埋 App 版本同手機型號，用嚟改善 App；唔包你嘅位置。", "在「帮助与反馈」里写的意见，会匿名发给开发团队，同时附上 App 版本和手机型号，用来改进 App；不包含你的位置。", "Feedback written in \"Help & feedback\" is sent anonymously to the team, with the app version and phone model, to improve the app. It does not include your location.")),
+        (L.t("刪除", "删除", "Deleting"),
+         L.t("設定 →「進階」→「清除我嘅紀錄」，手機同伺服器上你嘅資料會一齊刪走。", "设置 →「高级」→「清除我的记录」，手机和服务器上你的资料会一起删掉。", "Settings → \"Advanced\" → \"Clear my records\" deletes your data on the phone and the server together.")),
+        (L.t("資料來源", "数据来源", "Data sources"),
+         L.t("地圖資料 © OpenStreetMap；天氣：香港天文台。", "地图数据 © OpenStreetMap；天气：香港天文台。", "Map data © OpenStreetMap; weather: Hong Kong Observatory.")),
     ] }
 
     var body: some View {
@@ -225,9 +225,9 @@ struct PrivacyPolicyView: View {
             Form {
                 Section {
                     PrivacyRows().padding(.vertical, 8)
-                    Button(L.t("讀出嚟", "读出来")) { store.sayAgain(PrivacyRows.spoken) }.frame(minHeight: 56)
+                    Button(L.t("讀出嚟", "读出来", "Read aloud")) { store.sayAgain(PrivacyRows.spoken) }.frame(minHeight: 56)
                 } header: {
-                    Text(L.t("邊個見到乜", "谁能看到什么")).ds(.caption)
+                    Text(L.t("邊個見到乜", "谁能看到什么", "Who sees what")).ds(.caption)
                 }
                 ForEach(Array(sections.enumerated()), id: \.offset) { i, s in
                     Section {
@@ -247,7 +247,7 @@ struct PrivacyPolicyView: View {
                 }
             }
         }
-        .settingsSubpage(L.t("私隱政策", "隐私政策"))
+        .settingsSubpage(L.t("私隱政策", "隐私政策", "Privacy policy"))
     }
 }
 

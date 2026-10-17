@@ -9,6 +9,10 @@ struct Road: Codable {
     var points: [Vec2]
     var width: Double
     var name: String?
+    /// OSM name:en（英文界面用；冇就用 name）。
+    var nameEn: String? = nil
+
+    var shownName: String? { L.isEn ? (nameEn ?? name) : name }
 }
 
 /// 地面上的面，按 drawOrder 从底到顶画。
@@ -24,6 +28,10 @@ struct Area: Codable {
     var name: String?
     /// OSM 编号（way 为正、relation 为负）。地标 id 用它，见 LandmarkDeriver。
     var osmID: Int64?
+    /// OSM name:en（英文界面用；冇就用 name）。
+    var nameEn: String? = nil
+
+    var shownName: String? { L.isEn ? (nameEn ?? name) : name }
 }
 
 enum BuildingKind: String, Codable {
@@ -40,7 +48,11 @@ struct Building: Codable, Identifiable {
     var kind: BuildingKind
     /// OSM building= 的原值（yes、industrial……）。只标 yes 的高楼才当可能是住宅，见 markHomeCandidates。
     var tag: String? = nil
+    /// OSM name:en（英文界面用；冇就用 name），例如「皇滙樓 Wong Wui House」嘅 Wong Wui House。
+    var nameEn: String? = nil
 
+    /// 画面显示嘅楼名：英文界面有英文名就用英文，冇就照用中文名。
+    var shownName: String? { L.isEn ? (nameEn ?? name) : name }
     var centroid: Vec2 { Polygon.centroid(outline) }
     var isTower: Bool { height >= 25 }
     /// 似住宅：住宅楼，加上只标 building=yes、10 层以上的楼（香港不少私人楼只这样标）。
@@ -58,6 +70,10 @@ struct POI: Codable, Identifiable {
     var pos: Vec2
     var hasShelter = false
     var hasBench = false
+    /// OSM name:en（英文界面用；冇就用 name），例如「大快活」嘅 Fairwood。
+    var nameEn: String? = nil
+
+    var shownName: String? { L.isEn ? (nameEn ?? name) : name }
 }
 
 /// 一个格子（实时拉取 720 m、内置示例 560 m）里的全部地图要素，坐标是以格子中心为原点的米。
@@ -76,6 +92,8 @@ struct MapModel: Codable {
     var rotation: Double = 0
     /// 裁切前整格的地名。裁成小底座后楼少了，地名要沿用整格的（例如"皇后山邨"）。
     var areaName: String?
+    /// 同上，英文名（OSM name:en；冇就 nil，英文界面照用 areaName）。
+    var areaNameEn: String?
 
     /// 真实太阳位置 → 这张（转过的）地图里的太阳位置。
     func localSun(_ s: SolarPosition) -> SolarPosition {
@@ -85,26 +103,41 @@ struct MapModel: Codable {
     var half: Double { size / 2 }
 
     /// 显示用的地名，例如"皇后山邨"。裁成底座后沿用裁切时按我屋企算好的名。
-    var placeName: String { areaName ?? placeName(near: .zero) }
+    /// 注意：placeName 一律系中文原名（上传服务器做圈名 communityName，两部手机要对得上），画面显示用 shownPlaceName。
+    var placeName: String { areaName ?? placeSource(near: .zero)?.zh ?? "你附近" }
+
+    /// 画面显示嘅地名：英文界面有英文名（OSM name:en）就用英文，冇就照用中文名。
+    var shownPlaceName: String {
+        guard L.isEn else { return placeName == "你附近" ? L.t("你附近", "你附近", "Near you") : placeName }
+        if areaName != nil { return areaNameEn ?? (areaName == "你附近" ? "Near you" : areaName!) }
+        return placeName(near: .zero)
+    }
 
     /// p（我屋企）附近的屋苑名：所在住宅用地的名 → 附近叫"X邨"的建筑（公屋常把邨名标在巴士站、商场上）
     /// → 底座范围内（离 p 100 m 内）最近的有名住宅楼 → "你附近"。公厕、商场这类建筑的名不用。
     /// 有名住宅楼不能太远：示意楼的名会显示成"住喺 X"，用一座看不到的楼会误导。
     func placeName(near p: Vec2) -> String {
-        if let a = areas.first(where: { $0.kind == .residential && !($0.name ?? "").isEmpty && Polygon.contains($0.outline, p) }) {
-            return a.name!
-        }
-        func nearest(_ list: [Building]) -> String? { list.min { $0.centroid.distance(to: p) < $1.centroid.distance(to: p) }?.name }
-        if let estate = nearest(buildings.filter { ($0.name ?? "").hasSuffix("邨") && $0.centroid.distance(to: p) < 250 }) { return estate }
-        let r = Self.dioramaSize / 2
-        if let block = nearest(buildings.filter { $0.kind == .residential && $0.name != nil
-            && abs($0.centroid.x - p.x) <= r && abs($0.centroid.y - p.y) <= r }) { return block }
-        return L.t("你附近", "你附近")
+        guard let src = placeSource(near: p) else { return L.t("你附近", "你附近", "Near you") }   // 显示用；上传用 placeName
+        return L.isEn ? (src.en ?? src.zh) : src.zh
     }
 
+    /// placeName 嘅来源：中文名 + 英文名（OSM name:en，可能冇）。
+    func placeSource(near p: Vec2) -> (zh: String, en: String?)? {
+        if let a = areas.first(where: { $0.kind == .residential && !($0.name ?? "").isEmpty && Polygon.contains($0.outline, p) }) {
+            return (a.name!, a.nameEn)
+        }
+        func nearest(_ list: [Building]) -> Building? { list.min { $0.centroid.distance(to: p) < $1.centroid.distance(to: p) } }
+        if let estate = nearest(buildings.filter { ($0.name ?? "").hasSuffix("邨") && $0.centroid.distance(to: p) < 250 }) { return (estate.name!, estate.nameEn) }
+        let r = Self.dioramaSize / 2
+        if let block = nearest(buildings.filter { $0.kind == .residential && $0.name != nil
+            && abs($0.centroid.x - p.x) <= r && abs($0.centroid.y - p.y) <= r }) { return (block.name!, block.nameEn) }
+        return nil
+    }
+
+    /// 注意：上传服务器（blockShort）用呢个，英文界面都系中文原名（AppStore+Backend 对住「示意樓」判断）；画面显示用 Settings 嘅 homeBlockShown。
     /// 设定页"住喺"显示的楼名：示意楼叫"示意樓"，没有名的楼不显示（用地名）。
     func homeLabel(_ id: Int64) -> String? {
-        Self.placeholderPos(id) != nil ? L.t("示意樓", "示意楼") : building(id: id)?.name
+        Self.placeholderPos(id) != nil ? L.t("示意樓", "示意楼", "示意樓") : building(id: id)?.name
     }
 
     func building(id: Int64) -> Building? { buildings.first { $0.id == id } }
@@ -125,7 +158,11 @@ struct MapModel: Codable {
         out.size = size
         out.center = LocalProjection(origin: center).toGeo(c)
         out.rotation = rotation + phi
-        out.areaName = areaName ?? placeName(near: c)
+        if areaName == nil {
+            let src = placeSource(near: c)
+            out.areaName = src?.zh ?? "你附近"
+            out.areaNameEn = src?.en
+        }
 
         // 画风优先：楼改成规整长方体（转正后的外接矩形，四边内缩留缝），高度按美学比例压缩。
         // 我屋企不受面积、尺寸门槛限制（村屋可能只有 8×10 m），最少保留 8×8 m 占地。
@@ -209,13 +246,13 @@ struct MapModel: Codable {
             let rect = [Vec2(x: mid.x - hw, y: mid.y - hd), Vec2(x: mid.x + hw, y: mid.y - hd), Vec2(x: mid.x + hw, y: mid.y + hd), Vec2(x: mid.x - hw, y: mid.y + hd)]
             if kind == .water, let (lo, hi) = homeBox,
                mid.x - hw < hi.x, mid.x + hw > lo.x, mid.y - hd < hi.y, mid.y + hd > lo.y { return nil }
-            return Area(kind: kind, outline: rect, name: a.name, osmID: a.osmID)
+            return Area(kind: kind, outline: rect, name: a.name, osmID: a.osmID, nameEn: a.nameEn)
         }.sorted { Polygon.area($0.outline) > Polygon.area($1.outline) }.prefix(3)).sorted { $0.kind.drawOrder < $1.kind.drawOrder }
         out.roads = roads.flatMap { r -> [Road] in
             // 只留车路（淡色宽带）；行人路、单车径、楼梯都不画。
             guard r.kind == .major || r.kind == .minor || r.kind == .residential else { return [] }
             let kind = r.kind
-            return Polygon.clipPolyline(r.points.map(shift), half: h).map { Road(kind: kind, points: $0, width: r.width, name: r.name) }
+            return Polygon.clipPolyline(r.points.map(shift), half: h).map { Road(kind: kind, points: $0, width: r.width, name: r.name, nameEn: r.nameEn) }
         }
         // 巴士站多留底座外 80 m 内的：地标不够时放在底座边（见 LandmarkDeriver.edgeFallbacks）。
         out.pois = pois.compactMap { p in

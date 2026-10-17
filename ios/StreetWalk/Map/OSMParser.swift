@@ -41,6 +41,7 @@ enum OSMParser {
         for e in response.elements {
             let tags = e.tags ?? [:]
             let name = displayName(tags)
+            let nameEn = englishName(tags)
 
             if e.type == "node", let lat = e.lat, let lon = e.lon {
                 let p = proj.toLocal(GeoPoint(lat: lat, lon: lon))
@@ -49,7 +50,7 @@ enum OSMParser {
                 if let kind = poiKind(tags) {
                     pois.append(POI(id: e.id, kind: kind, name: name, pos: p,
                                     hasShelter: tags["shelter"] == "yes" || tags["covered"] == "yes",
-                                    hasBench: tags["bench"] == "yes"))
+                                    hasBench: tags["bench"] == "yes", nameEn: nameEn))
                 }
                 continue
             }
@@ -69,14 +70,16 @@ enum OSMParser {
                 if let b = tags["building"], closed {
                     let outline = Polygon.normalized(Polygon.clip(Polygon.normalized(raw), half: half))
                     guard outline.count >= 3, Polygon.area(outline) >= 4 else { continue }
-                    buildings.append(makeBuilding(id: e.id, type: b, tags: tags, name: name, outline: outline))
+                    var bd = makeBuilding(id: e.id, type: b, tags: tags, name: name, outline: outline)
+                    bd.nameEn = nameEn
+                    buildings.append(bd)
                     continue
                 }
 
                 if let hw = tags["highway"], tags["area"] != "yes" {
                     guard let (kind, width) = roadKind(hw, tags) else { continue }
                     for seg in Polygon.clipPolyline(raw, half: half) {
-                        roads.append(Road(kind: kind, points: seg, width: width, name: name))
+                        roads.append(Road(kind: kind, points: seg, width: width, name: name, nameEn: nameEn))
                     }
                     continue
                 }
@@ -90,11 +93,11 @@ enum OSMParser {
                     let outline = Polygon.normalized(Polygon.clip(Polygon.normalized(raw), half: half))
                     guard outline.count >= 3, Polygon.area(outline) >= 10 else { continue }
                     // 保留 OSM 编号：地标 id 用它，换楼、缓存刷新后同一块地仍然是同一个 id。relation 用负数免得同 way 撞。
-                    areas.append(Area(kind: kind, outline: outline, name: name, osmID: e.type == "relation" ? -e.id : e.id))
+                    areas.append(Area(kind: kind, outline: outline, name: name, osmID: e.type == "relation" ? -e.id : e.id, nameEn: nameEn))
                     // 面状的巴士总站、商场、街市也当作兴趣点。
                     if let pk = poiKind(tags) {
                         let c = Polygon.centroid(outline)
-                        pois.append(POI(id: e.id, kind: pk, name: name, pos: c))
+                        pois.append(POI(id: e.id, kind: pk, name: name, pos: c, nameEn: nameEn))
                     }
                     continue
                 }
@@ -103,7 +106,7 @@ enum OSMParser {
                     let outline = Polygon.normalized(raw)
                     let c = Polygon.centroid(outline)
                     if abs(c.x) <= half, abs(c.y) <= half {
-                        pois.append(POI(id: e.id, kind: pk, name: name, pos: c))
+                        pois.append(POI(id: e.id, kind: pk, name: name, pos: c, nameEn: nameEn))
                     }
                 }
             }
@@ -111,7 +114,7 @@ enum OSMParser {
 
         // 商场等有名字的建筑也作兴趣点。
         for b in buildings where b.kind == .commercial && b.name != nil {
-            pois.append(POI(id: b.id, kind: .mall, name: b.name, pos: b.centroid))
+            pois.append(POI(id: b.id, kind: .mall, name: b.name, pos: b.centroid, nameEn: b.nameEn))
         }
 
         areas.sort { $0.kind.drawOrder < $1.kind.drawOrder }
@@ -135,6 +138,17 @@ enum OSMParser {
             return out.trimmingCharacters(in: .whitespaces)
         }
         return n
+    }
+
+    /// 英文名（英文界面用）：name:en 优先；冇就由「皇滙樓 Wong Wui House」攞后面嘅英文；本身纯英文名就照用。都冇就 nil（照用中文名）。
+    static func englishName(_ tags: [String: String]) -> String? {
+        if let n = tags["name:en"]?.trimmingCharacters(in: .whitespaces), !n.isEmpty { return n }
+        guard let n = tags["name"], !n.isEmpty else { return nil }
+        let cjk = n.unicodeScalars.contains { $0.value >= 0x4E00 && $0.value <= 0x9FFF }
+        guard cjk else { return n }
+        guard let r = n.range(of: #" [A-Za-z][A-Za-z0-9 .,'&()\-]*$"#, options: .regularExpression) else { return nil }
+        let tail = n[r].trimmingCharacters(in: .whitespaces)
+        return tail.count >= 2 ? tail : nil
     }
 
     static func makeBuilding(id: Int64, type: String, tags: [String: String], name: String?, outline: [Vec2]) -> Building {
