@@ -1,7 +1,9 @@
 """成员 A 加（2026-10-12）：App 嘅「耳仔」—— B 嘅豆包流式识别，经 Mac 服务器转发（密钥唔使去手机）。
 
 WebSocket /v1/voice/ear，协议沿用 B（upstream_b/docs/DOUBAO-WINDOWS.md「音频与对话协议」）嘅收音部分：
-- 手机第一条：{"token": Supabase access token（局域网直连可以冇）, "locale": "zh-HK"|"zh-CN"}
+- 手机第一条：{"token": Supabase access token（局域网直连可以冇）, "locale": "zh-HK"|"zh-CN"|"en-US"}
+  （10-17 加 en-US：豆包流式识别本身中英粤自动分辨（enable_lid），请求唔使改；locale 只决定错误讯息用边种语言。
+  实测 request.language / audio.language 喺流式接口冇作用。）
 - 之后：16 kHz 单声道 PCM16 小端二进制，每段 200 ms（6400 字节）；{"type":"stop"} 结束。
 - 服务器：ready → transcript {text, final}（final = 豆包判定一句讲完）→ error。
 同 B 唯一唔同：一句讲完唔会由服务器自己答，而系交返手机——手机先睇系咪 App 自己做嘅指令（找人、改约、反映…），
@@ -21,6 +23,12 @@ from .errors import AssistantError
 from .realtime import VoiceSession
 
 MAX_EARS = 4
+LOCALES = {"zh-HK", "zh-CN", "en-US"}
+
+
+def pick(locale, yue, cmn, en):
+    """按手机揀嘅语言揀讯息（手机直接显示）。"""
+    return en if locale == "en-US" else cmn if locale == "zh-CN" else yue
 
 
 def settle(final: str, partial: str) -> str:
@@ -54,21 +62,22 @@ def add_ear_route(app, settings, lan_caller):
     async def ear(socket: WebSocket):
         await socket.accept()
         counted = False
-        cmn = False  # 手机揀咗普通话（hello.locale == "zh-CN"）：之后嘅讯息用普通话（手机直接显示）
+        locale = "zh-HK"  # 手机揀嘅语言（hello.locale）：之后嘅讯息用呢种语言（手机直接显示）
         try:
             if settings.doubao is None:
-                raise AssistantError("EAR_NOT_CONFIGURED", "語音伺服器未設定豆包識別。", 503)
+                raise AssistantError("EAR_NOT_CONFIGURED", "語音伺服器未設定豆包識別。 Voice server has no speech recognition set up.", 503)
             hello = json.loads(await asyncio.wait_for(socket.receive_text(), timeout=10))
-            if not isinstance(hello, dict) or hello.get("locale", "zh-HK") not in {"zh-HK", "zh-CN"}:
+            if not isinstance(hello, dict) or hello.get("locale", "zh-HK") not in LOCALES:
                 raise ValueError()
-            cmn = hello.get("locale") == "zh-CN"
+            locale = hello.get("locale", "zh-HK")
             token = hello.get("token")
             if isinstance(token, str) and token and len(token) <= 4096:
                 await app.state.business.identity(token)       # Supabase 核实，唔收自报身份
             elif not (settings.speech_lan_open and lan_caller(socket)):
-                raise AssistantError("UNAUTHORIZED", "請先登入。", 401)
+                raise AssistantError("UNAUTHORIZED", pick(locale, "請先登入。", "请先登录。", "Please sign in first."), 401)
             if getattr(app.state, "ear_connections", 0) >= MAX_EARS:
-                raise AssistantError("BUSY", "太多人同时在说话，请稍后再试。" if cmn else "太多人同時講緊，請稍後再試。", 429)
+                raise AssistantError("BUSY", pick(locale, "太多人同時講緊，請稍後再試。", "太多人同时在说话，请稍后再试。",
+                                                  "Too many people talking. Please try again soon."), 429)
             app.state.ear_connections = getattr(app.state, "ear_connections", 0) + 1
             counted = True
             async with httpx.AsyncClient(timeout=httpx.Timeout(25, connect=8), follow_redirects=False) as client:
@@ -77,7 +86,8 @@ def add_ear_route(app, settings, lan_caller):
                     await EarSession(socket, factory(settings.doubao, client), None).run()
         except (ValueError, KeyError, TypeError):
             with suppress(Exception):
-                await socket.send_json({"type": "error", "code": "INVALID_HELLO", "message": "連線資料唔啱。"})
+                await socket.send_json({"type": "error", "code": "INVALID_HELLO",
+                                        "message": pick(locale, "連線資料唔啱。", "连接资料不对。", "Connection details are wrong.")})
         except WebSocketDisconnect:
             pass
         except AssistantError as exc:
@@ -85,11 +95,13 @@ def add_ear_route(app, settings, lan_caller):
                 await socket.send_json({"type": "error", "code": exc.code, "message": exc.message})
         except TimeoutError:
             with suppress(Exception):
-                message = "说了十分钟，请再按一次麦克风。" if cmn else "講咗十分鐘，請再撳一次咪。"
+                message = pick(locale, "講咗十分鐘，請再撳一次咪。", "说了十分钟，请再按一次麦克风。",
+                               "That was 10 minutes. Tap Speak again.")
                 await socket.send_json({"type": "error", "code": "SESSION_TIMEOUT", "message": message})
         except Exception:
             with suppress(Exception):
-                await socket.send_json({"type": "error", "code": "EAR_FAILED", "message": "连不上豆包识别。" if cmn else "豆包識別連唔到。"})
+                await socket.send_json({"type": "error", "code": "EAR_FAILED", "message": pick(
+                    locale, "豆包識別連唔到。", "连不上豆包识别。", "Can't reach speech recognition.")})
         finally:
             if counted:
                 app.state.ear_connections -= 1

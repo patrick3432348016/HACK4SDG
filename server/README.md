@@ -1,5 +1,9 @@
 # 街坊行 · Mac 语音服务器
 
+> **英文（10-17 加）**：App 传 `"locale": "en-US"`（识别 `/v1/voice/ear` 第一条、助手 `/v1/assistant/turn`、播报 `/v1/speech/synthesize` 都一样）；服务器唔使另外设定，`tools/voice_server.sh` 照开。
+> 识别：豆包流式自动分中 / 英 / 粤；理解：同粤语一样行 B 嘅路由（约人含分钟同时长、天文台英文天气、请假、求救 999、问药拒答），固定句英文；播报：小何读英文（`explicit_language=en`，人名地名中文照读），想换英文声喺 doubao.json 加 `"speaker_en"`。
+> 三语实测：开服务器后跑 `server/tests/live_three_lang.py`（真系调用豆包，样本存 `docs/voice_samples/three_lang/`）。普通话而家都行 B 嘅路由（以前问天气 / 求救只答「可以说…」）。
+
 **2026-10-12 起换成组员 B 新版嗰套（用户：「直接换成 B 的，用它的那套」）**：全部豆包（火山引擎）。
 
 | | 做乜 | 代码 |

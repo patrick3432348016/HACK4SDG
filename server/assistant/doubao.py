@@ -29,6 +29,8 @@ class DoubaoConfig(BaseModel):
     ark_key: SecretStr = SecretStr("")
     model: str = Field(min_length=1, max_length=120, pattern=r"^[a-zA-Z0-9_.-]+$")
     speaker: str = Field(min_length=1, max_length=120, pattern=r"^[a-zA-Z0-9_.-]+$")
+    # 10-17 加：英文（en-US）播报另用嘅音色；留空 = 照用小何（实测小何读英文豆包识别回认一字不差）。
+    speaker_en: str = Field(default="", max_length=120, pattern=r"^[a-zA-Z0-9_.-]*$")
     asr_resource: Literal["volc.seedasr.sauc.duration", "volc.seedasr.sauc.concurrent", "volc.bigasr.sauc.duration"] = "volc.seedasr.sauc.duration"
     tts_resource: Literal["seed-tts-2.0", "seed-icl-2.0"] = "seed-tts-2.0"
     end_window_ms: int = Field(default=1200, ge=800, le=3000)

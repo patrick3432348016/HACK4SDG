@@ -2,7 +2,7 @@ from datetime import datetime, date
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-Locale = Literal["zh-HK", "zh-CN"]
+Locale = Literal["zh-HK", "zh-CN", "en-US"]  # 10-17 加英文（en-US）
 Intent = Literal["invite", "leave", "rename", "advice", "daily", "landmark", "monthly", "help", "cancel"]
 
 
