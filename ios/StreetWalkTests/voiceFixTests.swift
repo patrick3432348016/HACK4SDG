@@ -35,6 +35,17 @@ struct SpokenTimeTests {
         #expect(TemplateAI().parseHour("下晝") == 16, "冇钟点照旧")
     }
 
+    @Test func 行几耐唔当分钟() {
+        // 10-18 真机：「约邻居明天下午 3 点散步 40 分钟」确认卡变「3 点 2 分」
+        for (text, walk) in [("约邻居明天下午3点散步40分钟", 40), ("约邻居明天下午三点散步四十分钟", 40), ("约邻居明天下午3点走半个钟", 30),
+                             ("约邻居明天下午3点40分钟", 40), ("約街坊聽日下晝三點行半個鐘", 30), ("约邻居明天下午 3 点散步 40 分钟", 40)] {
+            #expect(clock(text) == [15, 0], "\(text)")
+            #expect(TemplateAI.spokenMinute(text) == 0, "\(text)")
+            #expect(TemplateAI.parseDuration(text) == walk, "\(text)")
+        }
+        #expect(clock("下晝三點半鐘") == [15, 30], "三點半鐘照旧系 3:30")
+    }
+
     @Test func 行几耐() {
         #expect(TemplateAI.parseDuration("约陈太明天下午三点走四十分钟") == 40)
         #expect(TemplateAI.parseDuration("散步一个小时") == 60)
@@ -146,5 +157,38 @@ struct PreviewStateTests {
         sp.speak("新嘅播报")
         #expect(!sp.previewing, "新播报取代试听")
         sp.stop()
+    }
+}
+
+// 2026-10-18 组员真机测试（语音组）：天气句语言夹杂、普通话读「街坊行」、散步例句得两句、反映提示写死人数。
+@MainActor
+struct VoiceFix18Tests {
+    @Test func 天气句跟而家嘅语言() {
+        let r = HKOReport(station: "九龍城", temperature: 27)
+        #expect(AppStore.inLanguage(.yue) { r.line } == "天文台話九龍城而家 27 度。")
+        #expect(AppStore.inLanguage(.cmn) { r.line } == "天文台说九龙城现在 27 度。")
+        #expect(AppStore.inLanguage(.en) { r.line } == "Observatory: 27°C in Kowloon City now")
+        #expect(HKOReport.psrEnglish("中低") == "medium-low")
+        // 警告名存繁体，普通话显示简体
+        var hot = r
+        hot.warnings = [.init(code: "WL", name: HKOReport.displayName(code: "WL", type: nil, name: nil))]
+        #expect(AppStore.inLanguage(.cmn) { hot.walkWarnings } == ["山泥倾泻警告"])
+        #expect(AppStore.inLanguage(.en) { hot.line }.contains("Landslip Warning"))
+    }
+
+    @Test func 普通话播报街坊行唔读háng() {
+        #expect(Speaker.pronounced("欢迎来到街坊行", language: .mandarin) == "欢迎来到街坊形")
+        #expect(Speaker.pronounced("歡迎嚟到街坊行", language: .cantonese) == "歡迎嚟到街坊行")
+    }
+
+    @Test func 散步例句有四句_反映提示唔写人数() {
+        let s = AppStore()
+        s.restoring = true
+        s.clockTask?.cancel()
+        s.residents = [Resident(id: "me", name: "你", floor: 12, colorIndex: 6, mobility: .walk, streakDays: 1, todayLine: "", isMe: true)]
+        s.walk = WalkSession(start: Date())
+        #expect(s.suggestedPhrases.count == 4)
+        #expect(s.suggestedPhrases.contains("呢度難行"))
+        #expect(!s.reportNote.contains("10"))
     }
 }

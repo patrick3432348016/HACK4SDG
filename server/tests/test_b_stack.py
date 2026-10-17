@@ -1,6 +1,7 @@
 """成员 A（2026-10-12）：换成 B 新版嗰套之后嘅接驳测试——豆包播报、话题判断（B 嘅 VoicePolicy）、识别通道。只用假供应商。"""
 import asyncio
 import base64
+from datetime import datetime, timedelta
 import json
 from pathlib import Path
 import tempfile
@@ -15,7 +16,7 @@ from assistant.config import Settings
 from assistant.doubao import DoubaoConfig
 from assistant.doubao_speech import DoubaoEngine, DoubaoSpeechFailed
 from assistant.models import TurnRequest
-from assistant.service import Assistant
+from assistant.service import HK, Assistant
 from assistant.store import Store
 from assistant.voice_policy import CMN, DENIED, EMERGENCY, EN
 from test_doubao import CONFIG, FakeProvider, server_packet
@@ -116,6 +117,15 @@ class TurnPolicyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(weather.message, "Observatory: Sheung Shui 26 degrees.")
         self.provider.decision = {"topic": "help"}
         self.assertEqual((await self.ask("Hello", locale="en-US")).message, EN["help"])
+
+    async def test_model_copying_now_minutes_is_pinned(self):
+        # 10-18 真机：豆包将 now 嘅分钟抄入 starts_at（「下午3点散步40分钟」→ 15:02）
+        when = (datetime.now(HK) + timedelta(days=1)).replace(hour=15, minute=2, second=41, microsecond=0)
+        self.provider.decision = {"topic": "app", "command": {"intent": "invite", "contact_query": "邻居", "starts_at": when.isoformat(),
+                                                              "max_walk_minutes": 40}}
+        reply = await self.ask("约邻居明天下午3点散步40分钟", locale="zh-CN")
+        at = datetime.fromisoformat(reply.command.starts_at.isoformat())
+        self.assertEqual((at.hour, at.minute, at.second), (15, 0, 0))
 
     async def test_app_command_goes_through_b_confirmation(self):
         reply = await self.ask("聽日請假")

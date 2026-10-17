@@ -10,7 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from .errors import AssistantError
 from .models import Command, ChoiceRequest
-from .providers import Providers
+from .providers import Providers, pin_spoken_clock
 from .service import Assistant, HK
 from .weather import HKOWeather, WeatherQuery, UNAVAILABLE
 
@@ -128,6 +128,8 @@ class VoicePolicy:
             "today/tomorrow/the day after tomorrow同今日/听日/后日；3:15 pm要换算成15:15并保留分钟，8 am即08:00。"
             "starts_at要保留分钟：三点十五、3点20分、三点一刻(15分)、三点半(30分)、八点零五(5分)、粤语三点三(15分)。"
             "讲散步/走多久（走四十分钟、散步一个钟、walk 40 minutes、for half an hour）把分钟数填入max_walk_minutes（最多120）。"
+            # 10-18 加：模型试过照抄 now 嘅分钟（讲「下午3点散步40分钟」出 15:02）
+            "starts_at的分钟只取钟点后面讲的分钟，没讲就是00，秒一律00，不得沿用now的分钟；散步40分钟的40是时长不是分钟。"
             "contact_query照抄用户讲的名字（如陈伯、Mr Chan、Mrs Wong），不翻译。"
             "只允许约街坊、遮荫集合点、散步建议、App操作、请假、昵称、今日一句、地标昵称、月报。"
             "出行天气topic=weather，交通topic=traffic，社区榜topic=board，散步记录topic=history。"
@@ -146,9 +148,12 @@ class VoicePolicy:
                         "previous": self.previous.model_dump(mode="json") if self.previous else None,
                         "previous_weather": self.previous_weather})
         try:
-            return Decision.model_validate(data)
+            decision = Decision.model_validate(data)
         except ValidationError as exc:
             raise AssistantError("POLICY_INVALID", "未能确定你想做嘅 App 操作，请再讲一次。", 502) from exc
+        if decision.topic == "app":
+            pin_spoken_clock(decision.command, text)
+        return decision
 
     async def answer(self, text):
         if not isinstance(text, str) or not 1 <= len(text.strip()) <= 2000:

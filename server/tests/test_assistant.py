@@ -16,7 +16,7 @@ from assistant.business import Business, demo_context
 from assistant.config import Settings
 from assistant.errors import AssistantError
 from assistant.models import Command, Context
-from assistant.providers import Providers, demo_interpret, validate_wav
+from assistant.providers import Providers, demo_interpret, pin_spoken_clock, spoken_clock, validate_wav
 from assistant.service import HK, rank_places
 from assistant.store import Store
 
@@ -360,6 +360,33 @@ class LogicTests(unittest.TestCase):
         self.assertEqual(demo_interpret("约陈伯明天下午三点散步一个小时", None, NOW).max_walk_minutes, 60)
         self.assertEqual(demo_interpret("約陳伯聽日下晝三點行半個鐘", None, NOW).max_walk_minutes, 30)
         self.assertIsNone(demo_interpret("约陈伯明天下午三点散步", None, NOW).max_walk_minutes)
+
+    def test_walk_length_is_not_clock_minute(self):
+        # 10-18 真机：「约邻居明天下午3点散步40分钟」确认卡变「3 点 2 分」
+        for text, walk in {"约邻居明天下午3点散步40分钟": 40, "约邻居明天下午三点散步四十分钟": 40, "约邻居明天下午3点走半个钟": 30,
+                           "約街坊聽日下晝三點行四十分鐘": 40, "约邻居明天下午3点40分钟": 40}.items():
+            cmd = demo_interpret(text, None, NOW)
+            self.assertEqual((cmd.starts_at.hour, cmd.starts_at.minute), (15, 0), text)
+            self.assertEqual(cmd.max_walk_minutes, walk, text)
+            self.assertEqual(spoken_clock(text), (3, 0), text)
+        self.assertEqual(spoken_clock("Invite Mr Chan tomorrow at 3:15 pm for 40 minutes"), (3, 15))
+        self.assertEqual(spoken_clock("约陈伯明天下午三点半钟"), (3, 30))
+        self.assertIsNone(spoken_clock("約陳伯聽日下晝三點三")[1], "粤语「三點三」唔肯定，唔改模型")
+        self.assertIsNone(spoken_clock("约陈伯明天散步"))
+
+    def test_mandarin_app_name_pronunciation(self):
+        from assistant.app import tts_text
+        self.assertEqual(tts_text("欢迎来到街坊行", "zh-CN"), "欢迎来到街坊形")
+        self.assertEqual(tts_text("歡迎嚟到街坊行", "zh-HK"), "歡迎嚟到街坊行")
+
+    def test_model_minutes_pinned_to_spoken_clock(self):
+        # 模型照抄 now 嘅分钟 / 秒：以用户讲嘅为准；钟头对唔上就唔郁
+        at = datetime(2026, 10, 19, 15, 2, 33, tzinfo=NOW.tzinfo)
+        for text in ("约邻居明天下午3点散步40分钟", "约邻居明天下午三点散步四十分钟", "约邻居明天下午3点走半个钟", "Invite Mr Chan tomorrow at 3 pm for 40 minutes"):
+            cmd = pin_spoken_clock(Command(intent="invite", starts_at=at), text)
+            self.assertEqual((cmd.starts_at.hour, cmd.starts_at.minute, cmd.starts_at.second), (15, 0, 0), text)
+        self.assertEqual(pin_spoken_clock(Command(intent="invite", starts_at=at.replace(minute=15)), "约陈伯明天下午三点十五").starts_at.minute, 15)
+        self.assertEqual(pin_spoken_clock(Command(intent="invite", starts_at=at.replace(hour=16)), "改到下午三点").starts_at.minute, 2)
 
     def test_ambiguous_time_and_negation_not_guessed(self):
         self.assertIsNone(demo_interpret("约陈伯明天四点散步", None, NOW).starts_at)

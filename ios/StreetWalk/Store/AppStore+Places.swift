@@ -158,6 +158,7 @@ extension AppStore {
     }
 
     func refreshWeatherTip() {
+        watchLanguageForWeather()
         var advice: String?
         if let shade {
             let hour = Self.hk.component(.hour, from: now)
@@ -182,7 +183,7 @@ extension AppStore {
             : !rainingNow ? L.t("可能會落雨，出門記得帶遮，或者聽日先行", "可能会下雨，出门记得带伞，或者明天再走", "It may rain. Take an umbrella, or walk tomorrow")
             : ["低", "中低"].contains(r.tomorrowPSR ?? "") ? L.t("唔好勉強出門，聽日天氣好啲先行", "别勉强出门，明天天气好些再走", "Don't push yourself. Walk tomorrow when the weather is better") : L.t("唔好勉強出門，等雨停先", "别勉强出门，等雨停了再说", "Don't push yourself. Wait for the rain to stop")
         // 天文台已经讲咗酷熱警告，就唔再讲一次「今日好熱」。
-        if r.walkWarnings.contains(where: { $0.contains("酷熱") }) {
+        if r.hasHeatWarning {
             rest = rest.replacingOccurrences(of: "今日好熱。", with: "").replacingOccurrences(of: "今日好熱，", with: "")
                 .replacingOccurrences(of: "今天很热。", with: "").replacingOccurrences(of: "今天很热，", with: "")
         }
@@ -192,6 +193,22 @@ extension AppStore {
         let line = Self.oneSentence([r.line, rest])
         weatherTip = line.isEmpty ? nil : line
     }
+
+    /// 转咗界面语言（设定页、首次使用欢迎页都得）：天气句即刻用新语言重出。
+    /// 10-18 真机：普通话问天气答「天文台話九龍城而家 27 度，天文台说明天…」、英文今日卡写「天文台说九龍城现在 27 度」——
+    /// 天气句喺攞数据嗰阵用当时嘅语言定死咗。
+    private func watchLanguageForWeather() {
+        guard !Self.weatherWatchesLanguage else { return }
+        Self.weatherWatchesLanguage = true
+        withObservationTracking { _ = AppLanguage.shared.current } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                Self.weatherWatchesLanguage = false
+                self?.refreshWeatherTip()
+            }
+        }
+    }
+
+    private static var weatherWatchesLanguage = false
 
     /// F9：每次提示唔超过一句——几段用逗号接埋，只留最尾一个句号。
     static func oneSentence(_ parts: [String]) -> String {

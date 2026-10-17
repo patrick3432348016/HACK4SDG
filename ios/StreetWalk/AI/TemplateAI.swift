@@ -233,7 +233,8 @@ struct TemplateAI: AIService {
     /// 「點」后面嘅分钟（「三點差五分」返回 -5）。
     private static func minutes(after s: Substring) -> Int {
         let s = String(s.prefix(6))
-        if s.hasPrefix("半") { return 30 }
+        // 「三點走半個鐘」嘅「半個鐘」系行几耐（10-18）；「三點半」「三點半鐘」先系 3:30
+        if s.hasPrefix("半") { return ["半個鐘", "半個小時", "半小時"].contains(where: s.hasPrefix) ? 0 : 30 }
         for (w, m) in [("一刻", 15), ("1刻", 15), ("兩刻", 30), ("三刻", 45), ("3刻", 45), ("一個骨", 15), ("三個骨", 45), ("個字", 5)] where s.hasPrefix(w) { return m }
         let num = "([0-9]{1,2}|[零〇一二兩三四五六七八九十]{1,3})"
         if s.hasPrefix("差一刻") { return -15 }
@@ -246,6 +247,8 @@ struct TemplateAI: AIService {
         guard let n else { return 0 }
         let digits = String(s.prefix(len)), rest = s.dropFirst(len)
         if rest.hasPrefix("個字") { return (1...11).contains(n) ? n * 5 : 0 }
+        // 「3點40分鐘」嘅「40分鐘」系行几耐，唔系 3:40（10-18 真机：时长被当分钟）
+        if rest.hasPrefix("分鐘") || rest.hasPrefix("分鍾") { return 0 }
         if rest.hasPrefix("分") { return (0...59).contains(n) ? n : 0 }
         // 两个字以上（「十五」「四十五」「零五」「20」）就系分钟
         if digits.count >= 2 { return (0...59).contains(n) ? n : 0 }

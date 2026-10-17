@@ -111,6 +111,7 @@ class Providers:
             # 成员 A 加（2026-10-17 用户测试：认唔到整点、半点以外嘅时间、讲唔到行几耐）
             "starts_at要保留分钟：三点十五、3点20分、三点一刻(15分)、两点三刻(45分)、三点半(30分)、八点零五(5分)、粤语三点三(15分)。"
             "用户讲散步/走多久（走四十分钟、散步一个小时、走半个钟）时把分钟数填入max_walk_minutes（最多120）。"
+            "starts_at的分钟只取钟点后面讲的分钟，没讲就是00，秒一律00，不得沿用now的分钟；散步40分钟的40是时长不是分钟。"
             "leave_date为YYYY-MM-DD。用户只是确认时不得生成新请求，应用通过独立确认按钮提交。"
             "cancel只用于取消未提交请求。landmark为给真实候选地标起昵称。monthly默认上一个完整月。"
             + json.dumps(Command.model_json_schema(), ensure_ascii=False)
@@ -118,7 +119,7 @@ class Providers:
         data = await self.completion(system, {"text": text, "previous": previous.model_dump(mode="json") if previous else None,
                                              "now": now.isoformat(), "locale": locale})
         try:
-            return Command.model_validate(data)
+            return pin_spoken_clock(Command.model_validate(data), text)
         except ValidationError as exc:
             raise AssistantError("MODEL_INVALID", "AI 解析结果不符合业务约定，请换个说法。", 502) from exc
 
@@ -152,13 +153,59 @@ def _cn_number(s: str):
     return None
 
 
+_SIMPLE = str.maketrans({"約": "约", "陳": "陈", "時": "时", "點": "点", "陰": "阴", "請": "请", "報": "报", "稱": "称",
+                         "鐘": "钟", "鍾": "钟", "個": "个"})
+
+
+def _normalize(text: str) -> str:
+    normalized = text.strip().translate(_SIMPLE)
+    # 成员 A 加：粤语识别常出中文数字（「最多十五分鐘」），换成阿拉伯数字先比下面嘅规则用。
+    return re.sub(r"([一二两兩三四五六七八九十]{1,3})(?=\s*分钟)", lambda m: str(_cn_number(m[1]) or m[1]), normalized)
+
+
+_HOUR = r"(\d{1,2}|十二|十一|[一二两兩三四五六七八九十])(?:点|时)"
+_EN_CLOCK = re.compile(r"\b(\d{1,2})(?:[:.](\d{2}))?\s*([ap])\.?\s?m\b", re.I)
+_COLON = re.compile(r"(?<!\d)([01]?\d|2[0-3])[:：]([0-5]\d)(?!\d)")
+
+
+def spoken_clock(text: str):
+    """成员 A 加（2026-10-18 真机：「约邻居明天下午3点散步40分钟」确认卡变「3 点 2 分」——模型照抄咗 now 嘅分钟）。
+    用户讲咗嘅最后一个钟点 → (钟头 0–23 未分上下午, 分钟)；分钟唔肯定（粤语「三点三」「差五分」之类）就系 None。
+    冇讲钟点返回 None。「散步40分钟」「走半个钟」系行几耐，唔当分钟。"""
+    normalized = _normalize(text)
+    colon = list(_COLON.finditer(normalized))
+    english = list(_EN_CLOCK.finditer(text))
+    hours = [m for m in re.finditer(_HOUR, normalized)]
+    if english and not hours:
+        m = english[-1]
+        return int(m[1]) % 24, int(m[2]) if m[2] else 0
+    if colon and not hours:
+        m = colon[-1]
+        return int(m[1]), int(m[2])
+    if not hours:
+        return None
+    m = hours[-1]
+    numbers = {"一": 1, "二": 2, "两": 2, "兩": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10, "十一": 11, "十二": 12}
+    hour = int(m[1]) if m[1].isdigit() else numbers[m[1]]
+    return hour, _minute_after(normalized[m.end():], sure=True)
+
+
+def pin_spoken_clock(cmd: Command, text: str) -> Command:
+    """模型出嘅 starts_at：秒清零；用户讲咗钟点、钟头对得上，分钟就以用户讲嘅为准（唔信模型抄 now 嘅分钟）。"""
+    if not cmd.starts_at:
+        return cmd
+    at = cmd.starts_at.replace(second=0, microsecond=0)
+    clock = spoken_clock(text)
+    if clock and clock[1] is not None and clock[0] % 12 == at.hour % 12:
+        at = at.replace(minute=clock[1])
+    cmd.starts_at = at
+    return cmd
+
+
 def demo_interpret(text: str, previous: Command | None, now: datetime) -> Command:
     """Predictable integration fixtures, NOT a simulation of arbitrary speech or model intelligence."""
     text = text.strip()
-    normalized = text.translate(str.maketrans({"約": "约", "陳": "陈", "時": "时", "點": "点", "陰": "阴", "請": "请", "報": "报", "稱": "称",
-                                               "鐘": "钟", "鍾": "钟", "個": "个"}))
-    # 成员 A 加：粤语识别常出中文数字（「最多十五分鐘」），换成阿拉伯数字先比下面嘅规则用。
-    normalized = re.sub(r"([一二两兩三四五六七八九十]{1,3})(?=\s*分钟)", lambda m: str(_cn_number(m[1]) or m[1]), normalized)
+    normalized = _normalize(text)
     if normalized in {"取消", "算了", "唔要", "取消请求"}:
         return Command(intent="cancel")
     if any(word in normalized for word in ["不要约", "不约", "唔约", "不是", "唔系", "唔係", "或者"]):
@@ -229,7 +276,7 @@ def demo_interpret(text: str, previous: Command | None, now: datetime) -> Comman
         cmd.starts_at = old_time.replace(year=day.year, month=day.month, day=day.day)
     if any(w in normalized for w in ["遮阴", "遮荫", "唔晒", "不晒", "唔好咁晒"]):
         cmd.prefer_shade = True
-    walk = re.search(r"(?:步行|走路|行路|最多|行|走)\s*(\d{1,3})\s*分钟", normalized)
+    walk = re.search(r"(?:散步|步行|走路|行路|最多|行|走|点)\s*(\d{1,3})\s*分钟", normalized)
     if walk and 1 <= int(walk[1]) <= 120:
         cmd.max_walk_minutes = int(walk[1])
     # 成员 A 加：「散步一个钟」「走半个钟」「行一个半小时」（以钟头计，最多 120 分钟）
@@ -239,20 +286,28 @@ def demo_interpret(text: str, previous: Command | None, now: datetime) -> Comman
     return cmd
 
 
-def _minute_after(rest: str) -> int:
+def _minute_after(rest: str, sure: bool = False):
     """成员 A 加（2026-10-17）：「点」后面嘅分钟：半 / 一刻 / 三刻 / 十五 / 20分 / 零五 / 两个字（粤语 = 10 分钟）。
-    得一个中文数字（「三点一起」嘅「一」）唔当分钟。"""
+    得一个中文数字（「三点一起」嘅「一」）唔当分钟。「3点40分钟」「三点散步四十分钟」嘅 40 系行几耐，唔当分钟（10-18）。
+    sure=True：唔肯定嘅讲法（一个中文数字、「差五分」「踏九」「一个骨」）返回 None，其余同下面一样。"""
+    rest = rest.lstrip()
     for word, minute in (("半", 30), ("一刻", 15), ("三刻", 45)):
-        if rest.startswith(word):
+        if rest.startswith(word) and not rest.startswith(("半个钟", "半个小时", "半小时")):
             return minute
-    m = re.match(r"(零|〇)?(\d{1,2}|[一二两兩三四五六七八九十]{1,3})(分|个字)?", rest)
+    if rest.startswith(("一起", "一齐", "一齊")):
+        return 0
+    if sure and re.match(r"(差|踏|[一三]个骨)", rest):
+        return None
+    m = re.match(r"(零|〇)?(\d{1,2}|[一二两兩三四五六七八九十]{1,3})\s*(分钟|分|个字)?", rest)
     if not m:
         return 0
     n = int(m[2]) if m[2].isdigit() else _cn_number(m[2])
     if n is None:
+        return None if sure else 0
+    if m[3] == "分钟":
         return 0
     if m[3] == "个字":
         return n * 5 if 1 <= n <= 11 else 0
     if m[3] == "分" or m[1] or len(m[2]) >= 2:
         return n if 0 <= n <= 59 else 0
-    return 0
+    return None if sure else 0

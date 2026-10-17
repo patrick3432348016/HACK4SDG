@@ -47,7 +47,9 @@ TURN = {
     "zh-HK": [("約陳伯聽日下晝三點十五分散步，行四十分鐘", "invite"), ("聽日天氣點呀", "weather"), ("聽日請假", "leave"),
               ("救命，有人暈倒", "emergency"), ("呢隻藥食幾多粒", "deny"), ("好", "help")],
     "zh-CN": [("约陈伯明天下午三点十五分散步，走四十分钟", "invite"), ("明天天气怎么样", "weather"), ("明天请假", "leave"),
-              ("救命，有人晕倒了", "emergency"), ("这个药吃几粒", "deny"), ("好", "help")],
+              ("救命，有人晕倒了", "emergency"), ("这个药吃几粒", "deny"), ("好", "help"),
+              # 10-18 真机：时长唔可以变分钟（以前出「3 点 2 分」），时间要系 15:00
+              ("约陈伯明天下午3点散步40分钟", "invite"), ("约陈伯明天下午三点散步四十分钟", "invite"), ("约陈伯明天下午3点走半个钟", "invite")],
     "en-US": [("Invite Mr Chan for a walk tomorrow at 3:15 pm for 40 minutes", "invite"), ("What's the weather like tomorrow?", "weather"),
               ("I want a day off tomorrow", "leave"), ("Help! Someone has collapsed", "emergency"),
               ("How many pills of this medicine should I take?", "deny"), ("Yes", "help")],

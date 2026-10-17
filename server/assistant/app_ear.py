@@ -23,6 +23,9 @@ from .errors import AssistantError
 from .realtime import VoiceSession
 
 MAX_EARS = 4
+# 10-18 真机：讲完要等好耐先出字。App 耳仔讲完停 0.8 秒就算一句（豆包最短；doubao.json 嘅 1.2 秒留俾 B 嘅网页）；
+# 讲到一半停耐咗，手机会将紧接嘅下半句串返埋（AppStore+Conversation），仲有「说完了」掣即刻交。
+EAR_END_WINDOW_MS = 800
 LOCALES = {"zh-HK", "zh-CN", "en-US"}
 
 
@@ -83,7 +86,8 @@ def add_ear_route(app, settings, lan_caller):
             async with httpx.AsyncClient(timeout=httpx.Timeout(25, connect=8), follow_redirects=False) as client:
                 factory = getattr(app.state, "doubao_factory", Doubao)
                 async with asyncio.timeout(600):
-                    await EarSession(socket, factory(settings.doubao, client), None).run()
+                    config = settings.doubao.model_copy(update={"end_window_ms": min(settings.doubao.end_window_ms, EAR_END_WINDOW_MS)})
+                    await EarSession(socket, factory(config, client), None).run()
         except (ValueError, KeyError, TypeError):
             with suppress(Exception):
                 await socket.send_json({"type": "error", "code": "INVALID_HELLO",

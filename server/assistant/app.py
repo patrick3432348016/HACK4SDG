@@ -84,6 +84,11 @@ def voice_id(settings):
     return f"sovits-v2ProPlus-{ref.rsplit('.', 1)[0]}-1"
 
 
+def tts_text(text, locale):
+    """10-18：普通话将 App 名「街坊行」读成 jiē fang háng；送去合成前换同音字（屏幕文字唔变）。粤语「行」读 haang4 啱，唔改。"""
+    return text.replace("街坊行", "街坊形") if locale == "zh-CN" else text
+
+
 def is_lan_caller(request):
     """直接由局域网 / 本机连入（唔经隧道或者代理）：播报可以唔使登录（模拟器、演示模式）。"""
     if any(h in request.headers for h in ("cf-connecting-ip", "x-forwarded-for", "forwarded", "x-real-ip", "cf-ray")):
@@ -222,10 +227,11 @@ def create_app(settings=None, client=None, clock=None, speech=None):
     @app.post("/v1/speech/synthesize")
     async def synthesize(body: SpeakRequest, request: Request, user=Depends(speech_principal)):
         engine = app.state.speech
+        text = tts_text(body.text, body.locale)
         if engine is None:
             if user[0] == "lan":
                 raise AssistantError("UNAUTHORIZED", "请先登录。", 401)
-            audio = await app.state.providers.speak(body.text, body.locale)
+            audio = await app.state.providers.speak(text, body.locale)
             return Response(audio, media_type="audio/mpeg")
         if body.locale not in engine.locales:
             raise AssistantError("TTS_LOCALE_UNSUPPORTED", "This voice can't speak this language yet." if body.locale == "en-US"
@@ -234,9 +240,9 @@ def create_app(settings=None, client=None, clock=None, speech=None):
             raise AssistantError("TTS_NOT_READY", "声音模型仲未准备好。", 503)
         speed = body.speed or 1.0
         if body.prefetch:
-            key, job = engine.enqueue(body.text, body.locale, speed, priority=1)
+            key, job = engine.enqueue(text, body.locale, speed, priority=1)
             return JSONResponse({"cached": job is None, "key": key}, status_code=200 if job is None else 202)
-        hit, chunks = await engine.stream(body.text, body.locale, speed)
+        hit, chunks = await engine.stream(text, body.locale, speed)
         try:
             first = await chunks.__anext__()
         except (SynthesisFailed, StopAsyncIteration):
