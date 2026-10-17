@@ -84,8 +84,8 @@ extension AppStore {
                                            leave: { leaves.contains($0) })
         let block = residents.first(where: \.isMe)?.blockShort
         return CommunityProfile(nickname: nick, mobility: mobilityChoice, colorIndex: colorChoice, skinTone: skinChoice, ageGroup: ageChoice,
-                                tileX: tile.ix, tileY: tile.iy, communityName: (map ?? fullMap)?.placeName, block: block == "示意樓" ? nil : block,
-                                floor: floorChoice, streak: streak, streakDay: day)
+                                tileX: tile.ix, tileY: tile.iy, communityName: (map ?? fullMap)?.placeName, block: !shareHome || block == "示意樓" ? nil : block,
+                                floor: shareHome ? floorChoice : nil, streak: streak, streakDay: day)
     }
 
     // MARK: - 前台 / 后台

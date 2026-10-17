@@ -606,7 +606,9 @@ struct TodayTab: View {
 
     private var landmarksCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TabSectionHeader(text: L.t("附近地標", "附近地标", "Nearby landmarks"))
+            TabSectionHeader(text: L.t("散步貼士", "散步贴心提醒", "Walk tips"))
+            Text(L.t("附近可以唞腳嘅地方：有冇櫈、曬唔曬、夜晚有冇燈", "附近可以歇脚的地方：有没有凳子、晒不晒、晚上有没有灯", "Places nearby to rest: seats, sun or shade, lights after dark"))
+                .ds(.caption).foregroundStyle(.secondary)
             VStack(spacing: 0) {
                 ForEach(Array(store.landmarks.enumerated()), id: \.element.id) { i, lm in
                     if i > 0 { Divider().padding(.leading, 40) }
@@ -620,7 +622,7 @@ struct TodayTab: View {
     private func landmarkRow(_ lm: Landmark) -> some View {
         // 日落后不讲遮荫（会算成 100%）：同地标信息卡一样用 shadeValue（太阳落山返回 nil）
         let v = store.shade == nil ? 0 : store.shadeValue(lm.id, at: store.now)
-        let sun = v.map(AppStore.shadeWords) ?? L.t("太陽落咗山", "太阳下山了", "Sun has set")
+        let sun = v.map(AppStore.shadeWords) ?? store.lampWords(lm.id)
         return Button { store.select(.landmark(lm.id)) } label: {
             HStack(spacing: 12) {
                 Image(systemName: "mappin.circle.fill")

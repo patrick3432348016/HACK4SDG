@@ -527,7 +527,7 @@ struct RemindPrompt: View {
                                 .offset(x: 6, y: 6)
                                 .accessibilityHidden(true)
                         }
-                    Text(L.t("你同\(r.floorLabel)\(r.name)而家係街坊", "你和\(r.floorLabel)\(r.name)现在是邻居了", "You and \(r.name)\(r.floorLabel.isEmpty ? "" : " (\(r.floorLabel))") are neighbours now"))
+                    Text(L.t("你同\(r.name)而家係街坊", "你和\(r.name)现在是邻居了", "You and \(r.name) are neighbours now"))
                         .ds(.bodyBold)
                         .fixedSize(horizontal: false, vertical: true)
                 }

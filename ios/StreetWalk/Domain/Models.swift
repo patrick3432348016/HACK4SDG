@@ -45,8 +45,8 @@ struct Resident: Identifiable, Equatable {
             let you = L.t("你", "你", "You")
             return nick.map { "\($0) · \(you)" } ?? you
         }
-        let place = placeLabel
-        return isNeighbor && !place.isEmpty ? "\(name) · \(place)" : name
+        // 10-18 测试：唔想人知住边座、边层 → 一律只出网名
+        return name
     }
     var color: Color { Palette.person(colorIndex) }
     var uiColor: UIColor { Palette.personUI(colorIndex) }

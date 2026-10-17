@@ -95,6 +95,11 @@ struct SettingsView: View {
                     }
                     .padding(.top, 8)
                     .id("profileColor")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Toggle(L.t("俾街坊睇到我住邊座", "让邻居看到我住哪栋", "Let neighbours see my block"), isOn: $store.shareHome).tint(DS.accent)
+                        rowNote(L.t("熄咗，街坊只見到你嘅網名，唔知你住邊座、幾樓。", "关掉后，邻居只看到你的网名，不知道你住哪栋、几楼。", "When off, neighbours only see your nickname, not your block or floor."))
+                    }
+                    .frame(minHeight: 56)
                 } header: {
                     Text(L.t("我嘅資料", "我的资料", "About me")).ds(.caption)
                 } footer: {

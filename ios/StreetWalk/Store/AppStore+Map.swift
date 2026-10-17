@@ -477,7 +477,7 @@ extension AppStore {
             let spot = bumpMeetSpot()
             people.removeAll { $0.id == "me" }
             people.append(ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility, motion: .stand(at: spot + Vec2(x: -4, y: 0)), label: L.t("你", "你", "You")))
-            people.append(ScenePerson(id: p.id, color: p.uiColor, mobility: p.mobility, motion: .stand(at: spot + Vec2(x: 4, y: 0)), label: "\(p.floorLabel) \(p.name)", highlighted: true))
+            people.append(ScenePerson(id: p.id, color: p.uiColor, mobility: p.mobility, motion: .stand(at: spot + Vec2(x: 4, y: 0)), label: p.name, highlighted: true))
         } else {
             bumpSpot = nil
         }
@@ -524,8 +524,22 @@ extension AppStore {
     /// 地标信息卡的遮荫一句（图标 + 文字）。日落后说"太陽落咗山"。
     func shadeFact(_ landmarkID: String) -> (symbol: String, text: String) {
         guard shade != nil else { return ("sun.max.fill", Self.shadeWords(0)) }
-        guard let v = shadeValue(landmarkID, at: now) else { return ("moon.stars.fill", L.t("太陽落咗山，冇得曬", "太阳下山了，晒不到", "Sun has set")) }
+        guard let v = shadeValue(landmarkID, at: now) else { return ("lightbulb.fill", lampWords(landmarkID)) }
         return (v >= 0.5 ? "building.2.fill" : "sun.max.fill", Self.shadeWords(v))
+    }
+
+    /// 天黑后讲路灯（测试反馈：日落自己睇得到，唔使提）。用 OSM 道路 lit=yes/no，60 米内；冇标就劝行大路。
+    func lampWords(_ landmarkID: String) -> String {
+        var lit = 0, dark = 0
+        if let m = map, let lm = landmarks.first(where: { $0.id == landmarkID }) {
+            for r in m.roads { guard let l = r.lit else { continue }
+                let near = (0..<max(r.points.count - 1, 0)).contains { LandmarkDeriver.closestPoint(on: r.points[$0], r.points[$0 + 1], to: lm.pos).distance(to: lm.pos) < 60 }
+                if near { if l { lit += 1 } else { dark += 1 } }
+            }
+        }
+        if lit > 0 && lit >= dark { return L.t("天黑咗，附近有路燈", "天黑了，附近有路灯", "Dark now. Street lights nearby") }
+        if dark > 0 { return L.t("天黑咗，路燈少，小心腳下", "天黑了，路灯少，注意脚下", "Dark now. Few street lights, watch your step") }
+        return L.t("天黑咗，行有燈嘅大路", "天黑了，走有灯的大路", "Dark now. Stay on lit main roads")
     }
 
     /// 遮荫讲日常话，唔讲百分比（长者睇唔明「0% 有樓遮」，UX 评审 16）：有陰 / 一半有陰 / 曬。

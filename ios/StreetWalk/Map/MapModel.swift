@@ -11,6 +11,8 @@ struct Road: Codable {
     var name: String?
     /// OSM name:en（英文界面用；冇就用 name）。
     var nameEn: String? = nil
+    /// OSM lit=yes/no（有冇路灯）；冇标就 nil。
+    var lit: Bool? = nil
 
     var shownName: String? { L.isEn ? (nameEn ?? name) : name }
 }

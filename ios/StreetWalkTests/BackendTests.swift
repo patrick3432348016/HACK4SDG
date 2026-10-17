@@ -98,7 +98,7 @@ struct BackendMergeTests {
         let a = rs[0], b = rs[1], c = rs[2]
         #expect(!a.isNeighbor && a.floor == 0 && a.blockName == nil && a.todayLine.isEmpty, "非街坊：冇楼层、座数、今日一句")
         #expect(a.listName == "阿芳" && a.mobility == .wheelchair && a.skinTone == 2 && a.ageGroup == .young && a.streakDays == 2 && !a.isDemo)
-        #expect(b.isNeighbor && b.floor == 12 && b.listName == "阿明 · 皇滙樓 12 樓" && b.todayLine == "12 樓今日行到涼亭")
+        #expect(b.isNeighbor && b.floor == 12 && b.listName == "阿明" && b.todayLine == "12 樓今日行到涼亭")
         #expect(b.isOut && b.atLandmarkID == "pav" && b.receiveRemind == false, "出门地标名对返本机地标")
         #expect(c.isNeighbor && c.streakDays == 5)
     }
@@ -130,7 +130,7 @@ struct BackendMergeTests {
         let peer = BackendMapping.peer(row)
         #expect(peer.id == "abc" && peer.mobility == .stroller && peer.floor == 7)
         let r = BackendMapping.resident(peer)
-        #expect(r.isNeighbor && r.listName == "阿芳 · 7 樓" && r.colorIndex == 2 && r.skinTone == 3)
+        #expect(r.isNeighbor && r.listName == "阿芳" && r.colorIndex == 2 && r.skinTone == 3)
         #expect(BackendMapping.look(AvatarJSON(mobility: "飛", color: 99, skin: -3, age: nil)) == (.walk, Palette.people.count - 1, 0, .adult), "坏数据唔会崩")
     }
 }

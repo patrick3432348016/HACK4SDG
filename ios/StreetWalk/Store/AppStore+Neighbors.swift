@@ -27,7 +27,7 @@ extension AppStore {
     func bumpMet(_ r: Resident) {
         Haptics.success()
         bumpStage = .found(r.id)
-        say(L.t("你同\(r.floor > 0 ? r.floorLabel : "")\(r.name)而家係街坊。", "你和\(r.floor > 0 ? r.floorLabel : "")\(r.name)现在是邻居了。", "You and \(r.name) are now neighbours."))
+        say(L.t("你同\(r.name)而家係街坊。", "你和\(r.name)现在是邻居了。", "You and \(r.name) are now neighbours."))
         syncScene()
         scene.setCamera(target: bumpMeetSpot(), distance: scene.overviewDistance * 0.7, animated: true, duration: 1.0)
         Task { @MainActor in
@@ -138,7 +138,7 @@ extension AppStore {
         let r = residents[i]
         syncScene()
         guard remindAll, r.receiveRemind, inRemindWindow, let place = placeName(r.atLandmarkID) else { return }
-        let text = L.t("\(r.floorLabel)\(r.name)啱啱出門，應該喺\(place)嗰邊。", "\(r.floorLabel)\(r.name)刚刚出门，应该在\(place)那边。", "\(r.name) just went out, probably near \(place).")
+        let text = L.t("\(r.name)啱啱出門，應該喺\(place)嗰邊。", "\(r.name)刚刚出门，应该在\(place)那边。", "\(r.name) just went out, probably near \(place).")
         showBanner(BannerItem(symbol: "figure.walk", text: text, action: walk != nil ? .goFind(r.id) : .invite(r.id), actionTitle: walk != nil ? L.t("過去搵佢", "过去找他", "Go find them") : L.t("約佢", "约他", "Invite")))
         say(text)
     }
