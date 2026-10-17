@@ -79,7 +79,8 @@ enum OSMParser {
                 if let hw = tags["highway"], tags["area"] != "yes" {
                     guard let (kind, width) = roadKind(hw, tags) else { continue }
                     for seg in Polygon.clipPolyline(raw, half: half) {
-                        roads.append(Road(kind: kind, points: seg, width: width, name: name, nameEn: nameEn))
+                        roads.append(Road(kind: kind, points: seg, width: width, name: name, nameEn: nameEn,
+                                          lit: tags["lit"].map { $0 != "no" }))
                     }
                     continue
                 }

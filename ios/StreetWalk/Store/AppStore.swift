@@ -109,6 +109,8 @@ final class AppStore: NeighborRegistry {
     /// 演示模式：圈里有示範街坊、右上有演示菜单。设置里可以关；启动参数 -demo 强制开。
     var demoMode = LaunchArgs.has("-demo") || UserDefaults.standard.object(forKey: "demoMode") as? Bool ?? true
     // 出门提醒：总开关 + 只在这个时段接收（F6）。
+    /// 让邻居看到我住哪栋（10-18 测试：怕泄露私隐）。默认开，旧用户冇呢个键都当开；关咗上传嘅座数楼层留空。
+    var shareHome = UserDefaults.standard.object(forKey: "shareHome") as? Bool ?? true { didSet { UserDefaults.standard.set(shareHome, forKey: "shareHome"); uploadProfile() } }
     var remindAll = UserDefaults.standard.object(forKey: "remindAll") as? Bool ?? true { didSet { UserDefaults.standard.set(remindAll, forKey: "remindAll") } }
     var remindFrom = UserDefaults.standard.object(forKey: "remindFrom") as? Int ?? 7 { didSet { UserDefaults.standard.set(remindFrom, forKey: "remindFrom") } }
     var remindTo = UserDefaults.standard.object(forKey: "remindTo") as? Int ?? 21 { didSet { UserDefaults.standard.set(remindTo, forKey: "remindTo") } }

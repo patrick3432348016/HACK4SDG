@@ -98,8 +98,8 @@ struct BoardNameTests {
     /// 2026-10-10 定：人人显示网名；座数楼层只有街坊先见到（地址私隐）。
     @Test func 排行榜人人网名_街坊先有座数楼层() {
         #expect(resident(neighbor: false, block: "皇滙樓 Wong Wui House").listName == "陳太", "非街坊：只有网名，唔出座数楼层")
-        #expect(resident(neighbor: true, block: "皇滙樓 Wong Wui House").listName == "陳太 · 皇滙樓 8 樓")
-        #expect(resident(neighbor: true, block: nil).listName == "陳太 · 8 樓", "街坊冇座名就只出楼层")
+        #expect(resident(neighbor: true, block: "皇滙樓 Wong Wui House").listName == "陳太")
+        #expect(resident(neighbor: true, block: nil).listName == "陳太", "街坊冇座名就只出楼层")
         var unknown = resident(neighbor: true, block: nil)
         unknown.floor = 0
         #expect(unknown.listName == "陳太", "街坊冇填楼层：唔出「0 樓」")

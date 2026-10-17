@@ -287,7 +287,7 @@ private struct MainScene: View {
         return ZStack(alignment: .topLeading) {
             DioramaView(controller: store.scene, onTap: handleSceneTap)
                 .accessibilityLabel(L.t("你附近嘅立體地圖", "你附近的立体地图", "3D map of your area"))
-                .accessibilityHint(L.t("地標喺「今日」頁嘅「附近地標」都揀得到", "地标在「今天」页的「附近地标」也能选", "You can also pick landmarks under “Nearby landmarks” on the Today page"))
+                .accessibilityHint(L.t("地標喺「今日」頁嘅「散步貼士」都揀得到", "地标在「今天」页的「散步贴心提醒」也能选", "You can also pick landmarks under “Walk tips” on the Today page"))
                 // 由灵动岛 / 状态栏下面开始画，唔俾灵动岛遮住模型（找人全屏照旧铺满）
                 .padding(.top, full ? 0 : safe.top)
             // 状态栏可读：顶部一层很淡的渐变（浅色白、深色黑）。

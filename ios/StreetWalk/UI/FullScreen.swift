@@ -364,7 +364,7 @@ struct FindAskCard: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(L.t("問緊\(p.name)", "正在问\(p.name)", "Asking \(p.name)")).ds(.bodyBold)
                         // 真后端对方见到我嘅网名（演示模式冇网名就照用楼层）
-                        Text(L.t("「\(store.nickname.isEmpty ? store.me.floorLabel : store.nickname)想過嚟搵你，喺\(place)等陣？」", "「\(store.nickname.isEmpty ? store.me.floorLabel : store.nickname)想过来找你，在\(place)等一下？」", "“\(store.nickname.isEmpty ? store.me.floorLabel : store.nickname) wants to come and find you. Wait at \(place)?”"))
+                        Text(L.t("「\(store.nickname.isEmpty ? L.t("街坊", "邻居", "A neighbour") : store.nickname)想過嚟搵你，喺\(place)等陣？」", "「\(store.nickname.isEmpty ? L.t("街坊", "邻居", "A neighbour") : store.nickname)想过来找你，在\(place)等一下？」", "“\(store.nickname.isEmpty ? L.t("街坊", "邻居", "A neighbour") : store.nickname) wants to come and find you. Wait at \(place)?”"))
                             .ds(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
