@@ -45,10 +45,10 @@ enum BumpTuning {
 
     /// 大字提示。
     static func hint(_ distance: Float?) -> String {
-        guard let d = distance, d.isFinite else { return L.t("量緊距離…", "正在测距离…") }
-        if d <= nearDistance { return L.t("好！拎穩唔好郁", "好！拿稳别动") }
-        if d <= closerHint { return L.t("再近啲", "再近一点") }
-        return L.t("靠近啲", "靠近一点")
+        guard let d = distance, d.isFinite else { return L.t("量緊距離…", "正在测距离…", "Measuring…") }
+        if d <= nearDistance { return L.t("好！拎穩唔好郁", "好！拿稳别动", "Good! Hold still") }
+        if d <= closerHint { return L.t("再近啲", "再近一点", "A bit closer") }
+        return L.t("靠近啲", "靠近一点", "Move closer")
     }
 }
 

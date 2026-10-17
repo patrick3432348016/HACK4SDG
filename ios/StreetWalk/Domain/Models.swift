@@ -30,7 +30,7 @@ struct Resident: Identifiable, Equatable {
     var nickname: String? = nil
 
     /// 楼层：0 = 唔知（非街坊睇唔到楼层）。
-    var floorLabel: String { floor > 0 ? L.t("\(floor) 樓", "\(floor) 楼") : "" }
+    var floorLabel: String { floor > 0 ? L.t("\(floor) 樓", "\(floor) 楼", "\(floor)/F") : "" }
     /// 座名只留中文部分（"皇滙樓 Wong Wui House" → "皇滙樓"）；没有名就不显示。
     var blockShort: String? {
         guard let b = blockName?.split(separator: " ").first.map(String.init), !b.isEmpty else { return nil }
@@ -42,7 +42,8 @@ struct Resident: Identifiable, Equatable {
     var listName: String {
         if isMe {
             let nick = nickname.flatMap { $0.isEmpty ? nil : $0 }
-            return nick.map { "\($0) · 你" } ?? "你"
+            let you = L.t("你", "你", "You")
+            return nick.map { "\($0) · \(you)" } ?? you
         }
         let place = placeLabel
         return isNeighbor && !place.isEmpty ? "\(name) · \(place)" : name
@@ -56,9 +57,9 @@ enum AgeGroup: String, Codable, CaseIterable {
     case elder, adult, young
     var label: String {
         switch self {
-        case .elder: return L.t("長者", "长者")
-        case .adult: return L.t("中年", "中年")
-        case .young: return L.t("後生", "年轻人")
+        case .elder: return L.t("長者", "长者", "Senior")
+        case .adult: return L.t("中年", "中年", "Middle-aged")
+        case .young: return L.t("後生", "年轻人", "Young")
         }
     }
 }
@@ -76,7 +77,7 @@ enum Palette {
         UIColor(red: 0.847, green: 0.353, blue: 0.188, alpha: 1),  // 橙（我）#D85A30
     ]
     static let meIndex = 6
-    private static var names: [String] { L.isCmn ? ["青绿色", "浅紫色", "蓝色", "紫红色", "黄色", "灰色", "橙色"] : ["青綠色", "淺紫色", "藍色", "紫紅色", "黃色", "灰色", "橙色"] }
+    private static var names: [String] { L.isEn ? ["Teal", "Lilac", "Blue", "Magenta", "Yellow", "Grey", "Orange"] : L.isCmn ? ["青绿色", "浅紫色", "蓝色", "紫红色", "黄色", "灰色", "橙色"] : ["青綠色", "淺紫色", "藍色", "紫紅色", "黃色", "灰色", "橙色"] }
     static func personUI(_ i: Int) -> UIColor { people[wrap(i)] }
     static func person(_ i: Int) -> Color { Color(personUI(i)) }
     /// 读屏用的颜色名（设置页、首次使用同一套）。
@@ -90,7 +91,7 @@ enum Palette {
         UIColor(red: 0.776, green: 0.557, blue: 0.408, alpha: 1),  // #C68E68
         UIColor(red: 0.494, green: 0.329, blue: 0.231, alpha: 1),  // #7E543B
     ]
-    private static var skinNames: [String] { L.isCmn ? ["浅肤色", "中浅肤色", "中深肤色", "深肤色"] : ["淺膚色", "中淺膚色", "中深膚色", "深膚色"] }
+    private static var skinNames: [String] { L.isEn ? ["Light skin", "Medium-light skin", "Medium-dark skin", "Dark skin"] : L.isCmn ? ["浅肤色", "中浅肤色", "中深肤色", "深肤色"] : ["淺膚色", "中淺膚色", "中深膚色", "深膚色"] }
     static func skinName(_ i: Int) -> String { skinNames[min(max(i, 0), skinNames.count - 1)] }
     static func skinUI(_ i: Int) -> UIColor { skins[min(max(i, 0), skins.count - 1)] }
     static func skin(_ i: Int) -> Color { Color(skinUI(i)) }
@@ -186,9 +187,9 @@ enum ReportKind: String, CaseIterable, Identifiable, Codable {
     /// 显示用（rawValue 係存档 / 后端用，唔好改）。
     var label: String {
         switch self {
-        case .sunny: return L.t("好曬", "太晒")
-        case .noSeat: return L.t("冇櫈", "没凳子")
-        case .rough: return L.t("難行", "难走")
+        case .sunny: return L.t("好曬", "太晒", "Too sunny")
+        case .noSeat: return L.t("冇櫈", "没凳子", "No seats")
+        case .rough: return L.t("難行", "难走", "Hard to walk")
         }
     }
     var symbol: String {

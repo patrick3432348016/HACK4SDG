@@ -16,5 +16,12 @@ enum IslandStyle {
     /// 约会倒数用粤语格式（「15 分鐘後」，数字同字之间有空格，同 App 一致）。
     static let locale = Locale(identifier: "yue-Hant-HK")
     static let localeCmn = Locale(identifier: "zh-Hans-CN")
-    static func locale(_ s: IslandStatus) -> Locale { (s.lang ?? L.lang) == .cmn ? localeCmn : locale }
+    static let localeEn = Locale(identifier: "en_GB")
+    static func locale(_ s: IslandStatus) -> Locale {
+        switch s.lang ?? L.lang {
+        case .yue: return locale
+        case .cmn: return localeCmn
+        case .en: return localeEn
+        }
+    }
 }

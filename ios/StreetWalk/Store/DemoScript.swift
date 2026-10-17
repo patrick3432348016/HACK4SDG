@@ -28,21 +28,21 @@ extension AppStore {
                 action()
             }
             // 字幕（-captions）：中文一句 + 英文一句，配合录屏。
-            @MainActor func cap(_ zh: String, _ en: String) { if LaunchArgs.has("-captions") { caption = (zh, en) } }   // 唔包 withAnimation（见 showBanner）
-            await step(1, "開場") { cap(L.t("北都新屋邨：每日行嘅路，就係認識街坊嘅地方", "北部都会区新屋苑：每天走的路，就是认识邻居的地方"), "New estates in the Northern Metropolis: your daily walk is where neighbours meet") }
-            await step(4, "排行榜") { tab = .board; cap(L.t("排行榜：同區常行嘅人；未係街坊只見網名同小人", "排行榜：同区常走的人；还不是邻居只看到网名和小人"), "Circle board: regular walkers nearby — strangers show only a nickname and avatar") }
-            await step(9, "街坊 · 碰一碰") { tab = .neighbors; startBump(); cap(L.t("碰一碰：兩部手機貼近，就成為街坊", "碰一碰：两部手机靠近，就成为邻居"), "Bump phones to become neighbours — the only way to connect") }
-            await step(19, "開出門提醒") { createNeighbor("chan", remind: true); cap(L.t("成為街坊時問一次：開唔開出門提醒", "成为邻居时问一次：开不开出门提醒"), "Opt in to going-out alerts, once") }
-            await step(22, "今日 · 陳太出門") { tab = .today; neighborGoesOut("chan"); cap(L.t("街坊出門：只講地標，唔顯示地圖坐標", "邻居出门：只说地标，不显示地图坐标"), "A neighbour heads out — shown by landmark, never coordinates") }
-            await step(28, "出門散步") { banner = nil; startWalk(); cap(L.t("出門自動記錄散步，唔使撳任何掣", "出门自动记录散步，不用按任何按钮"), "Walks are recorded automatically — no buttons") }
-            await step(36, "過去搵陳太") { goFind("chan"); cap(L.t("散步中一撳：先問對方方唔方便", "散步中一按：先问对方方不方便"), "Drop by: the app asks your neighbour first") }
-            await step(41, "去") { startGoing(); cap(L.t("50 米內震動，大箭咀指住對方，唔用地圖", "50 米内震动，大箭头指着对方，不用地图"), "Within 50 m: haptics and a big arrow, no map") }
-            await step(62, "語音約陳太") { cap(L.t("講一句就約好：AI 揀有樓遮、有櫈、兩個都近嘅地方", "说一句就约好：AI 选有楼遮阴、有凳子、离两人都近的地方"), "Say one sentence — AI picks a shaded spot with seats, near you both") ; handle(L.t("約陳太聽日下晝三點一齊行", "约陈太明天下午三点一起走")) }
+            @MainActor func cap(_ zh: String, _ en: String) { if LaunchArgs.has("-captions") { caption = L.isEn ? (en, "") : (zh, en) } }   // 唔包 withAnimation（见 showBanner）
+            await step(1, "開場") { cap(L.t("北都新屋邨：每日行嘅路，就係認識街坊嘅地方", "北部都会区新屋苑：每天走的路，就是认识邻居的地方", "New estates in the Northern Metropolis: your daily walk is where neighbours meet"), "New estates in the Northern Metropolis: your daily walk is where neighbours meet") }
+            await step(4, "排行榜") { tab = .board; cap(L.t("排行榜：同區常行嘅人；未係街坊只見網名同小人", "排行榜：同区常走的人；还不是邻居只看到网名和小人", "Leaderboard: regular walkers nearby. Non-neighbours show only a nickname and avatar"), "Circle board: regular walkers nearby — strangers show only a nickname and avatar") }
+            await step(9, "街坊 · 碰一碰") { tab = .neighbors; startBump(); cap(L.t("碰一碰：兩部手機貼近，就成為街坊", "碰一碰：两部手机靠近，就成为邻居", "Tap phones to become neighbours"), "Bump phones to become neighbours — the only way to connect") }
+            await step(19, "開出門提醒") { createNeighbor("chan", remind: true); cap(L.t("成為街坊時問一次：開唔開出門提醒", "成为邻居时问一次：开不开出门提醒", "Asked once: turn on out-and-about alerts?"), "Opt in to going-out alerts, once") }
+            await step(22, "今日 · 陳太出門") { tab = .today; neighborGoesOut("chan"); cap(L.t("街坊出門：只講地標，唔顯示地圖坐標", "邻居出门：只说地标，不显示地图坐标", "A neighbour heads out: shown by landmark, never coordinates"), "A neighbour heads out — shown by landmark, never coordinates") }
+            await step(28, "出門散步") { banner = nil; startWalk(); cap(L.t("出門自動記錄散步，唔使撳任何掣", "出门自动记录散步，不用按任何按钮", "Walks are recorded automatically, no buttons"), "Walks are recorded automatically — no buttons") }
+            await step(36, "過去搵陳太") { goFind("chan"); cap(L.t("散步中一撳：先問對方方唔方便", "散步中一按：先问对方方不方便", "One tap on a walk: the app asks your neighbour first"), "Drop by: the app asks your neighbour first") }
+            await step(41, "去") { startGoing(); cap(L.t("50 米內震動，大箭咀指住對方，唔用地圖", "50 米内震动，大箭头指着对方，不用地图", "Within 50 m: buzz and a big arrow, no map"), "Within 50 m: haptics and a big arrow, no map") }
+            await step(62, "語音約陳太") { cap(L.t("講一句就約好：AI 揀有樓遮、有櫈、兩個都近嘅地方", "说一句就约好：AI 选有楼遮阴、有凳子、离两人都近的地方", "Say one sentence: AI picks a shady spot with seats, near you both"), "Say one sentence — AI picks a shaded spot with seats, near you both") ; handle(L.t("約陳太聽日下晝三點一齊行", "约陈太明天下午三点一起走", "Invite 陳太 for a walk tomorrow 3 pm")) }
             await step(68, "好") { confirmVoice() }
-            await step(73, "應承") { cap(L.t("影響別人嘅動作，一定先複述再按「好」", "影响别人的操作，一定先复述再按「好的」"), "Anything that affects others is read back for confirmation first") }
-            await step(79, "天氣 + 遮蔭") { banner = nil; setDemoHour(15); setWeather(.hot); cap(L.t("天文台天氣 + 樓影遮蔭：建議幾點出門", "天文台天气 + 楼影遮阴：建议几点出门"), "HK Observatory weather + building shade: when to head out") }
-            await step(87, "反映：呢度好曬") { banner = nil; report(.sunny); cap(L.t("講一句「呢度好曬」，記低喺最近嘅地標", "说一句「这里太晒」，记在最近的地标"), "Say \"too sunny here\" — it's pinned to the nearest landmark") }
-            await step(92, "月尾報告") { showReport = true; cap(L.t("月報：只出 10 人以上嘅匿名匯總，交社工同屋邨管理", "月报：只出 10 人以上的匿名汇总，交社工和屋苑管理"), "Monthly report: anonymous, 10+ residents only, for social workers & estate management") }
+            await step(73, "應承") { cap(L.t("影響別人嘅動作，一定先複述再按「好」", "影响别人的操作，一定先复述再按「好的」", "Anything that affects others is read back first"), "Anything that affects others is read back for confirmation first") }
+            await step(79, "天氣 + 遮蔭") { banner = nil; setDemoHour(15); setWeather(.hot); cap(L.t("天文台天氣 + 樓影遮蔭：建議幾點出門", "天文台天气 + 楼影遮阴：建议几点出门", "Observatory weather + building shade: when to head out"), "HK Observatory weather + building shade: when to head out") }
+            await step(87, "反映：呢度好曬") { banner = nil; report(.sunny); cap(L.t("講一句「呢度好曬」，記低喺最近嘅地標", "说一句「这里太晒」，记在最近的地标", "Say “too sunny here”: it is pinned to the nearest landmark"), "Say \"too sunny here\" — it's pinned to the nearest landmark") }
+            await step(92, "月尾報告") { showReport = true; cap(L.t("月報：只出 10 人以上嘅匿名匯總，交社工同屋邨管理", "月报：只出 10 人以上的匿名汇总，交社工和屋苑管理", "Monthly report: anonymous, 10+ residents only, for social workers and estate management"), "Monthly report: anonymous, 10+ residents only, for social workers & estate management") }
             await step(101, "完") { showReport = false; caption = nil }
         }
     }
@@ -82,7 +82,7 @@ extension AppStore {
             }
             let (from, to) = (remindFrom, remindTo)
             await step(1, "請 3 日假") { tab = .today; requestLeave(days: 3) }
-            await step(4, "聽日請假") { withdrawLeave(); _ = requestLeave(fromVoice: L.t("聽日請假", "明天请假")) }
+            await step(4, "聽日請假") { withdrawLeave(); _ = requestLeave(fromVoice: L.t("聽日請假", "明天请假", "Day off tomorrow")) }
             await step(7, "演示時間 + 酷熱") { withdrawLeave(); setDemoHour(15); setWeather(.hot) }
             await step(10, "設定：由、到一樣") { banner = nil; remindFrom = 21; remindTo = 21; showSettings = true }
             await step(14, "關演示模式") { setDemoMode(false) }
@@ -127,7 +127,7 @@ extension AppStore {
             await step(7, "地標資料卡") { banner = nil; select(.landmark(landmarks.first?.id ?? "")) }
             await step(11, "改名") { renaming = selection.flatMap { if case .landmark(let id) = $0 { return id } else { return nil } } }
             await step(15, "揀一句") { select(nil); phrasePicker = true }
-            await step(19, "語音複述卡") { handle(L.t("約陳太聽日下晝三點一齊行", "约陈太明天下午三点一起走")) }
+            await step(19, "語音複述卡") { handle(L.t("約陳太聽日下晝三點一齊行", "约陈太明天下午三点一起走", "Invite 陳太 for a walk tomorrow 3 pm")) }
             await step(23, "時間滑杆") { rejectVoice(); showTimeSlider = true }
             await step(28, "碰一碰等待") { showTimeSlider = false; residents.indices.forEach { if !residents[$0].isMe && residents[$0].id != "chan" { residents[$0].isNeighbor = false } }; startBump() }
             await step(31, "完") { }
@@ -209,7 +209,7 @@ extension AppStore {
             await step(1, "做街坊 + 約陳太") { createNeighbor("chan", remind: true); proposeMeetup(with: "chan") }
             await step(4, "好") { confirmProposal() }
             await step(10, "應承咗 · 今日頁") { banner = nil; tab = .today }
-            await step(13, "語音：改做下晝五點") { handle(L.t("改做下晝五點", "改到下午五点")) }
+            await step(13, "語音：改做下晝五點") { handle(L.t("改做下晝五點", "改到下午五点", "Change to 5 pm")) }
             await step(17, "好") { confirmVoice() }
             await step(23, "改地標名 + 反映") { banner = nil; if let id = landmarks.first?.id { rename(id, to: "大樹底") }; report(.noSeat) }
             await step(26, "屋邨管理回覆") { simulateFollowUp() }

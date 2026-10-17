@@ -43,15 +43,16 @@ struct HKOReport: Equatable {
     /// 香港以外讲"天氣預報話"，唔好冒认天文台。
     var line: String {
         var parts: [String] = []
-        if let t = temperature { parts.append((station == "香港天文台" ? "" : station ?? "") + L.t("而家 \(t) 度", "现在 \(t) 度")) }
-        if !walkWarnings.isEmpty { parts.append(walkWarnings.joined(separator: "、") + L.t("生效", "生效")) }
-        else if (rainMM ?? 0) >= 0.5 { parts.append(L.t("附近落緊雨", "附近正在下雨")) }
-        else if rainIcon { parts.append(L.t("有雨", "有雨")) }
-        else if let psr = todayPSR, ["中高", "高"].contains(psr) { parts.append(L.t("今日降雨機會\(psr)", "今天降雨概率\(psr)")) }
-        return parts.isEmpty ? "" : sourcePrefix + parts.joined(separator: "，") + "。"
+        let en = L.isEn   // 英文：测站名系中文数据，唔讲；警告按 code 出英文名
+        if let t = temperature { parts.append((station == "香港天文台" || en ? "" : station ?? "") + L.t("而家 \(t) 度", "现在 \(t) 度", "\(t)°C now")) }
+        if !walkWarnings.isEmpty { parts.append((en ? walkWarningsEn : walkWarnings).joined(separator: en ? ", " : "、") + L.t("生效", "生效", " in force")) }
+        else if (rainMM ?? 0) >= 0.5 { parts.append(L.t("附近落緊雨", "附近正在下雨", "raining nearby")) }
+        else if rainIcon { parts.append(L.t("有雨", "有雨", "rain about")) }
+        else if let psr = todayPSR, ["中高", "高"].contains(psr) { parts.append(L.t("今日降雨機會\(psr)", "今天降雨概率\(psr)", "\(psr == "高" ? "high" : "fair") chance of rain today")) }
+        return parts.isEmpty ? "" : sourcePrefix + parts.joined(separator: en ? ", " : "，") + (en ? "" : "。")   // 英文唔加句号：AppStore+Places.oneSentence 会再拼
     }
 
-    var sourcePrefix: String { source == .hko ? L.t("天文台話", "天文台说") : L.t("天氣預報話", "天气预报说") }
+    var sourcePrefix: String { source == .hko ? L.t("天文台話", "天文台说", "Observatory: ") : L.t("天氣預報話", "天气预报说", "Forecast: ") }
 
     /// 跟散步有关的警告（風球、山泥、水浸、酷熱、暴雨、雷暴），用来拼句；危险的排前面。
     var walkWarnings: [String] {
@@ -60,18 +61,41 @@ struct HKOReport: Equatable {
         return (danger + other).map(\.name)
     }
 
+    /// 英文界面用：天文台警告名系中文数据，按 code 出英文名。
+    var walkWarningsEn: [String] {
+        let danger = warnings.filter { Self.isDangerCode($0.code) }
+        let other = warnings.filter { $0.code.hasPrefix("WHOT") || $0.code == "VHOT" || $0.code.hasPrefix("WRAIN") || $0.code == "WTS" }
+        return (danger + other).map { Self.englishName($0.code) }
+    }
+
+    static func englishName(_ c: String) -> String {
+        if c.hasPrefix("TC8") { return "Gale or Storm Signal No. 8" }
+        if c.hasPrefix("WHOT") || c == "VHOT" { return "Very Hot Weather Warning" }
+        switch c {
+        case "TC9": return "Increasing Gale or Storm Signal No. 9"
+        case "TC10": return "Hurricane Signal No. 10"
+        case "WL": return "Landslip Warning"
+        case "WFNTSA": return "Flooding notice for the northern New Territories"
+        case "WRAINA": return "Amber Rainstorm Warning"
+        case "WRAINR": return "Red Rainstorm Warning"
+        case "WRAINB": return "Black Rainstorm Warning"
+        case "WTS": return "Thunderstorm Warning"
+        default: return "Weather warning"
+        }
+    }
+
     static func isDangerCode(_ c: String) -> Bool {
         c.hasPrefix("TC8") || c == "TC9" || c == "TC10" || c == "WL" || c == "WFNTSA"
     }
 
     /// 风球 warnsum 的 name 只写"熱帶氣旋警告信號"，按 code 讲清楚几号。
     static func displayName(code: String, type: String?, name: String?) -> String {
-        if code.hasPrefix("TC8") { return L.t("八號烈風或暴風信號", "八号烈风或暴风信号") }
+        if code.hasPrefix("TC8") { return L.t("八號烈風或暴風信號", "八号烈风或暴风信号", "Gale or Storm Signal No. 8") }
         switch code {
-        case "TC9": return L.t("九號烈風或暴風風力增強信號", "九号烈风或暴风风力增强信号")
-        case "TC10": return L.t("十號颶風信號", "十号飓风信号")
-        case "WL": return L.t("山泥傾瀉警告", "山泥倾泻警告")
-        case "WFNTSA": return L.t("新界北部水浸特別報告", "新界北部水浸特别报告")
+        case "TC9": return L.t("九號烈風或暴風風力增強信號", "九号烈风或暴风风力增强信号", "Increasing Gale or Storm Signal No. 9")
+        case "TC10": return L.t("十號颶風信號", "十号飓风信号", "Hurricane Signal No. 10")
+        case "WL": return L.t("山泥傾瀉警告", "山泥倾泻警告", "Landslip Warning")
+        case "WFNTSA": return L.t("新界北部水浸特別報告", "新界北部水浸特别报告", "Flooding notice for the northern New Territories")
         default: return (type ?? "") + (name ?? code)
         }
     }

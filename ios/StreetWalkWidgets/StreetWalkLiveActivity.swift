@@ -60,7 +60,7 @@ struct StreetWalkLiveActivity: Widget {
 /// 第二行：散步讲经过几多地方（太耐冇更新就叫佢打开 App）；找人讲喺边、几耐到；约会讲喺边见。
 private func secondLine(_ s: IslandStatus, stale: Bool) -> String {
     switch s.kind {
-    case .walk: return stale && !s.finished ? s.t("打開 App 睇最新", "打开 App 看最新") : s.detail
+    case .walk: return stale && !s.finished ? s.t("打開 App 睇最新", "打开 App 看最新", "Open the app to update") : s.detail
     case .find: return s.findLine
     case .meet: return s.detail
     }
@@ -75,13 +75,15 @@ private struct Headline: View {
     var body: some View {
         Group {
             if s.kind == .meet, let t = s.target, !stale, s.minutes > 0 {
-                if s.lang == .cmn {
+                if (s.lang ?? L.lang) == .en {
+                    Text("Meet \(s.name ?? "neighbour") \(TimeDataSource<Date>.currentDate, format: Self.countdown(to: t, s))")
+                } else if (s.lang ?? L.lang) == .cmn {
                     Text("\(TimeDataSource<Date>.currentDate, format: Self.countdown(to: t, s))约了\(s.name ?? "邻居")")
                 } else {
                     Text("\(TimeDataSource<Date>.currentDate, format: Self.countdown(to: t, s))約咗\(s.name ?? "街坊")")
                 }
             } else if s.kind == .meet, stale || s.minutes <= 0 {
-                Text(s.t("夠鐘見\(s.name ?? "街坊")喇", "该去见\(s.name ?? "邻居")了"))
+                Text(s.t("夠鐘見\(s.name ?? "街坊")喇", "该去见\(s.name ?? "邻居")了", "Time to meet \(s.name ?? "neighbour")"))
             } else {
                 Text(s.title)
             }
@@ -108,7 +110,7 @@ private struct BigValue: View {
             if s.kind == .meet, let t = s.target, !stale, s.minutes > 0 {
                 Text(TimeDataSource<Date>.currentDate, format: Headline.countdown(to: t, s))
             } else if s.kind == .meet {
-                Text(stale ? s.t("夠鐘喇", "到点了") : s.short)
+                Text(stale ? s.t("夠鐘喇", "到点了", "Time to go") : s.short)
             } else if s.finished {
                 Image(systemName: "checkmark")
             } else {
@@ -135,7 +137,7 @@ private struct CompactValue: View {
                      format: .offset(to: t, allowedFields: [.hour, .minute], maxFieldCount: 1, sign: .never))
                     .environment(\.locale, IslandStyle.locale(s))
             } else if s.kind == .meet {
-                Text(stale ? s.t("夠鐘", "到点") : s.compact)
+                Text(stale ? s.t("夠鐘", "到点", "Now") : s.compact)
             } else {
                 Text(s.compact)
             }
@@ -191,11 +193,11 @@ private struct LockScreenView: View {
             HStack(spacing: 6) {
                 Image(systemName: "figure.walk.circle.fill")
                     .foregroundStyle(IslandStyle.accentOnBlack)
-                Text("街坊行")
+                Text(s.t("街坊行", "街坊行", "Kaifong Walk"))
                     .foregroundStyle(.white.opacity(0.75))
                 Spacer(minLength: 8)
                 if s.demo {
-                    Text(s.t("示範", "示范"))
+                    Text(s.t("示範", "示范", "Demo"))
                         .foregroundStyle(.white.opacity(0.9))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 2)

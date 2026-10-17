@@ -70,7 +70,7 @@ extension AppStore {
         if f.invited != true, appointments.contains(where: { !$0.fromPartner || $0.status == .accepted || $0.status == .done }) { f.invited = true }
         if f.allDone {
             f.finishedAt = Date()
-            say(L.t("今日三件事做齊晒，好叻！", "今天三件事都做完了，真棒！"))
+            say(L.t("今日三件事做齊晒，好叻！", "今天三件事都做完了，真棒！", "All 3 things done today. Well done!"))
         }
         if f != firstDay { firstDay = f }
     }
@@ -99,7 +99,7 @@ extension AppStore {
             f.finishedAt = nil
         } else if f.finishedAt == nil {
             f.finishedAt = Date()
-            say(L.t("今日三件事做齊晒，好叻！", "今天三件事都做完了，真棒！"))
+            say(L.t("今日三件事做齊晒，好叻！", "今天三件事都做完了，真棒！", "All 3 things done today. Well done!"))
         }
         firstDay = f
         Haptics.light()
@@ -126,7 +126,7 @@ extension AppStore {
     /// 任务卡「約佢聽日一齊行」：有街坊就即刻出约人卡（聽日）；未有就讲要先碰一碰。
     func firstDayInvite() {
         guard let n = neighbors.first else {
-            toast(L.t("要先見面碰一碰做街坊，先約得。", "要先见面碰一碰成为邻居，才能约。"))
+            toast(L.t("要先見面碰一碰做街坊，先約得。", "要先见面碰一碰成为邻居，才能约。", "Meet and tap phones to become neighbours first. Then you can invite them."))
             return
         }
         proposeMeetup(with: n.id, day: 1)
@@ -170,8 +170,8 @@ extension AppStore {
     /// 「今日天氣點」嘅答案：天文台实时天气（同「今日」页天气卡同一句）；未攞到就讲去边睇。
     var tryAnswer: String {
         if let tip = weatherTip, !tip.isEmpty { return tip }
-        if let line = hko.report?.line, !line.isEmpty { return line }
-        return L.t("而家未攞到天氣。入到去「今日」頁，會見到天氣同邊度有陰。", "现在还没拿到天气。进入「今日」页，会看到天气和哪里有阴凉。")
+        if let line = hko.report?.line, !line.isEmpty { return L.isEn ? line + "." : line }
+        return L.t("而家未攞到天氣。入到去「今日」頁，會見到天氣同邊度有陰。", "现在还没拿到天气。进入「今日」页，会看到天气和哪里有阴凉。", "No weather yet. Open Today to see the weather and where it’s shady.")
     }
 }
 
