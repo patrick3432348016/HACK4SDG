@@ -113,7 +113,7 @@ private struct SceneLabel: View {
                     face.frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityHint(L.t("撳一下睇詳情", "点一下看详情"))
+                .accessibilityHint(L.t("撳一下睇詳情", "点一下看详情", "Tap to see details"))
             } else {
                 face
             }
@@ -165,10 +165,10 @@ private struct SceneLabel: View {
 
     private var accessibilityText: String {
         switch item.kind {
-        case .person: return item.id == "p:me" ? "你" : L.t("街坊：\(item.text)", "邻居：\(item.text)")
-        case .landmark: return L.t("地標：\(item.text)", "地标：\(item.text)")
+        case .person: return item.id == "p:me" ? L.t("你", "你", "You") : L.t("街坊：\(item.text)", "邻居：\(item.text)", "Neighbour: \(item.text)")
+        case .landmark: return L.t("地標：\(item.text)", "地标：\(item.text)", "Landmark: \(item.text)")
         case .home: return item.text
-        case .report: return L.t("你嘅反映：\(item.text)", "你的反映：\(item.text)")   // 场景上的反映标记都是自己的
+        case .report: return L.t("你嘅反映：\(item.text)", "你的反映：\(item.text)", "Your report: \(item.text)")   // 场景上的反映标记都是自己的
         }
     }
 
@@ -278,11 +278,11 @@ private struct ListeningCard: View {
         let phrases = store.suggestedPhrases
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 12) {
-                Text(store.conversing ? L.t("傾緊…", "对话中…") : L.t("聽緊…", "正在听…")).ds(.title)
+                Text(store.conversing ? L.t("傾緊…", "对话中…", "Chatting…") : L.t("聽緊…", "正在听…", "Listening…")).ds(.title)
                 Spacer(minLength: 0)
                 VoiceBars()
             }
-            Text(listener.transcript.isEmpty ? hint(phrases) : "「\(listener.transcript)」")
+            Text(listener.transcript.isEmpty ? hint(phrases) : L.t("「\(listener.transcript)」", "「\(listener.transcript)」", "“\(listener.transcript)”"))
                 .ds(.body)
                 .foregroundStyle(listener.transcript.isEmpty ? Color.secondary : Color.primary)
                 .frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
@@ -291,14 +291,14 @@ private struct ListeningCard: View {
                 .accessibilityAddTraits(.updatesFrequently)
             Button { store.stopListening() } label: {
                 if store.conversing {
-                    Label(L.t("傾完", "结束对话"), systemImage: "xmark").frame(maxWidth: .infinity)
+                    Label(L.t("傾完", "结束对话", "End chat"), systemImage: "xmark").frame(maxWidth: .infinity)
                 } else {
-                    Label(L.t("講完", "说完了"), systemImage: "checkmark").frame(maxWidth: .infinity)
+                    Label(L.t("講完", "说完了", "Done"), systemImage: "checkmark").frame(maxWidth: .infinity)
                 }
             }
             .buttonStyle(.dsPrimary)
             if !phrases.isEmpty {
-                Text(store.renamingNow != nil ? L.t("或者揀一個名", "或者选一个名字") : L.t("或者揀一句", "或者选一句")).ds(.caption).foregroundStyle(.secondary)
+                Text(store.renamingNow != nil ? L.t("或者揀一個名", "或者选一个名字", "Or pick a name") : L.t("或者揀一句", "或者选一句", "Or pick one")).ds(.caption).foregroundStyle(.secondary)
                 ChipFlow(spacing: DS.gap) {
                     ForEach(phrases, id: \.self) { p in
                         Button { store.pickPhrase(p) } label: {
@@ -322,12 +322,12 @@ private struct ListeningCard: View {
 extension ListeningCard {
     /// 改名中只要讲新名；其他时候举一句做例子。
     fileprivate func hint(_ phrases: [String]) -> String {
-        if store.renamingNow != nil { return L.t("講新名，例如「\(phrases.first ?? "大樹底")」", "说新名字，例如「\(phrases.first ?? "大树下")」") }
+        if store.renamingNow != nil { return L.t("講新名，例如「\(phrases.first ?? "大樹底")」", "说新名字，例如「\(phrases.first ?? "大树下")」", "Say the new name, e.g. “\(phrases.first ?? "Big Tree")”") }
         // 第一次用都知道个咪做乜：一句讲用途，再举一句例子（下面仲有撳得嘅例句）
-        let purpose = L.t("講一句，我幫你做：約街坊散步、問天氣、搵街坊、散步時反映冇櫈。", "说一句话，我帮你做：约邻居散步、问天气、找邻居、散步时反映没凳子。")
-        let example = phrases.first ?? L.t("今日天氣點", "今天天气怎么样")
-        if store.conversing { return purpose + L.t("講完唔使撳，我會答你。例如「\(example)」", "说完不用按，我会回答。比如「\(example)」") }
-        return purpose + L.t("講完撳「講完」。例如「\(example)」", "说完点「说完了」。比如「\(example)」")
+        let purpose = L.t("講一句，我幫你做：約街坊散步、問天氣、搵街坊、散步時反映冇櫈。", "说一句话，我帮你做：约邻居散步、问天气、找邻居、散步时反映没凳子。", "Just say it and I'll help: invite a neighbour for a walk, check the weather, find a neighbour, or report no seats on a walk. ")
+        let example = phrases.first ?? L.t("今日天氣點", "今天天气怎么样", "What's the weather today?")
+        if store.conversing { return purpose + L.t("講完唔使撳，我會答你。例如「\(example)」", "说完不用按，我会回答。比如「\(example)」", "No need to tap when you finish. I'll answer. e.g. “\(example)”") }
+        return purpose + L.t("講完撳「講完」。例如「\(example)」", "说完点「说完了」。比如「\(example)」", "When you finish, tap “Done”. e.g. “\(example)”")
     }
 }
 
@@ -367,7 +367,7 @@ private struct PhrasePickerCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center) {
-                Text(store.renamingNow != nil ? L.t("揀一個新名", "选一个新名字") : L.t("揀一句", "选一句")).ds(.title)
+                Text(store.renamingNow != nil ? L.t("揀一個新名", "选一个新名字", "Pick a new name") : L.t("揀一句", "选一句", "Pick one")).ds(.title)
                 Spacer(minLength: 0)
                 Button { store.phrasePicker = false } label: {
                     Image(systemName: "xmark")
@@ -377,9 +377,9 @@ private struct PhrasePickerCard: View {
                         .background(Color(.tertiarySystemFill), in: Circle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(L.t("關閉", "关闭"))
+                .accessibilityLabel(L.t("關閉", "关闭", "Close"))
             }
-            Text(store.renamingNow != nil ? L.t("撳一個，等於講咗新名", "点一个，等于说了新名字") : L.t("撳一句，等於講咗嗰句", "点一句，等于说了这句")).ds(.caption).foregroundStyle(.secondary)
+            Text(store.renamingNow != nil ? L.t("撳一個，等於講咗新名", "点一个，等于说了新名字", "Tap one to use it as the new name") : L.t("撳一句，等於講咗嗰句", "点一句，等于说了这句", "Tap one to say it")).ds(.caption).foregroundStyle(.secondary)
             ForEach(store.suggestedPhrases, id: \.self) { p in
                 Button { store.pickPhrase(p) } label: {
                     HStack(spacing: 12) {
@@ -405,7 +405,7 @@ private struct HeardCard: View {
         VStack(alignment: .leading, spacing: 12) {
             // 「我聽到」只係一行细字；大字只写结果（以前同一句睇两次，UX 评审 32）
             if !card.heard.isEmpty {
-                Text(L.t("我聽到：「\(card.heard)」", "我听到：「\(card.heard)」"))
+                Text(L.t("我聽到：「\(card.heard)」", "我听到：「\(card.heard)」", "I heard: “\(card.heard)”"))
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -416,7 +416,7 @@ private struct HeardCard: View {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(DS.accent)
                         .symbolEffect(.bounce, options: .nonRepeating, value: appeared)
-                        .accessibilityLabel(L.t("做咗", "完成了"))
+                        .accessibilityLabel(L.t("做咗", "完成了", "Done"))
                 }
                 Text(card.title).ds(.bodyBold).fixedSize(horizontal: false, vertical: true)
             }
@@ -431,10 +431,10 @@ private struct HeardCard: View {
                 AssistantStepView(card: a)
             } else if card.needsConfirm {
                 HStack(spacing: 12) {
-                    Button(L.t("唔係", "不是")) { store.rejectVoice() }
+                    Button(L.t("唔係", "不是", "No")) { store.rejectVoice() }
                         .buttonStyle(.dsSecondary)
                     Button { store.confirmVoice() } label: {
-                        Text(L.t("好", "好的")).frame(maxWidth: .infinity)
+                        Text(L.t("好", "好的", "OK")).frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.dsPrimary)
                 }
@@ -443,7 +443,7 @@ private struct HeardCard: View {
                 HStack {
                     Spacer(minLength: 0)
                     Button { store.rejectVoice() } label: {
-                        Label("撤回", systemImage: "arrow.uturn.backward")
+                        Label(L.t("撤回", "撤回", "Undo"), systemImage: "arrow.uturn.backward")
                             .ds(.captionBold)
                             .foregroundStyle(.primary)
                             .padding(.horizontal, 16)
@@ -478,8 +478,8 @@ private struct AnswerListeningRow: View {
                 .symbolEffect(.variableColor.iterative.reversing, isActive: !DS.reduceMotion)
                 .accessibilityHidden(true)
             Text(listener.transcript.isEmpty
-                 ? (confirm ? L.t("聽緊⋯可以直接講「好」或者「唔好」", "正在听…可以直接说「好」或「不要」") : L.t("聽緊⋯可以直接再講一次", "正在听…可以直接再说一次"))
-                 : "「\(listener.transcript)」")
+                 ? (confirm ? L.t("聽緊⋯可以直接講「好」或者「唔好」", "正在听…可以直接说「好」或「不要」", "Listening… just say “yes” or “no”") : L.t("聽緊⋯可以直接再講一次", "正在听…可以直接再说一次", "Listening… just say it again"))
+                 : L.t("「\(listener.transcript)」", "「\(listener.transcript)」", "“\(listener.transcript)”"))
                 .ds(.caption)
                 .foregroundStyle(listener.transcript.isEmpty ? Color.secondary : Color.primary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -505,7 +505,7 @@ private struct AssistantStepView: View {
             if card.kind == .thinking {
                 HStack(spacing: 12) {
                     ProgressView().controlSize(.large)
-                    Text(L.t("問緊語音伺服器", "正在询问语音服务器")).ds(.caption).foregroundStyle(.secondary)
+                    Text(L.t("問緊語音伺服器", "正在询问语音服务器", "Asking the voice server")).ds(.caption).foregroundStyle(.secondary)
                 }
             }
             ForEach(card.options) { o in
@@ -519,10 +519,10 @@ private struct AssistantStepView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.dsSecondary)
-                .accessibilityHint(card.kind == .choosePlace ? L.t("撳兩下揀呢度", "点两下选这里") : L.t("撳兩下揀呢個街坊", "点两下选这个邻居"))
+                .accessibilityHint(card.kind == .choosePlace ? L.t("撳兩下揀呢度", "点两下选这里", "Double-tap to pick this place") : L.t("撳兩下揀呢個街坊", "点两下选这个邻居", "Double-tap to pick this neighbour"))
             }
             if !card.chips.isEmpty {
-                Text(L.t("撳一句，或者對住咪講", "点一句，或者对着麦克风说")).ds(.caption).foregroundStyle(.secondary)
+                Text(L.t("撳一句，或者對住咪講", "点一句，或者对着麦克风说", "Tap one, or speak into the mic")).ds(.caption).foregroundStyle(.secondary)
                 ChipFlow(spacing: DS.gap) {
                     ForEach(card.chips, id: \.self) { p in
                         Button { store.assistantChip(p) } label: {
@@ -540,7 +540,7 @@ private struct AssistantStepView: View {
             }
             if card.kind == .uncertain {
                 Button { store.assistantReconcile() } label: {
-                    Label(L.t("查結果", "查结果"), systemImage: "arrow.clockwise").frame(maxWidth: .infinity)
+                    Label(L.t("查結果", "查结果", "Check result"), systemImage: "arrow.clockwise").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsPrimary)
             }
@@ -553,7 +553,7 @@ private struct AssistantStepView: View {
                         store.voiceCard = nil
                         if card.waitsForUser { store.assistantReject(VoiceCard(heard: "", title: "", needsConfirm: false, intent: .unknown, assistant: card)) }
                     } label: {
-                        Text("收起")
+                        Text(L.t("收起", "收起", "Close"))
                             .ds(.captionBold)
                             .foregroundStyle(.primary)
                             .padding(.horizontal, 16)

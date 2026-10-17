@@ -13,12 +13,12 @@ enum MainBottomCard: Hashable {
     /// 读屏：新卡出现时先读卡名。
     var spokenName: String {
         switch self {
-        case .voice: return L.t("語音卡", "语音卡")
-        case .incomingFind: return L.t("街坊想過嚟搵你", "邻居想过来找你")
-        case .remind: return L.t("出門提醒", "出门提醒")
-        case .proposal: return L.t("約人卡", "约人卡")
-        case .findAsk: return L.t("搵人卡", "找人卡")
-        case .info: return L.t("資料卡", "资料卡")
+        case .voice: return L.t("語音卡", "语音卡", "Voice card")
+        case .incomingFind: return L.t("街坊想過嚟搵你", "邻居想过来找你", "A neighbour wants to come and find you")
+        case .remind: return L.t("出門提醒", "出门提醒", "Out-and-about alert")
+        case .proposal: return L.t("約人卡", "约人卡", "Walk plan card")
+        case .findAsk: return L.t("搵人卡", "找人卡", "Find card")
+        case .info: return L.t("資料卡", "资料卡", "Info card")
         }
     }
 }
@@ -78,9 +78,9 @@ fileprivate extension AppStore.Tab {
     var order: Int { Self.ordered.firstIndex(of: self) ?? 0 }
     var title: String {
         switch self {
-        case .today: return L.t("今日", "今天")
-        case .board: return L.t("排行榜", "排行榜")
-        case .neighbors: return L.t("街坊", "邻居")
+        case .today: return L.t("今日", "今天", "Today")
+        case .board: return L.t("排行榜", "排行榜", "Leaderboard")
+        case .neighbors: return L.t("街坊", "邻居", "Neighbours")
         }
     }
     var symbol: String {
@@ -282,8 +282,8 @@ private struct MainScene: View {
         }
         return ZStack(alignment: .topLeading) {
             DioramaView(controller: store.scene, onTap: handleSceneTap)
-                .accessibilityLabel(L.t("你附近嘅立體地圖", "你附近的立体地图"))
-                .accessibilityHint(L.t("地標喺「今日」頁嘅「附近地標」都揀得到", "地标在「今天」页的「附近地标」也能选"))
+                .accessibilityLabel(L.t("你附近嘅立體地圖", "你附近的立体地图", "3D map of your area"))
+                .accessibilityHint(L.t("地標喺「今日」頁嘅「附近地標」都揀得到", "地标在「今天」页的「附近地标」也能选", "You can also pick landmarks under “Nearby landmarks” on the Today page"))
                 // 由灵动岛 / 状态栏下面开始画，唔俾灵动岛遮住模型（找人全屏照旧铺满）
                 .padding(.top, full ? 0 : safe.top)
             // 状态栏可读：顶部一层很淡的渐变（浅色白、深色黑）。
@@ -325,7 +325,7 @@ private struct MainScene: View {
 
     /// 用紧内置示例屋邨（攞唔到你附近嘅地图）：一直讲明，唔好当系你附近（B-3）。
     private var sampleBadge: some View {
-        Label(L.t("示例屋邨（\(store.map?.placeName ?? "皇后山邨")），唔係你附近", "示例屋邨（\(store.map?.placeName ?? "皇后山邨")），不是你家附近"),
+        Label(L.t("示例屋邨（\(store.map?.placeName ?? "皇后山邨")），唔係你附近", "示例屋邨（\(store.map?.placeName ?? "皇后山邨")），不是你家附近", "Sample estate (\(store.map?.placeName ?? "Queen's Hill Estate")), not your area"),
               systemImage: "info.circle")
             .font(.system(size: creditSize, weight: .semibold))
             .dynamicTypeSize(...DynamicTypeSize.xLarge)
@@ -338,7 +338,7 @@ private struct MainScene: View {
             .padding(.top, safe.top + DS.gap + 44 + 6)
             .frame(width: width, height: height, alignment: .topLeading)
             .allowsHitTesting(false)
-            .accessibilityLabel(L.t("而家顯示緊示例屋邨，唔係你附近。可以去設定重新揀樓。", "现在显示的是示例屋邨，不是你家附近。可以到设置里重新选楼。"))
+            .accessibilityLabel(L.t("而家顯示緊示例屋邨，唔係你附近。可以去設定重新揀樓。", "现在显示的是示例屋邨，不是你家附近。可以到设置里重新选楼。", "This is a sample estate, not your area. You can pick your block again in Settings."))
     }
 
     /// 底部中间一粒细掣：「向下拉睇大啲」/「收細」，话俾人知幅地图拉得大。
@@ -347,7 +347,7 @@ private struct MainScene: View {
             expanded.toggle()
             Haptics.select()
         } label: {
-            Label(expanded ? L.t("收細地圖", "收小地图") : L.t("睇大啲", "看大一点"),
+            Label(expanded ? L.t("收細地圖", "收小地图", "Smaller map") : L.t("睇大啲", "看大一点", "Bigger map"),
                   systemImage: expanded ? "chevron.up" : "chevron.down")
                 .font(.system(size: creditSize + 2, weight: .semibold))
                 .foregroundStyle(.secondary)
@@ -360,7 +360,7 @@ private struct MainScene: View {
         .dynamicTypeSize(...DynamicTypeSize.xLarge)
         .padding(.bottom, 6)
         .frame(width: width, height: height, alignment: .bottom)
-        .accessibilityHint(L.t("地圖亦可以向下拉放大", "地图也可以往下拉放大"))
+        .accessibilityHint(L.t("地圖亦可以向下拉放大", "地图也可以往下拉放大", "You can also pull the map down to enlarge it"))
     }
 
     private func handleSceneTap(_ hit: DioramaController.Hit?) {
@@ -472,8 +472,8 @@ private struct HomeChip: View {
                     .foregroundStyle(DS.accent)
                 // 大字号放不下就只出分钟数（不截断成「行緊 3…」）。
                 ViewThatFits(in: .horizontal) {
-                    Text(L.t("行緊 \(m) 分鐘", "已走 \(m) 分钟"))
-                    Text(L.t("\(m) 分鐘", "\(m) 分钟"))
+                    Text(L.t("行緊 \(m) 分鐘", "已走 \(m) 分钟", "Walking \(m) min"))
+                    Text(L.t("\(m) 分鐘", "\(m) 分钟", "\(m) min"))
                 }
                 .monospacedDigit()
                 .contentTransition(.numericText(value: Double(m)))
@@ -487,7 +487,7 @@ private struct HomeChip: View {
             .animation(DS.motion(DS.snappy), value: m)
             .transition(.scale(scale: 0.8, anchor: .leading).combined(with: .opacity))
             .accessibilityElement(children: .combine)
-            .accessibilityLabel(L.t("行緊 \(m) 分鐘", "已走 \(m) 分钟"))
+            .accessibilityLabel(L.t("行緊 \(m) 分鐘", "已走 \(m) 分钟", "Walking \(m) min"))
         } else {
             // 在家时：设置（改楼、楼层、小人、提醒时段、演示模式）。
             Button { store.showSettings = true } label: {
@@ -500,7 +500,7 @@ private struct HomeChip: View {
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(L.t("設定", "设置"))
+            .accessibilityLabel(L.t("設定", "设置", "Settings"))
             .transition(.opacity)
         }
     }
@@ -536,7 +536,7 @@ private struct MicButton: View {
         .buttonStyle(MicPressStyle())
         // 咪要带字（UX 报告 8）：长者唔知个橙色圆系乜；只系标签，唔阻点按
         .overlay(alignment: .bottom) {
-            Text(on ? (store.conversing ? L.t("傾緊", "对话中") : L.t("聽緊", "在听")) : L.t("講嘢", "说话"))
+            Text(on ? (store.conversing ? L.t("傾緊", "对话中", "Chatting") : L.t("聽緊", "在听", "Listening")) : L.t("講嘢", "说话", "Speak"))
                 .ds(.captionBold)
                 .foregroundStyle(DS.accentInk)
                 .padding(.horizontal, 10)
@@ -548,9 +548,9 @@ private struct MicButton: View {
                 .accessibilityHidden(true)
         }
         .animation(DS.motion(DS.snappy), value: on)
-        .accessibilityLabel(L.t("講嘢", "说话"))
-        .accessibilityValue(on ? L.t("聽緊", "在听") : "")
-        .accessibilityHint(on ? L.t("再撳一下講完", "再按一下结束") : L.t("撳一下開始講", "按一下开始说"))
+        .accessibilityLabel(L.t("講嘢", "说话", "Speak"))
+        .accessibilityValue(on ? L.t("聽緊", "在听", "Listening") : "")
+        .accessibilityHint(on ? L.t("再撳一下講完", "再按一下结束", "Tap again when done") : L.t("撳一下開始講", "按一下开始说", "Tap to start speaking"))
     }
 }
 
@@ -641,7 +641,7 @@ private struct MainTabBar: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(t == .neighbors && store.pendingReplies > 0
-                            ? L.t("\(t.title)，\(store.pendingReplies) 件等你回覆", "\(t.title)，\(store.pendingReplies) 件等你回复") : t.title)
+                            ? L.t("\(t.title)，\(store.pendingReplies) 件等你回覆", "\(t.title)，\(store.pendingReplies) 件等你回复", "\(t.title), \(store.pendingReplies) waiting for your reply") : t.title)
         .accessibilityAddTraits(selected ? [.isSelected, .isButton] : .isButton)
         .accessibilityShowsLargeContentViewer {
             Label(t.title, systemImage: t.symbol)
@@ -803,7 +803,7 @@ private struct BottomCardSlot: View {
         }
         .accessibilityElement()
         .accessibilityLabel(card.spokenName)
-        .accessibilityHint(visible ? L.t("用兩隻手指扒「Z」字可以收埋", "用两根手指划「Z」字可以收起") : "")
+        .accessibilityHint(visible ? L.t("用兩隻手指扒「Z」字可以收埋", "用两根手指划「Z」字可以收起", "Draw a “Z” with two fingers to close") : "")
         .accessibilityAddTraits(.isHeader)
         .accessibilityFocused($focus, equals: card)
     }
