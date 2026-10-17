@@ -8,7 +8,7 @@ struct LiveFindOverlay: View {
 
     var body: some View {
         if let f = store.find, let p = store.resident(f.partnerID) {
-            let place = store.placeName(f.landmarkID) ?? L.t("附近", "附近")
+            let place = store.placeName(f.landmarkID) ?? L.t("附近", "附近", "nearby")
             ZStack {
                 VStack(spacing: 8) {
                     // 見到之后已经停咗分享：唔再显示「分享緊位置」
@@ -51,13 +51,13 @@ struct LiveFindOverlay: View {
                 .symbolEffect(.pulse, options: .repeating)
                 .frame(width: 44, height: 44)
                 .background(DS.accent, in: Circle())
-            Text(L.t("而家同\(p.name)分享緊位置", "正在和\(p.name)共享位置"))
+            Text(L.t("而家同\(p.name)分享緊位置", "正在和\(p.name)共享位置", "Sharing location with \(p.name)"))
                 .ds(.bodyBold)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
-            Button { store.endFind() } label: { Text(L.t("停止", "停止")) }
+            Button { store.endFind() } label: { Text(L.t("停止", "停止", "Stop")) }
                 .buttonStyle(.dsSecondary)
-                .accessibilityLabel(L.t("停止分享位置", "停止共享位置"))
+                .accessibilityLabel(L.t("停止分享位置", "停止共享位置", "Stop sharing location"))
         }
         .padding(12)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
@@ -65,9 +65,9 @@ struct LiveFindOverlay: View {
     }
 
     private func title(_ f: FindSession, _ p: Resident, _ place: String) -> String {
-        if f.incoming { return L.t("\(p.name)過緊嚟搵你", "\(p.name)正过来找你") }
-        if !f.spontaneous { return L.t("約咗\(p.name)喺\(place)", "约了\(p.name)在\(place)") }
-        return L.t("去搵\(p.name)", "去找\(p.name)")
+        if f.incoming { return L.t("\(p.name)過緊嚟搵你", "\(p.name)正过来找你", "\(p.name) is coming to find you") }
+        if !f.spontaneous { return L.t("約咗\(p.name)喺\(place)", "约了\(p.name)在\(place)", "Meeting \(p.name) at \(place)") }
+        return L.t("去搵\(p.name)", "去找\(p.name)", "Find \(p.name)")
     }
 
     private func compass(_ f: FindSession, _ p: Resident, _ place: String) -> some View {
@@ -82,7 +82,7 @@ struct LiveFindOverlay: View {
             }
             if f.liveMode == .waiting {
                 ProgressView().controlSize(.large).padding(.vertical, 8)
-                Text(f.spontaneous ? L.t("等緊\(p.name)嘅位置…", "在等\(p.name)的位置…") : L.t("等緊\(p.name)出門…", "在等\(p.name)出门…"))
+                Text(f.spontaneous ? L.t("等緊\(p.name)嘅位置…", "在等\(p.name)的位置…", "Waiting for \(p.name)'s location…") : L.t("等緊\(p.name)出門…", "在等\(p.name)出门…", "Waiting for \(p.name) to set off…"))
                     .ds(.body)
                     .foregroundStyle(.secondary)
             } else if near {
@@ -116,7 +116,7 @@ struct LiveFindOverlay: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(L.t("\(p.name)，大約 \(meters) 米。\(subtitle(f, p))", "\(p.name)，大约 \(meters) 米。\(subtitle(f, p))"))
+        .accessibilityLabel(L.t("\(p.name)，大約 \(meters) 米。\(subtitle(f, p))", "\(p.name)，大约 \(meters) 米。\(subtitle(f, p))", "\(p.name), about \(meters) m. \(subtitle(f, p))"))
     }
 
     private func arrow(_ color: Color, size: CGFloat, frame: CGFloat) -> some View {
@@ -131,7 +131,7 @@ struct LiveFindOverlay: View {
     }
 
     private func distanceText(_ meters: Int, size: CGFloat) -> some View {
-        Text(L.t("\(meters) 米", "\(meters) 米"))
+        Text(L.t("\(meters) 米", "\(meters) 米", "\(meters) m"))
             .font(.system(size: size, weight: .bold, design: .rounded))
             .monospacedDigit()
             .contentTransition(.numericText(value: Double(meters)))
@@ -141,25 +141,25 @@ struct LiveFindOverlay: View {
     @ViewBuilder
     private func hints(_ f: FindSession, _ p: Resident) -> some View {
         if f.headingPoor && !f.precise {
-            Label(L.t("請將手機放平", "请把手机放平"), systemImage: "iphone.gen3")
+            Label(L.t("請將手機放平", "请把手机放平", "Hold the phone flat"), systemImage: "iphone.gen3")
                 .ds(.captionBold)
                 .foregroundStyle(DS.accentInk)
         } else if f.sweep {
-            Label(L.t("慢慢左右移動手機", "慢慢左右移动手机"), systemImage: "arrow.left.and.right")
+            Label(L.t("慢慢左右移動手機", "慢慢左右移动手机", "Slowly move the phone left and right"), systemImage: "arrow.left.and.right")
                 .ds(.captionBold)
                 .foregroundStyle(DS.accentInk)
         }
         if f.partnerStale {
-            Text(L.t("暫時收唔到\(p.name)嘅最新位置", "暂时收不到\(p.name)的最新位置")).ds(.caption).foregroundStyle(.secondary)
+            Text(L.t("暫時收唔到\(p.name)嘅最新位置", "暂时收不到\(p.name)的最新位置", "Can't get \(p.name)'s latest location")).ds(.caption).foregroundStyle(.secondary)
         }
     }
 
     private func subtitle(_ f: FindSession, _ p: Resident) -> String {
         if f.liveMode == .near {
-            if f.facing { return L.t("就喺前面", "就在前面") }
-            return f.precise ? L.t("就喺附近，跟住箭咀轉", "就在附近，跟着箭头转") : L.t("就喺附近，四圍望吓", "就在附近，四处看看")
+            if f.facing { return L.t("就喺前面", "就在前面", "Right in front of you") }
+            return f.precise ? L.t("就喺附近，跟住箭咀轉", "就在附近，跟着箭头转", "Very close, follow the arrow") : L.t("就喺附近，四圍望吓", "就在附近，四处看看", "Very close, look around")
         }
-        return L.t("行路大約 \(max(1, f.etaMinutes)) 分鐘", "步行大约 \(max(1, f.etaMinutes)) 分钟")
+        return L.t("行路大約 \(max(1, f.etaMinutes)) 分鐘", "步行大约 \(max(1, f.etaMinutes)) 分钟", "About \(max(1, f.etaMinutes)) min walk")
     }
 
 }
@@ -183,7 +183,7 @@ struct FindBottomBar: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.dsPrimary)
-            .accessibilityHint(step == .met ? L.t("見到面就撳，兩邊一齊結束", "见到面就点，两边一起结束") : L.t("撳一下話俾對方知", "点一下告诉对方"))
+            .accessibilityHint(step == .met ? L.t("見到面就撳，兩邊一齊結束", "见到面就点，两边一起结束", "Tap when you meet, ends for both") : L.t("撳一下話俾對方知", "点一下告诉对方", "Tap to let them know"))
             MicRoundButton(place: place)
         }
         .padding(12)
@@ -212,8 +212,8 @@ struct MicRoundButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(L.t("講嘢", "说话"))
-        .accessibilityValue(on ? L.t("聽緊", "在听") : "")
-        .accessibilityHint(on ? L.t("再撳一下講完", "再按一下结束") : L.t("撳一下開始講，例如「我喺\(place)」", "按一下开始说，例如「我在\(place)」"))
+        .accessibilityLabel(L.t("講嘢", "说话", "Speak"))
+        .accessibilityValue(on ? L.t("聽緊", "在听", "Listening") : "")
+        .accessibilityHint(on ? L.t("再撳一下講完", "再按一下结束", "Tap again to finish") : L.t("撳一下開始講，例如「我喺\(place)」", "按一下开始说，例如「我在\(place)」", "Tap to speak, e.g. \"I'm at \(place)\""))
     }
 }

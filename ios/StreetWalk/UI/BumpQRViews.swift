@@ -12,7 +12,7 @@ struct BumpQRContent: View {
     var body: some View {
         VStack(spacing: 20) {
             if demo {
-                DemoBadge(text: qr.mode == .scan ? L.t("示範：掃到就當加咗示範街坊", "演示：扫到就当加了演示邻居") : L.t("示範：過幾秒當對方掃咗", "演示：几秒后当对方扫了"))
+                DemoBadge(text: qr.mode == .scan ? L.t("示範：掃到就當加咗示範街坊", "演示：扫到就当加了演示邻居", "Demo: any scan adds a demo neighbour") : L.t("示範：過幾秒當對方掃咗", "演示：几秒后当对方扫了", "Demo: the other phone scans in a few seconds"))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             switch qr.mode {
@@ -36,22 +36,22 @@ struct BumpQRContent: View {
                 .foregroundStyle(DS.accent)
                 .accessibilityHidden(true)
             VStack(spacing: 12) {
-                Text(L.t("用二維碼加街坊", "用二维码加邻居"))
+                Text(L.t("用二維碼加街坊", "用二维码加邻居", "Add a neighbour by QR code"))
                     .ds(.title)
                     .multilineTextAlignment(.center)
                     .accessibilityAddTraits(.isHeader)
-                Text(L.t("一部手機出示，另一部手機掃。", "一部手机出示，另一部手机扫。"))
+                Text(L.t("一部手機出示，另一部手機掃。", "一部手机出示，另一部手机扫。", "One phone shows the code, the other scans it."))
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
             HStack(spacing: 12) {
-                choice(L.t("出示二維碼", "出示二维码"), symbol: "qrcode", filled: true) { store.bumpShowQR() }
-                choice(L.t("掃二維碼", "扫二维码"), symbol: "camera.viewfinder", filled: false) { store.bumpScanQR() }
+                choice(L.t("出示二維碼", "出示二维码", "Show QR code"), symbol: "qrcode", filled: true) { store.bumpShowQR() }
+                choice(L.t("掃二維碼", "扫二维码", "Scan QR code"), symbol: "camera.viewfinder", filled: false) { store.bumpScanQR() }
             }
             Spacer(minLength: 0)
             HStack(spacing: 8) {
-                Button { store.beginBumpSearch() } label: { Text(L.t("返回碰一碰", "返回碰一碰")).frame(maxWidth: .infinity) }
+                Button { store.beginBumpSearch() } label: { Text(L.t("返回碰一碰", "返回碰一碰", "Back to Tap phones")).frame(maxWidth: .infinity) }
                     .buttonStyle(.dsSecondary)
                 cancelButton
             }
@@ -80,7 +80,7 @@ struct BumpQRContent: View {
     private func showing(_ code: String) -> some View {
         VStack(spacing: 20) {
             Spacer(minLength: 0)
-            Text(qr.paired ? L.t("成功！", "成功！") : L.t("請對方掃呢個二維碼", "请对方扫这个二维码"))
+            Text(qr.paired ? L.t("成功！", "成功！", "Done!") : L.t("請對方掃呢個二維碼", "请对方扫这个二维码", "Ask them to scan this code"))
                 .ds(.title)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -97,14 +97,14 @@ struct BumpQRContent: View {
             .background(Color.white, in: RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
             .shadow(color: .black.opacity(0.10), radius: 12, y: 6)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(qr.paired ? L.t("成功", "成功") : L.t("加街坊用嘅二維碼", "加邻居用的二维码"))
-            status(waiting: L.t("等緊對方掃…", "在等对方扫…"))
+            .accessibilityLabel(qr.paired ? L.t("成功", "成功", "Done") : L.t("加街坊用嘅二維碼", "加邻居用的二维码", "QR code for adding a neighbour"))
+            status(waiting: L.t("等緊對方掃…", "在等对方扫…", "Waiting for them to scan…"))
             Spacer(minLength: 0)
             if qr.paired {
                 Color.clear.frame(height: 56)
             } else {
                 HStack(spacing: 8) {
-                    Button { store.bumpScanQR() } label: { Text(L.t("改為掃對方", "改为扫对方")).frame(maxWidth: .infinity) }
+                    Button { store.bumpScanQR() } label: { Text(L.t("改為掃對方", "改为扫对方", "Scan theirs instead")).frame(maxWidth: .infinity) }
                         .buttonStyle(.dsSecondary)
                     cancelButton
                 }
@@ -117,7 +117,7 @@ struct BumpQRContent: View {
     private var scanning: some View {
         VStack(spacing: 20) {
             Spacer(minLength: 0)
-            Text(qr.paired ? L.t("成功！", "成功！") : L.t("對住對方嘅二維碼", "对准对方的二维码"))
+            Text(qr.paired ? L.t("成功！", "成功！", "Done!") : L.t("對住對方嘅二維碼", "对准对方的二维码", "Point at their QR code"))
                 .ds(.title)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -144,7 +144,7 @@ struct BumpQRContent: View {
                 Color.clear.frame(height: 56)
             } else {
                 HStack(spacing: 8) {
-                    Button { store.bumpShowQR() } label: { Text(L.t("改為出示", "改为出示")).frame(maxWidth: .infinity) }
+                    Button { store.bumpShowQR() } label: { Text(L.t("改為出示", "改为出示", "Show mine instead")).frame(maxWidth: .infinity) }
                         .buttonStyle(.dsSecondary)
                     cancelButton
                 }
@@ -158,7 +158,7 @@ struct BumpQRContent: View {
     @ViewBuilder
     private func status(waiting: String?) -> some View {
         if qr.paired {
-            Text(L.t("你哋而家係街坊。", "你们现在是邻居了。")).ds(.bodyBold).multilineTextAlignment(.center)
+            Text(L.t("你哋而家係街坊。", "你们现在是邻居了。", "You are neighbours now.")).ds(.bodyBold).multilineTextAlignment(.center)
         } else if let note = qr.note {
             Label {
                 Text(note).fixedSize(horizontal: false, vertical: true)
@@ -170,7 +170,7 @@ struct BumpQRContent: View {
         } else if qr.linking {
             HStack(spacing: 12) {
                 ProgressView()
-                Text(L.t("配對緊…", "配对中…")).ds(.body)
+                Text(L.t("配對緊…", "配对中…", "Pairing…")).ds(.body)
             }
             .accessibilityElement(children: .combine)
         } else if let waiting {
@@ -183,7 +183,7 @@ struct BumpQRContent: View {
     }
 
     private var cancelButton: some View {
-        Button { store.cancelBump() } label: { Text(L.t("取消", "取消")).frame(maxWidth: .infinity) }
+        Button { store.cancelBump() } label: { Text(L.t("取消", "取消", "Cancel")).frame(maxWidth: .infinity) }
             .buttonStyle(.dsSecondary)
     }
 }
