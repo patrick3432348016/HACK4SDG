@@ -1,5 +1,6 @@
 """Synthetic vendor fixtures only. No cloud accuracy or latency claims."""
 import asyncio
+from datetime import date, timedelta
 import base64
 import gzip
 import json
@@ -105,7 +106,7 @@ class ProviderTests(unittest.IsolatedAsyncioTestCase):
 
 class FakeProvider:
     """Explicit injected test fixture; unavailable from browser configuration."""
-    decision = {"topic":"app", "command":{"intent":"leave", "leave_date":"2026-10-13"}}
+    decision = {"topic":"app", "command":{"intent":"leave", "leave_date": (date.today() + timedelta(days=1)).isoformat()}}  # 10-17 改：原本写死日子，过咗期就失败
     def __init__(self, config=None, client=None):
         self.client = client
         self.calls = 0

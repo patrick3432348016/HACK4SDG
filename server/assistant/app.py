@@ -185,12 +185,12 @@ def create_app(settings=None, client=None, clock=None, speech=None):
         return {"mode": settings.mode, "speech": settings.speech_ready, "language_model": settings.model_ready,
                 "interpretation": "qwen" if settings.model_ready else "limited_demo_rules",
                 "business": "demo" if settings.mode == "demo" else "live", "max_audio_seconds": 30,
-                "locales": ["zh-HK", "zh-CN"], "tts": settings.tts}
+                "locales": ["zh-HK", "zh-CN", "en-US"], "tts": settings.tts}
 
     @app.post("/v1/speech/transcribe")
     async def transcribe(request: Request, locale: str = "zh-HK", user=Depends(principal)):
-        if locale not in {"zh-HK", "zh-CN"}:
-            raise AssistantError("INVALID_LOCALE", "仅支持粤语或普通话。", 422)
+        if locale not in {"zh-HK", "zh-CN", "en-US"}:
+            raise AssistantError("INVALID_LOCALE", "仅支持粤语、普通话或英文。", 422)
         if request.headers.get("content-type", "").split(";")[0].lower() != "audio/wav":
             raise AssistantError("INVALID_AUDIO", "请上传 WAV 音频。", 415)
         return await app.state.providers.transcribe(await request.body(), locale)
@@ -228,7 +228,8 @@ def create_app(settings=None, client=None, clock=None, speech=None):
             audio = await app.state.providers.speak(body.text, body.locale)
             return Response(audio, media_type="audio/mpeg")
         if body.locale not in engine.locales:
-            raise AssistantError("TTS_LOCALE_UNSUPPORTED", "本机声音暂时只有粤语；请用手机系统声音。", 503)
+            raise AssistantError("TTS_LOCALE_UNSUPPORTED", "This voice can't speak this language yet." if body.locale == "en-US"
+                                 else "本机声音暂时只有粤语；请用手机系统声音。", 503)
         if engine.status != "ready":
             raise AssistantError("TTS_NOT_READY", "声音模型仲未准备好。", 503)
         speed = body.speed or 1.0
@@ -239,7 +240,8 @@ def create_app(settings=None, client=None, clock=None, speech=None):
         try:
             first = await chunks.__anext__()
         except (SynthesisFailed, StopAsyncIteration):
-            raise AssistantError("TTS_FAILED", "合成唔到呢句，请用系统声音。", 503)
+            raise AssistantError("TTS_FAILED", "Couldn't make the voice. Using the phone voice." if body.locale == "en-US"
+                                 else "合成唔到呢句，请用系统声音。", 503)
 
         async def body_iter():
             yield first

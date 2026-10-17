@@ -2,7 +2,7 @@
 
 请求同 B 嘅 Doubao.synthesize（doubao.py）一样：TTS 2.0 单向流式、PCM 24 kHz、explicit_dialect=yue、B 揀嘅语速；
 只系改成同步版本，交俾 SpeechService（sovits.py）嘅工作线程用，缓存、边合成边传、预热全部共用。
-普通话（zh-CN）唔加方言参数。语速：App「語速」0.75 / 1.0 / 1.25 → 喺 B 嘅基准（speech_rate，默认 -15）上下 25（10-17 拉开）。
+普通话（zh-CN）唔加方言参数。英文（en-US，10-17 加）：explicit_language=en；音色默认照用小何（doubao.json 可另设 speaker_en）。语速：App「語速」0.75 / 1.0 / 1.25 → 喺 B 嘅基准（speech_rate，默认 -15）上下 25（10-17 拉开）。
 密钥只喺 Mac 服务器（voice-runtime/doubao.json），唔会去到手机；日志唔印密钥同厂商原始错误。
 """
 from __future__ import annotations
@@ -21,7 +21,7 @@ class DoubaoSpeechFailed(Exception):
 
 class DoubaoEngine:
     sample_rate = 24000
-    locales = ("zh-HK", "zh-CN")
+    locales = ("zh-HK", "zh-CN", "en-US")
 
     def __init__(self, config: DoubaoConfig, client: httpx.Client | None = None):
         self.config, self.client = config, client
@@ -34,11 +34,12 @@ class DoubaoEngine:
         return max(-50, min(100, round(self.config.speech_rate + (speed - 1.0) * 100)))
 
     def body(self, text: str, speed: float, locale: str) -> dict:
-        additions = {"explicit_language": "zh-cn"}
+        additions = {"explicit_language": "en" if locale == "en-US" else "zh-cn"}
         if locale == "zh-HK":
             additions["explicit_dialect"] = "yue"
+        speaker = (self.config.speaker_en or self.config.speaker) if locale == "en-US" else self.config.speaker
         return {"user": {"uid": "jiefong-voice"}, "req_params": {
-            "text": text, "speaker": self.config.speaker,
+            "text": text, "speaker": speaker,
             "audio_params": {"format": "pcm", "sample_rate": self.sample_rate, "speech_rate": self.rate(speed)},
             "additions": json.dumps(additions)}}
 
@@ -83,4 +84,5 @@ class DoubaoEngine:
 
 def doubao_voice_id(config: DoubaoConfig) -> str:
     """换音色 / 基准语速就换 id，App 同服务器嘅缓存自动作废。"""
-    return f"doubao-{config.speaker}-{config.tts_resource}-r{config.speech_rate}-1"
+    en = f"-en.{config.speaker_en}" if config.speaker_en else ""
+    return f"doubao-{config.speaker}{en}-{config.tts_resource}-r{config.speech_rate}-1"

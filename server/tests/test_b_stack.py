@@ -17,7 +17,7 @@ from assistant.doubao_speech import DoubaoEngine, DoubaoSpeechFailed
 from assistant.models import TurnRequest
 from assistant.service import Assistant
 from assistant.store import Store
-from assistant.voice_policy import DENIED, EMERGENCY
+from assistant.voice_policy import CMN, DENIED, EMERGENCY, EN
 from test_doubao import CONFIG, FakeProvider, server_packet
 
 
@@ -51,12 +51,26 @@ class DoubaoSpeechTests(unittest.TestCase):
         self.assertNotIn("secret", str(ctx.exception))
 
 
+    def test_english_uses_en_language_and_optional_english_speaker(self):
+        seen = []
+        ok = [json.dumps({"code": 0, "data": base64.b64encode(b"\0\0").decode()}), json.dumps({"code": 20000000})]
+        list(self.engine(ok, seen).stream("Hello", 1.0, "en-US"))
+        additions = json.loads(seen[0]["req_params"]["additions"])
+        self.assertEqual(additions, {"explicit_language": "en"})
+        self.assertEqual(seen[0]["req_params"]["speaker"], CONFIG["speaker"])   # 默认照用小何
+        other = DoubaoEngine(DoubaoConfig.model_validate({**CONFIG, "speaker_en": "en_female_test"}))
+        self.assertEqual(other.body("Hi", 1.0, "en-US")["req_params"]["speaker"], "en_female_test")
+        self.assertEqual(other.body("你好", 1.0, "zh-HK")["req_params"]["speaker"], CONFIG["speaker"])
+
+
 class FakeWeather:
     def __init__(self):
         self.queries = []
 
-    async def answer(self, query):
+    async def answer(self, query, locale="zh-HK"):
         self.queries.append(query)
+        if locale == "en-US":
+            return {"text": "Observatory: Sheung Shui 26 degrees.", "weather": {"source": "香港天文台"}}
         return {"text": "天文台實況：上水二十六度。", "weather": {"source": "香港天文台"}}
 
 
@@ -90,6 +104,18 @@ class TurnPolicyTests(unittest.IsolatedAsyncioTestCase):
         self.provider.decision = {"topic": "board"}
         board = await self.ask("排行榜呢", first.conversation_id)
         self.assertEqual(board.message, BOARD)
+
+    async def test_english_scope_rules_and_weather_answer_in_english(self):
+        reply = await self.ask("Help! I fell down and can't get up", locale="en-US")
+        self.assertEqual((reply.message, reply.data["policy"]), (EN["emergency"], "emergency"))
+        self.assertEqual((await self.ask("Can I take this medicine with tea?", locale="en-US")).message, EN["deny"])
+        self.assertEqual((await self.ask("救命，有人晕倒了", locale="zh-CN")).message, CMN["emergency"])   # 普通话都行 B 嘅范围规则
+        self.assertEqual(self.provider.calls, 0)
+        self.provider.decision = {"topic": "weather"}
+        weather = await self.ask("What's the weather today?", locale="en-US")
+        self.assertEqual(weather.message, "Observatory: Sheung Shui 26 degrees.")
+        self.provider.decision = {"topic": "help"}
+        self.assertEqual((await self.ask("Hello", locale="en-US")).message, EN["help"])
 
     async def test_app_command_goes_through_b_confirmation(self):
         reply = await self.ask("聽日請假")
@@ -147,6 +173,12 @@ class EarSocketTests(unittest.TestCase):
         with self.client.websocket_connect("/v1/voice/ear") as socket:
             socket.send_json({"locale": "zh-HK"})
             self.assertEqual(socket.receive_json()["code"], "UNAUTHORIZED")
+        with self.client.websocket_connect("/v1/voice/ear") as socket:   # 英文：接受 en-US，讯息用英文
+            socket.send_json({"locale": "en-US"})
+            self.assertEqual(socket.receive_json()["message"], "Please sign in first.")
+        with self.client.websocket_connect("/v1/voice/ear") as socket:
+            socket.send_json({"locale": "fr-FR"})
+            self.assertEqual(socket.receive_json()["code"], "INVALID_HELLO")
 
     def test_voice_info_reports_doubao_stack_without_secrets(self):
         info = self.client.get("/v1/voice").json()

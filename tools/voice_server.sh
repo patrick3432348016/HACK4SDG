@@ -1,5 +1,5 @@
 #!/bin/sh
-# 街坊行 · Mac 语音服务器（组员 B 嘅豆包那套：识别 + 理解 + 小何粤语声；加 App 嘅 Supabase 业务）。一条命令开：
+# 街坊行 · Mac 语音服务器（组员 B 嘅豆包那套：识别 + 理解 + 小何声，粤语 / 普通话 / 英文三语；加 App 嘅 Supabase 业务）。一条命令开：
 #   tools/voice_server.sh             # 局域网：同一个 Wi-Fi 嘅 iPhone 自动搵到（Bonjour _jiefongvoice._tcp）
 #   tools/voice_server.sh --tunnel    # 再开 Cloudflare 临时公网地址（https://….trycloudflare.com，唔使账号）
 #   tools/voice_server.sh --verbose   # 日志印埋合成嘅句子（排查用）
@@ -110,7 +110,7 @@ echo "  模擬器：http://127.0.0.1:$PORT"
 if [ "$VOICE" = sovits ]; then
   echo "  播報：Mac 本機真人聲（載入約 10–30 秒，未好之前 App 用系統聲音）"
 else
-  echo "  播報：豆包「小何」粵語聲（組員 B 嗰套；識別、理解都係豆包，Mac 只做轉發）"
+  echo "  播報：豆包「小何」聲，粵語 / 普通話 / English（組員 B 嗰套；識別、理解都係豆包，Mac 只做轉發）"
 fi
 echo "──────────────────────────────────────────────"
 cd "$REPO/server"
