@@ -92,16 +92,16 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 }
 
-/// 次按钮：描边。
+/// 次按钮：淡橙底 + 橙框 + 深橙字（10-18 测试：灰框白底唔似掣，掣要一律橙色先认得）。
 struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .ds(.button)
-            .foregroundStyle(.primary)
+            .foregroundStyle(DS.accentInk)
             .padding(.horizontal, 18)
             .frame(minHeight: 56)
-            .background(Color(.systemBackground).opacity(0.001), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.primary.opacity(0.22), lineWidth: 1))
+            .background(DS.accentSoft, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(DS.accent.opacity(0.55), lineWidth: 1.5))
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .animation(DS.motion(DS.snappy), value: configuration.isPressed)
     }

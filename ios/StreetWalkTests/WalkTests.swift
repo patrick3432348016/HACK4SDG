@@ -67,8 +67,9 @@ struct WalkLogicTests {
         }
         #expect(g_decide(fromHome: 99, acc: 60, at: at(0), recording: true, moving: true) == .minutesOnly)
         #expect(g_decide(fromHome: 65, acc: 25, at: at(5), recording: true, moving: true) == .step)
-        #expect(g_decide(fromHome: 70, acc: 45, at: at(10), recording: true, moving: true) == .finish, "扣误差喺 40 m 内、精度 ≤50")
-        #expect(g_decide(fromHome: 30, acc: 80, at: at(15), recording: true, moving: false) == .finish)
+        #expect(g_decide(fromHome: 70, acc: 45, at: at(10), recording: true, moving: true) == .minutesOnly, "啱啱开始 2 分钟内：门口定位跳一跳唔收尾")
+        #expect(g_decide(fromHome: 70, acc: 45, at: at(130), recording: true, moving: true) == .finish, "扣误差喺 40 m 内、精度 ≤50")
+        #expect(g_decide(fromHome: 30, acc: 80, at: at(135), recording: true, moving: false) == .finish)
     }
 
     @Test func 背景补记行路时段() {

@@ -386,6 +386,11 @@ extension AppStore {
                                       motion: f.spontaneous ? .stand(at: spot) : .route(partnerRoute ?? [spot], speed: Self.findSpeed * 0.8),
                                       label: p.name, highlighted: true)) }
         }
+        // 10-18：冇散步、冇搵人时，自己个小人企喺屋企楼下（设置改肤色 / 衫色即刻见到；散步时由呢度行出去）
+        if walk == nil, find == nil, phase == .main, map != nil {
+            people.append(ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility,
+                                      motion: .stand(at: scene.nearestWalkable(scene.homeTarget + Vec2(x: 0, y: -18))), label: nil))
+        }
         if case .found(let id) = bumpStage, let p = resident(id) {
             // 两人在碰面的地方并排站：散步中就在我走到的位置，不要跳回屋企。
             let spot = bumpMeetSpot()

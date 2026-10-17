@@ -217,7 +217,7 @@ struct TodayTab: View {
                 } label: {
                     Text(L.t("行完喇", "走完了", "Finished")).lineLimit(1).frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.dsSecondary)
+                .buttonStyle(.dsPrimary)
             }
         }
     }
@@ -263,9 +263,19 @@ struct TodayTab: View {
                     .transition(.tabsInsert)
                 }
                 Text(L.t("返到屋企會自動記低。", "回到家会自动记下。", "It's saved when you get home.")).ds(.caption).foregroundStyle(.secondary)
+                // 10-18 测试：「结束散步」放喺散步卡入面，唔使碌落去搵
+                endWalkButton
             }
         }
         .animation(DS.motion(DS.spring), value: store.paceTip)
+    }
+
+    /// 「结束散步」（A-3）：自动开始、手动开始都得。橙底白字。
+    private var endWalkButton: some View {
+        Button { taps += 1; store.endWalkByUser() } label: {
+            Label(L.t("結束散步", "结束散步", "End walk"), systemImage: "stop.circle.fill").lineLimit(1).frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.dsPrimary)
     }
 
     // 有街坊、冇人喺外面：天气 / 遮荫建议 + 約街坊一齐行
@@ -384,11 +394,8 @@ struct TodayTab: View {
                 if let tip = store.paceTip {
                     Label(tip, systemImage: "chair.lounge.fill").ds(.caption).fixedSize(horizontal: false, vertical: true)
                 }
-                // A-3：自己结束散步（自动开始、手动开始都得）
-                Button { taps += 1; store.endWalkByUser() } label: {
-                    Label(L.t("結束散步", "结束散步", "End walk"), systemImage: "stop.circle.fill").lineLimit(1).frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.dsSecondary)
+                // A-3：自己结束散步（主角卡唔係散步卡时喺呢度，紧跟主角卡）
+                endWalkButton
             } else {
                 Text(L.t("今日行咗 \(store.todayMinutes) 分鐘 · 連續 \(me.streakDays) 日", "今天走了 \(store.todayMinutes) 分钟 · 连续 \(me.streakDays) 天", "Today \(store.todayMinutes) min · \(me.streakDays) days in a row"))
                     .ds(.body)
@@ -406,7 +413,7 @@ struct TodayTab: View {
                             .multilineTextAlignment(.center)
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.dsSecondary)
+                    .buttonStyle(.dsPrimary)     // 10-18 测试：撳得嘅主要掣一律橙底白字
                 }
                 leaveRow(me)
             }
@@ -424,11 +431,10 @@ struct TodayTab: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .transition(.opacity)
                 Spacer(minLength: 0)
-                Button(L.t("撤回", "撤回", "Undo")) { store.withdrawLeave() }
-                    .ds(.captionBold)
-                    .foregroundStyle(DS.accentInk)
-                    .frame(minHeight: 44)
-                    .fixedSize()
+                Button { store.withdrawLeave() } label: {
+                    Text(L.t("撤回", "撤回", "Undo")).ds(.captionBold).lineLimit(1).fixedSize().padding(.horizontal, 14).frame(minHeight: 44)
+                }
+                .buttonStyle(SoftChipStyle())
             } else {
                 Menu {
                     ForEach(store.leaveMenuChoices, id: \.self) { r in Button(store.leaveMenuLabel(r)) { store.requestLeave(days: r.days, startOffset: r.startOffset) } }
@@ -437,16 +443,19 @@ struct TodayTab: View {
                         Button(w, role: .destructive) { store.withdrawLeave() }
                     }
                 } label: {
-                    Label(L.t("今日唔行（日數照計）", "今天不走（天数照算）", "Day off (streak kept)"), systemImage: "moon.zzz")
+                    // 10-18 测试：「哪天不走」睇唔明有咩用 → 直接讲用途
+                    Label(L.t("呢幾日唔方便出門？（連續日數唔會斷）", "这几天不方便出门？（连续天数不会断）", "Can't go out for a few days? (Streak won't break)"), systemImage: "moon.zzz")
                         .ds(.caption)
-                        .foregroundStyle(DS.accentInk)
-                        .frame(minHeight: 44)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                 }
                 .menuStyle(.button)
-                .buttonStyle(.plain)
-                .accessibilityHint(L.t("揀邊日唔行，連續日數會保留", "选哪天不走，连续天数会保留", "Pick a day off. Your streak is kept."))
-                Spacer(minLength: 0)
+                .buttonStyle(SoftChipStyle())
+                .accessibilityHint(L.t("揀邊幾日唔出門，連續日數會保留", "选哪几天不出门，连续天数会保留", "Pick the days you won't go out. Your streak is kept."))
             }
         }
     }
@@ -554,17 +563,8 @@ struct TodayTab: View {
     // MARK: 散步中：快捷反映
 
     private var reportCard: some View {
-        // A-3：散步中一定见到「结束散步」：今日行紧嗰行（statusRow）收埋咗（主角卡就係散步卡）时放喺呢度
-        let showEnd = Self.hero(store) == .walking
-        return VStack(alignment: .leading, spacing: 12) {
-            // 放最上面：唔使碌落去都见到
-            if showEnd {
-                Button { taps += 1; store.endWalkByUser() } label: {
-                    Label(L.t("結束散步", "结束散步", "End walk"), systemImage: "stop.circle.fill").lineLimit(1).frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.dsPrimary)
-                .padding(.bottom, 4)
-            }
+        // 「结束散步」喺散步主角卡 / 今日行紧嗰行（10-18：唔再放喺下面呢张卡）
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Text(L.t("呢度點樣？", "这里怎么样？", "How is it here?")).ds(.captionBold)
                 Spacer(minLength: 0)
@@ -664,6 +664,19 @@ struct TodayTab: View {
             HStack(spacing: 12) { p; r }
             VStack(spacing: 12) { p; r.frame(maxWidth: .infinity) }
         }
+    }
+}
+
+/// 今日页细掣（撤回、唔出門选单）：淡橙底 + 橙框 + 深橙字，一睇就知撳得（10-18 测试）。
+private struct SoftChipStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        configuration.label
+            .foregroundStyle(DS.accentInk)
+            .background(DS.accentSoft, in: shape)
+            .overlay(shape.strokeBorder(DS.accent.opacity(0.55), lineWidth: 1.5))
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(DS.motion(DS.snappy), value: configuration.isPressed)
     }
 }
 

@@ -338,13 +338,15 @@ struct TemplateAI: AIService {
 
     // MARK: - 生成句子
 
+    /// 今日一句用网名开头（10-18 测试：「7 楼今天请假了」似讲第二个人）；我未改网名就唔讲主语。
     func dailyLine(for r: Resident, passed: [Landmark]) -> String {
-        if r.onLeave { return L.t("\(r.floorLabel)今日請咗假", "\(r.floorLabel)今天请假了", "\(r.floorLabel): day off today") }
-        guard let last = passed.last else { return L.t("\(r.floorLabel)今日仲未出門", "\(r.floorLabel)今天还没出门", "\(r.floorLabel): not out yet today") }
+        let who = r.lineSubject, en = who.isEmpty ? "" : "\(who): "
+        if r.onLeave { return L.t("\(who)今日唔出門", "\(who)今天不出门", "\(en)not going out today") }
+        guard let last = passed.last else { return L.t("\(who)今日仲未出門", "\(who)今天还没出门", "\(en)not out yet today") }
         let seed = abs(r.id.hashValue)
-        if passed.count >= 2, seed % 3 == 0 { return L.t("\(r.floorLabel)今日經過\(passed[0].name)同\(last.name)", "\(r.floorLabel)今天经过\(passed[0].name)和\(last.name)", "\(r.floorLabel): passed \(passed[0].name) and \(last.name) today") }
-        if last.hasSeat, seed % 3 == 1 { return L.t("\(r.floorLabel)喺\(last.name)坐咗陣", "\(r.floorLabel)在\(last.name)坐了一会儿", "\(r.floorLabel): sat a while at \(last.name)") }
-        return L.t("\(r.floorLabel)今日行到\(last.name)", "\(r.floorLabel)今天走到\(last.name)", "\(r.floorLabel): walked to \(last.name) today")
+        if passed.count >= 2, seed % 3 == 0 { return L.t("\(who)今日經過\(passed[0].name)同\(last.name)", "\(who)今天经过\(passed[0].name)和\(last.name)", "\(en)passed \(passed[0].name) and \(last.name) today") }
+        if last.hasSeat, seed % 3 == 1 { return L.t("\(who)喺\(last.name)坐咗陣", "\(who)在\(last.name)坐了一会儿", "\(en)sat a while at \(last.name)") }
+        return L.t("\(who)今日行到\(last.name)", "\(who)今天走到\(last.name)", "\(en)walked to \(last.name) today")
     }
 
     func nameLandmark(_ c: LandmarkCandidate) -> String {
@@ -477,4 +479,9 @@ struct TemplateAI: AIService {
         if L.isEn, m != 0 { return "\(h > 12 ? h - 12 : h):" + String(format: "%02d", m) + (h >= 12 ? " pm" : " am") }
         return m == 0 ? hourLabel(h) : hourLabel(h) + L.t(" \(m) 分", " \(m) 分", ":\(m)")
     }
+}
+
+extension Resident {
+    /// 今日一句嘅主语：网名（我就用自己改嘅网名，未改就空），唔用「N 樓」（10-18 测试）。
+    var lineSubject: String { isMe ? (nickname ?? "") : name }
 }
