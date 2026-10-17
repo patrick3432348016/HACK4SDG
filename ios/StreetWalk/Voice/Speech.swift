@@ -66,7 +66,7 @@ final class Speaker: ObservableObject {
         let key = voiceID.map { SpeechAudioCache.key(text: text, voiceID: $0, speed: speed) }
         let cached = key.flatMap { SpeechAudioCache.file(for: $0) }
         let route = TTSRoute.decide(language: language, server: server?.speechURL, cached: cached, scripted: Self.scripted,
-                                    mandarin: server?.speaksMandarin ?? false)
+                                    mandarin: server?.speaksMandarin ?? false, english: server?.speaksEnglish ?? false)
         lastRoute = route
         switch route {
         case .system:
@@ -99,7 +99,7 @@ final class Speaker: ObservableObject {
     private func startStream(_ text: String, url: URL, speed: Double, token: String?, key: String?, language: SpokenLanguage) {
         let started = Date()
         serverPlayer.stream(text: text, server: url, speed: speed, token: token, cacheKey: key,
-                            locale: language == .mandarin ? "zh-CN" : "zh-HK") { [weak self] outcome in
+                            locale: language.bcp47) { [weak self] outcome in
             guard let self else { return }
             switch outcome {
             case .failedBeforeAudio:
@@ -401,6 +401,8 @@ final class Listener: ObservableObject {
 
     /// 紧接重复嘅 2–6 个字只留一次（「帮我帮我约」→「帮我约」、「好的好的」→「好的」）。一个字嘅叠字（「慢慢」）唔郁。
     nonisolated static func collapseRepeats(_ s: String) -> String {
+        // 英文按字收（「invite invite Mrs Chan」→「invite Mrs Chan」）；按字母收会整坏「banana」之类
+        if EnglishText.isEnglish(s) { return collapseRepeatedWords(s) }
         var c = Array(s)
         var i = 0
         while i < c.count {
@@ -414,6 +416,24 @@ final class Listener: ObservableObject {
             if !removed { i += 1 }
         }
         return String(c)
+    }
+
+    /// 紧接重复嘅 1–3 个英文字只留一次。
+    nonisolated static func collapseRepeatedWords(_ s: String) -> String {
+        var w = s.split(separator: " ").map(String.init)
+        func key(_ x: String) -> String { x.lowercased().filter { $0.isLetter || $0.isNumber } }
+        var i = 0
+        while i < w.count {
+            var removed = false
+            for n in stride(from: min(3, (w.count - i) / 2), through: 1, by: -1)
+            where (0..<n).allSatisfy({ key(w[i + $0]) == key(w[i + n + $0]) && !key(w[i + $0]).isEmpty }) {
+                w.removeSubrange(i + n..<i + 2 * n)
+                removed = true
+                break
+            }
+            if !removed { i += 1 }
+        }
+        return w.joined(separator: " ")
     }
 
     @discardableResult

@@ -9,7 +9,16 @@ import Foundation
 enum AssistantLocale: String, CaseIterable, Codable, Sendable {
     case cantonese = "zh-HK"
     case mandarin = "zh-CN"
-    var label: String { self == .cantonese ? "粵語" : "普通话" }
+    case english = "en-US"
+    var label: String {
+        switch self {
+        case .cantonese: return "粵語"
+        case .mandarin: return "普通话"
+        case .english: return "English"
+        }
+    }
+    /// 跟界面语言（英文界面一律 en-US，见 AppLang.locale）。
+    static var current: AssistantLocale { AssistantLocale(rawValue: L.lang.locale) ?? .cantonese }
 }
 
 struct AssistantCapabilities: Decodable, Sendable {
@@ -47,7 +56,7 @@ enum AssistantJSON: Decodable, Sendable, Equatable {
         switch self {
         case .string(let s): return s
         case .number(let n): return n.formatted()
-        case .bool(let b): return b ? "是" : "否"
+        case .bool(let b): return b ? L.t("是", "是", "Yes") : L.t("否", "否", "No")
         default: return ""
         }
     }

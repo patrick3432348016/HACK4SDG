@@ -12,8 +12,8 @@ enum SpokenLanguage: String, CaseIterable, Codable, Sendable {
     /// 设定页嘅名。
     var label: String {
         switch self {
-        case .cantonese: return L.t("粵語", "粤语")
-        case .mandarin: return L.t("普通話", "普通话")
+        case .cantonese: return L.t("粵語", "粤语", "Cantonese")
+        case .mandarin: return L.t("普通話", "普通话", "Mandarin")
         case .english: return "English"
         }
     }
@@ -27,15 +27,15 @@ enum SpokenLanguage: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// 设定页可以揀嘅语言（英文暂时唔出：提示句子未有英文版）。
-    static let pickable: [SpokenLanguage] = [.cantonese, .mandarin]
+    /// 设定页可以揀嘅语言（10-17 起有英文界面，英文都出）。
+    static let pickable: [SpokenLanguage] = [.cantonese, .mandarin, .english]
 
     /// 试听句子（每种语言用自己嘅讲法，唔好叫普通话声音读粤语字）。
     var sample: String {
         switch self {
         case .cantonese: return "你好，我係街坊行。陳太啱啱出咗門，喺涼亭附近。"
         case .mandarin: return "你好，我是街坊行。陈太刚刚出门了，在凉亭附近。"
-        case .english: return "Hello, I'm StreetWalk. Mrs Chan just went out. She's near the pavilion."
+        case .english: return "Hello, this is Kaifong Walk. Mrs Chan just went out. She is near the pavilion."
         }
     }
 
@@ -81,9 +81,9 @@ enum VoiceTier: Int, Comparable, Sendable {
 
     var label: String {
         switch self {
-        case .standard: return L.t("標準", "标准")
-        case .enhanced: return L.t("增強", "增强")
-        case .premium: return L.t("高品質", "高品质")
+        case .standard: return L.t("標準", "标准", "Standard")
+        case .enhanced: return L.t("增強", "增强", "Enhanced")
+        case .premium: return L.t("高品質", "高品质", "Premium")
         }
     }
 
@@ -108,8 +108,8 @@ struct VoiceInfo: Equatable, Hashable, Sendable, Identifiable {
     /// 「女聲 · 高品質」
     var subtitle: String {
         let g: String? = switch gender {
-        case .female: L.t("女聲", "女声")
-        case .male: L.t("男聲", "男声")
+        case .female: L.t("女聲", "女声", "Female")
+        case .male: L.t("男聲", "男声", "Male")
         case .unknown: nil
         }
         return ([g, tier.label].compactMap { $0 }).joined(separator: " · ")
@@ -133,9 +133,9 @@ enum SpeechPace: String, CaseIterable, Sendable {
 
     var label: String {
         switch self {
-        case .slow: return L.t("慢", "慢")
-        case .normal: return L.t("正常", "正常")
-        case .fast: return L.t("快", "快")
+        case .slow: return L.t("慢", "慢", "Slow")
+        case .normal: return L.t("正常", "正常", "Normal")
+        case .fast: return L.t("快", "快", "Fast")
         }
     }
 

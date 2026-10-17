@@ -51,14 +51,14 @@ extension AppStore {
             // 第一次按咪：等用户答完权限框先开始听，唔系第一句会冇咗（A47）。
             let auth = await ensureVoiceAuth()
             guard auth.granted else {
-                toast(L.t("未開咪或者語音識別權限。可以揀一句，或者去設定開。", "没开麦克风或语音识别权限。可以选一句，或者去设置打开。"))
+                toast(L.t("未開咪或者語音識別權限。可以揀一句，或者去設定開。", "没开麦克风或语音识别权限。可以选一句，或者去设置打开。", "No mic or speech permission. Pick a sentence, or turn it on in Settings."))
                 phrasePicker = true
                 return
             }
             // 啱啱弹完权限框：等音频会话定落嚟先开咪（模拟器上即刻开录音引擎试过超时崩溃，见复核 A47）。
             if auth.prompted { try? await Task.sleep(for: .milliseconds(400)) }
             guard AVAudioSession.sharedInstance().isInputAvailable else {
-                toast(L.t("而家用唔到咪，可以揀一句。", "现在用不了麦克风，可以选一句。"))
+                toast(L.t("而家用唔到咪，可以揀一句。", "现在用不了麦克风，可以选一句。", "The mic isn't available now. Pick a sentence."))
                 phrasePicker = true
                 return
             }
@@ -75,7 +75,7 @@ extension AppStore {
                 listener.onSilence = nil
                 listening = false
                 flushHeldSpeech(announcer.release())
-                toast(L.t("而家用唔到咪，可以揀一句。", "现在用不了麦克风，可以选一句。"))
+                toast(L.t("而家用唔到咪，可以揀一句。", "现在用不了麦克风，可以选一句。", "The mic isn't available now. Pick a sentence."))
                 phrasePicker = true
             }
         }
@@ -106,7 +106,7 @@ extension AppStore {
             let held = announcer.release()
             // 自动开咪等答案（复述卡 / 帮助卡）冇人讲：静静鸡收咪，张卡同掣照留
             if !answering {
-                say(L.t("聽唔清楚。可以再講一次，或者揀一句。", "没听清楚。可以再说一次，或者选一句。"), prompt: true)
+                say(L.t("聽唔清楚。可以再講一次，或者揀一句。", "没听清楚。可以再说一次，或者选一句。", "Didn't catch that. Please say it again, or pick a sentence."), prompt: true)
                 phrasePicker = true
             }
             flushHeldSpeech(held)
@@ -189,19 +189,20 @@ extension AppStore {
         if let id = renamingNow, let lm = landmark(id) { return ai.alternativeNames(for: lm) }
         // 只用街坊的名字（非街坊唔出名）；未有街坊就唔出约人嘅句子。
         let name = neighbors.first?.name
-        if find != nil { return [L.t("我喺\(landmark(find?.landmarkID)?.name ?? "涼亭")", "我在\(landmark(find?.landmarkID)?.name ?? "涼亭")")] }
-        if walk != nil { return [L.t("呢度好曬", "这里太晒"), L.t("呢度冇櫈", "这里没有凳子")] + (name.map { [L.t("過去搵\($0)", "去找\($0)"), L.t("約\($0)聽日朝早一齊行", "约\($0)明天早上一起走")] } ?? []) }
+        if find != nil { return [L.t("我喺\(landmark(find?.landmarkID)?.name ?? "涼亭")", "我在\(landmark(find?.landmarkID)?.name ?? "涼亭")", "I'm at \(landmark(find?.landmarkID)?.name ?? "the pavilion")")] }
+        if walk != nil { return [L.t("呢度好曬", "这里太晒", "Too sunny here"), L.t("呢度冇櫈", "这里没有凳子", "No seats here")] + (name.map { [L.t("過去搵\($0)", "去找\($0)", "Go find \($0)"), L.t("約\($0)聽日朝早一齊行", "约\($0)明天早上一起走", "Invite \($0) tomorrow morning")] } ?? []) }
         if let a = targetAppointment(partnerID: nil), let p = resident(a.partnerID),
            let other = landmarks.filter({ $0.id != a.landmarkID }).max(by: { $0.name.count < $1.name.count }) {
             // 建议一个同而家唔同嘅钟点（约咗四点就建议五点）。
-            let alt = Self.hk.component(.hour, from: a.date) == 16 ? "五" : "四"
-            return [L.t("改做下晝\(alt)點", "改到下午\(alt)点"), L.t("改去\(other.name)", "改到\(other.name)"), L.t("取消同\(p.name)嘅約", "取消和\(p.name)的约会"), L.t("今日請假", "今天请假")]
+            let five = Self.hk.component(.hour, from: a.date) == 16
+            let alt = five ? "五" : "四", altEn = five ? "5" : "4"
+            return [L.t("改做下晝\(alt)點", "改到下午\(alt)点", "Change to \(altEn) pm"), L.t("改去\(other.name)", "改到\(other.name)", "Move to \(other.name)"), L.t("取消同\(p.name)嘅約", "取消和\(p.name)的约会", "Cancel walk with \(p.name)"), L.t("今日請假", "今天请假", "Day off today")]
         }
         // 反映只喺散步时讲（F10）；唔散步时唔建议。改地标名好少用、仲会以为改咗地名（UX 报告 33），唔建议；
         // 问天气：手机自己答天文台嗰句（showWeatherAnswer，唔交服务器）。
-        let weather = [L.t("今日天氣點", "今天天气怎么样")]
-        let find = residents.first(where: { $0.isNeighbor && !$0.isMe && $0.isOut }).map { [L.t("過去搵\($0.name)", "去找\($0.name)")] } ?? []
-        return (name.map { [L.t("約\($0)聽日下晝三點一齊行", "约\($0)明天下午三点一起走")] } ?? []) + weather + find + [L.t("今日請假", "今天请假")]
+        let weather = [L.t("今日天氣點", "今天天气怎么样", "What's the weather today?")]
+        let find = residents.first(where: { $0.isNeighbor && !$0.isMe && $0.isOut }).map { [L.t("過去搵\($0.name)", "去找\($0.name)", "Go find \($0.name)")] } ?? []
+        return (name.map { [L.t("約\($0)聽日下晝三點一齊行", "约\($0)明天下午三点一起走", "Invite \($0) tomorrow at 3 pm")] } ?? []) + weather + find + [L.t("今日請假", "今天请假", "Day off today")]
     }
 
     func handle(_ text: String) {
@@ -228,13 +229,13 @@ extension AppStore {
         var intent = ai.parseVoice(text, context: ctx)
         // 问天气：普通话（B 嘅服务器普通话唔答天气）或者连唔到 Mac 时手机自己答（天文台）；粤语有服务器就照旧交俾 B（分区、逐个钟、「咁聽日呢」都答到）。
         if renamingNow == nil, intent == .unknown, TemplateAI.asksWeather(text),
-           VoiceSettings.shared.language == .mandarin || !VoiceServer.shared.status.isConnected { showWeatherAnswer(text); return }
+           VoiceSettings.shared.language != .cantonese || !VoiceServer.shared.status.isConnected { showWeatherAnswer(text); return }
         // 地标卡撳咗「講新名」：成句当新名（A02）。
         if let id = renamingNow {
             switch intent {
             case .rename, .leave, .report: break
             default:
-                guard let name = Self.spokenName(text) else { toast(L.t("聽唔清個新名，講短啲（十個字以內）。", "没听清新名字，说短一点（十个字以内）。")); return }
+                guard let name = Self.spokenName(text) else { toast(L.t("聽唔清個新名，講短啲（十個字以內）。", "没听清新名字，说短一点（十个字以内）。", "Didn't catch the new name. Say a shorter one.")); return }
                 intent = .rename(landmarkID: id, newName: name)
             }
         }
@@ -254,13 +255,15 @@ extension AppStore {
             return true
         case .no?:
             rejectVoice()
-            say(L.t("好，唔做。", "好，不做了。"))
+            say(L.t("好，唔做。", "好，不做了。", "OK, not doing it."))
             return true
         case nil:
             let t = text.filter { !$0.isPunctuation && !$0.isWhitespace }
-            // 改名中两个字可能系新名；「請假」之类系新请求
-            if t.count <= 2, renamingNow == nil, !TemplateAI.asksLeave(TemplateAI.toHant(t)), TemplateAI.topic(t) == nil {
-                say(L.t("想做就講「好」，唔要就講「唔好」，或者撳掣。", "要的话说「好」，不要就说「不要」，也可以按按钮。"), prompt: true)
+            // 改名中两个字可能系新名；「請假」之类系新请求（英文：一两个字）
+            let english = EnglishText.isEnglish(text)
+            let short = english ? EnglishText.words(text).count <= 2 : t.count <= 2
+            if short, renamingNow == nil, !TemplateAI.asksLeave(english ? text : TemplateAI.toHant(t)), TemplateAI.topic(english ? text : t) == nil {
+                say(L.t("想做就講「好」，唔要就講「唔好」，或者撳掣。", "要的话说「好」，不要就说「不要」，也可以按按钮。", "Say \"yes\" to go ahead, or \"no\" to stop. Or tap a button."), prompt: true)
                 listenForAnswer(.confirm)
                 return true
             }
@@ -273,59 +276,60 @@ extension AppStore {
     func handleLocally(_ text: String, _ intent: VoiceIntent) {
         switch intent {
         case .invite(let id, let day, let hour):
-            guard let p = resident(id), p.isNeighbor else { toast(L.t("你講嘅人仲未係你街坊。見到面碰一碰，先可以約。", "你说的人还不是你的邻居。见面碰一碰，才可以约。")); return }
+            guard let p = resident(id), p.isNeighbor else { toast(L.t("你講嘅人仲未係你街坊。見到面碰一碰，先可以約。", "你说的人还不是你的邻居。见面碰一碰，才可以约。", "That person isn't your neighbour yet. Tap phones when you meet, then you can invite them.")); return }
             proposeMeetup(with: id, day: day, hour: hour, announce: false)
             // 讲咗分钟（「三點十五」）、行几耐（「走四十分鐘」）：复述卡讲埋（理由加「一齊行…」，对方都见到）
             let walk = applySpokenTime(text, day: day, hour: hour)
             if let prop = proposal?.options.first {
                 let place = landmark(prop.landmarkID)?.name ?? ""
-                let how = walk.map(TemplateAI.walkPhrase) ?? L.t("一齊行", "一起走")
-                let title = L.t("約\(p.name)\(dayTimeLabel(prop.date))\(how)", "约\(p.name)\(dayTimeLabel(prop.date))\(how)")
+                let how = walk.map(TemplateAI.walkPhrase) ?? L.t("一齊行", "一起走", "")
+                let title = L.t("約\(p.name)\(dayTimeLabel(prop.date))\(how)", "约\(p.name)\(dayTimeLabel(prop.date))\(how)",
+                                "Walk with \(p.name) \(dayTimeLabel(prop.date))" + (how.isEmpty ? "" : " " + how))
                 let why = walk.map { prop.reason.replacingOccurrences(of: Self.walkNote($0), with: "") } ?? prop.reason
-                showConfirm(VoiceCard(heard: text, title: title, detail: L.t("地點：\(place)\n\(why)", "地点：\(place)\n\(why)"), needsConfirm: true, intent: intent),
-                            spoken: L.t("\(title)，喺\(place)，\(why)", "\(title)，在\(place)，\(why)"))
+                showConfirm(VoiceCard(heard: text, title: title, detail: L.t("地點：\(place)\n\(why)", "地点：\(place)\n\(why)", "Place: \(place)\n\(why)"), needsConfirm: true, intent: intent),
+                            spoken: L.t("\(title)，喺\(place)，\(why)", "\(title)，在\(place)，\(why)", "\(title), at \(place). \(why)"))
             }
         case .goFind(let id):
-            guard let p = resident(id), p.isNeighbor, p.isOut else { toast(L.t("而家冇街坊喺外面。", "现在没有邻居在外面。")); return }
-            showConfirm(VoiceCard(heard: text, title: L.t("過去搵\(p.name)", "去找\(p.name)"), detail: L.t("會先問\(p.name)方唔方便", "会先问\(p.name)方不方便"), needsConfirm: true, intent: intent),
-                        spoken: L.t("過去搵\(p.name)，會先問佢方唔方便", "去找\(p.name)，会先问对方方不方便"))
+            guard let p = resident(id), p.isNeighbor, p.isOut else { toast(L.t("而家冇街坊喺外面。", "现在没有邻居在外面。", "No neighbours are out now.")); return }
+            showConfirm(VoiceCard(heard: text, title: L.t("過去搵\(p.name)", "去找\(p.name)", "Find \(p.name)"), detail: L.t("會先問\(p.name)方唔方便", "会先问\(p.name)方不方便", "We'll ask \(p.name) first if it's OK"), needsConfirm: true, intent: intent),
+                        spoken: L.t("過去搵\(p.name)，會先問佢方唔方便", "去找\(p.name)，会先问对方方不方便", "Find \(p.name). We'll ask them first if it's OK"))
         case .leave:
             // 按原句判断日子（「聽日請假」「請三日假」）；已经请咗就唔再出卡（免得「撤回」撤咗之前请嘅假）。
-            let r = LeaveRequest.parse(text, today: now)
-            guard !leaveKeys(r).allSatisfy(leaveDays.contains) else { toast(L.t("你已經\(leaveTitle(r))喇。", "你已经\(leaveTitle(r))了。")); return }
-            let title = requestLeave(fromVoice: text)
-            voiceCard = VoiceCard(heard: text, title: title, detail: L.t("連續日數會保留", "连续天数会保留"), needsConfirm: false, intent: intent)
+            let r = LeaveRequest.parse(Self.leaveText(text), today: now)
+            guard !leaveKeys(r).allSatisfy(leaveDays.contains) else { toast(L.t("你已經\(leaveTitle(r))喇。", "你已经\(leaveTitle(r))了。", "Already set: \(leaveTitle(r)).")); return }
+            let title = requestLeave(fromVoice: Self.leaveText(text))
+            voiceCard = VoiceCard(heard: text, title: title, detail: L.t("連續日數會保留", "连续天数会保留", "Your streak is kept"), needsConfirm: false, intent: intent)
         case .rename(let id, let name):
             // 改名全圈生效（F3）：影响别人，先复述，撳「好」先改（A02）。
             let old = landmark(id)?.name ?? ""
-            guard name != old else { toast(L.t("而家已經叫\(name)。", "现在已经叫\(name)了。")); return }
-            showConfirm(VoiceCard(heard: text, title: L.t("\(old)改名做\(name)？", "\(old)改名叫\(name)？"), detail: renameNote, needsConfirm: true, intent: intent))
+            guard name != old else { toast(L.t("而家已經叫\(name)。", "现在已经叫\(name)了。", "It's already called \(name).")); return }
+            showConfirm(VoiceCard(heard: text, title: L.t("\(old)改名做\(name)？", "\(old)改名叫\(name)？", "Rename \(old) to \(name)?"), detail: renameNote, needsConfirm: true, intent: intent))
         case .report(let kind):
             // F10：反映喺散步时讲，挂喺最近嘅地标（A18）。
-            guard walk != nil else { toast(L.t("散步時講「呢度好曬」「呢度冇櫈」，我會記喺附近嘅地標。", "散步时说「这里太晒」「这里没有凳子」，我会记在附近的地标。")); return }
+            guard walk != nil else { toast(L.t("散步時講「呢度好曬」「呢度冇櫈」，我會記喺附近嘅地標。", "散步时说「这里太晒」「这里没有凳子」，我会记在附近的地标。", "While walking, say \"Too sunny here\" or \"No seats here\". I'll note it at the nearest landmark.")); return }
             let rid = report(kind, rawText: text)
-            voiceCard = VoiceCard(heard: text, title: L.t("記低：呢度\(kind.label)", "记下：这里\(kind.label)"), detail: reportNote, needsConfirm: false, intent: intent, reportID: rid)
+            voiceCard = VoiceCard(heard: text, title: L.t("記低：呢度\(kind.label)", "记下：这里\(kind.label)", "Noted: \(kind.label) here"), detail: reportNote, needsConfirm: false, intent: intent, reportID: rid)
         case .broadcast(let raw):
             // 复述同真正播出去嘅係同一句（A11）。
             let msg = Self.cleanBroadcast(raw)
-            let name = find.flatMap { resident($0.partnerID)?.name } ?? L.t("對方", "对方")
-            showConfirm(VoiceCard(heard: text, title: L.t("播俾\(name)聽", "播给\(name)听"), detail: msg, needsConfirm: true, intent: .broadcast(msg)),
-                        spoken: L.t("播俾\(name)聽：\(msg)", "播给\(name)听：\(msg)"))
+            let name = find.flatMap { resident($0.partnerID)?.name } ?? L.t("對方", "对方", "them")
+            showConfirm(VoiceCard(heard: text, title: L.t("播俾\(name)聽", "播给\(name)听", "Send to \(name)"), detail: msg, needsConfirm: true, intent: .broadcast(msg)),
+                        spoken: L.t("播俾\(name)聽：\(msg)", "播给\(name)听：\(msg)", "Send to \(name): \(msg)"))
         case .changeMeetup(let pid, let day, let hour, let lmID):
-            guard let a = targetAppointment(partnerID: pid) else { toast(L.t("而家冇約會可以改。", "现在没有约会可以改。")); return }
+            guard let a = targetAppointment(partnerID: pid) else { toast(L.t("而家冇約會可以改。", "现在没有约会可以改。", "No walk plan to change.")); return }
             let c = changed(a, day: day, hour: hour, minute: hour == nil ? 0 : TemplateAI.spokenMinute(text), landmarkID: lmID)
-            guard c.date > now else { toast(L.t("嗰個時間已經過咗，揀過第二個。", "那个时间已经过了，换一个吧。")); return }
-            guard c.date != a.date || c.landmarkID != a.landmarkID else { toast(L.t("時間地點都冇變，照舊。", "时间地点都没变，照旧。")); return }
-            let name = resident(a.partnerID)?.name ?? L.t("街坊", "邻居")
+            guard c.date > now else { toast(L.t("嗰個時間已經過咗，揀過第二個。", "那个时间已经过了，换一个吧。", "That time has passed. Pick another.")); return }
+            guard c.date != a.date || c.landmarkID != a.landmarkID else { toast(L.t("時間地點都冇變，照舊。", "时间地点都没变，照旧。", "Same time and place. No change.")); return }
+            let name = resident(a.partnerID)?.name ?? L.t("街坊", "邻居", "your neighbour")
             let place = landmark(c.landmarkID)?.name ?? ""
-            showConfirm(VoiceCard(heard: text, title: L.t("改約\(name)：\(dayTimeLabel(c.date)) · \(place)", "改约\(name)：\(dayTimeLabel(c.date)) · \(place)"),
-                                  detail: L.t("會再問\(name)確認\n\(c.reason)", "会再问\(name)确认\n\(c.reason)"), needsConfirm: true, intent: intent, appointmentID: a.id),
-                        spoken: L.t("改約\(name)：\(dayTimeLabel(c.date))，喺\(place)，會再問\(name)確認", "改约\(name)：\(dayTimeLabel(c.date))，在\(place)，会再问\(name)确认"))
+            showConfirm(VoiceCard(heard: text, title: L.t("改約\(name)：\(dayTimeLabel(c.date)) · \(place)", "改约\(name)：\(dayTimeLabel(c.date)) · \(place)", "Change walk with \(name): \(dayTimeLabel(c.date)) · \(place)"),
+                                  detail: L.t("會再問\(name)確認\n\(c.reason)", "会再问\(name)确认\n\(c.reason)", "We'll ask \(name) again\n\(c.reason)"), needsConfirm: true, intent: intent, appointmentID: a.id),
+                        spoken: L.t("改約\(name)：\(dayTimeLabel(c.date))，喺\(place)，會再問\(name)確認", "改约\(name)：\(dayTimeLabel(c.date))，在\(place)，会再问\(name)确认", "Change walk with \(name) to \(dayTimeLabel(c.date)), at \(place). We'll ask \(name) again"))
             scene.highlightLandmark(c.landmarkID)
         case .cancelMeetup(let pid):
-            guard let a = targetAppointment(partnerID: pid) else { toast(L.t("而家冇約會可以取消。", "现在没有约会可以取消。")); return }
-            let name = resident(a.partnerID)?.name ?? L.t("街坊", "邻居")
-            showConfirm(VoiceCard(heard: text, title: L.t("取消同\(name)\(dayTimeLabel(a.date))嘅約", "取消和\(name)\(dayTimeLabel(a.date))的约"), detail: L.t("會話俾\(name)知", "会告诉\(name)"), needsConfirm: true, intent: intent, appointmentID: a.id))
+            guard let a = targetAppointment(partnerID: pid) else { toast(L.t("而家冇約會可以取消。", "现在没有约会可以取消。", "No walk plan to cancel.")); return }
+            let name = resident(a.partnerID)?.name ?? L.t("街坊", "邻居", "your neighbour")
+            showConfirm(VoiceCard(heard: text, title: L.t("取消同\(name)\(dayTimeLabel(a.date))嘅約", "取消和\(name)\(dayTimeLabel(a.date))的约", "Cancel walk with \(name), \(dayTimeLabel(a.date))"), detail: L.t("會話俾\(name)知", "会告诉\(name)", "We'll tell \(name)"), needsConfirm: true, intent: intent, appointmentID: a.id))
         case .unknown:
             showNotUnderstood(text)
         }
@@ -340,23 +344,24 @@ extension AppStore {
         let title: String
         switch TemplateAI.topic(text) {
         case .invite? where neighbors.isEmpty, .find? where neighbors.isEmpty:
-            title = L.t("你仲未有街坊。見到面喺「街坊」頁碰一碰，之後就約得、搵得。", "你还没有邻居。见面时在「街坊」页碰一碰，之后就能约、能找。")
+            title = L.t("你仲未有街坊。見到面喺「街坊」頁碰一碰，之後就約得、搵得。", "你还没有邻居。见面时在「街坊」页碰一碰，之后就能约、能找。", "No neighbours yet. When you meet, tap phones on the Neighbours page. Then you can invite and find them.")
         case .invite?:
-            title = L.t("想約邊個、幾時？講埋個名同時間，例如：", "想约谁、什么时候？请说出名字和时间，比如：")
+            title = L.t("想約邊個、幾時？講埋個名同時間，例如：", "想约谁、什么时候？请说出名字和时间，比如：", "Who and when? Say a name and a time.")
         case .find?:
-            title = L.t("想搵邊個？講埋個名，例如：", "想找谁？请说出名字，比如：")
+            title = L.t("想搵邊個？講埋個名，例如：", "想找谁？请说出名字，比如：", "Find who? Say a name.")
         case .report? where walk == nil:
-            title = L.t("散步嗰陣講「呢度冇櫈」「呢度好曬」，我會記喺附近嘅地標。", "散步时说「这里没有凳子」「这里太晒」，我会记在附近的地标。")
+            title = L.t("散步嗰陣講「呢度冇櫈」「呢度好曬」，我會記喺附近嘅地標。", "散步时说「这里没有凳子」「这里太晒」，我会记在附近的地标。", "While walking, say \"No seats here\" or \"Too sunny here\". I'll note it at the nearest landmark.")
         default:
-            title = L.t("呢句我未識做。可以噉講：", "这句我还不会做。可以这样说：")
+            title = L.t("呢句我未識做。可以噉講：", "这句我还不会做。可以这样说：", "I can't do that yet. You can say:")
         }
         let chips = voiceExamples
         voiceCard = VoiceCard(heard: text, title: title, detail: nil, needsConfirm: false, intent: .unknown,
                               assistant: AssistantCard(kind: .notUnderstood, title: title, spoken: title, chips: chips, conversationID: ""))
-        let example = chips.first.map { L.t("例如「\($0)」。", "比如「\($0)」。") } ?? ""
+        let example = chips.first.map { L.t("例如「\($0)」。", "比如「\($0)」。", "For example: \"\($0)\".") } ?? ""
         // 标题本身以「例如：」结尾就唔好再讲多次「例如」（以前讲成「比如，比如『…』」）
         let lead = String(title.dropLast())
-        let spoken = !title.hasSuffix("：") ? title
+        let spoken = L.isEn ? title + (chips.first.map { title.hasSuffix(":") ? " \"\($0)\"." : " For example: \"\($0)\"." } ?? "")
+            : !title.hasSuffix("：") ? title
             : lead.hasSuffix("例如") || lead.hasSuffix("比如") ? lead + (chips.first.map { "「\($0)」。" } ?? "。")
             : lead + "，" + example
         say(spoken, prompt: true)
@@ -369,7 +374,7 @@ extension AppStore {
         phrasePicker = false
         var answer = tryAnswer
         if TemplateAI.parseDay(TemplateAI.toHant(text)) == 1, !hko.demoOverride, let psr = hko.report?.tomorrowPSR, !psr.isEmpty {
-            answer = Self.oneSentence([answer, L.t("天文台話聽日降雨機會\(psr)", "天文台说明天降雨概率\(psr)")])
+            answer = Self.oneSentence([answer, L.t("天文台話聽日降雨機會\(psr)", "天文台说明天降雨概率\(psr)", "The Observatory says chance of rain tomorrow: \(psr)")])
         }
         voiceCard = VoiceCard(heard: text, title: answer, detail: nil, needsConfirm: false, intent: .unknown,
                               assistant: AssistantCard(kind: .info, title: answer, spoken: answer, conversationID: ""))
@@ -386,10 +391,10 @@ extension AppStore {
         let title: String, detail: String?
         switch s {
         case .emergency:
-            title = L.t("有危險請即刻打 999 求助，或者叫身邊嘅人幫手。", "有危险请马上打 999 求助，或者叫身边的人帮忙。")
-            detail = L.t("呢個 App 唔會自動幫你打電話。", "这个 App 不会自动帮你打电话。")
+            title = L.t("有危險請即刻打 999 求助，或者叫身邊嘅人幫手。", "有危险请马上打 999 求助，或者叫身边的人帮忙。", "If you are in danger, call 999 now, or ask someone nearby for help.")
+            detail = L.t("呢個 App 唔會自動幫你打電話。", "这个 App 不会自动帮你打电话。", "This app will not call for you.")
         case .medical:
-            title = L.t("呢個我幫唔到，請問醫生或者藥劑師。", "这个我帮不了，请问医生或药剂师。")
+            title = L.t("呢個我幫唔到，請問醫生或者藥劑師。", "这个我帮不了，请问医生或药剂师。", "I can't help with this. Please ask a doctor or pharmacist.")
             detail = nil
         }
         voiceCard = VoiceCard(heard: text, title: title, detail: detail, needsConfirm: false, intent: .unknown,
@@ -402,12 +407,12 @@ extension AppStore {
     var voiceExamples: [String] {
         var out: [String] = []
         if let n = neighbors.first {
-            out.append(L.t("約\(n.name)聽日下晝三點一齊行", "约\(n.name)明天下午三点一起走"))
-            if let o = neighbors.first(where: { $0.isOut }) { out.append(L.t("過去搵\(o.name)", "去找\(o.name)")) }
+            out.append(L.t("約\(n.name)聽日下晝三點一齊行", "约\(n.name)明天下午三点一起走", "Invite \(n.name) tomorrow at 3 pm"))
+            if let o = neighbors.first(where: { $0.isOut }) { out.append(L.t("過去搵\(o.name)", "去找\(o.name)", "Go find \(o.name)")) }
         }
-        if walk != nil { out.append(L.t("呢度冇櫈", "这里没有凳子")) }
-        out.append(L.t("今日天氣點", "今天天气怎么样"))
-        if out.count < 3 { out.append(L.t("今日請假", "今天请假")) }
+        if walk != nil { out.append(L.t("呢度冇櫈", "这里没有凳子", "No seats here")) }
+        out.append(L.t("今日天氣點", "今天天气怎么样", "What's the weather today?"))
+        if out.count < 3 { out.append(L.t("今日請假", "今天请假", "Day off today")) }
         return Array(out.prefix(3))
     }
 
@@ -421,12 +426,17 @@ extension AppStore {
 
     /// 复述卡讲完点样确认：讲「好」或者撳掣（2026-10-17 起讲「好 / 不要」都得）。
     static func confirmPrompt(_ s: String) -> String {
-        L.t("\(s)。啱就講「好」或者撳「好」。", "\(s)。没问题就说「好」，或者按「好的」。")
+        L.t("\(s)。啱就講「好」或者撳「好」。", "\(s)。没问题就说「好」，或者按「好的」。", "\(s). If that's right, say \"yes\" or tap Yes.")
     }
 
     /// 理由后面加嘅「，一齊行四十分鐘」（同 setCustomProposal 一样写入理由，对方都见到）。
     static func walkNote(_ minutes: Int) -> String {
-        "，" + TemplateAI.walkPhrase(minutes)
+        L.t("，", "，", ", walk together ") + TemplateAI.walkPhrase(minutes)
+    }
+
+    /// 请假句：英文先转成中文写法（LeaveRequest.parse 认中文），中文原样。
+    static func leaveText(_ text: String) -> String {
+        EnglishText.isEnglish(text) ? EnglishText.leaveText(text) : text
     }
 
     /// 约人讲咗分钟（「三點十五」）同行几耐（「走四十分鐘」）：改第一个提议嘅时间、全部提议嘅理由。
@@ -449,12 +459,22 @@ extension AppStore {
     }
 
     /// 改名、反映嘅说明：未接伺服器时唔好讲成已经同步咗（A69）。
-    var renameNote: String { community.sharesLandmarkNames ? L.t("同圈街坊都會見到", "同圈邻居都会看到") : L.t("暫時只喺你部手機", "暂时只在你的手机上") }
-    var reportNote: String { community.hasServer ? L.t("月尾匿名交俾屋邨管理（夠 10 人先會出）", "月底匿名交给屋苑管理（满 10 人才会出）") : L.t("暫時只喺你部手機", "暂时只在你的手机上") }
+    var renameNote: String { community.sharesLandmarkNames ? L.t("同圈街坊都會見到", "同圈邻居都会看到", "Neighbours in your circle will see it") : L.t("暫時只喺你部手機", "暂时只在你的手机上", "Only on your phone for now") }
+    var reportNote: String { community.hasServer ? L.t("月尾匿名交俾屋邨管理（夠 10 人先會出）", "月底匿名交给屋苑管理（满 10 人才会出）", "Sent anonymously to estate management at month end (needs 10+ people)") : L.t("暫時只喺你部手機", "暂时只在你的手机上", "Only on your phone for now") }
 
     /// 改名中只讲新名：去掉「改名做」「叫」之类同标点；太长（超过 10 个字）当听错。
     static func spokenName(_ text: String) -> String? {
         let strip = CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters).union(.symbols)
+        if EnglishText.isEnglish(text) {
+            // 英文：「call it Chess Corner」「rename it to …」→ 新名（最多 24 个字母）
+            var s = text.trimmingCharacters(in: strip)
+            for p in ["rename it to ", "change it to ", "call it ", "name it ", "rename to ", "it's called ", "call "] where s.lowercased().hasPrefix(p) {
+                s.removeFirst(p.count)
+                break
+            }
+            s = s.trimmingCharacters(in: strip)
+            return (1...24).contains(s.count) ? s : nil
+        }
         var s = text.trimmingCharacters(in: strip).replacingOccurrences(of: " ", with: "")
         for p in ["改名做", "改名叫", "改名為", "改名为", "改做", "改成", "改为", "就叫", "叫做", "叫"] where s.hasPrefix(p) {
             s.removeFirst(p.count)
@@ -485,7 +505,7 @@ extension AppStore {
             if let id = card.appointmentID { changeMeetup(id, day: day, hour: hour, minute: hour == nil ? 0 : TemplateAI.spokenMinute(card.heard), landmarkID: lmID) }
         case .cancelMeetup:
             if let id = card.appointmentID, appointments.contains(where: { $0.id == id && $0.isOpen }) { cancelMeetup(id) }
-            else { toast(L.t("呢個約會已經冇咗。", "这个约会已经没有了。")) }
+            else { toast(L.t("呢個約會已經冇咗。", "这个约会已经没有了。", "This walk plan is gone.")) }
         default: break
         }
     }
@@ -499,8 +519,8 @@ extension AppStore {
         switch card.intent {
         case .invite: cancelProposal()
         case .leave:
-            cancelLeave(fromVoice: card.heard)
-            say(L.t("撤回咗請假。", "已撤回请假。"))
+            cancelLeave(fromVoice: Self.leaveText(card.heard))
+            say(L.t("撤回咗請假。", "已撤回请假。", "Day off cancelled."))
         case .report: if let id = card.reportID { retractReport(id) }
         case .changeMeetup: scene.highlightLandmark(nil)
         default: break

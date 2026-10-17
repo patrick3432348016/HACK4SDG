@@ -76,7 +76,7 @@ final class VoiceEar {
                 switch result {
                 case .failure:
                     if self.waiting != nil { self.resolve(false); return }
-                    self.emit(.failed(L.t("連唔到語音伺服器。", "连不上语音服务器。")))
+                    self.emit(.failed(L.t("連唔到語音伺服器。", "连不上语音服务器。", "Can't reach the voice server.")))
                 case .success(let message):
                     if case .string(let s) = message { self.handle(s) }
                     self.receive(gen)
@@ -115,7 +115,7 @@ final class VoiceEar {
             guard !t.isEmpty else { return nil }
             return .event((obj["final"] as? Bool) == true ? .final(t) : .partial(t))
         case "error":
-            return .event(.failed((obj["message"] as? String) ?? L.t("語音識別出錯。", "语音识别出错。")))
+            return .event(.failed((obj["message"] as? String) ?? L.t("語音識別出錯。", "语音识别出错。", "Speech recognition error.")))
         default: return nil
         }
     }
