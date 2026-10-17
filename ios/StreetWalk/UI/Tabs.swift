@@ -772,8 +772,8 @@ struct BoardTab: View {
         // 未有对面圈嘅真数据：只讲本圈行咗几多，唔画对比条（唔造假）
         let versus = race.rivalSteps > 0 || race.isDemo
         return VStack(alignment: .leading, spacing: 12) {
-            Text(race.rivalSteps == 0 ? L.t("本月\(race.ourName)一齊行咗 \(store.myMonthStepsEstimated ? "約 " : "")\(Self.steps(race.ourSteps))", "本月\(race.ourName)一起走了 \(store.myMonthStepsEstimated ? "约 " : "")\(Self.steps(race.ourSteps))", "This month \(race.ourName) walked \(store.myMonthStepsEstimated ? "about " : "")\(Self.steps(race.ourSteps)) together")
-                 : L.t("本月\(race.ourName)\(diff >= 0 ? "領先" : "落後")\(race.rivalName) \(Self.steps(abs(diff)))", "本月\(race.ourName)\(diff >= 0 ? "领先" : "落后")\(race.rivalName) \(Self.steps(abs(diff)))", "This month \(race.ourName) \(diff >= 0 ? "leads" : "trails") \(race.rivalName) by \(Self.steps(abs(diff)))"))
+            Text(race.rivalSteps == 0 ? L.t("本月\(race.ourName)一齊行咗 \(store.myMonthStepsEstimated ? "約 " : "")\(Self.steps(race.ourSteps))", "本月\(race.ourName)一起走了 \(store.myMonthStepsEstimated ? "约 " : "")\(Self.steps(race.ourSteps))", "This month our area walked \(store.myMonthStepsEstimated ? "about " : "")\(Self.steps(race.ourSteps)) together")
+                 : L.t("本月\(race.ourName)\(diff >= 0 ? "領先" : "落後")\(race.rivalName) \(Self.steps(abs(diff)))", "本月\(race.ourName)\(diff >= 0 ? "领先" : "落后")\(race.rivalName) \(Self.steps(abs(diff)))", (diff >= 0 ? "This month our area is \(Self.steps(abs(diff))) ahead of next door" : "This month our area is \(Self.steps(abs(diff))) behind next door")))
                 .ds(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

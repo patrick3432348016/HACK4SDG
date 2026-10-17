@@ -408,7 +408,7 @@ private struct HeardCard: View {
                 Text(L.t("我聽到：「\(card.heard)」", "我听到：「\(card.heard)」", "I heard: “\(card.heard)”"))
                     .ds(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(L.isEn ? 2 : 1)
                     .truncationMode(.middle)
             }
             HStack(alignment: .firstTextBaseline, spacing: DS.gap) {

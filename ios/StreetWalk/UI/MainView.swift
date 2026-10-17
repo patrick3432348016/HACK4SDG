@@ -79,7 +79,7 @@ fileprivate extension AppStore.Tab {
     var title: String {
         switch self {
         case .today: return L.t("今日", "今天", "Today")
-        case .board: return L.t("排行榜", "排行榜", "Leaderboard")
+        case .board: return L.t("排行榜", "排行榜", "Ranking")   // 英文标签栏三格要放得落（特大字号）
         case .neighbors: return L.t("街坊", "邻居", "Neighbours")
         }
     }
@@ -633,7 +633,7 @@ private struct MainTabBar: View {
                 Text(t.title)
                     .ds(selected ? .bodyBold : .body)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.7)
             }
             .foregroundStyle(selected ? DS.accent : Color.secondary)
             .frame(maxWidth: .infinity, minHeight: 56)

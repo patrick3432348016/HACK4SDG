@@ -345,6 +345,7 @@ struct TemplateAI: AIService {
     }
 
     func nameLandmark(_ c: LandmarkCandidate) -> String {
+        if L.isEn { return nameLandmarkEn(c) }
         let n = c.osmName
         switch c.kind {
         case .busTerminus:
@@ -365,6 +366,30 @@ struct TemplateAI: AIService {
         case .community: return "社區中心"
         case .lobby: return n.map { "\($0)樓下" } ?? "大堂"
         case .food: return n.map { "\($0)門口" } ?? "食肆門口"
+        }
+    }
+
+    /// 英文界面嘅地标名（install 时用 OSM 英文名再起一次）：冇英文名就用类别名，唔好砌「門口」「站」落英文度。
+    private func nameLandmarkEn(_ c: LandmarkCandidate) -> String {
+        // 只用有英文字母、唔太长嘅名（中文名喺英文界面照用会变成「SushiToni門口」呢类半中半英）
+        let n = c.osmName.flatMap { s -> String? in
+            s.unicodeScalars.contains { CharacterSet.letters.contains($0) && $0.isASCII } && s.count <= 24 ? s : nil
+        }
+        switch c.kind {
+        case .busTerminus:
+            if let n, n.lowercased().contains("terminus") { return n }
+            return n.map { "\($0) bus terminus" } ?? "Bus terminus"
+        case .busStop: return n.map { $0.lowercased().contains("stop") ? $0 : "\($0) bus stop" } ?? "Bus stop"
+        case .park: return c.hasSeat ? (n.map { "\($0) benches" } ?? "Park benches") : (n ?? "Park")
+        case .playground: return "Playground"
+        case .pitch: return "By the sports court"
+        case .shelter: return "Shelter"
+        case .bench: return "Benches"
+        case .mall: return n.map { "\($0) entrance" } ?? "Mall entrance"
+        case .market: return "Market entrance"
+        case .community: return "Community centre"
+        case .lobby: return c.osmName.map { "Below \($0)" } ?? "Lobby"
+        case .food: return n.map { "\($0) entrance" } ?? "Restaurant entrance"
         }
     }
 

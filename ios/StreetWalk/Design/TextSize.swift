@@ -9,9 +9,9 @@ enum TextSize: String, CaseIterable, Codable, Sendable {
     var label: String {
         switch self {
         case .small: return L.t("細", "小", "Small")
-        case .standard: return L.t("標準", "标准", "Standard")
+        case .standard: return L.t("標準", "标准", "Normal")
         case .large: return L.t("大", "大", "Large")
-        case .xlarge: return L.t("特大", "特大", "Extra large")
+        case .xlarge: return L.t("特大", "特大", "X-Large")
         }
     }
 
