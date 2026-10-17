@@ -142,10 +142,10 @@ struct BumpView: View {
 
     static func title(_ p: BumpUpdate) -> String {
         switch p {
-        case .searching: return L.t("搵緊身邊部手機…", "正在找身边的手机…", "Looking for the phone next to you…")
-        case .needsLocalNetwork: return L.t("要允許「本地網絡」", "要允许「本地网络」", "Please allow “Local Network”")
+        case .searching: return L.t("搵緊身邊部手機…", "正在找身边的手机…", "Finding the phone…")
+        case .needsLocalNetwork: return L.t("要允許「本地網絡」", "要允许「本地网络」", "Allow Local Network")
         case .ranging(let d): return BumpTuning.hint(d)
-        case .nearMe: return L.t("等緊對方部手機…", "在等对方的手机…", "Waiting for the other phone…")
+        case .nearMe: return L.t("等緊對方部手機…", "在等对方的手机…", "Waiting for them…")
         case .linking: return L.t("配對緊…", "正在配对…", "Pairing…")
         case .paired: return L.t("成功！", "成功！", "Done!")
         case .failed(let f): return f.title
@@ -155,7 +155,7 @@ struct BumpView: View {
     static func hint(_ p: BumpUpdate) -> String {
         switch p {
         case .searching: return L.t("兩部手機都開住呢頁，並排或者背對背靠近，隔一個拳頭就得。唔好頂部對頂部；彈出「隔空投送」就撳「取消」。",
-                                    "两台手机都打开这一页，并排或背对背靠近，隔一个拳头就行。不要顶部对顶部；弹出「隔空投送」就点「取消」。", "Open this page on both phones. Hold them side by side or back to back, a fist apart. Not top to top. If AirDrop pops up, tap “Cancel”.")
+                                    "两台手机都打开这一页，并排或背对背靠近，隔一个拳头就行。不要顶部对顶部；弹出「隔空投送」就点「取消」。", "Open this page on both phones. Hold them side by side or back to back, a fist apart. If AirDrop pops up, tap “Cancel”.")
         case .needsLocalNetwork: return L.t("彈出問你嗰陣撳「允許」。撳錯咗就去「設定」打開，或者用二維碼。", "弹窗询问时点「允许」。点错了就去「设置」打开，或者用二维码。", "When asked, tap “Allow”. If you tapped wrong, turn it on in Settings, or use a QR code.")
         case .ranging: return L.t("並排或者背對背，隔一個拳頭就得，拎穩一秒。唔使貼埋。", "并排或背对背，隔一个拳头就行，拿稳一秒。不用贴在一起。", "Side by side or back to back, a fist apart. Hold still for a second. No need to touch.")
         case .nearMe: return L.t("你部已經夠近，等對方部都量到。", "你的已经够近了，等对方的也测到。", "Your phone is close enough. Waiting for the other one.")
@@ -283,8 +283,10 @@ private struct FSBumpIllustration: View {
                           : .spring(response: 1.1, dampingFraction: 0.9).delay(1.0)
                 }
             }
-            Label(L.t("並排 · 隔一個拳頭", "并排 · 隔一个拳头", "Side by side · a fist apart"), systemImage: "arrow.left.and.right")
+            Label(L.t("並排 · 隔一個拳頭", "并排 · 隔一个拳头", "Side by side, fist apart"), systemImage: "arrow.left.and.right")
                 .ds(.captionBold)
+                .lineLimit(1)
+                .fixedSize()
                 .foregroundStyle(.primary)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
