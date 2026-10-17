@@ -33,15 +33,16 @@ struct FirstDayCard: View {
             VStack(spacing: 0) {
                 row(.walk, done: store.firstDayDone(.walk),
                     title: L.t("出去行 \(FirstDayProgress.walkGoal) 分鐘", "出去走 \(FirstDayProgress.walkGoal) 分钟", "Go out for \(FirstDayProgress.walkGoal) minutes"),
-                    note: walkNote(f), action: store.walk == nil ? { store.startManualWalk() } : {})   // 散步中撳字唔使做嘢
+                    note: walkNote(f), cta: L.t("開始", "开始", "Start"),
+                    action: store.walk == nil ? { store.startManualWalk() } : {})   // 散步中撳字唔使做嘢
                 Divider().padding(.leading, 64)
                 row(.bump, done: store.firstDayDone(.bump),
                     title: L.t("見到街坊碰一碰", "见到邻居碰一碰", "Meet a neighbour, tap phones"),
-                    note: nil, action: { store.startBump() })
+                    note: nil, cta: L.t("碰一碰", "碰一碰", "Tap"), action: { store.startBump() })
                 Divider().padding(.leading, 64)
                 row(.invite, done: store.firstDayDone(.invite),
-                    title: L.t("約佢聽日一齊行", "约他明天一起走", "Invite them for a walk tomorrow"),
-                    note: inviteNote, action: { store.firstDayInvite() })
+                    title: store.firstDayInviteTitle,
+                    note: inviteNote, cta: L.t("去約", "去约", "Invite"), action: { store.firstDayInvite() })
             }
             // 测试反馈：做齐即刻自己收埋，好似「全部消失」→ 做齐后留住，由用户自己撳「收起」
             if done {
@@ -75,17 +76,18 @@ struct FirstDayCard: View {
         }
     }
 
-    /// 散步中：「記錄緊，行咗 3 分鐘」；未够：「行咗 4 / 10 分鐘 · 撳呢度開始記錄」；未行過：「撳呢度開始記錄」。
+    /// 散步中：「記錄緊，行咗 3 分鐘」；未够：「行咗 4 / 10 分鐘」；未行過：冇（右边有「開始」掣）。
     private func walkNote(_ f: FirstDayProgress) -> String? {
         if let w = store.walk { return L.t("記錄緊，行咗 \(w.minutes) 分鐘", "正在记录，已走 \(w.minutes) 分钟", "Recording, \(w.minutes) min so far") }
         guard !store.firstDayDone(.walk) else { return nil }
         let m = f.walkMinutes ?? 0
-        let start = L.t("撳呢度開始記錄", "点这里开始记录", "Tap here to start recording")
-        return m > 0 ? L.t("行咗 \(m) / \(FirstDayProgress.walkGoal) 分鐘 · \(start)", "走了 \(m) / \(FirstDayProgress.walkGoal) 分钟 · \(start)", "\(m) / \(FirstDayProgress.walkGoal) min · \(start)") : start
+        // 右边已经有「开始」掣（10-18），唔使再讲「撳呢度開始記錄」
+        return m > 0 ? L.t("行咗 \(m) / \(FirstDayProgress.walkGoal) 分鐘", "走了 \(m) / \(FirstDayProgress.walkGoal) 分钟", "\(m) / \(FirstDayProgress.walkGoal) min") : nil
     }
 
     /// 一行：左边个勾自己撳得（打勾 / 取消）；打咗勾嘅成行撳都係取消；未做嘅撳字就做嗰件事（冇事做就打勾）。
-    @ViewBuilder private func row(_ item: FirstDayProgress.Item, done: Bool, title: String, note: String?, action: (() -> Void)?) -> some View {
+    /// cta：未做嘅事右边一粒橙底白字小掣（10-18 测试：要一眼睇到边度撳得）。
+    @ViewBuilder private func row(_ item: FirstDayProgress.Item, done: Bool, title: String, note: String?, cta: String, action: (() -> Void)?) -> some View {
         let toggle = { store.firstDayToggle(item) }
         let text = HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
@@ -99,9 +101,14 @@ struct FirstDayCard: View {
             }
             Spacer(minLength: 0)
             if action != nil && !done && !(item == .walk && store.walk != nil) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.tertiary)
+                Text(cta)
+                    .ds(.captionBold)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 40)
+                    .background(DS.accent, in: Capsule())
                     .accessibilityHidden(true)
             }
         }

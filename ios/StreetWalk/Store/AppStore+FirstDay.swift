@@ -123,13 +123,21 @@ extension AppStore {
         firstDay?.closed = true
     }
 
-    /// 任务卡「約佢聽日一齊行」：有街坊就即刻出约人卡（聽日）；未有就讲要先碰一碰。
+    /// 任务卡「約佢聽日一齊行」：有街坊就即刻出约人卡（聽日；聽日唔出門就约休息完嗰日）；未有就讲要先碰一碰。
     func firstDayInvite() {
         guard let n = neighbors.first else {
             toast(L.t("要先見面碰一碰做街坊，先約得。", "要先见面碰一碰成为邻居，才能约。", "Meet and tap phones to become neighbours first. Then you can invite them."))
             return
         }
-        proposeMeetup(with: n.id, day: 1)
+        proposeMeetup(with: n.id, day: nextWalkDayOffset)
+    }
+
+    /// 任务卡第三件嘅字：聽日唔出門（请咗假）就改讲休息完嗰日，唔好同「明天不出门」撞（10-18）。
+    var firstDayInviteTitle: String {
+        let d = nextWalkDayOffset
+        guard d > 1 else { return L.t("約佢聽日一齊行", "约他明天一起走", "Invite them for a walk tomorrow") }
+        let day = dateLabel(now.addingTimeInterval(Double(d) * 86400))
+        return L.t("休息完再約佢（\(day)）", "休息完再约他（\(day)）", "Invite them after your break (\(day))")
     }
 
     // MARK: - 首次使用「試一次」撳咪

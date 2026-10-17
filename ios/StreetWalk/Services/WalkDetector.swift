@@ -57,6 +57,8 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
     var stepping: Bool {
         if moving { return true }
         if let r = ridingAt, Date().timeIntervalSince(r) < 120 { return false }
+        // 10-18：Core Motion 话停低紧（坐低）就唔信定位速度（GPS 漂移都会有 0.5 m/s）
+        if stillSince != nil, !Self.locationOnly { return false }
         return lastSpeed >= 0.4 && lastSpeed <= 3
     }
 
@@ -160,7 +162,8 @@ final class WalkDetector: NSObject, CLLocationManagerDelegate {
                 if !self.moving { self.movingSince = a.startDate }
                 self.moving = true
                 self.onEvent?(.walking(true))
-            } else if still {
+            } else if still || self.moving {
+                // 10-18：明确话唔係行路（静止 / 唔知）就当停咗，唔好一直当行紧（以前只有「静止」先停，坐低报「唔知」就卡住）
                 self.moving = false
                 self.onEvent?(.walking(false))
             }

@@ -55,9 +55,14 @@ struct LiveWalkGate {
     /// 自己撳「结束散步」而仲喺外面：返到屋企之前唔自动再开始（最多 3 个钟）。
     static let userEndQuiet: TimeInterval = 3 * 3600
 
+    /// 10-18：啱啱开始记录 2 分钟内，只认真系入咗 40 m 先收尾（门口定位跳一跳唔会一开就收、讲「太短唔记录」）。
+    static let settleTime: TimeInterval = 2 * 60
+
     enum Action: Equatable { case none, start, step, minutesOnly, finish }
 
     private(set) var pendingSince: Date?
+    /// 今次记录第一个定位嘅时间（用嚟判断啱啱开始）。
+    private(set) var recordingSince: Date?
     /// 自己撳「现在出去走走」时仲喺屋企：未行出屋企之前唔会因为「喺屋企」收尾。
     var awaitingLeave = false
     /// 呢个时间之前唔自动开始（untilHome：返到屋企就提早解除）。
@@ -85,12 +90,16 @@ struct LiveWalkGate {
                          maxStart: Double = LiveWalkGate.maxStart) -> Action {
         if recording {
             pendingSince = nil
+            if recordingSince == nil { recordingSince = t }
             let step: Action = acc <= Self.trailAcc ? .step : .minutesOnly
             if awaitingLeave {
                 if Self.isAway(fromHome: d, acc: acc) { awaitingLeave = false }
                 return step
             }
-            if Self.isHome(fromHome: d, acc: acc) { return .finish }
+            if Self.isHome(fromHome: d, acc: acc) {
+                if let s = recordingSince, t.timeIntervalSince(s) < Self.settleTime, d >= Self.homeRadius { return step }
+                return .finish
+            }
             return step
         }
         if let q = quietUntil {
@@ -107,6 +116,68 @@ struct LiveWalkGate {
         guard t.timeIntervalSince(s) >= Self.confirmGap else { return .none }
         pendingSince = nil
         return .start
+    }
+}
+
+/// 10-18 真机测试：散步分钟同「停低咗」按真系郁过嘅时间计。
+/// 以前自动开始嘅按最后一个定位计（坐低时 GPS 漂移照出新点，分钟一路加）、手动开始嘅按墙钟计；
+/// 停低又靠 Core Motion 连续报「静止」2/5/10 分钟（坐低时佢成日夹住报「唔知」，计时一直被打断，坐 10 分钟都唔收尾）。
+/// 郁过 = Core Motion 话行紧路、计步器步数加咗、或者定位离开上一个锚点超过 40 m（GPS 漂移唔算）。
+struct WalkMotionClock {
+    static let driftRadius = 40.0
+    /// 90 秒内郁过：当仲行紧，分钟跟住钟走。
+    static let activeGrace: TimeInterval = 90
+    /// 停低几耐收尾：喺屋企附近 5 分钟、喺外面 10 分钟。
+    static let stillNearHome: TimeInterval = 5 * 60
+    static let stillAway: TimeInterval = 10 * 60
+    /// 计步器每加咁多步当郁过一次（企定摇吓手机唔算）。
+    static let stepNudge = 8
+    /// 分钟下限：每 120 步当 1 分钟（长者慢行约 90–110 步 / 分钟，宁愿少计）。
+    static let stepsPerMinute = 120
+
+    let start: Date
+    private(set) var lastMoveAt: Date
+    /// 收过任何传感器讯号（定位、计步、Core Motion）。手动开始又乜都收唔到（冇权限）就按钟计、唔自动收尾。
+    private(set) var signal = false
+    private var anchor: Vec2?
+    private var stepsAtMove = 0
+
+    /// now：开始记录嗰刻（开始时间可能早过佢：锁屏时已经行紧）。开始嗰刻一定当郁紧。
+    init(start: Date, now: Date) {
+        self.start = start
+        lastMoveAt = max(start, now)
+    }
+
+    mutating func moved(at t: Date) {
+        signal = true
+        if t > lastMoveAt { lastMoveAt = t }
+    }
+
+    /// 计步器：今次散步累计步数。
+    mutating func steps(_ n: Int, at t: Date) {
+        signal = true
+        if n - stepsAtMove >= Self.stepNudge { stepsAtMove = n; moved(at: t) }
+    }
+
+    /// 新定位：精度 ≤40 m 先用；离开锚点 >40 m 先当郁过（坐低时定位喺几十米内跳嚟跳去唔算）。
+    mutating func fix(_ p: Vec2, acc: Double, at t: Date) {
+        signal = true
+        guard acc <= LiveWalkGate.trailAcc else { return }
+        guard let a = anchor else { anchor = p; return }
+        if a.distance(to: p) > Self.driftRadius { anchor = p; moved(at: t) }
+    }
+
+    func stillFor(_ now: Date) -> TimeInterval { max(0, now.timeIntervalSince(lastMoveAt)) }
+    func isActive(_ now: Date) -> Bool { stillFor(now) < Self.activeGrace }
+    /// 今次散步计到几时：行紧就到而家，停低咗就到最后郁嗰刻（坐低嘅时间唔计）。
+    func endTime(_ now: Date) -> Date { isActive(now) ? now : lastMoveAt }
+    func shouldFinish(_ now: Date, nearHome: Bool) -> Bool { stillFor(now) >= (nearHome ? Self.stillNearHome : Self.stillAway) }
+
+    /// 分钟：开始到 end；步数多过呢个时间嘅就用步数做下限（唔超过墙钟）。
+    static func minutes(start: Date, end: Date, steps: Int?, now: Date) -> Int {
+        var m = Int(max(0, end.timeIntervalSince(start)) / 60)
+        if let s = steps, s > 0 { m = max(m, min(s / stepsPerMinute, Int(max(0, now.timeIntervalSince(start)) / 60))) }
+        return m
     }
 }
 
