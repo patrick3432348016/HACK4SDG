@@ -16,6 +16,7 @@ extension AppStore {
     }
 
     func loadMap(home: Int64?, animated: Bool) async {
+        Self.mapRetry?.cancel()
         mapLoadGen += 1
         let gen = mapLoadGen
         loadingMap = true
@@ -44,7 +45,7 @@ extension AppStore {
             // 拿不到位置：不要假装是你附近，直接用内置示例屋邨，并说明。
             loaded = (MapService.fallback(), .fallback)
         }
-        // 等待期间按了「用示例屋邨」或又重新选楼：这次的结果不要。
+        // 等待期间按了「用示例屋邨」或又重新选楼：这次的结果不要。（「用示例屋邨」自己会喺后台继续拉。）
         guard gen == mapLoadGen else { return }
         var (m, source) = loaded
         // 示意楼（附近没有楼宇资料时放的）按 id 放回原位。
@@ -54,14 +55,16 @@ extension AppStore {
         if case .onboarding = phase {
             let me = loc.flatMap { TileKey.snap($0) == m.tile ? LocalProjection(origin: m.center).toLocal($0) : nil }
             let notice: String? = loc == nil ? L.t("攞唔到你嘅位置，所以冇幫你估。而家用緊示例屋邨（\(m.shownPlaceName)），唔係你附近。", "拿不到你的位置，所以没帮你猜。现在先显示示例屋邨（\(m.shownPlaceName)），不是你家附近。", "Couldn't get your location, so no guess. This is a sample estate (\(m.shownPlaceName)), not near you.")
-                : source == .fallback ? L.t("暫時攞唔到你附近嘅地圖，所以冇幫你估。而家用緊示例屋邨（\(m.shownPlaceName)），唔係你附近。", "暂时拿不到你附近的地图，所以没帮你猜。现在先显示示例屋邨（\(m.shownPlaceName)），不是你家附近。", "Couldn't get the map near you for now, so no guess. This is a sample estate (\(m.shownPlaceName)), not near you.") : nil
+                : source == .fallback ? L.t("暫時攞唔到你附近嘅地圖，先用示例屋邨（\(m.shownPlaceName)），唔係你附近。我會繼續搵，搵到就自動換。", "暂时拿不到你附近的地图，先显示示例屋邨（\(m.shownPlaceName)），不是你家附近。我会继续找，找到就自动换。", "Couldn't get the map near you yet, so this is a sample estate (\(m.shownPlaceName)), not near you. I'll keep trying and switch when it arrives.") : nil
             showPickHome(near: me, notice: notice, animated: animated)
+            if source == .fallback, let loc { scheduleMapRetry(tile: TileKey.snap(loc), loc: loc) }
         } else {
             var homeID = home.flatMap { id in m.building(id: id) != nil ? id : nil }
             if homeID == nil {
                 if let t = homeTile, m.tile != t {
-                    // 拉不到我屋企那格（离线又没缓存）：显示示例屋邨，但不把示例的楼当成你屋企。
-                    noticeMap(L.t("暫時攞唔到你屋企附近嘅地圖，而家顯示緊示例屋邨。", "暂时拿不到你家附近的地图，现在先显示示例屋邨。", "Couldn't get the map near your home for now. Showing a sample estate."), delay: 1)
+                    // 拉不到我屋企那格（离线又没缓存）：显示示例屋邨，但不把示例的楼当成你屋企；后台继续拉，拉到就换返。
+                    noticeMap(L.t("暫時攞唔到你屋企附近嘅地圖，先顯示示例屋邨。我會繼續搵，搵到就自動換。", "暂时拿不到你家附近的地图，先显示示例屋邨。我会继续找，找到就自动换。", "Couldn't get the map near your home yet. Showing a sample estate. I'll keep trying and switch when it arrives."), delay: 1)
+                    scheduleMapRetry(tile: t, loc: nil)
                 } else {
                     homeID = defaultHome(in: m)
                 }
@@ -72,7 +75,73 @@ extension AppStore {
             installDiorama(home: homeID, animated: animated)
             loadingMap = false
             populate()
+            // 喺示例屋邨揀嘅楼：后台试吓拉而家位置嗰格，拉到就话俾你知可以换（唔会自己改你住嘅楼）。
+            if sampleHome { scheduleMapRetry(tile: nil, loc: nil) }
         }
+    }
+
+    // MARK: - 示例屋邨显示紧：后台继续拉真地图
+
+    @MainActor static var mapRetry: Task<Void, Never>?
+
+    /// 拉唔到地图、显示紧示例屋邨：隔 5 秒、15 秒、30 秒…喺后台再拉（最多约 15 分钟），拉到就自动换成真地图。
+    /// tile = nil：用而家嘅位置嗰格（喺示例屋邨揀咗楼嘅情况，拉到只提示去「重新揀樓」）。
+    func scheduleMapRetry(tile: TileKey?, loc: GeoPoint?) {
+        Self.mapRetry?.cancel()
+        guard isMainStore, !LaunchArgs.has("-offline") else { return }
+        let gen = mapLoadGen
+        Self.mapRetry = Task { @MainActor [weak self] in
+            for wait in [5.0, 15, 30, 60, 60, 120, 120, 240, 240] {
+                try? await Task.sleep(for: .seconds(wait))
+                guard let self, !Task.isCancelled, gen == self.mapLoadGen, self.mapSource == .fallback else { return }
+                var target = tile
+                if target == nil {
+                    guard !self.mapService.locationUndetermined, let p = await self.mapService.currentLocation() else { continue }
+                    target = TileKey.snap(p)
+                }
+                guard let t = target, await self.mapService.refresh(tile: t) else { continue }
+                guard !Task.isCancelled, gen == self.mapLoadGen, self.mapSource == .fallback else { return }
+                self.realMapArrived(loc: loc, sampleHome: tile == nil)
+                return
+            }
+        }
+    }
+
+    /// 后台拉到真地图（已入缓存）：选楼画面同今日页即刻换；喺示例屋邨揀咗楼就提示去重新揀。
+    private func realMapArrived(loc: GeoPoint?, sampleHome: Bool) {
+        // 喺示例屋邨揀咗楼先完成首次使用：唔好自己换屋企，只提示
+        let sampleHome = sampleHome || UserDefaults.standard.bool(forKey: Self.homeFromSampleKey)
+        let done = L.t("搵到你附近嘅地圖，換咗做真嘅。", "找到你附近的地图了，已经换成真的。", "Found the map near you. Switched to the real one.")
+        switch phase {
+        case .onboarding(.locate), .onboarding(.pickHome):
+            mapService.pinnedLocation = loc
+            Task { await loadMap(home: nil, animated: true); toast(done) }
+        case .main where !sampleHome:
+            let home = (UserDefaults.standard.object(forKey: "homeBuilding") as? NSNumber)?.int64Value
+            Task { await loadMap(home: home, animated: true); toast(done) }
+        case .main:
+            noticeMap(L.t("搵到你附近嘅地圖喇。去設定「重新揀樓」，就換到你屋企附近。", "找到你附近的地图了。到设置里「重新选楼」，就能换成你家附近。", "Found the map near you. Use \"Choose again\" in Settings to switch to your area."))
+        default:
+            break
+        }
+    }
+
+    // MARK: - 你喺呢度（GPS 位置点，只喺本机）
+
+    /// 地图喺画面上（今日页 / 选楼）先跟 GPS；who 分开计，全部唔要先停。
+    func startHere(_ who: String) {
+        if mapService.here.onUpdate == nil { mapService.here.onUpdate = { [weak self] _ in self?.refreshHere() } }
+        mapService.here.start(who)
+        refreshHere()
+    }
+
+    func stopHere(_ who: String) { mapService.here.stop(who) }
+
+    /// 示例屋邨（唔系你附近）、散步 / 找人中（已经有「你」个小人）唔显示。
+    func refreshHere() {
+        guard let g = mapService.here.last, let m = map, walk == nil, find == nil,
+              mapSource != .fallback || LaunchArgs.value("-hereAt") != nil else { scene.setHere(nil); return }
+        scene.setHere(m.scenePoint(g))
     }
 
     /// 选楼一步：附近没有可选的楼就看离我最近那座可选的楼一带；整格都没有（资料不全的新屋邨）就在我的位置放一座示意楼，保证首次使用能走完。
@@ -143,6 +212,7 @@ extension AppStore {
         fullMap = MapService.fallback()
         mapSource = .fallback
         pendingHome = nil
+        if let loc = mapService.lastLocation { scheduleMapRetry(tile: TileKey.snap(loc), loc: loc) }
         showPickHome(near: nil, notice: L.t("而家用緊示例屋邨（\(fullMap?.shownPlaceName ?? "皇后山邨")），唔係你附近。", "现在先显示示例屋邨（\(fullMap?.shownPlaceName ?? "皇后山邨")），不是你家附近。", "This is a sample estate (\(fullMap?.shownPlaceName ?? "Queen's Hill Estate")), not near you."), animated: true)
     }
 
@@ -188,6 +258,7 @@ extension AppStore {
         scene.load(map: m, landmarks: landmarks, animated: animated)
         scene.setCamera(target: scene.overviewTarget, distance: scene.overviewDistance, animated: false)
         updateSun(animated: false)
+        refreshHere()
     }
 
     /// 用指定语言跑 f（地标起名用），跑完即刻转返；同一个主线程回合内完成，画面只会见到原来嘅语言。
@@ -326,6 +397,16 @@ extension AppStore {
                 self.scene.userZoom(by: 2, around: c)
                 self.scene.userPan(from: c, to: CGPoint(x: c.x + 60, y: c.y))
             }
+        } else if UIPreview.is("mapRotate") {
+            // 当双指喺画面中间扭 40 度（检查转动方向、出「回正」掣）
+            Self.mapPreviewShown = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                guard let v = self.scene.view else { return }
+                self.scene.userRotate(by: 40 * .pi / 180, around: CGPoint(x: v.bounds.midX, y: v.bounds.midY))
+            }
+        } else if UIPreview.is("homeCard") {
+            Self.mapPreviewShown = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.select(.home) }
         } else if UIPreview.is("changeHome") || UIPreview.is("changeHomePick") {
             Self.mapPreviewShown = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.beginChangeHome() }
@@ -409,6 +490,7 @@ extension AppStore {
         // 只写「你屋企」：以前「· 已隱身」长者以为自己开咗乜嘢或者被人封咗（UX 评审 16）。
         scene.homeLabel = (walk == nil && find == nil) ? L.t("你屋企", "你家", "Your home") : nil
         scene.reportMarks = reports.map { (id: $0.id.uuidString, pos: $0.pos, text: $0.kind.rawValue) }
+        refreshHere()
     }
 
     /// 碰一碰时两个人见面的位置：散步中是我当时行到的地方，否则是我屋企楼下。碰面期间固定不变。

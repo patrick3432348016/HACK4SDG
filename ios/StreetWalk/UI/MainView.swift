@@ -36,6 +36,7 @@ extension AppStore {
         switch selection {
         case .landmark(let id)?: if landmark(id) != nil { return .info }
         case .person(let id)?: if resident(id) != nil { return .info }
+        case .home?: if scene.homeBuildingID != nil { return .info }
         case nil: break
         }
         return nil
@@ -184,6 +185,9 @@ private struct MainLayout: View {
             // 场景 + 标签（唔喺「今日」页时收起，但保留 SceneKit 状态唔销毁）
             MainScene(width: size.width, height: sceneH, safe: safe, micCenter: micCenter, full: full, expanded: $sceneExpanded)
                 .onChange(of: viewportScale, initial: true) { _, v in store.scene.viewportScale = v }
+                // 「你喺呢度」：地图喺画面先跟 GPS
+                .onChange(of: showScene, initial: true) { _, on in if on { store.startHere("main") } else { store.stopHere("main") } }
+                .onDisappear { store.stopHere("main") }
                 .opacity(showScene ? 1 : 0)
                 .allowsHitTesting(showScene)
                 .accessibilityHidden(!showScene)
@@ -304,23 +308,34 @@ private struct MainScene: View {
                 .allowsHitTesting(false)
             if !full { expandHandle }
             if store.mapSource == .fallback && !full { sampleBadge }
+            // 手指放大 / 移动 / 转动过：右上角「回正」（同双击一样）
+            if store.scene.overlay.userMoved && !full {
+                MapResetButton { store.scene.resetUserCamera() }
+                    .padding(.trailing, DS.side)
+                    .padding(.top, safe.top + DS.gap)
+                    .frame(width: width, height: height, alignment: .topTrailing)
+                    .transition(.opacity)
+            }
         }
         .frame(width: width, height: height)
         .background(Color(uiColor: SceneStyle.background))
         .clipped()
         // 向下拉放大、向上拉收细（同其他 App 一样）；同撳地标唔撞（要拉过 30pt 先算）。
-        // 双指捏合 / 拖动系郁镜头（DioramaView），啱啱双指郁过就唔当系拉。
+        // 双指捏合 / 拖动 / 扭转系郁镜头（DioramaView），啱啱郁过就唔当系拉；放大咗之后单指拖动系移地图（收细用「收小地图」掣）。
         .simultaneousGesture(
             DragGesture(minimumDistance: 30)
                 .onEnded { v in
-                    guard !full, abs(v.translation.height) > abs(v.translation.width),
+                    guard !full, abs(v.translation.height) > abs(v.translation.width), !store.scene.oneFingerPanning,
                           CACurrentMediaTime() - store.scene.lastMultiTouch > 0.5 else { return }
                     if v.translation.height > 40, !expanded { expanded = true; Haptics.select() }
                     else if v.translation.height < -40, expanded { expanded = false; Haptics.select() }
                 }
         )
-        // 「睇大啲 / 收細」：手指放大、平移都还原
+        // 「睇大啲 / 收細」：手指放大、平移、转动都还原
         .onChange(of: expanded) { _, _ in store.scene.resetUserCamera() }
+        // 单指拖动移地图：放大咗（「睇大啲」）或者找人全屏先得；细地图单指向下拉系放大
+        .onChange(of: expanded || full, initial: true) { _, on in store.scene.oneFingerPan = on }
+        .animation(DS.motion(DS.snappy), value: store.scene.overlay.userMoved)
     }
 
     /// 用紧内置示例屋邨（攞唔到你附近嘅地图）：一直讲明，唔好当系你附近（B-3）。
@@ -368,7 +383,7 @@ private struct MainScene: View {
         switch hit {
         case .landmark(let id): store.select(.landmark(id))
         case .person(let id): if id != "me" { store.select(.person(id)) }
-        case .building: break
+        case .building(let id): if id == store.scene.homeBuildingID { store.select(.home) }
         case .none: if store.selection != nil { store.select(nil) }
         }
     }

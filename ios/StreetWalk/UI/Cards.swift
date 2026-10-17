@@ -238,6 +238,8 @@ struct InfoCard: View {
                 if let lm = store.landmark(id) { landmarkView(lm) }
             case .person(let id):
                 if let r = store.resident(id) { personView(r) }
+            case .home:
+                homeView
             case nil:
                 EmptyView()
             }
@@ -388,6 +390,51 @@ struct InfoCard: View {
         CardFact(symbol: fact.symbol, text: fact.text)
             .contentTransition(.numericText(value: Double(shade)))
             .animation(DS.motion(DS.snappy), value: shade)
+    }
+
+    // 你屋企（撳「你屋企」名牌 / 屋企嗰座楼）
+
+    private var homeView: some View {
+        let block = store.homeBlockShown ?? L.t("你住嗰座", "你住的那栋", "Your block")
+        let busy = store.walk != nil || store.find != nil
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "house.fill")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(DS.accent)
+                    .frame(width: 52, height: 52)
+                    .background(DS.accentSoft, in: Circle())
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L.t("你屋企", "你家", "Your home"))
+                        .ds(.title)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(L.t("\(block) · \(store.floorChoice) 樓", "\(block) · \(store.floorChoice) 楼", "\(block) · Floor \(store.floorChoice)"))
+                        .ds(.bodyBold)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let place = store.map?.shownPlaceName, place != block {
+                        Text(place).ds(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                Spacer(minLength: 8)
+                closeButton
+            }
+            Text(L.t("只有用碰一碰加咗嘅街坊先見到你住邊座。", "只有用碰一碰加过的邻居，才看得到你住哪栋。", "Only neighbours added by tapping phones can see your block."))
+                .ds(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !busy {
+                Button {
+                    taps += 1
+                    store.select(nil)
+                    store.beginChangeHome()
+                } label: {
+                    Label(L.t("改我住嘅樓", "改我住的楼", "Change my block"), systemImage: "building.2").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.dsSecondary)
+            }
+        }
     }
 
     // 人

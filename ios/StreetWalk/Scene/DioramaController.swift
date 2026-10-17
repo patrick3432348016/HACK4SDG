@@ -23,7 +23,7 @@ struct ScenePerson: Equatable {
 
 /// 覆盖层上的一个标签（SwiftUI 画，跟随 3D 投影）。
 struct OverlayItem: Identifiable, Equatable {
-    enum Kind { case landmark, person, home, report }
+    enum Kind { case landmark, person, home, report, here }
     var id: String
     var kind: Kind
     var text: String
@@ -35,6 +35,8 @@ struct OverlayItem: Identifiable, Equatable {
 @Observable
 final class OverlayModel {
     var items: [OverlayItem] = []
+    /// 用户用手指郁过镜头（放大、移动、转动），画面出「回正」掣。
+    var userMoved = false
 }
 
 /// 3D 微缩模型的全部场景逻辑：搭建、太阳、相机、人物、路线、遮挡淡化、标签投影。
@@ -67,7 +69,9 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     private let sunNode = SCNNode()
     private let ambientNode = SCNNode()
     private let pitch: Float = Float(LaunchArgs.value("-pitch").flatMap(Double.init) ?? 33) * .pi / 180
-    private let azimuth: Float = 45 * .pi / 180      // 从东南方看
+    private let baseAzimuth: Float = 45 * .pi / 180      // 从东南方看
+    /// 用户双指转动嘅角度（绕竖轴，弧度）；双击 / 「回正」/ 流程换总览时归零。
+    private var _yaw: Float = 0
     private var _target = Vec2(x: -72, y: 72)
     private var _distance: Float = 2.35
     /// 用户双指平移（米，加喺流程镜头 target 上）同缩放（乘喺 distance 上，< 1 = 放大）。
@@ -88,6 +92,8 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     private var _homeBuildingID: Int64?
     private var _homeLabel: String?
     private var _reportMarks: [(id: String, pos: Vec2, text: String)] = []
+    /// 「你喺呢度」：已经贴好边嘅场景位置同标签（setHere 喺主线程计好）。
+    private var _here: (pos: Vec2, text: String)?
     private var _followID: String?
     var homeBuildingID: Int64? {
         get { locked { _homeBuildingID } }
@@ -415,7 +421,8 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     }
 
     private func applyCamera() {
-        let (tg0, dist0, pan, zoom) = locked { (_target, _distance, _pan, _zoom) }
+        let (tg0, dist0, pan, zoom, yaw) = locked { (_target, _distance, _pan, _zoom, _yaw) }
+        let azimuth = baseAzimuth + yaw
         let tg = tg0 + pan, dist = dist0 * zoom
         let t = scenePoint(tg)
         let far: Float = 4
@@ -435,10 +442,10 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         // 平移并入起点，飞过去时画面唔会跳。
         let (pan, zoom) = locked { () -> (Vec2, Float) in
             let r = (_pan, _zoom); _pan = .zero
-            if !keepZoom { _zoom = 1 }
+            if !keepZoom { _zoom = 1; _yaw = 0 }
             return r
         }
-        if !keepZoom { userAdjusted = false }
+        if !keepZoom { setUserAdjusted(false) }
         guard animated, !reduceMotion else {
             cameraNode.removeAction(forKey: "fly")
             target = clamped; distance = d; applyCamera(); return
@@ -473,8 +480,21 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
 
     // MARK: - 手势：双指缩放 / 平移（单指照旧：撳地标、向下拉放大）
 
-    /// 用户双指郁过镜头、未复位。双击复位只喺呢个时候先等（唔郁过就唔拖慢撳地标）。
+    /// 用户手指郁过镜头、未复位。双击复位只喺呢个时候先等（唔郁过就唔拖慢撳地标）。
     private(set) var userAdjusted = false
+    private func setUserAdjusted(_ on: Bool) {
+        userAdjusted = on
+        if overlay.userMoved != on { overlay.userMoved = on }
+    }
+    /// 单指拖动平移几时生效：选楼画面、找人全屏、「睇大啲」放大咗（由画面设定）；手指放大过之后亦得。
+    /// 平时（今日页细地图）单指向下拉系「睇大啲」，唔好撞。
+    var oneFingerPan = false
+    /// 单指拖紧（或者啱啱拖完）：SwiftUI「向下拉放大」唔好当系拉。
+    private(set) var oneFingerPanning = false
+    func setOneFingerPanning(_ on: Bool) {
+        if on { oneFingerPanning = true; return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.oneFingerPanning = false }
+    }
     /// 最近一次双指手势嘅时间：SwiftUI 嘅「向下拉放大」见到啱啱双指郁过就唔当拉。
     private(set) var lastMultiTouch: CFTimeInterval = 0
     /// 放大上限：底座总览嘅 1/4（大约睇到 50 m 一带）；缩细下限：总览或者流程镜头再细 1/4（成个底座仲睇得到）。
@@ -488,12 +508,12 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     /// orthographicScale = 半个画面高嘅场景单位）；唔用 unprojectPoint，佢用上一帧嘅投影，同一轮先放大再拖会计错。
     func groundPoint(at p: CGPoint) -> Vec2? {
         guard let v = view, v.bounds.height > 0, let cam = cameraNode.camera else { return nil }
-        let (tg, pan) = locked { (_target, _pan) }
+        let (tg, pan, yaw) = locked { (_target, _pan, _yaw) }
         let upp = cam.orthographicScale * 2 / Double(v.bounds.height)          // 场景单位 / 点
         let s = Double(SceneStyle.scale)
         let dx = Double(p.x - v.bounds.midX) * upp / s                          // 米，向右
         let dy = Double(p.y - v.bounds.midY) * upp / s / Double(sin(pitch))     // 米，向镜头（屏幕向下）
-        let az = Double(azimuth)
+        let az = Double(baseAzimuth + yaw)
         let right = Vec2(x: cos(az), y: sin(az)), toward = Vec2(x: sin(az), y: -cos(az))
         return tg + pan + right * dx + toward * dy
     }
@@ -507,9 +527,30 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
 
     private func touched() {
         lastMultiTouch = CACurrentMediaTime()
-        userAdjusted = true
+        setUserAdjusted(true)
         cameraNode.removeAction(forKey: "fly")
     }
+
+    /// 双指转动：绕竖轴转，两指中间嗰点地面留喺手指下面。rotation 跟 UIRotationGestureRecognizer（顺时针为正），地图跟住手指转。
+    func userRotate(by rotation: CGFloat, around p: CGPoint) {
+        guard abs(rotation) > 1e-5 else { return }
+        touched()
+        let before = groundPoint(at: p)
+        locked {
+            var y = _yaw + Float(rotation)
+            if y > .pi { y -= 2 * .pi } else if y < -.pi { y += 2 * .pi }
+            _yaw = y
+        }
+        applyCamera()
+        if let a = before, let b = groundPoint(at: p) {
+            let pan = clampPan(locked { _pan } + (a - b))
+            locked { _pan = pan }
+            applyCamera()
+        }
+    }
+
+    /// 而家转咗几多（弧度，截图自检用）。
+    var yaw: Float { locked { _yaw } }
 
     /// 双指捏合：以两指中间为中心放大缩细（嗰点地面留喺手指下面）。
     func userZoom(by scale: CGFloat, around p: CGPoint) {
@@ -541,25 +582,25 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     /// 双击、「睇大啲 / 收細」：手指放大、平移全部还原，返去流程摆好嘅镜头。
     func resetUserCamera(animated: Bool = true) {
         guard userAdjusted else { return }
-        userAdjusted = false
-        let (z0, p0) = locked { (_zoom, _pan) }
+        setUserAdjusted(false)
+        let (z0, p0, y0) = locked { (_zoom, _pan, _yaw) }
         guard animated, !reduceMotion else { clearUserCamera(); return }
         let duration = 0.45
         let action = SCNAction.customAction(duration: duration) { [weak self] _, e in
             guard let self else { return }
             let x = Double(e) / duration
             let k = 1 - exp(-7 * x) * (1 + 7 * x)
-            self.locked { self._zoom = z0 + (1 - z0) * Float(k); self._pan = p0 * (1 - k) }
+            self.locked { self._zoom = z0 + (1 - z0) * Float(k); self._pan = p0 * (1 - k); self._yaw = y0 * Float(1 - k) }
             self.applyCamera()
         }
         cameraNode.removeAction(forKey: "fly")
-        cameraNode.runAction(.sequence([action, .run { [weak self] _ in self?.locked { self?._zoom = 1; self?._pan = .zero } }]), forKey: "fly")
+        cameraNode.runAction(.sequence([action, .run { [weak self] _ in self?.locked { self?._zoom = 1; self?._pan = .zero; self?._yaw = 0 } }]), forKey: "fly")
     }
 
     /// 即刻清走手指放大、平移（换底座、选楼画面用）。
     func clearUserCamera() {
-        userAdjusted = false
-        locked { _zoom = 1; _pan = .zero }
+        setUserAdjusted(false)
+        locked { _zoom = 1; _pan = .zero; _yaw = 0 }
         applyCamera()
     }
 
@@ -638,6 +679,27 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         }
         buildingsNode.childNode(withName: "low", recursively: false)?.geometry?.materials.forEach { $0.multiply.contents = gray }
         SCNTransaction.commit()
+    }
+
+    /// 「你喺呢度」（场景坐标，米；nil = 唔显示）。超出底座就贴住边，标签写离屋企（或者画面中心）几远。
+    func setHere(_ p: Vec2?) {
+        guard let p, let map else { locked { _here = nil }; labelsChanged(); return }
+        let lim = map.half - 6
+        let c = Vec2(x: max(-lim, min(lim, p.x)), y: max(-lim, min(lim, p.y)))
+        let text: String
+        if c.distance(to: p) < 1, homeBuildingID != nil, p.distance(to: homeTarget) < 30 {
+            text = ""   // 喺屋企楼下：只出圆点，唔好遮住「你屋企」名牌（要撳得到）
+        } else if c.distance(to: p) < 1 {
+            text = L.t("你喺呢度", "你在这里", "You are here")
+        } else if homeBuildingID != nil {
+            let d = HereText.distance(p.distance(to: homeTarget))
+            text = L.t("你喺呢邊 · 離屋企\(d)", "你在这边 · 离家\(d)", "You: \(d) from home")
+        } else {
+            let d = HereText.distance(p.length)
+            text = L.t("你喺呢邊 · 大約\(d)外", "你在这边 · 约\(d)外", "You: about \(d) this way")
+        }
+        locked { _here = (c, text) }
+        labelsChanged()
     }
 
     func setHomeBuilding(_ id: Int64?) {
@@ -861,9 +923,9 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         guard due else { scheduleTrailing(); return }
         var items: [OverlayItem] = []
         let s = SceneStyle.scale
-        let (personState, personNodes, landmarkInfo, landmarkNodes, reportMarks, homeID, homeLabel, map, seq) = locked {
+        let (personState, personNodes, landmarkInfo, landmarkNodes, reportMarks, homeID, homeLabel, map, seq, here) = locked {
             overlaySeq += 1
-            return (self.personState, self.personNodes, self.landmarkInfo, self.landmarkNodes, _reportMarks, _homeBuildingID, _homeLabel, _map, overlaySeq)
+            return (self.personState, self.personNodes, self.landmarkInfo, self.landmarkNodes, _reportMarks, _homeBuildingID, _homeLabel, _map, overlaySeq, _here)
         }
         func project(_ p: SCNVector3) -> CGPoint? {
             let q = renderer.projectPoint(p)
@@ -887,6 +949,9 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
             if let pt = project(scenePoint(b.centroid, height: b.height + 6)) {
                 items.append(OverlayItem(id: "home", kind: .home, text: label, point: pt, highlighted: false, priority: 2))
             }
+        }
+        if let h = here, let pt = project(scenePoint(h.pos, height: 0.5)) {
+            items.append(OverlayItem(id: "here", kind: .here, text: h.text, point: pt, highlighted: false, priority: 5))
         }
         for r in reportMarks {
             if let pt = project(scenePoint(r.pos, height: 2)) { items.append(OverlayItem(id: "r:\(r.id)", kind: .report, text: r.text, point: pt, highlighted: false, priority: 0)) }
