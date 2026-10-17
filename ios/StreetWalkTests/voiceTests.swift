@@ -435,3 +435,26 @@ struct CommunityFindTests {
         #expect(events == 1)
     }
 }
+
+// 10-18 室友反馈：「換個時間」只换时间、「換個地方」只换地点；时间选项至少 6 个。
+@MainActor struct MeetupChangeOneThingTests {
+    @Test func 换时间唔改地点_换地点唔改时间() {
+        let s = VoiceFlowTests().makeStore()
+        let t1 = AppStore.today(at: 16, dayOffset: 1), t2 = AppStore.today(at: 8, dayOffset: 2)
+        s.proposal = Proposal(partnerID: "chan", options: [MeetProposal(date: t1, landmarkID: "park-0", reason: ""), MeetProposal(date: t2, landmarkID: "shelter-1", reason: "")], index: 0)
+        s.nextProposalTime()
+        let a = s.proposal!.options[s.proposal!.index]
+        #expect(a.date == t2 && a.landmarkID == "park-0")
+        s.nextProposalPlace()
+        let b = s.proposal!.options[s.proposal!.index]
+        #expect(b.date == t2 && b.landmarkID != "park-0")
+        s.nextProposalTime()
+        let c = s.proposal!.options[s.proposal!.index]
+        #expect(c.date == t1 && c.landmarkID == b.landmarkID)
+    }
+
+    @Test func 换个时间至少六个选择() {
+        let s = VoiceFlowTests().makeStore()
+        #expect(s.candidateTimes(day: nil, hour: nil).count >= 6)
+    }
+}
