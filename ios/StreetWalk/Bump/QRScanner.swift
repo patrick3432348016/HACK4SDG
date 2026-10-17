@@ -35,9 +35,9 @@ struct QRScannerView: View {
             case .avCapture:
                 AVScannerRepresentable(onCode: onCode)
             case .denied:
-                unavailable(L.t("未允許用鏡頭", "未允许使用相机"), L.t("去「設定」打開鏡頭，或者請對方掃你。", "去「设置」打开相机，或者请对方扫你。"), settings: true)
+                unavailable(L.t("未允許用鏡頭", "未允许使用相机", "Camera not allowed"), L.t("去「設定」打開鏡頭，或者請對方掃你。", "去「设置」打开相机，或者请对方扫你。", "Turn on the camera in Settings, or let them scan you."), settings: true)
             case .noCamera:
-                unavailable(L.t("呢部手機用唔到鏡頭", "这部手机用不了相机"), L.t("請對方掃你嘅二維碼。", "请对方扫你的二维码。"), settings: false)
+                unavailable(L.t("呢部手機用唔到鏡頭", "这部手机用不了相机", "This phone has no camera"), L.t("請對方掃你嘅二維碼。", "请对方扫你的二维码。", "Ask them to scan your QR code."), settings: false)
             }
         }
         .task { status = await Self.resolve() }
@@ -51,7 +51,7 @@ struct QRScannerView: View {
             Text(title).ds(.bodyBold).multilineTextAlignment(.center)
             Text(hint).ds(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
             if settings {
-                Button { openSettings() } label: { Text(L.t("去設定", "去设置")) }
+                Button { openSettings() } label: { Text(L.t("去設定", "去设置", "Open Settings")) }
                     .buttonStyle(.dsSecondary)
             }
         }

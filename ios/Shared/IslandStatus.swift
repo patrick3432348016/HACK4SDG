@@ -40,7 +40,16 @@ struct IslandStatus: Codable, Hashable, Sendable {
     var lang: AppLang?
 
     /// 跟呢个状态嘅语言揀字。
-    func t(_ yue: String, _ cmn: String) -> String { (lang ?? L.lang) == .cmn ? cmn : yue }
+    /// 实时活动另一个进程：用状态自己嘅语言。
+    var isEnglish: Bool { (lang ?? L.lang) == .en }
+
+    func t(_ yue: String, _ cmn: String, _ en: String? = nil) -> String {
+        switch lang ?? L.lang {
+        case .yue: return yue
+        case .cmn: return cmn
+        case .en: return en ?? cmn
+        }
+    }
 }
 
 extension IslandStatus {
@@ -63,8 +72,9 @@ extension IslandStatus {
         return Int((d / 100).rounded()) * 100
     }
 
-    static func metersText(_ m: Int) -> String {
-        m >= 1000 ? String(format: "%.1f 公里", Double(m) / 1000) : "\(m) 米"   // 粤普同字
+    static func metersText(_ m: Int, en: Bool = false) -> String {
+        en ? (m >= 1000 ? String(format: "%.1f km", Double(m) / 1000) : "\(m) m")
+            : m >= 1000 ? String(format: "%.1f 公里", Double(m) / 1000) : "\(m) 米"   // 粤普同字
     }
 
     /// 同时有几样嘢：按优先次序排，同一类只留第一个。岛同实时活动只显示第一个。
@@ -88,16 +98,16 @@ extension IslandStatus {
     /// 岛右边嘅短字：「12 分」「35 米」「15 分鐘後」。
     var short: String {
         switch kind {
-        case .walk: return t("\(minutes) 分", "\(minutes) 分")
-        case .find: return meters.map(Self.metersText) ?? "\(max(1, minutes)) 分"
-        case .meet: return minutes > 0 ? t("\(minutes) 分鐘後", "\(minutes) 分钟后") : t("夠鐘喇", "到点了")
+        case .walk: return t("\(minutes) 分", "\(minutes) 分", "\(minutes) min")
+        case .find: return meters.map { Self.metersText($0, en: isEnglish) } ?? t("\(max(1, minutes)) 分", "\(max(1, minutes)) 分", "\(max(1, minutes)) min")
+        case .meet: return minutes > 0 ? t("\(minutes) 分鐘後", "\(minutes) 分钟后", "in \(minutes) min") : t("夠鐘喇", "到点了", "Time to go")
         }
     }
 
     /// 真·灵动岛右边位好窄：约会只出「15 分」（左边已经有时钟）。
     var compact: String {
         switch kind {
-        case .meet: return minutes > 0 ? "\(minutes) 分" : t("夠鐘", "到点")
+        case .meet: return minutes > 0 ? t("\(minutes) 分", "\(minutes) 分", "\(minutes) min") : t("夠鐘", "到点", "Now")
         default: return short
         }
     }
@@ -105,18 +115,18 @@ extension IslandStatus {
     /// 一句讲晒（锁屏大字、展开嘅岛）。
     var title: String {
         switch kind {
-        case .walk: return finished ? t("散步完成", "散步完成") : t("行緊 \(minutes) 分鐘", "已走 \(minutes) 分钟")
-        case .find: return t("搵緊\(name ?? "街坊")", "正在找\(name ?? "邻居")")
+        case .walk: return finished ? t("散步完成", "散步完成", "Walk done") : t("行緊 \(minutes) 分鐘", "已走 \(minutes) 分钟", "Walking \(minutes) min")
+        case .find: return t("搵緊\(name ?? "街坊")", "正在找\(name ?? "邻居")", "Finding \(name ?? "neighbour")")
         case .meet:
-            let who = name ?? t("街坊", "邻居")
-            return minutes > 0 ? t("\(minutes) 分鐘後約咗\(who)", "\(minutes) 分钟后约了\(who)") : t("夠鐘見\(who)喇", "该去见\(who)了")
+            let who = name ?? t("街坊", "邻居", "your neighbour")
+            return minutes > 0 ? t("\(minutes) 分鐘後約咗\(who)", "\(minutes) 分钟后约了\(who)", "Meet \(who) in \(minutes) min") : t("夠鐘見\(who)喇", "该去见\(who)了", "Time to meet \(who)")
         }
     }
 
     /// 找人：「喺涼亭 · 大約 2 分鐘到」（锁屏、展开嘅岛第二行用；detail 已经有距离）。
     var findLine: String {
-        let at = place.map { t("喺\($0)", "在\($0)") }
-        let eta = minutes > 0 ? t("大約 \(minutes) 分鐘到", "大约 \(minutes) 分钟到") : t("就到喇", "马上到")
+        let at = place.map { t("喺\($0)", "在\($0)", "at \($0)") }
+        let eta = minutes > 0 ? t("大約 \(minutes) 分鐘到", "大约 \(minutes) 分钟到", "about \(minutes) min away") : t("就到喇", "马上到", "almost there")
         return [at, eta].compactMap { $0 }.joined(separator: " · ")
     }
 
@@ -125,23 +135,23 @@ extension IslandStatus {
         switch kind {
         case .walk:
             let n = places ?? 0
-            if finished { return t("今次行咗 \(minutes) 分鐘", "这次走了 \(minutes) 分钟") + (n > 0 ? t("，經過 \(n) 個地方", "，经过 \(n) 个地方") : "") }
-            return n > 0 ? t("經過咗 \(n) 個地方", "经过了 \(n) 个地方") : t("出咗門，自動記錄緊", "已出门，正在自动记录")
+            if finished { return t("今次行咗 \(minutes) 分鐘", "这次走了 \(minutes) 分钟", "Walked \(minutes) min") + (n > 0 ? t("，經過 \(n) 個地方", "，经过 \(n) 个地方", ", passed \(n) \(n == 1 ? "place" : "places")") : "") }
+            return n > 0 ? t("經過咗 \(n) 個地方", "经过了 \(n) 个地方", "Passed \(n) \(n == 1 ? "place" : "places")") : t("出咗門，自動記錄緊", "已出门，正在自动记录", "Out and recording")
         case .find:
-            let at = place.map { t("喺\($0)", "在\($0)") } ?? ""
-            let far = meters.map { t("相距 \(Self.metersText($0))", "相距 \(Self.metersText($0))") } ?? ""
+            let at = place.map { t("喺\($0)", "在\($0)", "at \($0)") } ?? ""
+            let far = meters.map { t("相距 \(Self.metersText($0, en: isEnglish))", "相距 \(Self.metersText($0, en: isEnglish))", "\(Self.metersText($0, en: isEnglish)) away") } ?? ""
             return [at, far].filter { !$0.isEmpty }.joined(separator: " · ")
         case .meet:
-            return place.map { t("喺\($0)見", "在\($0)见") } ?? t("準備出發", "准备出发")
+            return place.map { t("喺\($0)見", "在\($0)见", "Meet at \($0)") } ?? t("準備出發", "准备出发", "Get ready to set off")
         }
     }
 
     /// 读屏：一句讲晒。
     var spoken: String {
         switch kind {
-        case .walk: return finished ? t("散步完成，行咗 \(minutes) 分鐘", "散步完成，走了 \(minutes) 分钟") : t("行緊 \(minutes) 分鐘", "已走 \(minutes) 分钟")
-        case .find: return t("搵緊\(name ?? "街坊")，", "正在找\(name ?? "邻居")，") + (meters.map { "相距 \(Self.metersText($0))" } ?? "")
-        case .meet: return title + (place.map { t("，喺\($0)", "，在\($0)") } ?? "")
+        case .walk: return finished ? t("散步完成，行咗 \(minutes) 分鐘", "散步完成，走了 \(minutes) 分钟", "Walk done. Walked \(minutes) minutes") : t("行緊 \(minutes) 分鐘", "已走 \(minutes) 分钟", "Walking \(minutes) min")
+        case .find: return t("搵緊\(name ?? "街坊")，", "正在找\(name ?? "邻居")，", "Finding \(name ?? "neighbour"), ") + (meters.map { t("相距 \(Self.metersText($0, en: isEnglish))", "相距 \(Self.metersText($0, en: isEnglish))", "\(Self.metersText($0, en: isEnglish)) away") } ?? "")
+        case .meet: return title + (place.map { t("，喺\($0)", "，在\($0)", ", at \($0)") } ?? "")
         }
     }
 }

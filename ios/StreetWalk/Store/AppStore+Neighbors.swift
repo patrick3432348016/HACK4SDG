@@ -10,11 +10,11 @@ extension AppStore {
         // 真机（2026-10-10）：对方唔使喺圈入面，照碰；过程同二维码后备见 AppStore+Bump。
         if community.isSimulated {
             guard residents.contains(where: { !$0.isMe }) else {
-                toast(L.t("附近暫時只有你。", "附近暂时只有你。"))
+                toast(L.t("附近暫時只有你。", "附近暂时只有你。", "Only you nearby for now."))
                 return
             }
             guard residents.contains(where: { !$0.isMe && !$0.isNeighbor }) else {
-                toast(L.t("附近嘅人都已經係你街坊。", "附近的人都已经是你的邻居了。"))
+                toast(L.t("附近嘅人都已經係你街坊。", "附近的人都已经是你的邻居了。", "Everyone nearby is already your neighbour."))
                 return
             }
         }
@@ -27,7 +27,7 @@ extension AppStore {
     func bumpMet(_ r: Resident) {
         Haptics.success()
         bumpStage = .found(r.id)
-        say(L.t("你同\(r.floor > 0 ? r.floorLabel : "")\(r.name)而家係街坊。", "你和\(r.floor > 0 ? r.floorLabel : "")\(r.name)现在是邻居了。"))
+        say(L.t("你同\(r.floor > 0 ? r.floorLabel : "")\(r.name)而家係街坊。", "你和\(r.floor > 0 ? r.floorLabel : "")\(r.name)现在是邻居了。", "You and \(r.name) are now neighbours."))
         syncScene()
         scene.setCamera(target: bumpMeetSpot(), distance: scene.overviewDistance * 0.7, animated: true, duration: 1.0)
         Task { @MainActor in
@@ -35,7 +35,7 @@ extension AppStore {
             guard self.bumpStage == .found(r.id) else { return }
             self.remindPromptFor = r.id
             // 问题都要讲出嚟（§4），讲明係双向（F6，A15）。
-            self.say(L.t("開唔開出門提醒？開咗之後，佢出門你會知，你出門佢都會知。", "要开出门提醒吗？开了之后，他出门你会知道，你出门他也会知道。"), prompt: true)
+            self.say(L.t("開唔開出門提醒？開咗之後，佢出門你會知，你出門佢都會知。", "要开出门提醒吗？开了之后，他出门你会知道，你出门他也会知道。", "Turn on out-and-about alerts? You’ll know when they go out, and they’ll know when you do."), prompt: true)
         }
     }
 
@@ -58,7 +58,7 @@ extension AppStore {
         bumpStage = .idle
         syncScene()
         scene.resetCamera()
-        say(remind ? L.t("開咗出門提醒，你哋出門都會互相話知（只講地標）。", "出门提醒开了，你们出门都会互相通知（只说地标）。") : L.t("冇問題，之後想開隨時可以。", "没问题，之后想开随时可以。"))
+        say(remind ? L.t("開咗出門提醒，你哋出門都會互相話知（只講地標）。", "出门提醒开了，你们出门都会互相通知（只说地标）。", "Out-and-about alerts on. You’ll tell each other when you go out (landmark only).") : L.t("冇問題，之後想開隨時可以。", "没问题，之后想开随时可以。", "No problem. You can turn them on any time."))
         if remind { requestNotificationsIfReady() }   // 第一次有街坊、开咗提醒：先问通知权限（AppStore+Services）
     }
 
@@ -92,8 +92,8 @@ extension AppStore {
         if case .person(id) = selection { select(nil) }
         syncScene()
         // 同确认框讲法一致（A70）：解除本身唔通知；有约会就讲明对方会收到「約會取消」。
-        say(cancelled == 0 ? L.t("已經同\(name)解除街坊，佢唔會收到解除通知。", "已和\(name)解除邻居关系，他不会收到解除通知。")
-            : L.t("已經同\(name)解除街坊，佢唔會收到解除通知；\(cancelled) 個約會已經取消，佢會收到約會取消。", "已和\(name)解除邻居关系，他不会收到解除通知；\(cancelled) 个约会已取消，他会收到约会取消通知。"))
+        say(cancelled == 0 ? L.t("已經同\(name)解除街坊，佢唔會收到解除通知。", "已和\(name)解除邻居关系，他不会收到解除通知。", "\(name) is no longer your neighbour. They won’t be told.")
+            : L.t("已經同\(name)解除街坊，佢唔會收到解除通知；\(cancelled) 個約會已經取消，佢會收到約會取消。", "已和\(name)解除邻居关系，他不会收到解除通知；\(cancelled) 个约会已取消，他会收到约会取消通知。", "\(name) is no longer your neighbour. They won’t be told. \(cancelled) walk plan(s) cancelled. They will get a cancel notice."))
         Haptics.light()
     }
 
@@ -124,7 +124,7 @@ extension AppStore {
     func neighborGoesOut(_ id: String = "chan") {
         guard let r = resident(id), let lm = r.homeLandmarkID ?? landmarks.first?.id else { return }
         // 真后端唔会将非街坊嘅出门送嚟；演示菜单撳咗就讲规则，唔讲楼层同名（A13）。
-        guard r.isNeighbor else { toast(L.t("示範：佢仲未係你街坊，出門你唔會收到。", "示范：他还不是你的邻居，他出门你不会收到。")); return }
+        guard r.isNeighbor else { toast(L.t("示範：佢仲未係你街坊，出門你唔會收到。", "示范：他还不是你的邻居，他出门你不会收到。", "Demo: not your neighbour yet, so no alert when they go out.")); return }
         localCommunity?.simulateOut(id, at: lm)
     }
 
@@ -138,8 +138,8 @@ extension AppStore {
         let r = residents[i]
         syncScene()
         guard remindAll, r.receiveRemind, inRemindWindow, let place = placeName(r.atLandmarkID) else { return }
-        let text = L.t("\(r.floorLabel)\(r.name)啱啱出門，應該喺\(place)嗰邊。", "\(r.floorLabel)\(r.name)刚刚出门，应该在\(place)那边。")
-        showBanner(BannerItem(symbol: "figure.walk", text: text, action: walk != nil ? .goFind(r.id) : .invite(r.id), actionTitle: walk != nil ? L.t("過去搵佢", "过去找他") : L.t("約佢", "约他")))
+        let text = L.t("\(r.floorLabel)\(r.name)啱啱出門，應該喺\(place)嗰邊。", "\(r.floorLabel)\(r.name)刚刚出门，应该在\(place)那边。", "\(r.name) just went out, probably near \(place).")
+        showBanner(BannerItem(symbol: "figure.walk", text: text, action: walk != nil ? .goFind(r.id) : .invite(r.id), actionTitle: walk != nil ? L.t("過去搵佢", "过去找他", "Go find them") : L.t("約佢", "约他", "Invite")))
         say(text)
     }
 

@@ -16,7 +16,7 @@ extension LocalCommunityService {
     /// 接后端时：CommunityService 加同名方法，由每月结算表出（见 docs/backend_supabase.md 的 circle_race）。
     func lastMonthRace(placeName: String, month: Int) -> MonthResult? {
         guard demoEnabled else { return nil }
-        return MonthResult(month: month, ourName: L.t("我哋呢頭", "我们这边"), rivalName: L.t("隔籬", "隔壁"),
+        return MonthResult(month: month, ourName: L.t("我哋呢頭", "我们这边", "Our area"), rivalName: L.t("隔籬", "隔壁", "Next door"),
                            ourSteps: 96_400, rivalSteps: 91_800, isDemo: true)
     }
 }
@@ -24,6 +24,6 @@ extension LocalCommunityService {
 extension AppStore {
     var lastMonthResult: MonthResult? {
         let last = Self.hk.date(byAdding: .month, value: -1, to: now) ?? now
-        return localCommunity?.lastMonthRace(placeName: map?.placeName ?? L.t("我哋", "我们"), month: Self.hk.component(.month, from: last))
+        return localCommunity?.lastMonthRace(placeName: map?.placeName ?? L.t("我哋", "我们", "Our area"), month: Self.hk.component(.month, from: last))
     }
 }

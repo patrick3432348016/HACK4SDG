@@ -54,33 +54,33 @@ enum BumpFailure: Equatable {
     /// 大字标题。
     var title: String {
         switch self {
-        case .unsupported: return L.t("呢部手機唔支援碰一碰", "这部手机不支持碰一碰")
-        case .localNetworkDenied: return L.t("搵唔到身邊部手機", "找不到身边的手机")
-        case .nearbyDenied: return L.t("量唔到距離", "测不到距离")
-        case .timeout: return L.t("未碰到", "还没碰到")
-        case .background: return L.t("碰一碰停咗", "碰一碰已停止")
-        case .peerLeft: return L.t("對方停咗", "对方已停止")
-        case .noServer: return L.t("未連到伺服器", "未连接服务器")
-        case .linkFailed: return L.t("配對唔到", "配对失败")
-        case .network: return L.t("網絡有問題", "网络有问题")
-        case .other: return L.t("碰一碰出錯", "碰一碰出错")
+        case .unsupported: return L.t("呢部手機唔支援碰一碰", "这部手机不支持碰一碰", "This phone can’t tap")
+        case .localNetworkDenied: return L.t("搵唔到身邊部手機", "找不到身边的手机", "Can’t find the other phone")
+        case .nearbyDenied: return L.t("量唔到距離", "测不到距离", "Can’t measure distance")
+        case .timeout: return L.t("未碰到", "还没碰到", "Not tapped yet")
+        case .background: return L.t("碰一碰停咗", "碰一碰已停止", "Tap stopped")
+        case .peerLeft: return L.t("對方停咗", "对方已停止", "They stopped")
+        case .noServer: return L.t("未連到伺服器", "未连接服务器", "No server")
+        case .linkFailed: return L.t("配對唔到", "配对失败", "Couldn’t pair")
+        case .network: return L.t("網絡有問題", "网络有问题", "Network problem")
+        case .other: return L.t("碰一碰出錯", "碰一碰出错", "Tap went wrong")
         }
     }
 
     /// 辅助说明（点样做）。
     var hint: String {
         switch self {
-        case .unsupported: return L.t("要兩部 iPhone 11 或之後嘅型號先得。可以改用二維碼。", "需要两部 iPhone 11 或更新的机型。可以改用二维码。")
-        case .localNetworkDenied: return L.t("要允許「本地網絡」。去「設定」打開，或者改用二維碼。", "需要允许「本地网络」。去「设置」打开，或者改用二维码。")
-        case .nearbyDenied: return L.t("要允許「附近互動」。去「設定」打開，或者改用二維碼。", "需要允许「附近交互」。去「设置」打开，或者改用二维码。")
+        case .unsupported: return L.t("要兩部 iPhone 11 或之後嘅型號先得。可以改用二維碼。", "需要两部 iPhone 11 或更新的机型。可以改用二维码。", "Needs two iPhone 11 or newer. You can use a QR code instead.")
+        case .localNetworkDenied: return L.t("要允許「本地網絡」。去「設定」打開，或者改用二維碼。", "需要允许「本地网络」。去「设置」打开，或者改用二维码。", "Allow Local Network in Settings, or use a QR code instead.")
+        case .nearbyDenied: return L.t("要允許「附近互動」。去「設定」打開，或者改用二維碼。", "需要允许「附近交互」。去「设置」打开，或者改用二维码。", "Allow Nearby Interactions in Settings, or use a QR code instead.")
         case .timeout: return L.t("兩部手機都要開住呢頁，並排或者背對背靠近，隔一個拳頭就得；Wi-Fi 同藍牙都要開（唔使連網絡）。可以再試，或者改用二維碼。",
-                                  "两台手机都要打开这一页，并排或背对背靠近，隔一个拳头就行；Wi-Fi 和蓝牙都要打开（不用连网络）。可以再试，或者改用二维码。")
-        case .background: return L.t("碰一碰時要開住呢頁。如果彈出「隔空投送」，撳「取消」再試。", "碰一碰时要一直开着这一页。如果弹出「隔空投送」，点「取消」再试。")
-        case .peerLeft: return L.t("兩部手機一齊再試，或者改用二維碼。", "两部手机一起再试，或者改用二维码。")
-        case .noServer: return L.t("呢個版本未接伺服器，加唔到街坊。", "这个版本未接服务器，加不了邻居。")
-        case .linkFailed: return L.t("兩部手機一齊再試，或者改用二維碼。", "两部手机一起再试，或者改用二维码。")
-        case .network: return L.t("睇下有冇上網，再試一次。", "看看有没有联网，再试一次。")
-        case .other: return L.t("再試一次，或者改用二維碼。", "再试一次，或者改用二维码。")
+                                  "两台手机都要打开这一页，并排或背对背靠近，隔一个拳头就行；Wi-Fi 和蓝牙都要打开（不用连网络）。可以再试，或者改用二维码。", "Keep this page open on both phones. Hold them side by side or back to back, a fist apart. Turn on Wi-Fi and Bluetooth (no internet needed). Try again, or use a QR code.")
+        case .background: return L.t("碰一碰時要開住呢頁。如果彈出「隔空投送」，撳「取消」再試。", "碰一碰时要一直开着这一页。如果弹出「隔空投送」，点「取消」再试。", "Keep this page open while tapping. If AirDrop pops up, tap Cancel and try again.")
+        case .peerLeft: return L.t("兩部手機一齊再試，或者改用二維碼。", "两部手机一起再试，或者改用二维码。", "Try again on both phones, or use a QR code.")
+        case .noServer: return L.t("呢個版本未接伺服器，加唔到街坊。", "这个版本未接服务器，加不了邻居。", "This version has no server, so you can’t add neighbours.")
+        case .linkFailed: return L.t("兩部手機一齊再試，或者改用二維碼。", "两部手机一起再试，或者改用二维码。", "Try again on both phones, or use a QR code.")
+        case .network: return L.t("睇下有冇上網，再試一次。", "看看有没有联网，再试一次。", "Check you’re online and try again.")
+        case .other: return L.t("再試一次，或者改用二維碼。", "再试一次，或者改用二维码。", "Try again, or use a QR code.")
         }
     }
 

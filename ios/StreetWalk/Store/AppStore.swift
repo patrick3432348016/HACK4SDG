@@ -173,7 +173,7 @@ final class AppStore: NeighborRegistry {
     /// 「今日三件事」任务卡嘅进度（nil = 冇任务卡，例如旧用户）。存档。
     var firstDay: FirstDayProgress? { didSet { scheduleSave() } }
 
-    var me: Resident { residents.first { $0.isMe } ?? Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true, nickname: nickname) }
+    var me: Resident { residents.first { $0.isMe } ?? Resident(id: "me", name: L.t("你", "你", "You"), floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true, nickname: nickname) }
     var neighbors: [Resident] { residents.filter { $0.isNeighbor && !$0.isMe } }
     var outNeighbors: [Resident] { neighbors.filter(\.isOut) }
     var todayMinutes: Int { log(for: now).minutes }

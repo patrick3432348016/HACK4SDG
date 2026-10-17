@@ -204,11 +204,11 @@ extension AppStore {
         let today = log(for: now)
         guard !r.onLeave, today.walks > 0 else { return ai.dailyLine(for: r, passed: []) }
         let stops = today.stops.compactMap(landmark)
-        if let s = stops.last { return s.hasSeat ? L.t("\(r.floorLabel)喺\(s.name)坐咗陣", "\(r.floorLabel)在\(s.name)坐了一会") : ai.dailyLine(for: r, passed: stops) }
+        if let s = stops.last { return s.hasSeat ? L.t("\(r.floorLabel)喺\(s.name)坐咗陣", "\(r.floorLabel)在\(s.name)坐了一会", "Sat a while at \(s.name)") : ai.dailyLine(for: r, passed: stops) }
         // 示範纪录只有分钟数：当佢行过自己常去嗰度，免得"行咗 24 分鐘"同"仲未出門"矛盾。
         if today.demo, let home = landmark(r.homeLandmarkID) { return ai.dailyLine(for: r, passed: [home]) }
         // 真实散步冇落脚点（或者喺背景补记）：照实讲分钟数，唔好编地标。
-        return L.t("\(r.floorLabel)今日行咗 \(today.minutes) 分鐘", "\(r.floorLabel)今天走了 \(today.minutes) 分钟")
+        return L.t("\(r.floorLabel)今日行咗 \(today.minutes) 分鐘", "\(r.floorLabel)今天走了 \(today.minutes) 分钟", "Walked \(today.minutes) min today")
     }
 
     /// 演示模式：放过去 8 日 + 今日早上的示範纪录，连续 9 日。都标 demo，关掉演示模式就不算；已有纪录嘅日子唔郁。
@@ -219,7 +219,7 @@ extension AppStore {
     /// 地图未装好前，「我」都用真实纪录算（唔好显示后备值）。
     func ensureMeBeforeMap() {
         guard residents.isEmpty, phase == .main else { return }
-        residents = [Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice,
+        residents = [Resident(id: "me", name: L.t("你", "你", "You"), floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice,
                               streakDays: myStreak(), todayLine: "", isMe: true)]
         refreshMe()
     }

@@ -32,12 +32,13 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         guard plan != lastPlan else { return }
         lastPlan = plan
         if LaunchArgs.has("-logNotifications") { plan.forEach { print("[notify] \($0.id) \($0.at) \($0.body)") } }
+        let title = L.t("街坊行", "街坊行", "Kaifong Walk")   // 喺主线程揀好语言
         queue.async {
             let c = UNUserNotificationCenter.current()
             c.removeAllPendingNotificationRequests()
             for it in plan {
                 let content = UNMutableNotificationContent()
-                content.title = "街坊行"
+                content.title = title
                 content.body = it.body
                 content.sound = .default
                 // 用倒数（唔受手机时区影响）；每次约会有改动都会重排
@@ -72,12 +73,12 @@ enum NotificationPlan {
             let who = partner(a.partnerID), spot = place(a.landmarkID)
             let remindAt = a.date.addingTimeInterval(-remindBefore)
             if a.status == .accepted, !a.reminded, remindAt > now {
-                out.append(Item(id: "appt-\(a.id.uuidString)-remind", at: remindAt, body: L.t("30 分鐘後約咗\(who)喺\(spot)。", "30 分钟后和\(who)约在\(spot)。")))
+                out.append(Item(id: "appt-\(a.id.uuidString)-remind", at: remindAt, body: L.t("30 分鐘後約咗\(who)喺\(spot)。", "30 分钟后和\(who)约在\(spot)。", "In 30 min: meet \(who) at \(spot).")))
             }
             let expireAt = a.date.addingTimeInterval(expireAfter)
             if expireAt > now {
                 let hour = AppStore.clockLabel(a.date)   // 有分钟就讲埋（16:45）
-                out.append(Item(id: "appt-\(a.id.uuidString)-expire", at: expireAt, body: L.t("同\(who)\(hour)喺\(spot)嘅約過咗時間，收埋咗。", "和\(who)\(hour)在\(spot)的约已过时间，已收起。")))
+                out.append(Item(id: "appt-\(a.id.uuidString)-expire", at: expireAt, body: L.t("同\(who)\(hour)喺\(spot)嘅約過咗時間，收埋咗。", "和\(who)\(hour)在\(spot)的约已过时间，已收起。", "The \(hour) walk plan with \(who) at \(spot) has passed. Cleared.")))
             }
         }
         return out
