@@ -10,7 +10,7 @@ extension AppStore {
         guard let p = resident(partnerID), let shade else { return }
         renaming = nil   // 约人卡盖住改名卡：之后讲嘢唔再当新名
         // 唔讲楼层：免得名同楼层对得上（A03）。
-        guard p.isNeighbor else { toast(L.t("佢仲未係你街坊。見到面碰一碰，先可以約。", "他还不是你的邻居。见面碰一碰，才可以约。")); return }
+        guard p.isNeighbor else { toast(L.t("佢仲未係你街坊。見到面碰一碰，先可以約。", "他还不是你的邻居。见面碰一碰，才可以约。", "They're not your neighbour yet. Meet up and tap phones first, then you can invite them.")); return }
         var options: [MeetProposal] = []
         for (d, h) in candidateTimes(day: day, hour: hour) {
             let date = Self.today(at: Double(h), dayOffset: d)
@@ -20,13 +20,13 @@ extension AppStore {
                 options.append(prop)
             }
         }
-        guard !options.isEmpty else { toast(L.t("附近未有合適嘅地標，暫時約唔到。", "附近还没有合适的地标，暂时约不了。")); return }
+        guard !options.isEmpty else { toast(L.t("附近未有合適嘅地標，暫時約唔到。", "附近还没有合适的地标，暂时约不了。", "No suitable landmark nearby yet, so you can't make a walk plan for now.")); return }
         proposal = Proposal(partnerID: partnerID, options: options, index: 0)
         scene.highlightLandmark(options[0].landmarkID)
         focus(onLandmark: options[0].landmarkID)
         if announce {
             let o = options[0]
-            say(L.t("約\(p.name)\(dayTimeLabel(o.date))，喺\(landmark(o.landmarkID)?.name ?? "")，\(o.reason)。撳「好」就約。", "约\(p.name)\(dayTimeLabel(o.date))，在\(landmark(o.landmarkID)?.name ?? "")，\(o.reason)。按「好」就约。"), prompt: true)
+            say(L.t("約\(p.name)\(dayTimeLabel(o.date))，喺\(landmark(o.landmarkID)?.name ?? "")，\(o.reason)。撳「好」就約。", "约\(p.name)\(dayTimeLabel(o.date))，在\(landmark(o.landmarkID)?.name ?? "")，\(o.reason)。按「好」就约。", "Invite \(p.name) for a walk \(dayTimeLabel(o.date)) at \(landmark(o.landmarkID)?.name ?? ""): \(o.reason). Tap “OK” to invite."), prompt: true)
         }
     }
 
@@ -72,7 +72,7 @@ extension AppStore {
             let a = ($0.hasSeat ? 1 : 0, shade.shade(landmarkID: $0.id, at: cur.date)), b = ($1.hasSeat ? 1 : 0, shade.shade(landmarkID: $1.id, at: cur.date))
             return a != b ? a > b : $0.id < $1.id
         }
-        guard ranked.count > 1 else { toast(L.t("附近只有一個地標，換唔到第二個。", "附近只有一个地标，换不了别的。")); return }
+        guard ranked.count > 1 else { toast(L.t("附近只有一個地標，換唔到第二個。", "附近只有一个地标，换不了别的。", "There's only one landmark nearby, so you can't switch.")); return }
         guard let i = ranked.firstIndex(where: { $0.id == cur.landmarkID }) ?? ranked.indices.first else { return }
         let next = ranked[(i + 1) % ranked.count]
         if p.editing != nil {
@@ -92,8 +92,8 @@ extension AppStore {
     /// 行几耐写入理由（理由会同步俾对方，佢都见到）。
     func setCustomProposal(date: Date, landmarkID: String, minutes: Int) {
         guard var p = proposal, p.options.indices.contains(p.index), let lm = landmark(landmarkID) else { return }
-        guard date > now else { toast(L.t("嗰個時間已經過咗，揀過第二個。", "那个时间已经过了，换一个吧。")); return }
-        let walk = L.t("，一齊行 \(minutes) 分鐘", "，一起走 \(minutes) 分钟")
+        guard date > now else { toast(L.t("嗰個時間已經過咗，揀過第二個。", "那个时间已经过了，换一个吧。", "That time has passed. Please pick another.")); return }
+        let walk = L.t("，一齊行 \(minutes) 分鐘", "，一起走 \(minutes) 分钟", ", walk together \(minutes) min")
         p.options[p.index] = MeetProposal(date: date, landmarkID: lm.id, reason: reason(for: lm, at: date) + walk)
         proposal = p
         scene.highlightLandmark(lm.id)
@@ -103,20 +103,20 @@ extension AppStore {
 
     func reason(for l: Landmark, at d: Date) -> String {
         let s = shade?.shade(landmarkID: l.id, at: d) ?? 0
-        return (shade?.isSunUp(at: d) == false ? L.t("嗰陣已經日落", "那时已经日落") : s >= 0.5 ? L.t("嗰陣有樓遮住", "那时有楼挡着") : L.t("嗰陣會曬", "那时会晒")) + (l.hasSeat ? L.t("、有櫈", "、有凳子") : "")
+        return (shade?.isSunUp(at: d) == false ? L.t("嗰陣已經日落", "那时已经日落", "sun has set by then") : s >= 0.5 ? L.t("嗰陣有樓遮住", "那时有楼挡着", "shady then (buildings)") : L.t("嗰陣會曬", "那时会晒", "too sunny then")) + (l.hasSeat ? L.t("、有櫈", "、有凳子", ", seats here") : "")
     }
 
     func confirmProposal() {
         guard let p = proposal else { return }
         guard let partner = resident(p.partnerID), partner.isNeighbor else {
-            cancelProposal(); toast(L.t("你同佢已經唔係街坊，約唔到。", "你和他已经不是邻居，约不了。")); return
+            cancelProposal(); toast(L.t("你同佢已經唔係街坊，約唔到。", "你和他已经不是邻居，约不了。", "You're no longer neighbours, so you can't invite them.")); return
         }
         let opt = p.options[p.index]
         if let id = p.editing {
             guard let a = appointments.first(where: { $0.id == id }), a.isOpen else {
-                cancelProposal(); toast(L.t("呢個約會已經冇咗。", "这个约会已经没有了。")); return
+                cancelProposal(); toast(L.t("呢個約會已經冇咗。", "这个约会已经没有了。", "This walk plan no longer exists.")); return
             }
-            if a.date == opt.date && a.landmarkID == opt.landmarkID { cancelProposal(); toast(L.t("冇改到，照舊。", "没有改动，照旧。")); return }
+            if a.date == opt.date && a.landmarkID == opt.landmarkID { cancelProposal(); toast(L.t("冇改到，照舊。", "没有改动，照旧。", "Nothing changed. Same as before.")); return }
         }
         let name = resident(p.partnerID)?.name ?? ""
         let place = landmark(opt.landmarkID)?.name ?? ""
@@ -130,12 +130,12 @@ extension AppStore {
             appointments[i].reminded = false
             appointments[i].lateAsked = nil
             community.updateMeetup(appointments[i])
-            toast(L.t("改咗：\(dayTimeLabel(opt.date))，喺\(place)附近。等緊\(name)確認。", "改了：\(dayTimeLabel(opt.date))，在\(place)附近。等\(name)确认。"))
+            toast(L.t("改咗：\(dayTimeLabel(opt.date))，喺\(place)附近。等緊\(name)確認。", "改了：\(dayTimeLabel(opt.date))，在\(place)附近。等\(name)确认。", "Changed: \(dayTimeLabel(opt.date)), near \(place). Waiting for \(name) to confirm."))
         } else {
             let a = Appointment(partnerID: p.partnerID, date: opt.date, landmarkID: opt.landmarkID, reason: opt.reason, status: .waiting)
             appointments.insert(a, at: 0)
             community.sendInvite(a)
-            toast(L.t("幫你約咗\(name)\(dayTimeLabel(opt.date))，喺\(place)附近。等緊\(name)確認。", "帮你约了\(name)\(dayTimeLabel(opt.date))，在\(place)附近。等\(name)确认。"))
+            toast(L.t("幫你約咗\(name)\(dayTimeLabel(opt.date))，喺\(place)附近。等緊\(name)確認。", "帮你约了\(name)\(dayTimeLabel(opt.date))，在\(place)附近。等\(name)确认。", "Invited \(name) for a walk \(dayTimeLabel(opt.date)), near \(place). Waiting for \(name) to confirm."))
         }
         proposal = nil
         scene.highlightLandmark(nil)
@@ -187,11 +187,11 @@ extension AppStore {
 
     /// 直接改（语音"改做下晝 4 點""改去涼亭"复述确认后）。
     func changeMeetup(_ id: UUID, day: Int?, hour: Int?, minute: Int = 0, landmarkID: String?) {
-        guard let i = appointments.firstIndex(where: { $0.id == id }), appointments[i].isOpen else { toast(L.t("呢個約會已經冇咗。", "这个约会已经没有了。")); return }
+        guard let i = appointments.firstIndex(where: { $0.id == id }), appointments[i].isOpen else { toast(L.t("呢個約會已經冇咗。", "这个约会已经没有了。", "This walk plan no longer exists.")); return }
         var a = changed(appointments[i], day: day, hour: hour, minute: minute, landmarkID: landmarkID)
-        guard a.date > now else { toast(L.t("嗰個時間已經過咗，揀過第二個。", "那个时间已经过了，换一个吧。")); return }
+        guard a.date > now else { toast(L.t("嗰個時間已經過咗，揀過第二個。", "那个时间已经过了，换一个吧。", "That time has passed. Please pick another.")); return }
         // 冇变就唔好将已约好嘅打返做「等緊確認」、或者将对方嘅邀请变成我嘅反提议（A84）。
-        guard a.date != appointments[i].date || a.landmarkID != appointments[i].landmarkID else { toast(L.t("時間地點都冇變，照舊。", "时间地点都没变，照旧。")); return }
+        guard a.date != appointments[i].date || a.landmarkID != appointments[i].landmarkID else { toast(L.t("時間地點都冇變，照舊。", "时间地点都没变，照旧。", "Same time and place. No change.")); return }
         a.status = .waiting
         a.fromPartner = false
         a.reminded = false
@@ -199,7 +199,7 @@ extension AppStore {
         appointments[i] = a
         community.updateMeetup(a)
         let name = resident(a.partnerID)?.name ?? ""
-        toast(L.t("改咗：\(dayTimeLabel(a.date))，喺\(landmark(a.landmarkID)?.name ?? "")附近。等緊\(name)確認。", "改了：\(dayTimeLabel(a.date))，在\(landmark(a.landmarkID)?.name ?? "")附近。等\(name)确认。"))
+        toast(L.t("改咗：\(dayTimeLabel(a.date))，喺\(landmark(a.landmarkID)?.name ?? "")附近。等緊\(name)確認。", "改了：\(dayTimeLabel(a.date))，在\(landmark(a.landmarkID)?.name ?? "")附近。等\(name)确认。", "Changed: \(dayTimeLabel(a.date)), near \(landmark(a.landmarkID)?.name ?? ""). Waiting for \(name) to confirm."))
         Haptics.success()
     }
 
@@ -226,7 +226,7 @@ extension AppStore {
         community.updateMeetup(appointments[i])
         if proposal?.editing == id { cancelProposal() }
         let name = resident(appointments[i].partnerID)?.name ?? ""
-        say(L.t("取消咗同\(name)嘅約，已經話咗俾\(name)知。", "取消了和\(name)的约，已经告诉\(name)了。"))
+        say(L.t("取消咗同\(name)嘅約，已經話咗俾\(name)知。", "取消了和\(name)的约，已经告诉\(name)了。", "Walk plan with \(name) cancelled. \(name) has been told."))
         Haptics.light()
     }
 
@@ -245,14 +245,14 @@ extension AppStore {
         let a = appointments[i]
         if accepted {
             appointments[i].status = .accepted
-            let text = L.t("\(name)應承咗：\(dayTimeLabel(a.date))，喺\(landmark(a.landmarkID)?.name ?? "")附近見。", "\(name)答应了：\(dayTimeLabel(a.date))，在\(landmark(a.landmarkID)?.name ?? "")附近见。")
+            let text = L.t("\(name)應承咗：\(dayTimeLabel(a.date))，喺\(landmark(a.landmarkID)?.name ?? "")附近見。", "\(name)答应了：\(dayTimeLabel(a.date))，在\(landmark(a.landmarkID)?.name ?? "")附近见。", "\(name) said yes: see you \(dayTimeLabel(a.date)) near \(landmark(a.landmarkID)?.name ?? "").")
             showBanner(BannerItem(symbol: "checkmark.circle.fill", text: text))
             say(text)
             Haptics.success()
         } else {
             appointments[i].status = .cancelled
-            let text = L.t("\(name)話\(dayTimeLabel(a.date))唔得。換個時間再約？", "\(name)说\(dayTimeLabel(a.date))不行。换个时间再约？")
-            showBanner(BannerItem(symbol: "calendar.badge.exclamationmark", text: text, action: .invite(a.partnerID), actionTitle: L.t("再約", "再约")))
+            let text = L.t("\(name)話\(dayTimeLabel(a.date))唔得。換個時間再約？", "\(name)说\(dayTimeLabel(a.date))不行。换个时间再约？", "\(name) can't make it \(dayTimeLabel(a.date)). Try another time?")
+            showBanner(BannerItem(symbol: "calendar.badge.exclamationmark", text: text, action: .invite(a.partnerID), actionTitle: L.t("再約", "再约", "Invite again")))
             say(text)
         }
     }
@@ -260,7 +260,7 @@ extension AppStore {
     /// 演示：陈太约你（经 CommunityService 送回来）。
     func partnerInvites(_ id: String = "chan") {
         guard let p = resident(id), p.isNeighbor, let shade else {
-            toast(L.t("示範：要先碰一碰做咗街坊，先可以約你。", "演示：要先碰一碰成为邻居，才可以约你。"))
+            toast(L.t("示範：要先碰一碰做咗街坊，先可以約你。", "演示：要先碰一碰成为邻居，才可以约你。", "Demo: you need to tap phones and become neighbours before they can invite you."))
             return
         }
         let h = Self.hk.component(.hour, from: now) < 15 ? 16 : 8
@@ -272,8 +272,8 @@ extension AppStore {
     func invitedBy(_ a: Appointment) {
         guard let p = resident(a.partnerID), p.isNeighbor else { return }
         appointments.insert(a, at: 0)
-        let text = L.t("\(p.name)約你\(dayTimeLabel(a.date))喺\(landmark(a.landmarkID)?.name ?? "")一齊行。", "\(p.name)约你\(dayTimeLabel(a.date))在\(landmark(a.landmarkID)?.name ?? "")一起散步。")
-        showBanner(BannerItem(symbol: "envelope.fill", text: text, action: .openNeighbors, actionTitle: L.t("睇吓", "看看")), reply: true)
+        let text = L.t("\(p.name)約你\(dayTimeLabel(a.date))喺\(landmark(a.landmarkID)?.name ?? "")一齊行。", "\(p.name)约你\(dayTimeLabel(a.date))在\(landmark(a.landmarkID)?.name ?? "")一起散步。", "\(p.name) invites you for a walk \(dayTimeLabel(a.date)) at \(landmark(a.landmarkID)?.name ?? "").")
+        showBanner(BannerItem(symbol: "envelope.fill", text: text, action: .openNeighbors, actionTitle: L.t("睇吓", "看看", "Have a look")), reply: true)
         say(text)
     }
 
@@ -283,7 +283,7 @@ extension AppStore {
         appointments[i].status = .accepted
         community.respond(to: appointments[i], accept: true)
         let a = appointments[i]
-        say(L.t("約好咗：\(dayTimeLabel(a.date))，喺\(landmark(a.landmarkID)?.name ?? "")附近見\(resident(a.partnerID)?.name ?? "")。", "约好了：\(dayTimeLabel(a.date))，在\(landmark(a.landmarkID)?.name ?? "")附近见\(resident(a.partnerID)?.name ?? "")。"))
+        say(L.t("約好咗：\(dayTimeLabel(a.date))，喺\(landmark(a.landmarkID)?.name ?? "")附近見\(resident(a.partnerID)?.name ?? "")。", "约好了：\(dayTimeLabel(a.date))，在\(landmark(a.landmarkID)?.name ?? "")附近见\(resident(a.partnerID)?.name ?? "")。", "All set: meet \(resident(a.partnerID)?.name ?? "") near \(landmark(a.landmarkID)?.name ?? "") \(dayTimeLabel(a.date))."))
         Haptics.success()
     }
 
@@ -291,7 +291,7 @@ extension AppStore {
         guard let i = appointments.firstIndex(where: { $0.id == id }) else { return }
         appointments[i].status = .cancelled
         community.respond(to: appointments[i], accept: false)
-        say(L.t("已經話咗俾\(resident(appointments[i].partnerID)?.name ?? "佢")知，今次唔去。", "已经告诉\(resident(appointments[i].partnerID)?.name ?? "他")了，这次不去。"))
+        say(L.t("已經話咗俾\(resident(appointments[i].partnerID)?.name ?? "佢")知，今次唔去。", "已经告诉\(resident(appointments[i].partnerID)?.name ?? "他")了，这次不去。", "Told \(resident(appointments[i].partnerID)?.name ?? "them") you're not going this time."))
         Haptics.light()
     }
 
@@ -308,24 +308,24 @@ extension AppStore {
             if a.status == .accepted, !a.reminded, left > 0, left <= 30 * 60, find == nil {
                 appointments[i].reminded = true
                 let name = resident(a.partnerID)?.name ?? ""
-                let text = L.t("\(Int((left / 60).rounded())) 分鐘後約咗\(name)喺\(landmark(a.landmarkID)?.name ?? "")。", "\(Int((left / 60).rounded())) 分钟后约了\(name)在\(landmark(a.landmarkID)?.name ?? "")。")
-                showBanner(BannerItem(symbol: "bell.fill", text: text, action: .depart(a.id), actionTitle: L.t("出發", "出发")))
+                let text = L.t("\(Int((left / 60).rounded())) 分鐘後約咗\(name)喺\(landmark(a.landmarkID)?.name ?? "")。", "\(Int((left / 60).rounded())) 分钟后约了\(name)在\(landmark(a.landmarkID)?.name ?? "")。", "Meeting \(name) at \(landmark(a.landmarkID)?.name ?? "") in \(Int((left / 60).rounded())) min.")
+                showBanner(BannerItem(symbol: "bell.fill", text: text, action: .depart(a.id), actionTitle: L.t("出發", "出发", "Set off")))
                 say(text)
             } else if a.status == .accepted, a.lateAsked != true, left < -600, left >= -3600, findAppointment != a.id {
                 // F8：过咗约定时间 10 分钟（冇喺找人画面）：提一次（A20）。有对方电话先问要唔要打；
                 // 冇号码（PhoneBook 而家全空）就唔出「打電話」（撳咗只会话未有号码），叫佢喺附近搵吓。
                 appointments[i].lateAsked = true
-                let name = resident(a.partnerID)?.name ?? L.t("街坊", "邻居")
+                let name = resident(a.partnerID)?.name ?? L.t("街坊", "邻居", "your neighbour")
                 let canCall = PhoneBook.number(for: a.partnerID) != nil
-                let text = L.t("同\(name)約咗\(dayTimeLabel(a.date))，過咗 10 分鐘。", "和\(name)约了\(dayTimeLabel(a.date))，已过 10 分钟。")
-                    + (canCall ? L.t("要唔要打電話俾佢？", "要不要打电话给他？") : L.t("仲未見到嘅話，喺附近搵吓。", "还没见到的话，在附近找找。"))
-                showBanner(canCall ? BannerItem(symbol: "clock.fill", text: text, action: .call(a.partnerID), actionTitle: L.t("打電話", "打电话"))
+                let text = L.t("同\(name)約咗\(dayTimeLabel(a.date))，過咗 10 分鐘。", "和\(name)约了\(dayTimeLabel(a.date))，已过 10 分钟。", "Your walk plan with \(name) was \(dayTimeLabel(a.date)). It's 10 minutes past. ")
+                    + (canCall ? L.t("要唔要打電話俾佢？", "要不要打电话给他？", "Give them a call?") : L.t("仲未見到嘅話，喺附近搵吓。", "还没见到的话，在附近找找。", "If you can't see them yet, have a look around."))
+                showBanner(canCall ? BannerItem(symbol: "clock.fill", text: text, action: .call(a.partnerID), actionTitle: L.t("打電話", "打电话", "Call"))
                                    : BannerItem(symbol: "clock.fill", text: text))
                 say(text, prompt: true)
             } else if left < -3600, findAppointment != a.id {
                 // 过咗约定时间一个钟都冇碰头：收埋，唔再提。
                 appointments[i].status = .expired
-                toast(L.t("同\(resident(a.partnerID)?.name ?? "街坊")\(dayTimeLabel(a.date))嘅約過咗時間，收埋咗。", "和\(resident(a.partnerID)?.name ?? "邻居")\(dayTimeLabel(a.date))的约已过时，已收起。"))
+                toast(L.t("同\(resident(a.partnerID)?.name ?? "街坊")\(dayTimeLabel(a.date))嘅約過咗時間，收埋咗。", "和\(resident(a.partnerID)?.name ?? "邻居")\(dayTimeLabel(a.date))的约已过时，已收起。", "Walk plan with \(resident(a.partnerID)?.name ?? "your neighbour") \(dayTimeLabel(a.date)) has passed. Put away."))
             }
         }
     }
@@ -364,7 +364,7 @@ extension AppStore {
 
     /// 按日差讲：琴日 / 今日 / 聽日 / 後日，再远就讲几月几号星期几（A62）；钟点有分钟就讲埋（「今日下晝 4 點 45 分」）。
     func dayTimeLabel(_ d: Date) -> String {
-        dayLabel(d) + Self.clockLabel(d)
+        L.isEn ? dayLabel(d) + " " + Self.clockLabel(d) : dayLabel(d) + Self.clockLabel(d)   // 英文：「tomorrow 3:15 pm」
     }
 
     /// 只讲日子：琴日 / 今日 / 聽日 / 後日 / 几月几号（星期几）。
@@ -372,11 +372,15 @@ extension AppStore {
         let cal = Self.hk
         let diff = cal.dateComponents([.day], from: cal.startOfDay(for: now), to: cal.startOfDay(for: d)).day ?? 0
         switch diff {
-        case -1: return L.t("琴日", "昨天")
-        case 0: return L.t("今日", "今天")
-        case 1: return L.t("聽日", "明天")
-        case 2: return L.t("後日", "后天")
+        case -1: return L.t("琴日", "昨天", "yesterday")
+        case 0: return L.t("今日", "今天", "today")
+        case 1: return L.t("聽日", "明天", "tomorrow")
+        case 2: return L.t("後日", "后天", "the day after")
         default:
+            if L.isEn {   // 英文：「Mon 20 Oct」
+                let wdEn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][(cal.component(.weekday, from: d) + 6) % 7]
+                return "\(wdEn) \(cal.component(.day, from: d)) \(Self.monthAbbr(cal.component(.month, from: d)))"
+            }
             let wd = ["日", "一", "二", "三", "四", "五", "六"][(cal.component(.weekday, from: d) + 6) % 7]
             return "\(cal.component(.month, from: d))月\(cal.component(.day, from: d))日（星期\(wd)）"
         }
@@ -384,6 +388,11 @@ extension AppStore {
 
     /// 约会钟点（香港时间）：「下晝 4 點」；自己揀咗 16:45 就係「下晝 4 點 45 分」。
     nonisolated static func clockLabel(_ d: Date) -> String {
-        TemplateAI.timeLabel(hour: hk.component(.hour, from: d), minute: hk.component(.minute, from: d))
+        let h = hk.component(.hour, from: d), m = hk.component(.minute, from: d)
+        if L.isEn {   // 英文：「8 am」「3:15 pm」
+            let h12 = h % 12 == 0 ? 12 : h % 12
+            return (m == 0 ? "\(h12)" : "\(h12):\(m < 10 ? "0" : "")\(m)") + (h < 12 ? " am" : " pm")
+        }
+        return TemplateAI.timeLabel(hour: h, minute: m)
     }
 }

@@ -15,7 +15,7 @@ struct NicknameEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            TextField(L.t("例如：陳太、李伯", "例如：陈太、李伯"), text: $text)
+            TextField(L.t("例如：陳太、李伯", "例如：陈太、李伯", "e.g. Mrs Chan, Uncle Lee"), text: $text)
                 .font(.system(size: 30, weight: .semibold, design: .rounded))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -26,11 +26,11 @@ struct NicknameEditor: View {
                 .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous)
                     .strokeBorder(tooLong ? Color.red : (focused ? DS.accent : Color.primary.opacity(0.12)), lineWidth: focused || tooLong ? 2 : 1))
-                .accessibilityLabel(L.t("網名", "网名"))
-                .accessibilityHint(L.t("1 至 20 個字", "1 到 20 个字"))
+                .accessibilityLabel(L.t("網名", "网名", "Nickname"))
+                .accessibilityHint(L.t("1 至 20 個字", "1 到 20 个字", "1 to 20 characters"))
 
             HStack {
-                Text(tooLong ? L.t("太長喇，最多 20 個字", "太长了，最多 20 个字") : L.t("唔使用真名，1 至 20 個字", "不用真名，1 到 20 个字"))
+                Text(tooLong ? L.t("太長喇，最多 20 個字", "太长了，最多 20 个字", "Too long. 20 characters max") : L.t("唔使用真名，1 至 20 個字", "不用真名，1 到 20 个字", "No real name needed, 1 to 20 characters"))
                     .ds(.caption)
                     .foregroundStyle(tooLong ? Color.red : .secondary)
                 Spacer(minLength: 8)
@@ -42,7 +42,7 @@ struct NicknameEditor: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(L.t("或者撳一個：", "或者点一个：")).ds(.caption).foregroundStyle(.secondary)
+                Text(L.t("或者撳一個：", "或者点一个：", "Or tap one:")).ds(.caption).foregroundStyle(.secondary)
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], alignment: .leading, spacing: 8) {
                     ForEach(store.nicknameSuggestions, id: \.self) { s in
                         let on = text.trimmingCharacters(in: .whitespaces) == s
@@ -65,7 +65,7 @@ struct NicknameEditor: View {
                                     .strokeBorder(on ? DS.accent : Color.primary.opacity(0.08), lineWidth: on ? 3 : 1))
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(L.t("用「\(s)」做網名", "用「\(s)」做网名"))
+                        .accessibilityLabel(L.t("用「\(s)」做網名", "用「\(s)」做网名", "Use “\(s)” as nickname"))
                     }
                 }
             }
@@ -83,18 +83,18 @@ struct NicknameSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text(L.t("排行榜上同區嘅人會見到呢個網名。", "排行榜上同区的人会看到这个网名。"))
+                    Text(L.t("排行榜上同區嘅人會見到呢個網名。", "排行榜上同区的人会看到这个网名。", "People in your area see this nickname on the leaderboard."))
                         .ds(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     NicknameEditor(text: $text)
                     Button {
                         if store.setNickname(text) {
-                            store.say(L.t("好，網名改咗做\(store.nickname)。", "好，网名改成了\(store.nickname)。"))
+                            store.say(L.t("好，網名改咗做\(store.nickname)。", "好，网名改成了\(store.nickname)。", "OK, your nickname is now \(store.nickname)."))
                             dismiss()
                         }
                     } label: {
-                        Text(L.t("好", "好")).frame(maxWidth: .infinity)
+                        Text(L.t("好", "好", "OK")).frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.dsPrimary)
                     .disabled(CommunityProfile.cleanNickname(text) == nil)
@@ -105,10 +105,10 @@ struct NicknameSheet: View {
             }
             .background(Color(.systemGroupedBackground))
             .toolbar {
-                ToolbarItem(placement: .principal) { Text(L.t("網名", "网名")).ds(.bodyBold).accessibilityAddTraits(.isHeader) }
+                ToolbarItem(placement: .principal) { Text(L.t("網名", "网名", "Nickname")).ds(.bodyBold).accessibilityAddTraits(.isHeader) }
                 if !store.needsNickname {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button { dismiss() } label: { Text(L.t("唔改", "不改")).ds(.bodyBold) }.foregroundStyle(DS.accent)
+                        Button { dismiss() } label: { Text(L.t("唔改", "不改", "Keep it")).ds(.bodyBold) }.foregroundStyle(DS.accent)
                     }
                 }
             }
@@ -132,11 +132,11 @@ struct IncomingFindCard: View {
                 HStack(alignment: .top, spacing: 12) {
                     AvatarBadge(p, size: 64)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(L.t("\(p.name)想過嚟搵你，方唔方便？", "\(p.name)想过来找你，方便吗？"))
+                        Text(L.t("\(p.name)想過嚟搵你，方唔方便？", "\(p.name)想过来找你，方便吗？", "\(p.name) wants to come and find you. Is that OK?"))
                             .ds(.bodyBold)
                             .fixedSize(horizontal: false, vertical: true)
                         if let place = store.placeName(ask.landmarkID) {
-                            Text(L.t("佢會過去\(place)附近搵你。", "他会去\(place)附近找你。"))
+                            Text(L.t("佢會過去\(place)附近搵你。", "他会去\(place)附近找你。", "They'll come to \(place) to find you."))
                                 .ds(.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -149,7 +149,7 @@ struct IncomingFindCard: View {
                     taps += 1
                     store.answerIncomingFind(true)
                 } label: {
-                    Text(L.t("好", "好")).frame(maxWidth: .infinity)
+                    Text(L.t("好", "好", "OK")).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsPrimary)
 
@@ -157,7 +157,7 @@ struct IncomingFindCard: View {
                     taps += 1
                     store.answerIncomingFind(false)
                 } label: {
-                    Text(L.t("唔方便", "不方便")).frame(maxWidth: .infinity)
+                    Text(L.t("唔方便", "不方便", "Not now")).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsSecondary)
             }
@@ -176,14 +176,14 @@ struct OfflineChip: View {
     var body: some View {
         if store.supabase?.cellularDenied == true {
             Button { openSettings() } label: {
-                chip(L.t("未允許用流動數據", "没允许用流量"), symbol: "antenna.radiowaves.left.and.right.slash")
+                chip(L.t("未允許用流動數據", "没允许用流量", "Mobile data not allowed"), symbol: "antenna.radiowaves.left.and.right.slash")
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(L.t("街坊行未允許用流動數據", "街坊行没有被允许使用流量"))
-            .accessibilityHint(L.t("撳一下去設定，打開「流動數據」或者「無線數據」。", "点一下去设置，打开「无线数据」或「蜂窝数据」。"))
+            .accessibilityLabel(L.t("街坊行未允許用流動數據", "街坊行没有被允许使用流量", "Kaifong Walk isn't allowed to use mobile data"))
+            .accessibilityHint(L.t("撳一下去設定，打開「流動數據」或者「無線數據」。", "点一下去设置，打开「无线数据」或「蜂窝数据」。", "Tap to open Settings and turn on “Mobile Data” or “Wireless Data”."))
         } else {
-            chip(L.t("未連線", "未联网"), symbol: "wifi.slash")
-                .accessibilityLabel(L.t("未連線。你做嘅改動會留住，連返網就會送出。", "未联网。你的改动会保留，联网后就会发送。"))
+            chip(L.t("未連線", "未联网", "Offline"), symbol: "wifi.slash")
+                .accessibilityLabel(L.t("未連線。你做嘅改動會留住，連返網就會送出。", "未联网。你的改动会保留，联网后就会发送。", "Offline. Your changes are kept and will be sent when you're back online."))
         }
     }
 

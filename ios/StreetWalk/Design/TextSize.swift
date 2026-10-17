@@ -8,10 +8,10 @@ enum TextSize: String, CaseIterable, Codable, Sendable {
 
     var label: String {
         switch self {
-        case .small: return L.t("細", "小")
-        case .standard: return L.t("標準", "标准")
-        case .large: return "大"
-        case .xlarge: return "特大"
+        case .small: return L.t("細", "小", "Small")
+        case .standard: return L.t("標準", "标准", "Standard")
+        case .large: return L.t("大", "大", "Large")
+        case .xlarge: return L.t("特大", "特大", "Extra large")
         }
     }
 
@@ -122,7 +122,7 @@ struct TextSizePicker: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(L.t("字體\(t.label)", "字体\(t.label)"))
+                .accessibilityLabel(L.t("字體\(t.label)", "字体\(t.label)", "Text size \(t.label)"))
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
         }

@@ -212,7 +212,7 @@ struct SceneChip<Label: View>: View {
 
 /// 「示範」小标签：标明这块数据是单机演示模拟的（圈里其他人、全邨汇总、示範纪录）。辅助字号 20、正文色，老人看得清。
 struct DemoBadge: View {
-    var text = L.t("示範", "示范")
+    var text = L.t("示範", "示范", "Demo")
     var body: some View {
         Label(text, systemImage: "sparkles")
             .ds(.captionBold)
@@ -223,13 +223,13 @@ struct DemoBadge: View {
             // 只固定高度：大字号时长句可以换行，不会把整张卡撑出屏幕
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(text == L.t("示範", "示范") ? L.t("示範數據，係模擬嘅", "示范数据，是模拟的") : text)
+            .accessibilityLabel(text == L.t("示範", "示范", "Demo") ? L.t("示範數據，係模擬嘅", "示范数据，是模拟的", "Demo data, simulated") : text)
     }
 }
 
 /// 「AI」小标签：表示这句是 AI 写 / 理解的。辅助字号 20，深一档橙保证对比度。
 struct AIBadge: View {
-    var spoken = L.t("AI 寫嘅", "AI 写的")
+    var spoken = L.t("AI 寫嘅", "AI 写的", "Written by AI")
     var body: some View {
         Text("AI")
             .ds(.captionBold)

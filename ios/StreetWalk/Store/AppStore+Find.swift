@@ -8,7 +8,7 @@ extension AppStore {
         guard let p = resident(partnerID), p.isNeighbor else { return }
         guard let lm = landmark(p.atLandmarkID ?? p.homeLandmarkID) else {
             // 真后端：佢喺我地图外面嘅地标（只有名），带唔到路
-            if let place = placeName(p.atLandmarkID) { toast(L.t("\(p.name)喺\(place)附近，唔喺你附近嘅地圖入面。可以約佢或者打電話。", "\(p.name)在\(place)附近，不在你附近的地图里。可以约他或者打电话。")) }
+            if let place = placeName(p.atLandmarkID) { toast(L.t("\(p.name)喺\(place)附近，唔喺你附近嘅地圖入面。可以約佢或者打電話。", "\(p.name)在\(place)附近，不在你附近的地图里。可以约他或者打电话。", "\(p.name) is near \(place), outside your map. You can invite them or call.")) }
             return
         }
         // 换人 / 再问：撤回上一个询问，清走上次留低嘅「話好」同约会路线（A22）。
@@ -41,7 +41,7 @@ extension AppStore {
         if !accepted {
             f.stage = .declined
             find = f
-            say(L.t("\(p.name)而家唔方便。", "\(p.name)现在不方便。"))
+            say(L.t("\(p.name)而家唔方便。", "\(p.name)现在不方便。", "\(p.name) can't right now."))
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(2))
                 if self.find?.token == token { self.endFind() }
@@ -51,11 +51,11 @@ extension AppStore {
         if canShareLive(with: f.partnerID) {
             // 真街坊：即刻一齐分享位置、跟箭咀去搵佢（唔使再撳「去」）
             Haptics.success()
-            say(L.t("\(p.name)話好。而家同\(p.name)分享緊位置，跟住箭咀行。", "\(p.name)答应了。正在和\(p.name)共享位置，跟着箭头走。"))
+            say(L.t("\(p.name)話好。而家同\(p.name)分享緊位置，跟住箭咀行。", "\(p.name)答应了。正在和\(p.name)共享位置，跟着箭头走。", "\(p.name) said yes. Sharing location with \(p.name) now. Follow the arrow."))
             startGoing()
             return
         }
-        say(L.t("\(p.name)話好，喺\(landmark(f.landmarkID)?.name ?? "")等你。撳「去」就出發。", "\(p.name)答应了，在\(landmark(f.landmarkID)?.name ?? "")等你。按「去」就出发。"), prompt: true)
+        say(L.t("\(p.name)話好，喺\(landmark(f.landmarkID)?.name ?? "")等你。撳「去」就出發。", "\(p.name)答应了，在\(landmark(f.landmarkID)?.name ?? "")等你。按「去」就出发。", "\(p.name) said yes and is waiting at \(landmark(f.landmarkID)?.name ?? ""). Tap “Go” to set off."), prompt: true)
         Haptics.success()
         partnerAgreed = true
     }
@@ -86,7 +86,7 @@ extension AppStore {
     func departForAppointment(_ a: Appointment) {
         // 只有约好咗、对方仍然係街坊先可以出发（非街坊永远唔入场景）。
         guard a.status == .accepted, let p = resident(a.partnerID), p.isNeighbor else { return }
-        guard let lm = landmark(a.landmarkID) else { toast(L.t("搵唔到約會個地點（地圖更新咗），撳「改時間地點」揀過。", "找不到约会地点（地图更新了），按「改时间地点」重新选。")); return }
+        guard let lm = landmark(a.landmarkID) else { toast(L.t("搵唔到約會個地點（地圖更新咗），撳「改時間地點」揀過。", "找不到约会地点（地图更新了），按「改时间地点」重新选。", "Can't find the meeting place (the map was updated). Tap “Change time/place” to pick again.")); return }
         if let old = find { community.cancelFindAsk(partnerID: old.partnerID) }
         renaming = nil
         selection = nil
@@ -109,7 +109,7 @@ extension AppStore {
         syncScene()
         startTicker()
         frameFind(on: lm.pos)
-        say(session.live ? L.t("今日約咗\(p.name)喺\(lm.name)。而家同\(p.name)分享緊位置。", "今天约了\(p.name)在\(lm.name)。正在和\(p.name)共享位置。") : L.t("今日約咗\(p.name)喺\(lm.name)。等緊\(p.name)出門。", "今天约了\(p.name)在\(lm.name)。在等\(p.name)出门。"))
+        say(session.live ? L.t("今日約咗\(p.name)喺\(lm.name)。而家同\(p.name)分享緊位置。", "今天约了\(p.name)在\(lm.name)。正在和\(p.name)共享位置。", "Meeting \(p.name) at \(lm.name) today. Sharing location with \(p.name) now.") : L.t("今日約咗\(p.name)喺\(lm.name)。等緊\(p.name)出門。", "今天约了\(p.name)在\(lm.name)。在等\(p.name)出门。", "Meeting \(p.name) at \(lm.name) today. Waiting for \(p.name) to set off."))
         let myMinutes = max(1, Int((pathLength(findRoute ?? []) / 70).rounded(.up)))
         let token = session.token
         community.departForMeetup(a.id, etaMinutes: myMinutes) { [weak self] trip in
@@ -138,9 +138,9 @@ extension AppStore {
         find = f
         if departing {
             syncScene()
-            say(trip.arrived ? L.t("\(p.name)已經喺\(lm.name)等你。", "\(p.name)已经在\(lm.name)等你。") : L.t("\(p.name)出咗門，大約 \(f.etaMinutes) 分鐘到\(lm.name)。", "\(p.name)出门了，大约 \(f.etaMinutes) 分钟到\(lm.name)。"))
+            say(trip.arrived ? L.t("\(p.name)已經喺\(lm.name)等你。", "\(p.name)已经在\(lm.name)等你。", "\(p.name) is already waiting at \(lm.name).") : L.t("\(p.name)出咗門，大約 \(f.etaMinutes) 分鐘到\(lm.name)。", "\(p.name)出门了，大约 \(f.etaMinutes) 分钟到\(lm.name)。", "\(p.name) is out, about \(f.etaMinutes) min to \(lm.name)."))
         } else if trip.arrived && !wasThere {
-            say(L.t("\(p.name)到咗\(lm.name)。", "\(p.name)到\(lm.name)了。"))
+            say(L.t("\(p.name)到咗\(lm.name)。", "\(p.name)到\(lm.name)了。", "\(p.name) has reached \(lm.name)."))
         }
     }
 
@@ -168,13 +168,13 @@ extension AppStore {
         if d <= 50 && f.stage == .going && f.partnerOut {
             f.stage = .near
             Haptics.success()
-            say(L.t("\(resident(f.partnerID)?.name ?? "")喺附近，跟住箭咀行。", "\(resident(f.partnerID)?.name ?? "")在附近，跟着箭头走。"))
+            say(L.t("\(resident(f.partnerID)?.name ?? "")喺附近，跟住箭咀行。", "\(resident(f.partnerID)?.name ?? "")在附近，跟着箭头走。", "\(resident(f.partnerID)?.name ?? "") is nearby. Follow the arrow."))
         }
         let partnerThere = f.spontaneous || (f.partnerOut && partnerTravelled >= pathLength(partnerRoute ?? []))
         if f.partnerOut && (d <= 9 || (findTravelled >= pathLength(route) && partnerThere)) {
             f.stage = .met
             Haptics.success()
-            say(L.t("見到喇！", "看到了！"))
+            say(L.t("見到喇！", "看到了！", "Found them!"))
             if let id = findAppointment, let i = appointments.firstIndex(where: { $0.id == id }) { appointments[i].status = .done }
             walkingWith = f.partnerID
             let finished = f
@@ -196,14 +196,14 @@ extension AppStore {
         f.latePrompt = true
         // 冇对方电话号码（PhoneBook 而家全空）就唔问打唔打电话，叫佢喺附近搵吓（同 lateCard 一样）。
         let name = resident(f.partnerID)?.name ?? ""
-        let next = PhoneBook.number(for: f.partnerID) != nil ? L.t("要唔要打電話俾佢？", "要不要给他打电话？") : L.t("喺附近搵吓。", "在附近找找。")
-        say(L.t("過咗約定時間 10 分鐘，仲未見到\(name)。", "过了约定时间 10 分钟，还没见到\(name)。") + next, prompt: true)
+        let next = PhoneBook.number(for: f.partnerID) != nil ? L.t("要唔要打電話俾佢？", "要不要给他打电话？", "Give them a call?") : L.t("喺附近搵吓。", "在附近找找。", "Have a look around.")
+        say(L.t("過咗約定時間 10 分鐘，仲未見到\(name)。", "过了约定时间 10 分钟，还没见到\(name)。", "10 minutes past the time and no sign of \(name). ") + next, prompt: true)
     }
 
     /// 演示：将时间拨到约定时间后 11 分钟，等自动检查问「要唔要打電話」（唔再直接弹卡）。
     func lateDemo() {
         guard let f = find, !f.spontaneous, let id = findAppointment, let a = appointments.first(where: { $0.id == id }) else {
-            toast(L.t("示範：約好咗、撳咗「出發」先用得。", "示范：约好了、按了「出发」才能用。"))
+            toast(L.t("示範：約好咗、撳咗「出發」先用得。", "示范：约好了、按了「出发」才能用。", "Demo: only works after a walk plan is set and you tap “Set off”."))
             return
         }
         setDemoHour(a.date.timeIntervalSince(Self.hk.startOfDay(for: Date())) / 3600 + 11.0 / 60)
@@ -213,11 +213,11 @@ extension AppStore {
     func broadcastHere(_ text: String? = nil) {
         guard var f = find else { return }
         // 真街坊嘅找人可能冇本机地标（被搵嗰边、对方喺地图外）：照传原话
-        guard let msg = text ?? landmark(f.landmarkID).map({ f.spontaneous ? L.t("我就到\($0.name)", "我马上到\($0.name)") : L.t("我喺\($0.name)", "我在\($0.name)") }) else { return }
+        guard let msg = text ?? landmark(f.landmarkID).map({ f.spontaneous ? L.t("我就到\($0.name)", "我马上到\($0.name)", "Almost at \($0.name)") : L.t("我喺\($0.name)", "我在\($0.name)", "I'm at \($0.name)") }) else { return }
         f.broadcast = msg
         find = f
         community.broadcast(to: f.partnerID, text: msg)
-        say(L.t("已經話俾\(resident(f.partnerID)?.name ?? "")知：\(msg)。", "已经告诉\(resident(f.partnerID)?.name ?? "")：\(msg)。"))
+        say(L.t("已經話俾\(resident(f.partnerID)?.name ?? "")知：\(msg)。", "已经告诉\(resident(f.partnerID)?.name ?? "")：\(msg)。", "Told \(resident(f.partnerID)?.name ?? ""): \(msg)."))
         Haptics.light()
     }
 
@@ -238,10 +238,10 @@ extension AppStore {
 
     func findStepTitle(_ s: FindStep) -> String {
         switch s {
-        case .depart: return L.t("出發喇", "出发了")
-        case .almost: return L.t("我就到", "我马上到")
-        case .waiting: return L.t("我喺度等你", "我在这儿等你")
-        case .met: return L.t("見到喇", "见到了")
+        case .depart: return L.t("出發喇", "出发了", "On my way")
+        case .almost: return L.t("我就到", "我马上到", "Almost there")
+        case .waiting: return L.t("我喺度等你", "我在这儿等你", "I'm here waiting")
+        case .met: return L.t("見到喇", "见到了", "Found you")
         }
     }
 
@@ -251,13 +251,13 @@ extension AppStore {
         let place = placeName(f.landmarkID)
         switch findStep(f) {
         case .depart:
-            broadcastHere(L.t("我出發喇", "我出发了"))
+            broadcastHere(L.t("我出發喇", "我出发了", "I'm on my way"))
             find?.told = 1
         case .almost:
-            broadcastHere(place.map { L.t("我就到\($0)", "我马上到\($0)") } ?? L.t("我就到", "我马上到"))
+            broadcastHere(place.map { L.t("我就到\($0)", "我马上到\($0)", "Almost at \($0)") } ?? L.t("我就到", "我马上到", "Almost there"))
             find?.told = 2
         case .waiting:
-            broadcastHere(L.t("我喺度等你", "我在这儿等你"))
+            broadcastHere(L.t("我喺度等你", "我在这儿等你", "I'm here waiting"))
             find?.told = 1
         case .met:
             if f.live { liveMetTapped() } else { findMetTapped() }
@@ -270,7 +270,7 @@ extension AppStore {
         f.stage = .met
         f.etaMinutes = 0
         Haptics.success()
-        say(L.t("見到喇！", "看到了！"))
+        say(L.t("見到喇！", "看到了！", "Found them!"))
         if let id = findAppointment, let i = appointments.firstIndex(where: { $0.id == id }) { appointments[i].status = .done }
         walkingWith = f.partnerID
         find = f
