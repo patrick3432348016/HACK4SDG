@@ -103,7 +103,44 @@ extension AppStore {
 
     func reason(for l: Landmark, at d: Date) -> String {
         let s = shade?.shade(landmarkID: l.id, at: d) ?? 0
-        return (shade?.isSunUp(at: d) == false ? L.t("嗰陣已經日落", "那时已经日落", "sun has set by then") : s >= 0.5 ? L.t("嗰陣有樓遮住", "那时有楼挡着", "shady then (buildings)") : L.t("嗰陣會曬", "那时会晒", "too sunny then")) + (l.hasSeat ? L.t("、有櫈", "、有凳子", ", seats here") : "")
+        return (shade?.isSunUp(at: d) == false ? L.t("嗰陣已經日落", "那时已经日落", "Sun has set by then") : s >= 0.5 ? L.t("嗰陣有樓遮住", "那时有楼挡着", "Shady then (buildings)") : L.t("嗰陣會曬", "那时会晒", "Too sunny then")) + (l.hasSeat ? L.t("、有櫈", "、有凳子", ", seats here") : "")
+    }
+
+    /// 10-18 测试反馈：对方手机生成嘅理由係对方嘅语言（英文界面见到「那时有楼挡着…」）。
+    /// 卡上显示嘅理由一律喺本机按而家嘅语言重算：遮荫 / 日落、有冇櫈、两个人各行几耐、一齐行几耐（由原句认返分钟数）。
+    func meetupReason(_ a: Appointment) -> String {
+        guard let l = landmark(a.landmarkID) else { return Self.matchesLanguage(a.reason) ? a.reason : "" }
+        var s = reason(for: l, at: a.date)
+        if let p = resident(a.partnerID), let mine = landmark(me.homeLandmarkID)?.pos, let theirs = landmark(p.homeLandmarkID)?.pos {
+            let m = max(1, Int((max(l.pos.distance(to: mine), l.pos.distance(to: theirs)) / 65).rounded()))
+            s += L.t("、兩個都行 \(m) 分鐘左右", "、两人都走 \(m) 分钟左右", ", about \(m) minutes' walk for both")
+        }
+        if let m = Self.walkMinutes(in: a.reason) { s += Self.walkNote(m) }
+        return s
+    }
+
+    /// 理由入面「一齊行 30 分鐘」「一起走半个小时」「walk together for an hour」嘅分钟数（三种语言都认）。
+    nonisolated static func walkMinutes(in reason: String) -> Int? {
+        guard let r = reason.range(of: #"(一齊行|一起走|walk together)\s*(for\s+)?"#, options: .regularExpression) else { return nil }
+        var d = String(reason[r.upperBound...])
+        if let end = d.firstIndex(where: { "，、,。.".contains($0) }) { d = String(d[..<end]) }
+        d = d.trimmingCharacters(in: .whitespaces)
+        if d.hasPrefix("半") || d.hasPrefix("half") { return 30 }
+        let digits = Int(d.prefix(while: \.isNumber))
+        if let digits, d.contains("分") || d.contains("min") { return digits }
+        let h = digits ?? (d.hasPrefix("一") || d.hasPrefix("an ") ? 1 : d.hasPrefix("兩") || d.hasPrefix("两") ? 2 : 0)
+        guard h > 0 else { return nil }
+        return h * 60 + (d.contains("半") || d.contains("and a half") ? 30 : 0)
+    }
+
+    /// 句子同而家嘅界面语言对唔对得上（英文界面唔出中文；粤语 / 普通话用几个常见字分）。
+    nonisolated static func matchesLanguage(_ text: String) -> Bool {
+        let cjk = text.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) }
+        if L.isEn { return !cjk }
+        guard cjk else { return false }
+        let mandarin = ["那时", "凳子", "两人", "一起走", "已经"].contains { text.contains($0) }
+        let cantonese = ["嗰陣", "櫈", "兩個", "一齊行", "已經"].contains { text.contains($0) }
+        return L.isCmn ? (!cantonese || mandarin) : (!mandarin || cantonese)
     }
 
     func confirmProposal() {
@@ -165,9 +202,9 @@ extension AppStore {
             let date = Self.today(at: Double(h), dayOffset: d)
             guard date > now.addingTimeInterval(3600), abs(date.timeIntervalSince(a.date)) > 1800,
                   shade?.isSunUp(at: date) != false else { continue }
-            options.append(MeetProposal(date: date, landmarkID: a.landmarkID, reason: lm.map { reason(for: $0, at: date) } ?? a.reason))
+            options.append(MeetProposal(date: date, landmarkID: a.landmarkID, reason: lm.map { reason(for: $0, at: date) } ?? meetupReason(a)))
         }
-        if keepCurrent || options.isEmpty { options.append(MeetProposal(date: a.date, landmarkID: a.landmarkID, reason: a.reason)) }
+        if keepCurrent || options.isEmpty { options.append(MeetProposal(date: a.date, landmarkID: a.landmarkID, reason: meetupReason(a))) }
         proposal = Proposal(partnerID: a.partnerID, options: options, index: 0, editing: id)
         scene.highlightLandmark(a.landmarkID)
         focus(onLandmark: a.landmarkID)

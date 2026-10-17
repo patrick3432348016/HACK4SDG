@@ -155,6 +155,16 @@ struct ProposalCard: View {
             }
             .animation(DS.motion(DS.spring), value: current)
 
+            // 10-18 测试反馈：改时间只得三个预设唔够，要可以自己揀（同约人卡同一个选择器），揀完撳「發俾XX」
+            Button { customizing = true } label: {
+                Label(L.t("自己揀時間、地點", "自己选时间、地点", "Choose time and place"), systemImage: "slider.horizontal.3")
+                    .ds(.captionBold)
+                    .foregroundStyle(DS.accentInk)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
             Button { store.confirmProposal() } label: {
                 Label(L.t("發俾\(name)", "发给\(name)", "Send to \(name)"), systemImage: "paperplane.fill").lineLimit(1).minimumScaleFactor(0.8).frame(maxWidth: .infinity)
             }
@@ -554,6 +564,7 @@ struct CustomMeetupSheet: View {
                                displayedComponents: [.date, .hourAndMinute])
                         .datePickerStyle(.graphical)
                         .tint(DS.accent)
+                        .environment(\.locale, Locale(identifier: L.lang.locale))   // 月历跟 App 语言（英文界面唔好出「周一」）
                 } header: { Text(L.t("幾時", "什么时候", "When")).ds(.caption) }
 
                 Section {

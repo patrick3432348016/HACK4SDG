@@ -34,9 +34,9 @@ extension AppStore {
             self?.bumpMatched(m)
         })
         // 唔支援嘅手机会即刻报失败：唔好先讲「貼近」再讲「唔支援」。
-        // D-4：顶部对顶部会弹「隔空投送」，叫人并排 / 背对背、隔一拳就得。
+        // D-4：顶部对顶部会弹「隔空投送」，叫人并排、隔一拳就得（10-18 背对背会叫出 Siri，删咗）。
         if bumpProgress == .searching {
-            say(L.t("兩部手機並排或者背對背靠近，隔一個拳頭就得，唔好頂部對頂部。", "两台手机并排或背对背靠近，隔一个拳头就行，不要顶部对顶部。", "Hold the phones side by side or back to back, a fist apart. Not top to top."))
+            say(L.t("兩部手機並排擺、隔一個拳頭就得，唔好頂部對頂部。", "两台手机并排放、隔一个拳头就行，不要顶部对顶部。", "Hold the phones side by side, a fist apart. Not top to top."))
         }
     }
 

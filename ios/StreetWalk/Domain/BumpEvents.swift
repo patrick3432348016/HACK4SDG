@@ -73,8 +73,8 @@ enum BumpFailure: Equatable {
         case .unsupported: return L.t("要兩部 iPhone 11 或之後嘅型號先得。可以改用二維碼。", "需要两部 iPhone 11 或更新的机型。可以改用二维码。", "Needs two iPhone 11 or newer. You can use a QR code instead.")
         case .localNetworkDenied: return L.t("要允許「本地網絡」。去「設定」打開，或者改用二維碼。", "需要允许「本地网络」。去「设置」打开，或者改用二维码。", "Allow Local Network in Settings, or use a QR code instead.")
         case .nearbyDenied: return L.t("要允許「附近互動」。去「設定」打開，或者改用二維碼。", "需要允许「附近交互」。去「设置」打开，或者改用二维码。", "Allow Nearby Interactions in Settings, or use a QR code instead.")
-        case .timeout: return L.t("兩部手機都要開住呢頁，並排或者背對背靠近，隔一個拳頭就得；Wi-Fi 同藍牙都要開（唔使連網絡）。可以再試，或者改用二維碼。",
-                                  "两台手机都要打开这一页，并排或背对背靠近，隔一个拳头就行；Wi-Fi 和蓝牙都要打开（不用连网络）。可以再试，或者改用二维码。", "Keep this page open on both phones. Hold them side by side or back to back, a fist apart. Turn on Wi-Fi and Bluetooth (no internet needed). Try again, or use a QR code.")
+        case .timeout: return L.t("兩部手機都要開住呢頁，並排擺、隔一個拳頭就得；Wi-Fi 同藍牙都要開（唔使連網絡）。可以再試，或者改用二維碼。",
+                                  "两台手机都要打开这一页，并排放、隔一个拳头就行；Wi-Fi 和蓝牙都要打开（不用连网络）。可以再试，或者改用二维码。", "Keep this page open on both phones. Hold them side by side, a fist apart. Turn on Wi-Fi and Bluetooth (no internet needed). Try again, or use a QR code.")
         case .background: return L.t("碰一碰時要開住呢頁。如果彈出「隔空投送」，撳「取消」再試。", "碰一碰时要一直开着这一页。如果弹出「隔空投送」，点「取消」再试。", "Keep this page open while tapping. If AirDrop pops up, tap Cancel and try again.")
         case .peerLeft: return L.t("兩部手機一齊再試，或者改用二維碼。", "两部手机一起再试，或者改用二维码。", "Try again on both phones, or use a QR code.")
         case .noServer: return L.t("呢個版本未接伺服器，加唔到街坊。", "这个版本未接服务器，加不了邻居。", "This version has no server, so you can’t add neighbours.")
