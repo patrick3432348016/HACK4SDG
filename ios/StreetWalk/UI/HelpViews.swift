@@ -211,7 +211,7 @@ struct PrivacyPolicyView: View {
         (L.t("講嘢", "说话", "Speaking"),
          L.t("只有撳咗咪先會聽。連到我哋嘅語音伺服器時，聲音經伺服器交俾豆包（火山引擎）轉做文字同理解，測試期間對話會記低用嚟搵錯；連唔到就用 iPhone 自帶嘅語音識別（蘋果）。", "只有点了麦克风才会听。连上我们的语音服务器时，声音会经服务器交给豆包（火山引擎）转成文字、理解意思；测试期间对话会被记下来，用来查找问题。连不上时，就用 iPhone 自带的语音识别（苹果）。", "It only listens after you tap the mic. When connected to our voice server, your voice goes through the server to Doubao (Volcano Engine) to turn it into text and understand it. During testing, conversations are saved to find problems. If the server can't be reached, the iPhone's own speech recognition (Apple) is used.")),
         (L.t("反映", "地点反馈", "Place reports"),
-         L.t("「冇櫈」「太曬」呢類反映係匿名嘅，同一個地方夠十個人先交俾社工同屋邨管理。", "「没凳子」「太晒」这类反馈是匿名的，同一个地方有十个人反馈了，才会交给社工和屋邨管理处。", "Reports like \"No seats\" or \"Too sunny\" are anonymous. Only when 10 people report the same place is it passed to social workers and estate management.")),
+         L.t("「冇櫈」「太曬」呢類反映係匿名嘅，同一個地方有幾位街坊都反映，我哋會整理好轉交社工同屋邨管理。", "「没凳子」「太晒」这类反馈是匿名的，同一个地方有几位邻居都反映了，我们会整理好转交社工和屋邨管理处。", "Reports like \"No seats\" or \"Too sunny\" are anonymous. When several neighbours report the same place, we gather them up and pass them to social workers and estate management.")),
         (L.t("意見", "意见", "Feedback"),
          L.t("「幫助同意見」入面寫嘅意見會匿名傳畀開發團隊，連埋 App 版本同手機型號，用嚟改善 App；唔包你嘅位置。", "在「帮助与反馈」里写的意见，会匿名发给开发团队，同时附上 App 版本和手机型号，用来改进 App；不包含你的位置。", "Feedback written in \"Help & feedback\" is sent anonymously to the team, with the app version and phone model, to improve the app. It does not include your location.")),
         (L.t("刪除", "删除", "Deleting"),

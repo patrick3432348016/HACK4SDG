@@ -42,7 +42,7 @@ extension AppStore {
             await step(73, "應承") { cap(L.t("影響別人嘅動作，一定先複述再按「好」", "影响别人的操作，一定先复述再按「好的」", "Anything that affects others is read back first"), "Anything that affects others is read back for confirmation first") }
             await step(79, "天氣 + 遮蔭") { banner = nil; setDemoHour(15); setWeather(.hot); cap(L.t("天文台天氣 + 樓影遮蔭：建議幾點出門", "天文台天气 + 楼影遮阴：建议几点出门", "Observatory weather + building shade: when to head out"), "HK Observatory weather + building shade: when to head out") }
             await step(87, "反映：呢度好曬") { banner = nil; report(.sunny); cap(L.t("講一句「呢度好曬」，記低喺最近嘅地標", "说一句「这里太晒」，记在最近的地标", "Say “too sunny here”: it is pinned to the nearest landmark"), "Say \"too sunny here\" — it's pinned to the nearest landmark") }
-            await step(92, "月尾報告") { showReport = true; cap(L.t("月報：只出 10 人以上嘅匿名匯總，交社工同屋邨管理", "月报：只出 10 人以上的匿名汇总，交社工和屋苑管理", "Monthly report: anonymous, 10+ residents only, for social workers and estate management"), "Monthly report: anonymous, 10+ residents only, for social workers & estate management") }
+            await step(92, "月尾報告") { showReport = true; cap(L.t("月報：只出多位街坊嘅匿名匯總，交社工同屋邨管理", "月报：只出多位邻居的匿名汇总，交社工和屋苑管理", "Monthly report: anonymous, several residents only, for social workers and estate management"), "Monthly report: anonymous, several residents only, for social workers & estate management") }
             await step(101, "完") { showReport = false; caption = nil }
         }
     }
