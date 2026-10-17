@@ -1,19 +1,31 @@
 import Foundation
 import Observation
 
-/// 界面语言：粤语（繁体，默认）/ 普通话（简体）。App 同实时活动（StreetWalkWidgets）两个目标都编译。
+/// 界面语言：粤语（繁体，默认）/ 普通话（简体）/ 英文（2026-10-17 加）。App 同实时活动（StreetWalkWidgets）两个目标都编译。
 ///
-/// 用法：所有用户睇到、听到嘅文字写成 `L.t("粵語原文", "普通话")`。
+/// 用法：所有用户睇到、听到嘅文字写成 `L.t("粵語原文", "普通话", "English")`。
 /// SwiftUI 喺 body 入面调用 L.t 会读到 `AppLanguage.shared.current`（@Observable），切换语言即时重画。
 /// 设定页切换：`AppLanguage.shared.set(.cmn)`（存 UserDefaults）；启动参数 `-lang cmn` 只影响今次（唔存）。
 /// 地标名、人名属于数据，唔翻译。
 enum AppLang: String, CaseIterable, Codable, Sendable {
-    case yue, cmn
+    case yue, cmn, en
 
     /// 设定页显示（永远用该语言自己嘅写法）。
-    var label: String { self == .yue ? "粵語（繁體）" : "普通话（简体）" }
+    var label: String {
+        switch self {
+        case .yue: return "粵語（繁體）"
+        case .cmn: return "普通话（简体）"
+        case .en: return "English"
+        }
+    }
     /// 语音识别 / 助手服务器用嘅地区代码。
-    var locale: String { self == .yue ? "zh-HK" : "zh-CN" }
+    var locale: String {
+        switch self {
+        case .yue: return "zh-HK"
+        case .cmn: return "zh-CN"
+        case .en: return "en-US"
+        }
+    }
 }
 
 @Observable
@@ -44,6 +56,13 @@ final class AppLanguage: @unchecked Sendable {
 enum L {
     static var lang: AppLang { AppLanguage.shared.current }
     static var isCmn: Bool { lang == .cmn }
-    /// 粤语原文 / 普通话。
-    static func t(_ yue: String, _ cmn: String) -> String { isCmn ? cmn : yue }
+    static var isEn: Bool { lang == .en }
+    /// 粤语原文 / 普通话 / 英文。英文未写嘅（过渡期）暂时显示普通话；交件前每个 L.t 都要有第三个参数。
+    static func t(_ yue: String, _ cmn: String, _ en: String? = nil) -> String {
+        switch lang {
+        case .yue: return yue
+        case .cmn: return cmn
+        case .en: return en ?? cmn
+        }
+    }
 }

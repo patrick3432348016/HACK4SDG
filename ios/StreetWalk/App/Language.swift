@@ -2,7 +2,13 @@ import Foundation
 
 /// 界面语言同播报语言绑埋：揀普通话 → 系统 zh-CN 声音（Mac 粤语服务器自动跳过，见 TTSRoute）、语音识别 zh-CN、助手 locale zh-CN。
 extension AppLang {
-    var spoken: SpokenLanguage { self == .cmn ? .mandarin : .cantonese }
+    var spoken: SpokenLanguage {
+        switch self {
+        case .yue: return .cantonese
+        case .cmn: return .mandarin
+        case .en: return .english
+        }
+    }
 }
 
 extension AppLanguage {
