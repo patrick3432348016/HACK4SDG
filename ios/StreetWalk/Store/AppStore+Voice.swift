@@ -64,7 +64,7 @@ extension AppStore {
             }
             announcer.hold(speaker)
             do {
-                // 讲完停 2 秒就自动当讲完（唔使撳「講完」；2026-10-17 用户测试：讲完冇反应，以为认唔到，再讲一次字就叠埋）
+                // 讲完停 1.5 秒就自动当讲完（唔使撳「講完」；2026-10-17 用户测试：讲完冇反应，以为认唔到，再讲一次字就叠埋）
                 listener.answering = answer
                 listener.onSilence = { [weak self] in self?.listenerSilent() }
                 try listener.start(idle: answer == nil ? 15 : 8)
@@ -190,7 +190,16 @@ extension AppStore {
         // 只用街坊的名字（非街坊唔出名）；未有街坊就唔出约人嘅句子。
         let name = neighbors.first?.name
         if find != nil { return [L.t("我喺\(landmark(find?.landmarkID)?.name ?? "涼亭")", "我在\(landmark(find?.landmarkID)?.name ?? "涼亭")", "I'm at \(landmark(find?.landmarkID)?.name ?? "the pavilion")")] }
-        if walk != nil { return [L.t("呢度好曬", "这里太晒", "Too sunny here"), L.t("呢度冇櫈", "这里没有凳子", "No seats here")] + (name.map { [L.t("過去搵\($0)", "去找\($0)", "Go find \($0)"), L.t("約\($0)聽日朝早一齊行", "约\($0)明天早上一起走", "Invite \($0) tomorrow morning")] } ?? []) }
+        // 散步中：三种反映 + 一句同街坊有关（有街坊喺外面就去找，冇就约聽日）或者问天气，一共 4 句
+        // （10-18 真机：冇街坊时只剩「太晒 / 没凳子」两句）
+        if walk != nil {
+            let out = residents.first(where: { $0.isNeighbor && !$0.isMe && $0.isOut })
+            let social = out.map { L.t("過去搵\($0.name)", "去找\($0.name)", "Go find \($0.name)") }
+                ?? name.map { L.t("約\($0)聽日朝早一齊行", "约\($0)明天早上一起走", "Invite \($0) tomorrow morning") }
+                ?? L.t("今日天氣點", "今天天气怎么样", "What's the weather today?")
+            return [L.t("呢度好曬", "这里太晒", "Too sunny here"), L.t("呢度冇櫈", "这里没有凳子", "No seats here"),
+                    L.t("呢度難行", "这里路难走", "Hard to walk here"), social]
+        }
         if let a = targetAppointment(partnerID: nil), let p = resident(a.partnerID),
            let other = landmarks.filter({ $0.id != a.landmarkID }).max(by: { $0.name.count < $1.name.count }) {
             // 建议一个同而家唔同嘅钟点（约咗四点就建议五点）。
@@ -372,9 +381,10 @@ extension AppStore {
     /// 问天气：手机答天文台嗰句（同「今日」页一样）；问聽日就加埋天文台嘅聽日降雨机会。
     func showWeatherAnswer(_ text: String) {
         phrasePicker = false
+        refreshWeatherTip()   // 用而家嘅界面语言重出（唔好用转语言之前定咗嘅句子）
         var answer = tryAnswer
         if TemplateAI.parseDay(TemplateAI.toHant(text)) == 1, !hko.demoOverride, let psr = hko.report?.tomorrowPSR, !psr.isEmpty {
-            answer = Self.oneSentence([answer, L.t("天文台話聽日降雨機會\(psr)", "天文台说明天降雨概率\(psr)", "The Observatory says chance of rain tomorrow: \(psr)")])
+            answer = Self.oneSentence([answer, L.t("天文台話聽日降雨機會\(psr)", "天文台说明天降雨概率\(psr)", "The Observatory says the chance of rain tomorrow is \(HKOReport.psrEnglish(psr))")])
         }
         voiceCard = VoiceCard(heard: text, title: answer, detail: nil, needsConfirm: false, intent: .unknown,
                               assistant: AssistantCard(kind: .info, title: answer, spoken: answer, conversationID: ""))
@@ -460,7 +470,7 @@ extension AppStore {
 
     /// 改名、反映嘅说明：未接伺服器时唔好讲成已经同步咗（A69）。
     var renameNote: String { community.sharesLandmarkNames ? L.t("同圈街坊都會見到", "同圈邻居都会看到", "Neighbours in your circle will see it") : L.t("暫時只喺你部手機", "暂时只在你的手机上", "Only on your phone for now") }
-    var reportNote: String { community.hasServer ? L.t("月尾匿名交俾屋邨管理（夠 10 人先會出）", "月底匿名交给屋苑管理（满 10 人才会出）", "Sent anonymously to estate management at month end (needs 10+ people)") : L.t("暫時只喺你部手機", "暂时只在你的手机上", "Only on your phone for now") }
+    var reportNote: String { community.hasServer ? L.t("同一個地方多位街坊都反映，我哋會匿名整理好轉告社區", "同一个地方多位邻居都反映，我们会匿名整理好转告社区", "When several neighbours report the same place, we'll pass it on to the community anonymously") : L.t("暫時只喺你部手機", "暂时只在你的手机上", "Only on your phone for now") }
 
     /// 改名中只讲新名：去掉「改名做」「叫」之类同标点；太长（超过 10 个字）当听错。
     static func spokenName(_ text: String) -> String? {

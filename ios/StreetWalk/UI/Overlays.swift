@@ -273,6 +273,8 @@ fileprivate extension AppStore {
 private struct ListeningCard: View {
     @Environment(AppStore.self) private var store
     @ObservedObject var listener: Listener
+    /// 字停咗一阵冇变（多数系讲完）：即刻出「稍等，帮你看看」，唔使等识别收尾 / 服务器答（10-18 真机：讲完 3、4 秒都冇反应）。
+    @State private var settled = false
 
     var body: some View {
         let phrases = store.suggestedPhrases
@@ -289,14 +291,34 @@ private struct ListeningCard: View {
                 .contentTransition(.opacity)
                 .animation(DS.motion(DS.snappy), value: listener.transcript)
                 .accessibilityAddTraits(.updatesFrequently)
-            Button { store.stopListening() } label: {
-                if store.conversing {
-                    Label(L.t("傾完", "结束对话", "End chat"), systemImage: "xmark").frame(maxWidth: .infinity)
-                } else {
+                .task(id: listener.transcript) {
+                    settled = false
+                    guard !listener.transcript.isEmpty else { return }
+                    try? await Task.sleep(for: .milliseconds(700))
+                    if !Task.isCancelled { settled = true }
+                }
+            if (settled && !listener.transcript.isEmpty) || store.voiceCard?.assistant?.kind == .thinking {
+                VoiceThinkingRow()
+            }
+            if store.conversing {
+                // 连续对话：「说完了」即刻交呢句（答案讲完先再听）；「结束对话」收咪（10-18 真机要求）
+                HStack(spacing: 12) {
+                    Button { store.stopListening() } label: {
+                        Text(L.t("傾完", "结束对话", "End chat")).frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.dsSecondary)
+                    Button { store.conversationSubmitNow() } label: {
+                        Label(L.t("講完", "说完了", "Done"), systemImage: "checkmark").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.dsPrimary)
+                    .disabled(listener.transcript.isEmpty)
+                }
+            } else {
+                Button { store.stopListening() } label: {
                     Label(L.t("講完", "说完了", "Done"), systemImage: "checkmark").frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.dsPrimary)
             }
-            .buttonStyle(.dsPrimary)
             if !phrases.isEmpty {
                 Text(store.renamingNow != nil ? L.t("或者揀一個名", "或者选一个名字", "Or pick a name") : L.t("或者揀一句", "或者选一句", "Or pick one")).ds(.caption).foregroundStyle(.secondary)
                 ChipFlow(spacing: DS.gap) {
@@ -326,7 +348,7 @@ extension ListeningCard {
         // 第一次用都知道个咪做乜：一句讲用途，再举一句例子（下面仲有撳得嘅例句）
         let purpose = L.t("講一句，我幫你做：約街坊散步、問天氣、搵街坊、散步時反映冇櫈。", "说一句话，我帮你做：约邻居散步、问天气、找邻居、散步时反映没凳子。", "Just say it and I'll help: invite a neighbour for a walk, check the weather, find a neighbour, or report no seats on a walk. ")
         let example = phrases.first ?? L.t("今日天氣點", "今天天气怎么样", "What's the weather today?")
-        if store.conversing { return purpose + L.t("講完唔使撳，我會答你。例如「\(example)」", "说完不用按，我会回答。比如「\(example)」", "No need to tap when you finish. I'll answer. e.g. “\(example)”") }
+        if store.conversing { return purpose + L.t("講完停一停我就答你，或者撳「講完」。例如「\(example)」", "说完停一下我就回答，也可以按「说完了」。比如「\(example)」", "Pause when you finish and I'll answer, or tap “Done”. e.g. “\(example)”") }
         return purpose + L.t("講完撳「講完」。例如「\(example)」", "说完点「说完了」。比如「\(example)」", "When you finish, tap “Done”. e.g. “\(example)”")
     }
 }
@@ -465,6 +487,21 @@ private struct HeardCard: View {
     }
 }
 
+/// 讲完等答案嗰阵（所有问题都一样）：「稍等，帮你看看 · 正在思考」，答案到咗就换走。
+private struct VoiceThinkingRow: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            ProgressView()
+            Text(L.t("等等，幫你睇睇⋯ · 諗緊", "稍等，帮你看看… · 正在思考", "One moment, checking… · Thinking"))
+                .ds(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
 /// 卡出咗之后自动开咪（手机识别）：讲明可以直接讲，同埋实时显示听到嘅字。讲完停一停就自动处理。
 private struct AnswerListeningRow: View {
     @ObservedObject var listener: Listener
@@ -505,7 +542,7 @@ private struct AssistantStepView: View {
             if card.kind == .thinking {
                 HStack(spacing: 12) {
                     ProgressView().controlSize(.large)
-                    Text(L.t("問緊語音伺服器", "正在询问语音服务器", "Asking the voice server")).ds(.caption).foregroundStyle(.secondary)
+                    Text(L.t("諗緊⋯", "正在思考…", "Thinking…")).ds(.caption).foregroundStyle(.secondary)
                 }
             }
             ForEach(card.options) { o in

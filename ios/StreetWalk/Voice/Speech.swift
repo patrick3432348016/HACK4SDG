@@ -60,6 +60,7 @@ final class Speaker: ObservableObject {
         lastSpoken = text
         settings.ensureScanned()
         let language = settings.language
+        let text = Self.pronounced(text, language: language)
         let speed = TTSRoute.speed(settings.pace)
         // 普通话同粤语同一把声（豆包小何）：缓存要分开（粤语照旧 key，同预热一致）
         let voiceID = server?.voiceID.map { language == .cantonese ? $0 : "\($0)/\(language.rawValue)" }
@@ -191,7 +192,14 @@ final class Speaker: ObservableObject {
         if previewKey != nil { previewKey = nil }
     }
 
+    /// 10-18 真机：普通话将 App 名「街坊行」读成 jiē fang háng（银行嘅「行」）。只喺送去合成嘅字换同音嘅「街坊形」（xíng），
+    /// 屏幕文字唔变；粤语「行」读 haang4 啱，唔改；英文冇呢个字。服务器（app.tts_text）都会再换一次。
+    nonisolated static func pronounced(_ text: String, language: SpokenLanguage) -> String {
+        language == .mandarin ? text.replacingOccurrences(of: "街坊行", with: "街坊形") : text
+    }
+
     private func play(_ text: String, voice v: VoiceInfo?, language: SpokenLanguage) {
+        let text = Self.pronounced(text, language: language)
         serverPlayer.stop()
         activateSession()
         synth.stopSpeaking(at: .immediate)
@@ -303,7 +311,8 @@ final class Listener: ObservableObject {
     /// 讲完停一停（有字之后 endPause 冇新字），或者一直冇讲嘢（start 嘅 idle 秒）就叫一次：当讲完，唔使撳「講完」。
     /// 每次 start 前设；stop() 会清走（首次使用「試一次」有自己嘅计时）。
     var onSilence: (() -> Void)?
-    static let endPause: Duration = .seconds(2)
+    /// 10-18：2 秒 → 1.5 秒（真机：讲完要等好耐先有反应）。
+    static let endPause: Duration = .milliseconds(1500)
     private var silence: Task<Void, Never>?
     /// 自动开咪嘅一次请求（新卡 / 撳咗掣就作废）。
     private(set) var answerGen = 0

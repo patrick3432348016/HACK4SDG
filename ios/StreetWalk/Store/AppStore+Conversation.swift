@@ -14,8 +14,11 @@ import Foundation
 extension AppStore {
     /// 冇人讲嘢几耐就收咪（秒）。
     static let conversationIdle: TimeInterval = 45
-    /// 一句讲完之后等几耐睇下有冇下半句（B：0.35 秒合并相邻分句）。
-    static let utteranceJoin: Duration = .milliseconds(450)
+    /// 一句讲完之后等几耐睇下有冇下半句（B：0.35 秒合并相邻分句）。10-18：450 → 400 毫秒（服务器讲完判定亦由 1.2 秒缩到 0.8 秒），
+    /// 下半句已经开始讲（有新嘅字）就等埋佢，唔会拆开两句。
+    static let utteranceJoin: Duration = .milliseconds(400)
+    /// 下半句讲紧但豆包迟迟未收尾（咳、杂声）：最多等咁耐就当讲完。
+    static let utteranceStall: Duration = .milliseconds(2500)
 
     /// Mac 语音服务器有豆包识别。
     var canConverse: Bool { VoiceServer.shared.earURL != nil }
@@ -84,7 +87,7 @@ extension AppStore {
         earPending = []
         heardPartial = ""
         listener.transcript = ""
-        ear.close()
+        ear.close()   // 连埋「说完了」嘅暂停一齐解除
         speaker.stopCapture()
         if let message { toast(message) }
     }
@@ -94,30 +97,68 @@ extension AppStore {
         guard conversing else { return }
         switch e {
         case .partial(let raw):
+            guard !ear.held else { return }   // 撳咗「说完了」：答案讲完之前嘅字唔要
             let text = AssistantFlow.hant(raw)
             guard !isEcho(text) else { return }
             lastEarActivity = Date()
             show(partial: (earPending + [text]).joined(separator: Self.utteranceSeparator))
+            // 上半句等紧交出去、下半句已经开始讲：等埋下半句（豆包收尾或者停咗 2.5 秒）先一齐交
+            if !earPending.isEmpty { armFlush(Self.utteranceStall, partial: text) }
             // 插嘴：用户开口就停播报（B：识别到新语句即停旧播报）
             if speaker.isSpeaking && text.count >= 2 { hush() }
         case .final(let raw):
+            guard !ear.held else { return }
             // 口吃 / 重复嘅词收埋（「帮我帮我约」）；同上一句一模一样嘅唔再叠（2026-10-17 用户测试：字叠埋）
             let text = Listener.collapseRepeats(AssistantFlow.hant(raw))
             guard !isEcho(text) else { show(partial: earPending.joined(separator: Self.utteranceSeparator)); return }
             lastEarActivity = Date()
             if earPending.last != text { earPending.append(text) }
             show(partial: earPending.joined(separator: Self.utteranceSeparator))
-            earFlush?.cancel()
-            earFlush = Task { @MainActor [weak self] in
-                try? await Task.sleep(for: Self.utteranceJoin)
-                guard let self, !Task.isCancelled, self.conversing, !self.earPending.isEmpty else { return }
-                let all = self.earPending.joined(separator: Self.utteranceSeparator)
-                self.earPending = []
-                self.show(partial: "")
-                self.conversationTurn(all)
-            }
+            armFlush(Self.utteranceJoin)
         case .failed(let message):
             endConversation(toast: message)
+        }
+    }
+
+    /// delay 之后将听到嘅字交出去（之前有新嘅字会重新计）。partial：仲未收尾嘅下半句，到时一齐交。
+    private func armFlush(_ delay: Duration, partial: String? = nil) {
+        earFlush?.cancel()
+        earFlush = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: delay)
+            guard let self, !Task.isCancelled, self.conversing, !self.ear.held, !self.earPending.isEmpty else { return }
+            let all = (self.earPending + [partial].compactMap { $0 }.filter { !$0.isEmpty }).joined(separator: Self.utteranceSeparator)
+            self.earPending = []
+            self.show(partial: "")
+            self.conversationTurn(all)
+        }
+    }
+
+    /// 「说完了」掣（10-18 真机：一路倾一路更新，答案出唔到；想讲完就即刻交，唔好将后面唔相干嘅嘢听埋入去）：
+    /// 而家听到嘅字即刻交出去；答案出咗兼讲完之前暂停收音（豆包收静音），之后自动继续听。「结束对话」照旧收咪。
+    func conversationSubmitNow() {
+        guard conversing else { return }
+        earFlush?.cancel()
+        let all = heardPartial.trimmingCharacters(in: .whitespacesAndNewlines)
+        earPending = []
+        show(partial: "")
+        guard !all.isEmpty else { return }
+        let gen = ear.hold()
+        Haptics.light()
+        conversationTurn(all)
+        Task { @MainActor [weak self] in
+            let start = Date()
+            var quiet = 0
+            // 等答案：「稍等」卡换咗、讲完、冇排紧（连续 3 次睇到先算，服务器声开始前有少少空档）；最多 30 秒
+            while Date().timeIntervalSince(start) < 30 {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard let self, self.conversing, self.ear.holdGeneration == gen else { return }
+                let busy = self.voiceCard?.assistant?.kind == .thinking || self.speaker.isSpeaking || !self.announcer.queued.isEmpty
+                quiet = busy ? 0 : quiet + 1
+                if quiet >= 3 { break }
+            }
+            guard let self else { return }
+            self.ear.release(gen)
+            self.lastEarActivity = Date()
         }
     }
 

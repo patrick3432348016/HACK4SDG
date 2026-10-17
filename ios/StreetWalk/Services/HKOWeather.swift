@@ -41,25 +41,60 @@ struct HKOReport: Equatable {
 
     /// 句首讲明来源和读数，例如"天文台話打鼓嶺而家 27 度，黃色暴雨警告信號生效。"；冇读数时为空。
     /// 香港以外讲"天氣預報話"，唔好冒认天文台。
+    /// 每次读都按而家嘅界面语言出（10-18 真机：转咗语言仲讲旧语言 / 粤普夹杂），唔好喺解析时定死。
     var line: String {
         var parts: [String] = []
-        let en = L.isEn   // 英文：测站名系中文数据，唔讲；警告按 code 出英文名
-        if let t = temperature { parts.append((station == "香港天文台" || en ? "" : station ?? "") + L.t("而家 \(t) 度", "现在 \(t) 度", "\(t)°C now")) }
+        let en = L.isEn   // 英文：测站用天文台英文名（Kowloon City），警告按 code 出英文名
+        if let t = temperature {
+            let name = station == "香港天文台" ? nil : stationShown
+            parts.append(en ? "\(t)°C" + (name.map { " in \($0)" } ?? "") + " now" : (name ?? "") + L.t("而家 \(t) 度", "现在 \(t) 度"))
+        }
         if !walkWarnings.isEmpty { parts.append((en ? walkWarningsEn : walkWarnings).joined(separator: en ? ", " : "、") + L.t("生效", "生效", " in force")) }
         else if (rainMM ?? 0) >= 0.5 { parts.append(L.t("附近落緊雨", "附近正在下雨", "raining nearby")) }
         else if rainIcon { parts.append(L.t("有雨", "有雨", "rain about")) }
-        else if let psr = todayPSR, ["中高", "高"].contains(psr) { parts.append(L.t("今日降雨機會\(psr)", "今天降雨概率\(psr)", "\(psr == "高" ? "high" : "fair") chance of rain today")) }
+        else if let psr = todayPSR, ["中高", "高"].contains(psr) { parts.append(L.t("今日降雨機會\(psr)", "今天降雨概率\(psr)", "\(Self.psrEnglish(psr)) chance of rain today")) }
         return parts.isEmpty ? "" : sourcePrefix + parts.joined(separator: en ? ", " : "，") + (en ? "" : "。")   // 英文唔加句号：AppStore+Places.oneSentence 会再拼
     }
 
+    /// 测站名跟界面语言：粤语原文（繁体）、普通话简体、英文用天文台英文名（冇就唔讲）。
+    var stationShown: String? {
+        guard let station else { return nil }
+        switch L.lang {
+        case .yue: return station
+        case .cmn: return Self.hans(station)
+        case .en: return Self.stationsEn[station]
+        }
+    }
+
+    static func hans(_ s: String) -> String { s.applyingTransform(StringTransform("Hans-Hant"), reverse: true) ?? s }
+
+    /// 天文台降雨概率（低 / 中低 / 中 / 中高 / 高）嘅英文。
+    static func psrEnglish(_ psr: String) -> String {
+        ["低": "low", "中低": "medium-low", "中": "medium", "中高": "medium-high", "高": "high"][psr] ?? psr
+    }
+
+    /// 天文台测站英文名（https://www.hko.gov.hk 自动气象站）。
+    static let stationsEn: [String: String] = [
+        "京士柏": "King's Park", "香港天文台": "Hong Kong Observatory", "黃竹坑": "Wong Chuk Hang", "打鼓嶺": "Ta Kwu Ling",
+        "流浮山": "Lau Fau Shan", "大埔": "Tai Po", "沙田": "Sha Tin", "屯門": "Tuen Mun", "將軍澳": "Tseung Kwan O",
+        "西貢": "Sai Kung", "長洲": "Cheung Chau", "赤鱲角": "Chek Lap Kok", "青衣": "Tsing Yi", "石崗": "Shek Kong",
+        "荃灣可觀": "Tsuen Wan Ho Koon", "荃灣城門谷": "Tsuen Wan Shing Mun Valley", "香港公園": "Hong Kong Park",
+        "筲箕灣": "Shau Kei Wan", "九龍城": "Kowloon City", "跑馬地": "Happy Valley", "黃大仙": "Wong Tai Sin", "赤柱": "Stanley",
+        "觀塘": "Kwun Tong", "深水埗": "Sham Shui Po", "啟德跑道公園": "Kai Tak Runway Park", "元朗公園": "Yuen Long Park",
+        "大美督": "Tai Mei Tuk",
+    ]
+
     var sourcePrefix: String { source == .hko ? L.t("天文台話", "天文台说", "Observatory: ") : L.t("天氣預報話", "天气预报说", "Forecast: ") }
 
-    /// 跟散步有关的警告（風球、山泥、水浸、酷熱、暴雨、雷暴），用来拼句；危险的排前面。
+    /// 跟散步有关的警告（風球、山泥、水浸、酷熱、暴雨、雷暴），用来拼句；危险的排前面。普通话转简体（名本身系天文台繁体数据）。
     var walkWarnings: [String] {
         let danger = warnings.filter { Self.isDangerCode($0.code) }
         let other = warnings.filter { $0.code.hasPrefix("WHOT") || $0.code == "VHOT" || $0.code.hasPrefix("WRAIN") || $0.code == "WTS" }
-        return (danger + other).map(\.name)
+        return (danger + other).map { L.isCmn ? Self.hans($0.name) : $0.name }
     }
+
+    /// 而家有冇酷熱天氣警告（按 code 睇，唔睇名，三种语言都啱）。
+    var hasHeatWarning: Bool { warnings.contains { $0.code.hasPrefix("WHOT") || $0.code == "VHOT" } }
 
     /// 英文界面用：天文台警告名系中文数据，按 code 出英文名。
     var walkWarningsEn: [String] {
@@ -89,13 +124,14 @@ struct HKOReport: Equatable {
     }
 
     /// 风球 warnsum 的 name 只写"熱帶氣旋警告信號"，按 code 讲清楚几号。
+    /// 一律存繁体中文（同天文台数据一样）：显示时先按语言转（walkWarnings 转简体、英文用 englishName），转语言唔使重新攞数据。
     static func displayName(code: String, type: String?, name: String?) -> String {
-        if code.hasPrefix("TC8") { return L.t("八號烈風或暴風信號", "八号烈风或暴风信号", "Gale or Storm Signal No. 8") }
+        if code.hasPrefix("TC8") { return "八號烈風或暴風信號" }
         switch code {
-        case "TC9": return L.t("九號烈風或暴風風力增強信號", "九号烈风或暴风风力增强信号", "Increasing Gale or Storm Signal No. 9")
-        case "TC10": return L.t("十號颶風信號", "十号飓风信号", "Hurricane Signal No. 10")
-        case "WL": return L.t("山泥傾瀉警告", "山泥倾泻警告", "Landslip Warning")
-        case "WFNTSA": return L.t("新界北部水浸特別報告", "新界北部水浸特别报告", "Flooding notice for the northern New Territories")
+        case "TC9": return "九號烈風或暴風風力增強信號"
+        case "TC10": return "十號颶風信號"
+        case "WL": return "山泥傾瀉警告"
+        case "WFNTSA": return "新界北部水浸特別報告"
         default: return (type ?? "") + (name ?? code)
         }
     }

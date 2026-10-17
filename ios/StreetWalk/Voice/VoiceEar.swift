@@ -24,6 +24,24 @@ final class VoiceEar {
 
     var isOpen: Bool { task != nil }
 
+    /// 「说完了」之后暂停收音（10-18 真机：一路听一路更新，答案一直出唔到）：照送静音俾豆包（佢会将讲紧嗰句收尾），
+    /// 呢段时间嘅字唔要；答案讲完 release 先再听。holdGeneration 防止旧嘅等待解咗新嘅暂停。
+    private(set) var held = false
+    private(set) var holdGeneration = 0
+
+    func hold() -> Int {
+        holdGeneration += 1
+        held = true
+        sender.muted = true
+        return holdGeneration
+    }
+
+    func release(_ gen: Int? = nil) {
+        guard gen == nil || gen == holdGeneration else { return }
+        held = false
+        sender.muted = false
+    }
+
     /// 连上并等豆包确认（最多 timeout 秒）。false = 连唔到（之后用返手机识别）。
     func open(_ url: URL, token: String?, locale: String, timeout: Double = 6, onEvent: @escaping (Event) -> Void) async -> Bool {
         close()
@@ -53,6 +71,7 @@ final class VoiceEar {
 
     func close() {
         generation += 1
+        release()
         resolve(false)
         sender.attach(nil)
         if let t = task {
@@ -127,6 +146,13 @@ final class EarSender: @unchecked Sendable {
     private let lock = NSLock()
     private var buffer = Data()
     private var task: URLSessionWebSocketTask?
+    private var _muted = false
+
+    /// true：照送（保持连线、等豆包收尾），但送嘅系静音。
+    var muted: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return _muted }
+        set { lock.lock(); _muted = newValue; lock.unlock() }
+    }
 
     func attach(_ t: URLSessionWebSocketTask?) {
         lock.lock()
@@ -137,7 +163,7 @@ final class EarSender: @unchecked Sendable {
 
     func feed(_ pcm: Data) {
         lock.lock()
-        buffer.append(pcm)
+        buffer.append(_muted ? Data(count: pcm.count) : pcm)
         var frames: [Data] = []
         while buffer.count >= Self.frameBytes {
             frames.append(Data(buffer.prefix(Self.frameBytes)))
