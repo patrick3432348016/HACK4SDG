@@ -26,8 +26,8 @@ struct OnboardingFlow: View {
                 DioramaView(controller: store.scene, onTap: sceneTapped)
                     .ignoresSafeArea()
                     .transition(.opacity)
-                    .accessibilityLabel(L.t("你附近嘅立體地圖", "你附近的立体地图"))
-                    .accessibilityHint(L.t("用下面「用清單揀」都揀得到你住嗰座樓", "用下面「用清单选」也能选到你住的那栋楼"))
+                    .accessibilityLabel(L.t("你附近嘅立體地圖", "你附近的立体地图", "3D map of your area"))
+                    .accessibilityHint(L.t("用下面「用清單揀」都揀得到你住嗰座樓", "用下面「用清单选」也能选到你住的那栋楼", "You can also choose your block with \"Choose from list\" below"))
             }
 
             stepContent(s)
@@ -77,7 +77,7 @@ struct OnboardingFlow: View {
         guard case .building(let id)? = hit, store.isHomeCandidate(id) else {
             // 点空了、点中唔係住宅楼：转去自己揀（全部住宅楼亮橙色），讲点样揀。
             if !pickManual { pickManual = true; store.pickHomeManually() }
-            store.toast(L.t("撳一座橙色嘅樓，或者用下面嘅清單揀", "点一栋橙色的楼，或者用下面的清单选"))
+            store.toast(L.t("撳一座橙色嘅樓，或者用下面嘅清單揀", "点一栋橙色的楼，或者用下面的清单选", "Tap an orange block, or choose from the list below"))
             return
         }
         store.pickHome(id)
@@ -126,7 +126,7 @@ struct OnboardingFlow: View {
                             .overlay(Circle().strokeBorder(Color.primary.opacity(0.08)))
                     }
                     .buttonStyle(OnbPressStyle())
-                    .accessibilityLabel(L.t("返上一步", "返回上一步"))
+                    .accessibilityLabel(L.t("返上一步", "返回上一步", "Back"))
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
                 }
             }
@@ -141,9 +141,9 @@ struct OnboardingFlow: View {
             Spacer()
             if store.changingHome {
                 // 改楼途中可以退返出去（A80）
-                topPill(L.t("唔改", "不改"), a11y: L.t("唔改，返主畫面", "不改，回主画面")) { store.onbHush(); store.cancelChangeHome() }
+                topPill(L.t("唔改", "不改", "Don't change"), a11y: L.t("唔改，返主畫面", "不改，回主画面", "Don't change, back to main screen")) { store.onbHush(); store.cancelChangeHome() }
             } else if s == .tryMic {
-                topPill(L.t("跳過", "跳过"), a11y: L.t("跳過，入主畫面", "跳过，进入主画面")) { go { store.finishOnboarding() } }
+                topPill(L.t("跳過", "跳过", "Skip"), a11y: L.t("跳過，入主畫面", "跳过，进入主画面", "Skip, go to main screen")) { go { store.finishOnboarding() } }
             } else {
                 Color.clear.frame(width: 48, height: 48)
             }
@@ -188,7 +188,7 @@ private struct OnbProgressDots: View {
     var total: Int
 
     var body: some View {
-        Text(L.t("第 \(current + 1) 步，共 \(total) 步", "第 \(current + 1) 步，共 \(total) 步"))
+        Text(L.t("第 \(current + 1) 步，共 \(total) 步", "第 \(current + 1) 步，共 \(total) 步", "Step \(current + 1) of \(total)"))
             .ds(.captionBold)
             .foregroundStyle(.secondary)
             .monospacedDigit()
@@ -261,29 +261,37 @@ private struct OnbWelcomeStep: View {
     var onSkip: () -> Void
     @State private var appeared = false
 
-    static var spoken: String { L.t("街坊行幫你記錄每日散步，約隔籬街坊一齊行；上面幅地圖幫你哋搵到對方。", "街坊行帮你记录每天散步，约隔壁邻居一起走；上面的地图帮你们找到对方。") }
+    static var spoken: String { L.t("街坊行幫你記錄每日散步，約隔籬街坊一齊行；上面幅地圖幫你哋搵到對方。", "街坊行帮你记录每天散步，约隔壁邻居一起走；上面的地图帮你们找到对方。", "Kaifong Walk records your daily walks and helps you walk with neighbours. The map at the top helps you find each other.") }
 
     /// 测试反馈：做成卡片似可以撳嘅掣 → 改成普通介绍列表（细图标、冇卡片底、多一行解释），一眼睇得出系「介绍」唔系「功能入口」。
     /// 第四行讲上面嗰幅小地图（测试反馈：唔知地图有咩用）。
     private var features: [(symbol: String, text: String, detail: String)] { [
-        ("figure.walk", L.t("自動記錄散步", "自动记录散步"),
-         L.t("出門行就會記，唔使撳任何嘢。", "出门走路就会记，不用点任何东西。")),
-        ("person.2.fill", L.t("碰一碰做街坊", "碰一碰成为邻居"),
-         L.t("同隔籬見面時，兩部手機靠埋一碰。", "和隔壁见面时，两部手机靠在一起碰一下。")),
-        ("map.fill", L.t("地圖幫你搵到對方", "地图帮你找到对方"),
-         L.t("「今日」頁上面係你屋企附近嘅地圖，街坊出咗門會喺地圖上出現。", "「今天」页上面是你家附近的地图，邻居出门了会在地图上出现。")),
-        ("mic.fill", L.t("講一句就約到人", "说一句就能约人"),
-         L.t("撳右邊橙色個咪，講「約佢聽日行」。", "点右边橙色的麦克风，说「约他明天一起走」。")),
+        ("figure.walk", L.t("自動記錄散步", "自动记录散步", "Records walks for you"),
+         L.t("出門行就會記，唔使撳任何嘢。", "出门走路就会记，不用点任何东西。", "Just go out and walk. No need to tap anything.")),
+        ("person.2.fill", L.t("碰一碰做街坊", "碰一碰成为邻居", "Tap phones to add a neighbour"),
+         L.t("同隔籬見面時，兩部手機靠埋一碰。", "和隔壁见面时，两部手机靠在一起碰一下。", "When you meet, hold your two phones together.")),
+        ("map.fill", L.t("地圖幫你搵到對方", "地图帮你找到对方", "The map helps you find each other"),
+         L.t("「今日」頁上面係你屋企附近嘅地圖，街坊出咗門會喺地圖上出現。", "「今天」页上面是你家附近的地图，邻居出门了会在地图上出现。", "The top of the Today tab is a map near your home. Neighbours who are out show up on it.")),
+        ("mic.fill", L.t("講一句就約到人", "说一句就能约人", "Say one line to invite"),
+         L.t("撳右邊橙色個咪，講「約佢聽日行」。", "点右边橙色的麦克风，说「约他明天一起走」。", "Tap the orange mic on the right and say \"Walk with her tomorrow\".")),
     ] }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text(L.t("歡迎嚟到街坊行", "欢迎来到街坊行"))
+                // 语言：放最顶，长者一眼见到；三种语言自己嘅写法，撳一下成页即时转、读返一次欢迎
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("語言 · 语言 · Language", systemImage: "globe")
+                        .ds(.captionBold)
+                        .foregroundStyle(.secondary)
+                        .accessibilityAddTraits(.isHeader)
+                    LanguageChooser(short: true) { store.onbSay(Self.spoken) }
+                }
+                Text(L.t("歡迎嚟到街坊行", "欢迎来到街坊行", "Welcome to Kaifong Walk"))
                     .ds(.title)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
-                Text(L.t("街坊行可以幫你：", "街坊行可以帮你："))
+                Text(L.t("街坊行可以幫你：", "街坊行可以帮你：", "Kaifong Walk can help you:"))
                     .ds(.body)
                     .foregroundStyle(.secondary)
 
@@ -317,12 +325,12 @@ private struct OnbWelcomeStep: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
                 Button(action: onStart) {
-                    Text(L.t("開始", "开始")).frame(maxWidth: .infinity)
+                    Text(L.t("開始", "开始", "Start")).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsPrimary)
                 // 后生啲、识用嘅人：跳过介绍同「試一次」
                 Button(action: onSkip) {
-                    Text(L.t("我識用，跳過介紹", "我会用，跳过介绍"))
+                    Text(L.t("我識用，跳過介紹", "我会用，跳过介绍", "I know how. Skip intro"))
                         .ds(.caption)
                         .foregroundStyle(.secondary)
                         .underline()
@@ -347,14 +355,14 @@ private struct OnbWelcomeStep: View {
 /// 「谁能看到什么」：按受众逐行讲（规格 §4 知情同意）。设置页「私隱說明」也可以用 PrivacyRows 重看；首次使用喺「詳細」入面。
 struct PrivacyRows: View {
     static var rows: [(symbol: String, text: String)] { [
-        ("figure.walk", L.t("你行街嘅時候自動記錄，唔使撳掣；定位揀「始終允許」，鎖咗機出門都會記。行過嘅路線同屋企位置只留喺你部手機。", "你散步时自动记录，不用按按钮；定位选「始终允许」，锁屏出门也会记。走过的路线和家的位置只留在你的手机里。")),
-        ("building.2", L.t("同區嘅人（未加做街坊）：只見到你嘅網名、小人同連續日數；唔會見到你住邊座、幾樓。", "附近还没加为邻居的人：只看到你的网名、卡通小人和连续天数，看不到你住哪栋、几楼。")),
-        ("person.2.fill", L.t("用碰一碰加咗嘅街坊：仲會見到你住邊座幾樓、今日一句，同埋你出門時喺邊個地標附近。對外只講地標，唔顯示地圖坐標。", "用碰一碰加过的邻居：还能看到你住哪栋、几楼，今天走过哪些地方，还有你出门时正在哪个地标附近。对外只说地标，不显示地图坐标。")),
-        ("doc.text.magnifyingglass", L.t("你嘅反映會匿名，夠 10 人先交俾社工同屋邨管理。", "你对地点的反馈是匿名的，同一个地方有 10 个人反馈了，才会交给社工和屋邨管理处。")),
-        ("network", L.t("地圖資料向 OpenStreetMap 攞你附近一格；講嘢可能要經 Apple 辨認。", "地图数据来自 OpenStreetMap，只下载你家附近一格；说话时可能要经过苹果的语音识别。")),
+        ("figure.walk", L.t("你行街嘅時候自動記錄，唔使撳掣；定位揀「始終允許」，鎖咗機出門都會記。行過嘅路線同屋企位置只留喺你部手機。", "你散步时自动记录，不用按按钮；定位选「始终允许」，锁屏出门也会记。走过的路线和家的位置只留在你的手机里。", "Walks are recorded when you go out, no buttons. Choose \"Always Allow\" for location and it records even when the phone is locked. Your routes and home location stay on your phone.")),
+        ("building.2", L.t("同區嘅人（未加做街坊）：只見到你嘅網名、小人同連續日數；唔會見到你住邊座、幾樓。", "附近还没加为邻居的人：只看到你的网名、卡通小人和连续天数，看不到你住哪栋、几楼。", "People nearby you have not added: they only see your nickname, figure and streak. Not your block or floor.")),
+        ("person.2.fill", L.t("用碰一碰加咗嘅街坊：仲會見到你住邊座幾樓、今日一句，同埋你出門時喺邊個地標附近。對外只講地標，唔顯示地圖坐標。", "用碰一碰加过的邻居：还能看到你住哪栋、几楼，今天走过哪些地方，还有你出门时正在哪个地标附近。对外只说地标，不显示地图坐标。", "Neighbours added by tapping phones: they also see your block and floor, your line for today, and which landmark you are near when you are out. Others only see landmarks, never map coordinates.")),
+        ("doc.text.magnifyingglass", L.t("你嘅反映會匿名，夠 10 人先交俾社工同屋邨管理。", "你对地点的反馈是匿名的，同一个地方有 10 个人反馈了，才会交给社工和屋邨管理处。", "Your reports about places are anonymous. Only when 10 people report the same place is it passed to social workers and estate management.")),
+        ("network", L.t("地圖資料向 OpenStreetMap 攞你附近一格；講嘢可能要經 Apple 辨認。", "地图数据来自 OpenStreetMap，只下载你家附近一格；说话时可能要经过苹果的语音识别。", "Map data comes from OpenStreetMap, only the area near your home. When you speak, Apple may help recognise your voice.")),
     ] }
     /// 读出来的一段（和上面几行内容一致；设定页「讀出嚟」用）。
-    static var spoken: String { L.t("你行街會自動記錄，定位揀始終允許，鎖咗機出門都會記，路線同屋企位置只留喺你部手機。同區嘅人只見到你嘅網名、小人同連續日數，唔見到你住邊座幾樓。用碰一碰加咗嘅街坊先見到你住邊座幾樓、今日一句，同你出門時喺邊個地標附近。反映會匿名，夠十個人先交俾社工同屋邨管理。", "你散步会自动记录，定位选始终允许，锁屏出门也会记，路线和家的位置只留在你的手机里。附近的人只看到你的网名、卡通小人和连续天数，看不到你住哪栋、几楼。用碰一碰加过的邻居，才能看到你住哪栋几楼、今天走过哪些地方，和你出门时在哪个地标附近。地点反馈是匿名的，同一个地方有十个人反馈了，才会交给社工和屋邨管理处。") }
+    static var spoken: String { L.t("你行街會自動記錄，定位揀始終允許，鎖咗機出門都會記，路線同屋企位置只留喺你部手機。同區嘅人只見到你嘅網名、小人同連續日數，唔見到你住邊座幾樓。用碰一碰加咗嘅街坊先見到你住邊座幾樓、今日一句，同你出門時喺邊個地標附近。反映會匿名，夠十個人先交俾社工同屋邨管理。", "你散步会自动记录，定位选始终允许，锁屏出门也会记，路线和家的位置只留在你的手机里。附近的人只看到你的网名、卡通小人和连续天数，看不到你住哪栋、几楼。用碰一碰加过的邻居，才能看到你住哪栋几楼、今天走过哪些地方，和你出门时在哪个地标附近。地点反馈是匿名的，同一个地方有十个人反馈了，才会交给社工和屋邨管理处。", "Walks are recorded when you go out. Choose Always Allow for location and it records even when the phone is locked. Your routes and home location stay on your phone. People nearby only see your nickname, figure and streak, not your block or floor. Only neighbours added by tapping phones see your block, floor, your line for today, and which landmark you are near when out. Reports are anonymous. Only when 10 people report the same place is it passed to social workers and estate management.") }
 
     var appeared = true
 
@@ -392,17 +400,17 @@ private struct OnbConsentStep: View {
 
     /// 三句话（UX 报告第五节）；「詳細」入面先係原来 5 段。
     private var points: [(symbol: String, text: String)] { [
-        ("lock.fill", L.t("行過嘅路只留喺你部手機。", "走过的路只留在你的手机里。")),
-        ("eye.slash.fill", L.t("唔識你嘅人，只見到你個網名。", "不认识你的人，只看到你的网名。")),
-        ("person.2.fill", L.t("用碰一碰加咗嘅街坊，先知你住邊座。", "用碰一碰加过的邻居，才知道你住哪栋。")),
+        ("lock.fill", L.t("行過嘅路只留喺你部手機。", "走过的路只留在你的手机里。", "Where you walk stays on your phone.")),
+        ("eye.slash.fill", L.t("唔識你嘅人，只見到你個網名。", "不认识你的人，只看到你的网名。", "People who don't know you only see your nickname.")),
+        ("person.2.fill", L.t("用碰一碰加咗嘅街坊，先知你住邊座。", "用碰一碰加过的邻居，才知道你住哪栋。", "Only neighbours added by tapping phones know your block.")),
     ] }
 
-    static var spoken: String { L.t("你行過嘅路只留喺手機。用碰一碰加咗嘅街坊先知你住邊座。", "你走过的路只留在手机里。用碰一碰加过的邻居，才知道你住哪栋。") }
+    static var spoken: String { L.t("你行過嘅路只留喺手機。用碰一碰加咗嘅街坊先知你住邊座。", "你走过的路只留在手机里。用碰一碰加过的邻居，才知道你住哪栋。", "Where you walk stays on your phone. Only neighbours added by tapping phones know your block.") }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text(L.t("你嘅私隱", "你的隐私"))
+                Text(L.t("你嘅私隱", "你的隐私", "Your privacy"))
                     .ds(.title)
                     .accessibilityAddTraits(.isHeader)
 
@@ -432,7 +440,7 @@ private struct OnbConsentStep: View {
                     withAnimation(DS.motion(DS.spring)) { showDetail.toggle() }
                 } label: {
                     HStack(spacing: 8) {
-                        Text(L.t("詳細", "详细")).ds(.bodyBold)
+                        Text(L.t("詳細", "详细", "Details")).ds(.bodyBold)
                         Image(systemName: "chevron.down")
                             .font(.system(size: 18, weight: .semibold))
                             .rotationEffect(.degrees(showDetail ? 180 : 0))
@@ -443,7 +451,7 @@ private struct OnbConsentStep: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityValue(showDetail ? L.t("已展開", "已展开") : L.t("已收起", "已收起"))
+                .accessibilityValue(showDetail ? L.t("已展開", "已展开", "Open") : L.t("已收起", "已收起", "Closed"))
 
                 if showDetail {
                     PrivacyRows()
@@ -480,12 +488,12 @@ private struct OnbConsentStep: View {
     @ViewBuilder private func consentButtons(stacked: Bool) -> some View {
         if !declined {
             Button { withAnimation(DS.motion(DS.spring)) { declined = true } } label: {
-                Text(L.t("唔同意", "不同意")).frame(maxWidth: stacked ? .infinity : nil)
+                Text(L.t("唔同意", "不同意", "No thanks")).frame(maxWidth: stacked ? .infinity : nil)
             }
             .buttonStyle(.dsSecondary)
         }
         Button(action: onNext) {
-            Text(declined ? L.t("我諗清楚，同意", "我想清楚了，同意") : "同意").frame(maxWidth: .infinity)
+            Text(declined ? L.t("我諗清楚，同意", "我想清楚了，同意", "OK, I agree") : L.t("同意", "同意", "Agree")).frame(maxWidth: .infinity)
         }
         .buttonStyle(.dsPrimary)
     }
@@ -497,7 +505,7 @@ private struct OnbConsentStep: View {
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
-            Text(L.t("冇問題，乜都唔會記錄。想用嘅時候返嚟撳「同意」就得。", "没问题，什么都不会记录。想用的时候回来点「同意」就行。"))
+            Text(L.t("冇問題，乜都唔會記錄。想用嘅時候返嚟撳「同意」就得。", "没问题，什么都不会记录。想用的时候回来点「同意」就行。", "No problem. Nothing will be recorded. Come back and tap \"Agree\" when you want to use it."))
                 .ds(.caption)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -506,7 +514,7 @@ private struct OnbConsentStep: View {
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
         .padding(.horizontal, DS.side)
         .accessibilityElement(children: .combine)
-        .onAppear { store.onbSay(L.t("冇問題，乜都唔會記錄。想用嘅時候返嚟撳同意就得。", "没问题，什么都不会记录。想用的时候回来点同意就行。")) }
+        .onAppear { store.onbSay(L.t("冇問題，乜都唔會記錄。想用嘅時候返嚟撳同意就得。", "没问题，什么都不会记录。想用的时候回来点同意就行。", "No problem. Nothing will be recorded. Come back and tap Agree when you want to use it.")) }
     }
 }
 
@@ -539,7 +547,7 @@ private struct OnbLocateStep: View {
         .animation(DS.motion(DS.spring), value: waitedLong)
         .animation(DS.motion(DS.spring), value: needsAsk)
         .onAppear {
-            if needsAsk { store.onbSay(L.t("要知道你喺邊，先搵到你住嗰座樓。", "要知道你在哪里，才能找到你住的那栋楼。")) }
+            if needsAsk { store.onbSay(L.t("要知道你喺邊，先搵到你住嗰座樓。", "要知道你在哪里，才能找到你住的那栋楼。", "I need your location to find your block.")) }
         }
         .task(id: needsAsk) {
             guard !needsAsk else { return }
@@ -553,13 +561,13 @@ private struct OnbLocateStep: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 16) {
                 OnbBadgeIcon(symbol: "house.fill", badge: "location.fill", size: 72)
-                Text(L.t("你住邊座？", "你住哪栋？"))
+                Text(L.t("你住邊座？", "你住哪栋？", "Which block do you live in?"))
                     .ds(.title)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 0)
             }
-            Text(L.t("撳「好」，再揀「使用 App 時允許」，我就搵到你附近嘅樓。", "点「好」，再选「使用 App 时允许」，我就能找到你附近的楼。"))
+            Text(L.t("撳「好」，再揀「使用 App 時允許」，我就搵到你附近嘅樓。", "点「好」，再选「使用 App 时允许」，我就能找到你附近的楼。", "Tap \"OK\", then choose \"Allow While Using App\". Then I can find the blocks near you."))
                 .ds(.body)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
@@ -567,7 +575,7 @@ private struct OnbLocateStep: View {
                 store.onbHush()
                 store.startLocating()
             } label: {
-                Text(L.t("好", "好")).frame(maxWidth: .infinity)
+                Text(L.t("好", "好", "OK")).frame(maxWidth: .infinity)
             }
             .buttonStyle(.dsPrimary)
         }
@@ -583,7 +591,7 @@ private struct OnbLocateStep: View {
                 .symbolEffect(.pulse)
                 .frame(width: 52, height: 52)
                 .background(DS.accentSoft, in: Circle())
-            Text(L.t("搵緊你附近嘅樓…", "正在找你附近的楼…"))
+            Text(L.t("搵緊你附近嘅樓…", "正在找你附近的楼…", "Finding blocks near you…"))
                 .ds(.bodyBold)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
@@ -600,11 +608,11 @@ private struct OnbLocateStep: View {
 
     private var slowCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(L.t("網絡慢，仲搵緊。可以再等等，或者先用示例屋邨睇吓。", "网络慢，还在找。可以再等等，或者先用示例屋邨看看。"))
+            Text(L.t("網絡慢，仲搵緊。可以再等等，或者先用示例屋邨睇吓。", "网络慢，还在找。可以再等等，或者先用示例屋邨看看。", "The network is slow. Still looking. Wait a bit, or try the sample estate first."))
                 .ds(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Button(L.t("用示例屋邨", "用示例屋邨")) { store.useSampleMap() }
+            Button(L.t("用示例屋邨", "用示例屋邨", "Use sample estate")) { store.useSampleMap() }
                 .buttonStyle(.dsSecondary)
         }
         .padding(16)
@@ -621,7 +629,7 @@ private struct OnbPickHomeStep: View {
     var onNext: () -> Void
     @State private var showList = UIPreview.is("buildingList")
 
-    private func name(_ id: Int64) -> String? { store.map?.building(id: id)?.name }
+    private func name(_ id: Int64) -> String? { store.map?.building(id: id)?.shownName }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -646,7 +654,7 @@ private struct OnbPickHomeStep: View {
             } else {
                 // 3D 里的楼很小、读屏也点不到：用清单也能选。
                 Button { showList = true } label: {
-                    Label(L.t("揀唔到？用清單揀", "选不到？用清单选"), systemImage: "list.bullet").frame(maxWidth: .infinity)
+                    Label(L.t("揀唔到？用清單揀", "选不到？用清单选", "Can't tap it? Choose from list"), systemImage: "list.bullet").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsSecondary)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -680,10 +688,10 @@ private struct OnbPickHomeStep: View {
 
     private func speak() {
         if let id = store.pendingHome {
-            let n = name(id) ?? L.t("呢座樓", "这栋楼")
-            store.onbSay(manual ? L.t("\(n)。啱就撳「就係呢座」。", "\(n)。对就点「就是这栋」。") : L.t("你係咪住\(n)？", "你是不是住在\(n)？"))
+            let n = name(id) ?? L.t("呢座樓", "这栋楼", "this block")
+            store.onbSay(manual ? L.t("\(n)。啱就撳「就係呢座」。", "\(n)。对就点「就是这栋」。", "\(n). If right, tap \"This one\".") : L.t("你係咪住\(n)？", "你是不是住在\(n)？", "Do you live in \(n)?"))
         } else {
-            store.onbSay(L.t("撳一下你住嗰座橙色嘅樓。", "点一下你住的那栋橙色的楼。"))
+            store.onbSay(L.t("撳一下你住嗰座橙色嘅樓。", "点一下你住的那栋橙色的楼。", "Tap the orange block you live in."))
         }
     }
 
@@ -698,14 +706,14 @@ private struct OnbPickHomeStep: View {
             // 揀咗之后提示跟住变（以前一直写「撳一下」，唔知揀咗未）
             VStack(alignment: .leading, spacing: 4) {
                 if store.pendingHome == nil {
-                    Text(L.t("撳一下你住嗰座樓", "点一下你住的那栋楼")).ds(.bodyBold)
-                    Text(L.t("橙色嘅係住宅樓", "橙色的是住宅楼")).ds(.caption).foregroundStyle(.secondary)
+                    Text(L.t("撳一下你住嗰座樓", "点一下你住的那栋楼", "Tap the block you live in")).ds(.bodyBold)
+                    Text(L.t("橙色嘅係住宅樓", "橙色的是住宅楼", "Orange ones are homes")).ds(.caption).foregroundStyle(.secondary)
                     // 点解冇幫你估（攞唔到位置 / 地图、唔喺屋企）：一直显示，唔好一闪就冇（A-2）
                     if let n = store.mapNotice {
                         Text(n).ds(.caption).foregroundStyle(.secondary)
                     }
                 } else {
-                    Text(L.t("唔係呢座？撳第二座就得", "不是这栋？点另一栋就行")).ds(.bodyBold)
+                    Text(L.t("唔係呢座？撳第二座就得", "不是这栋？点另一栋就行", "Not this one? Tap another")).ds(.bodyBold)
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -740,8 +748,8 @@ private struct OnbPickHomeStep: View {
     private func detail(_ b: Building?) -> String? {
         guard let b else { return nil }
         let d = b.centroid.length       // 选楼画面以你个位置为原点
-        let far = d < 30 ? L.t("就喺你度", "就在你这里") : L.t("離你大約 \(OnbBuildingList.meters(d))", "离你大约 \(OnbBuildingList.meters(d))")
-        return L.t("\(b.levels) 層 · \(far)", "\(b.levels) 层 · \(far)")
+        let far = d < 30 ? L.t("就喺你度", "就在你这里", "Right where you are") : L.t("離你大約 \(OnbBuildingList.meters(d))", "离你大约 \(OnbBuildingList.meters(d))", "About \(OnbBuildingList.meters(d)) away")
+        return L.t("\(b.levels) 層 · \(far)", "\(b.levels) 层 · \(far)", "\(b.levels) floors · \(far)")
     }
 
     /// 估中嘅楼：「你係咪住XX樓？」[唔係，我揀] [係]
@@ -751,7 +759,7 @@ private struct OnbPickHomeStep: View {
             HStack(spacing: 12) {
                 buildingIcon(id)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(L.t("你係咪住\(b?.name ?? "呢座樓")？", "你是不是住在\(b?.name ?? "这栋楼")？"))
+                    Text(L.t("你係咪住\(b?.shownName ?? "呢座樓")？", "你是不是住在\(b?.shownName ?? "这栋楼")？", "Do you live in \(b?.shownName ?? "this block")?"))
                         .ds(.bodyBold)
                         .fixedSize(horizontal: false, vertical: true)
                         .contentTransition(.interpolate)
@@ -773,13 +781,13 @@ private struct OnbPickHomeStep: View {
         Button {
             manual = true
             store.pickHomeManually()
-            store.onbSay(L.t("撳一下你住嗰座橙色嘅樓。", "点一下你住的那栋橙色的楼。"))
+            store.onbSay(L.t("撳一下你住嗰座橙色嘅樓。", "点一下你住的那栋橙色的楼。", "Tap the orange block you live in."))
         } label: {
-            Text(L.t("唔係，我揀", "不是，我来选")).frame(maxWidth: stacked ? .infinity : nil)
+            Text(L.t("唔係，我揀", "不是，我来选", "No, I'll choose")).frame(maxWidth: stacked ? .infinity : nil)
         }
         .buttonStyle(.dsSecondary)
         Button(action: onNext) {
-            Text(L.t("係", "是")).frame(maxWidth: .infinity)
+            Text(L.t("係", "是", "Yes")).frame(maxWidth: .infinity)
         }
         .buttonStyle(.dsPrimary)
     }
@@ -791,11 +799,11 @@ private struct OnbPickHomeStep: View {
             HStack(spacing: 12) {
                 buildingIcon(id)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(b?.name ?? L.t("你揀咗呢座樓", "你选了这栋楼"))
+                    Text(b?.shownName ?? L.t("你揀咗呢座樓", "你选了这栋楼", "You chose this block"))
                         .ds(.bodyBold)
                         .contentTransition(.interpolate)
                     if let levels = b?.levels {
-                        Text(L.t("\(levels) 層高", "\(levels) 层高"))
+                        Text(L.t("\(levels) 層高", "\(levels) 层高", "\(levels) floors high"))
                             .ds(.caption)
                             .foregroundStyle(.secondary)
                             .contentTransition(.numericText(value: Double(levels)))
@@ -805,7 +813,7 @@ private struct OnbPickHomeStep: View {
                 Spacer(minLength: 0)
             }
             Button(action: onNext) {
-                Text(L.t("就係呢座", "就是这栋")).frame(maxWidth: .infinity)
+                Text(L.t("就係呢座", "就是这栋", "This one")).frame(maxWidth: .infinity)
             }
             .buttonStyle(.dsPrimary)
         }
@@ -825,7 +833,7 @@ private struct OnbBuildingList: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(L.t("近嘅排先", "近的排前面")).ds(.caption).foregroundStyle(.secondary)
+                    Text(L.t("近嘅排先", "近的排前面", "Nearest first")).ds(.caption).foregroundStyle(.secondary)
                     ForEach(list, id: \.id) { b in
                         Button { onPick(b.id) } label: {
                             HStack(spacing: 12) {
@@ -833,8 +841,8 @@ private struct OnbBuildingList: View {
                                     .foregroundStyle(DS.accent)
                                     .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(b.name ?? L.t("住宅樓", "住宅楼")).ds(.body)
-                                    Text(L.t("\(b.levels) 層 · 大約 \(Self.meters(b.centroid.length))", "\(b.levels) 层 · 大约 \(Self.meters(b.centroid.length))"))
+                                    Text(b.shownName ?? L.t("住宅樓", "住宅楼", "Housing block")).ds(.body)
+                                    Text(L.t("\(b.levels) 層 · 大約 \(Self.meters(b.centroid.length))", "\(b.levels) 层 · 大约 \(Self.meters(b.centroid.length))", "\(b.levels) floors · about \(Self.meters(b.centroid.length))"))
                                         .ds(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -851,7 +859,7 @@ private struct OnbBuildingList: View {
                         .accessibilityElement(children: .combine)
                     }
                     if list.isEmpty {
-                        Text(L.t("附近搵唔到住宅樓。", "附近找不到住宅楼。")).ds(.body).foregroundStyle(.secondary)
+                        Text(L.t("附近搵唔到住宅樓。", "附近找不到住宅楼。", "No housing blocks found nearby.")).ds(.body).foregroundStyle(.secondary)
                     }
                 }
                 .padding(.horizontal, DS.side)
@@ -859,13 +867,13 @@ private struct OnbBuildingList: View {
             }
             .background(Color(.systemGroupedBackground))
             .toolbar {
-                ToolbarItem(placement: .principal) { Text(L.t("揀你住嗰座", "选你住的那栋")).ds(.bodyBold) }
+                ToolbarItem(placement: .principal) { Text(L.t("揀你住嗰座", "选你住的那栋", "Choose your block")).ds(.bodyBold) }
             }
             .navigationBarTitleDisplayMode(.inline)
         }
     }
 
-    static func meters(_ m: Double) -> String { m < 1000 ? "\(Int((m / 10).rounded()) * 10) 米" : String(format: "%.1f 公里", m / 1000) }
+    static func meters(_ m: Double) -> String { m < 1000 ? L.t("\(Int((m / 10).rounded()) * 10) 米", "\(Int((m / 10).rounded()) * 10) 米", "\(Int((m / 10).rounded()) * 10) m") : String(format: L.t("%.1f 公里", "%.1f 公里", "%.1f km"), m / 1000) }
 }
 
 // MARK: - 4 樓層同網名（同一页）
@@ -882,13 +890,13 @@ private struct OnbFloorNameStep: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(L.t("你住幾樓？", "你住几楼？"))
+                    Text(L.t("你住幾樓？", "你住几楼？", "Which floor do you live on?"))
                         .ds(.title)
                         .accessibilityAddTraits(.isHeader)
                     floorStepper
                 }
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(L.t("大家點叫你？", "大家怎么称呼你？"))
+                    Text(L.t("大家點叫你？", "大家怎么称呼你？", "What should people call you?"))
                         .ds(.title)
                         .accessibilityAddTraits(.isHeader)
                     NicknameEditor(text: $name)
@@ -901,21 +909,21 @@ private struct OnbFloorNameStep: View {
         .scrollBounceBehavior(.basedOnSize)
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            OnbBottomPrimary(title: L.t("好", "好"), action: next)
+            OnbBottomPrimary(title: L.t("好", "好", "OK"), action: next)
         }
         .onAppear {
             if store.floorChoice > maxFloor { store.floorChoice = maxFloor }
             if store.floorChoice < 1 { store.floorChoice = 1 }
             // 网名先填一个现成嘅（撳「好」就用得），想改可以撳第二个或者自己打。
             if name.isEmpty { name = store.nickname.isEmpty ? (store.nicknameSuggestions.first ?? "") : store.nickname }
-            store.onbSay(L.t("你住幾樓？大家點叫你？", "你住几楼？大家怎么称呼你？"))
+            store.onbSay(L.t("你住幾樓？大家點叫你？", "你住几楼？大家怎么称呼你？", "Which floor do you live on? What should people call you?"))
         }
         .onChange(of: store.nickname) { _, n in if !n.isEmpty { name = n } }   // 自动脚本 / 启动参数填咗
     }
 
     private func next() {
         guard store.setNickname(name) else {
-            store.toast(L.t("網名要 1 至 20 個字，或者撳一個現成嘅。", "网名要 1 到 20 个字，或者点一个现成的。"))
+            store.toast(L.t("網名要 1 至 20 個字，或者撳一個現成嘅。", "网名要 1 到 20 个字，或者点一个现成的。", "Nicknames need 1 to 20 characters, or tap a ready-made one."))
             return
         }
         onNext()
@@ -927,8 +935,8 @@ private struct OnbFloorNameStep: View {
         let top = maxFloor
         return VStack(spacing: 8) {
             HStack(spacing: 12) {
-                OnbStepButton(symbol: "minus", enabled: f > 1, label: L.t("低一層", "低一层")) { change(-1) }
-                Text(L.t("\(f) 樓", "\(f) 楼"))
+                OnbStepButton(symbol: "minus", enabled: f > 1, label: L.t("低一層", "低一层", "One floor down")) { change(-1) }
+                Text(L.t("\(f) 樓", "\(f) 楼", "\(f)/F"))
                     .font(.system(size: 56, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .lineLimit(1)
@@ -936,10 +944,10 @@ private struct OnbFloorNameStep: View {
                     .contentTransition(.numericText(value: Double(f)))
                     .animation(DS.motion(DS.snappy), value: f)
                     .frame(maxWidth: .infinity)
-                OnbStepButton(symbol: "plus", enabled: f < top, label: L.t("高一層", "高一层")) { change(+1) }
+                OnbStepButton(symbol: "plus", enabled: f < top, label: L.t("高一層", "高一层", "One floor up")) { change(+1) }
             }
             if let b = building {
-                Text(L.t("\(b.name ?? "呢座樓")共 \(b.levels) 層", "\(b.name ?? "这栋楼")共 \(b.levels) 层"))
+                Text(L.t("\(b.shownName ?? "呢座樓")共 \(b.levels) 層", "\(b.shownName ?? "这栋楼")共 \(b.levels) 层", "\(b.shownName ?? "This block") has \(b.levels) floors"))
                     .ds(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -948,8 +956,8 @@ private struct OnbFloorNameStep: View {
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
         .sensoryFeedback(.selection, trigger: f)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(L.t("樓層", "楼层"))
-        .accessibilityValue(L.t("\(f) 樓", "\(f) 楼"))
+        .accessibilityLabel(L.t("樓層", "楼层", "Floor"))
+        .accessibilityValue(L.t("\(f) 樓", "\(f) 楼", "\(f)/F"))
         .accessibilityAdjustableAction { dir in
             switch dir {
             case .increment: change(+1)
@@ -1034,11 +1042,11 @@ private struct OnbTryMicStep: View {
     /// 上一次听唔到 / 用唔到咪：画面同声音讲同一句。
     @State private var missed: String?
 
-    private var phrase: String { L.t("今日天氣點", "今天天气怎么样") }
+    private var phrase: String { L.t("今日天氣點", "今天天气怎么样", "What's the weather today?") }
 
     private var hint: String {
-        if store.listening { return L.t("聽緊…講完再撳一下。", "在听…说完再按一下。") }
-        return missed ?? L.t("撳下面個咪，講「\(phrase)」。", "按下面的麦克风，说「\(phrase)」。")
+        if store.listening { return L.t("聽緊…講完再撳一下。", "在听…说完再按一下。", "Listening… Tap again when done.") }
+        return missed ?? L.t("撳下面個咪，講「\(phrase)」。", "按下面的麦克风，说「\(phrase)」。", "Tap the mic below and say \"\(phrase)\"")
     }
 
     var body: some View {
@@ -1046,7 +1054,7 @@ private struct OnbTryMicStep: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(L.t("試吓撳咪講嘢", "试试按麦克风说话"))
+                    Text(L.t("試吓撳咪講嘢", "试试按麦克风说话", "Try speaking to the mic"))
                         .ds(.title)
                         .accessibilityAddTraits(.isHeader)
                     Text(hint)
@@ -1059,7 +1067,7 @@ private struct OnbTryMicStep: View {
                     .frame(maxWidth: .infinity)
 
                 if on {
-                    Text(listener.transcript.isEmpty ? "…" : "「\(listener.transcript)」")
+                    Text(listener.transcript.isEmpty ? "…" : L.t("「\(listener.transcript)」", "「\(listener.transcript)」", "“\(listener.transcript)”"))
                         .ds(.body)
                         .foregroundStyle(listener.transcript.isEmpty ? .secondary : .primary)
                         .frame(maxWidth: .infinity)
@@ -1070,9 +1078,9 @@ private struct OnbTryMicStep: View {
                 } else {
                     // 冇咪 / 唔想讲：撳呢句都得
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(L.t("或者撳呢句：", "或者点这句：")).ds(.caption).foregroundStyle(.secondary)
+                        Text(L.t("或者撳呢句：", "或者点这句：", "Or tap this line:")).ds(.caption).foregroundStyle(.secondary)
                         Button { usePhrase() } label: {
-                            Label("「\(phrase)」", systemImage: "text.bubble.fill").frame(maxWidth: .infinity)
+                            Label(L.t("「\(phrase)」", "「\(phrase)」", "“\(phrase)”"), systemImage: "text.bubble.fill").frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.dsSecondary)
                     }
@@ -1086,7 +1094,7 @@ private struct OnbTryMicStep: View {
         .scrollBounceBehavior(.basedOnSize)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if answer != nil && !on {
-                OnbBottomPrimary(title: L.t("做完", "完成"), action: onDone)
+                OnbBottomPrimary(title: L.t("做完", "完成", "Done"), action: onDone)
                     .transition(DS.slide(.bottom))
             }
         }
@@ -1094,7 +1102,7 @@ private struct OnbTryMicStep: View {
         .animation(DS.motion(DS.spring), value: answer)
         .onAppear {
             store.refreshLiveWeather()      // 答「今日天氣點」用（天文台实时）
-            store.onbSay(L.t("試吓撳咪講嘢。", "试试按麦克风说话。"))
+            store.onbSay(L.t("試吓撳咪講嘢。", "试试按麦克风说话。", "Try speaking to the mic."))
         }
         .onDisappear {
             autoStop?.cancel()
@@ -1128,7 +1136,7 @@ private struct OnbTryMicStep: View {
                     finish(store.tryMicStop())
                 }
             } else {
-                missed = L.t("用唔到咪，可以撳下面嗰句。", "用不了麦克风，可以点下面那句。")
+                missed = L.t("用唔到咪，可以撳下面嗰句。", "用不了麦克风，可以点下面那句。", "Can't use the mic. Tap the line below instead.")
                 store.onbSay(missed ?? "")
             }
         }
@@ -1137,7 +1145,7 @@ private struct OnbTryMicStep: View {
     private func finish(_ text: String) {
         autoStop?.cancel()
         guard !text.isEmpty else {
-            missed = L.t("聽唔清楚，再講一次，或者撳下面嗰句。", "没听清楚，再说一次，或者点下面那句。")
+            missed = L.t("聽唔清楚，再講一次，或者撳下面嗰句。", "没听清楚，再说一次，或者点下面那句。", "Didn't catch that. Say it again, or tap the line below.")
             store.onbSay(missed ?? "")
             return
         }
@@ -1163,7 +1171,7 @@ private struct OnbTryMicStep: View {
     private func answerCard(_ a: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             if let heard {
-                Text(L.t("你：「\(heard)」", "你：「\(heard)」"))
+                Text(L.t("你：「\(heard)」", "你：「\(heard)」", "You: \"\(heard)\""))
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1180,7 +1188,7 @@ private struct OnbTryMicStep: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Button { store.sayAgain(a) } label: {
-                Label(L.t("再聽一次", "再听一次"), systemImage: "arrow.counterclockwise")
+                Label(L.t("再聽一次", "再听一次", "Hear again"), systemImage: "arrow.counterclockwise")
                     .ds(.captionBold)
                     .frame(minHeight: 44)
             }
@@ -1226,8 +1234,8 @@ private struct OnbBigMic: View {
         }
         .buttonStyle(OnbPressStyle())
         .padding(.vertical, 8)
-        .accessibilityLabel(L.t("講嘢", "说话"))
-        .accessibilityValue(on ? L.t("聽緊", "在听") : "")
-        .accessibilityHint(on ? L.t("再撳一下講完", "再按一下结束") : L.t("撳一下開始講", "按一下开始说"))
+        .accessibilityLabel(L.t("講嘢", "说话", "Speak"))
+        .accessibilityValue(on ? L.t("聽緊", "在听", "Listening") : "")
+        .accessibilityHint(on ? L.t("再撳一下講完", "再按一下结束", "Tap again to finish") : L.t("撳一下開始講", "按一下开始说", "Tap to start speaking"))
     }
 }

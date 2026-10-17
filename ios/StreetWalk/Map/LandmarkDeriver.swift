@@ -11,6 +11,8 @@ struct LandmarkCandidate: Codable, Hashable {
     var pos: Vec2
     var osmName: String?
     var hasSeat: Bool
+    /// OSM name:en（英文界面起名用，见 AppStore.install）。
+    var osmNameEn: String? = nil
 }
 
 struct Landmark: Codable, Identifiable, Hashable {
@@ -19,6 +21,8 @@ struct Landmark: Codable, Identifiable, Hashable {
     var kind: LandmarkKind
     var pos: Vec2
     var hasSeat: Bool
+    /// 英文界面显示嘅名（用 OSM 英文名起，冇英文名就同 name 一样）。name 系中文原名：上传服务器、两部手机对地标都靠佢（BackendMapping.LandmarkIndex）。
+    var nameEn: String? = nil
 }
 
 /// 从地图标签里挑 3–4 个间隔够远、居民会用来约见面的地方。
@@ -55,7 +59,8 @@ enum LandmarkDeriver {
             let terminus = name.contains("總站") || stops.contains { $0.kind == .busStation }
             let pos = Vec2(x: max(-edge, min(edge, c.x)), y: max(-edge, min(edge, c.y)))
             return (LandmarkCandidate(id: "bus-\(stops[0].id)", kind: terminus ? .busTerminus : .busStop, pos: pos, osmName: name,
-                                      hasSeat: terminus || stops.contains { $0.hasShelter || $0.hasBench }), out)
+                                      hasSeat: terminus || stops.contains { $0.hasShelter || $0.hasBench },
+                                      osmNameEn: stops.lazy.compactMap(\.nameEn).first), out)
         }.sorted { $0.1 != $1.1 ? $0.1 < $1.1 : $0.0.id < $1.0.id }.map(\.0)
     }
 
@@ -68,7 +73,7 @@ enum LandmarkDeriver {
             let rank = (r.name == nil ? 3 : 0) + (r.kind == .major ? 0 : r.kind == .minor ? 1 : 2)
             return [r.points.first, r.points.last].compactMap { $0 }.filter { max(abs($0.x), abs($0.y)) > map.half - 2 }.map { e in
                 let p = Vec2(x: max(-edge, min(edge, e.x)), y: max(-edge, min(edge, e.y)))
-                return (LandmarkCandidate(id: "road-\(Int((p.x / 5).rounded()))_\(Int((p.y / 5).rounded()))", kind: .shelter, pos: p, osmName: r.name, hasSeat: false), rank)
+                return (LandmarkCandidate(id: "road-\(Int((p.x / 5).rounded()))_\(Int((p.y / 5).rounded()))", kind: .shelter, pos: p, osmName: r.name, hasSeat: false, osmNameEn: r.nameEn), rank)
             }
         }.sorted { $0.1 != $1.1 ? $0.1 < $1.1 : $0.0.id < $1.0.id }.map(\.0).filter { seen.insert($0.id).inserted }
     }
@@ -82,7 +87,7 @@ enum LandmarkDeriver {
             .compactMap { b in
                 let lobby = nearestRoadPoint(to: b.centroid, in: map, maxDistance: 50) ?? edgePoint(b.outline, toward: .zero)
                 guard abs(lobby.x) <= limit, abs(lobby.y) <= limit else { return nil }
-                return LandmarkCandidate(id: "lobby-\(b.id)", kind: .lobby, pos: lobby, osmName: b.name, hasSeat: false)
+                return LandmarkCandidate(id: "lobby-\(b.id)", kind: .lobby, pos: lobby, osmName: b.name, hasSeat: false, osmNameEn: b.nameEn)
             }
     }
 
@@ -102,20 +107,20 @@ enum LandmarkDeriver {
             let terminus = name.contains("總站") || stops.contains { $0.kind == .busStation }
             let seat = terminus || stops.contains { $0.hasShelter || $0.hasBench }
             raw.append((LandmarkCandidate(id: "bus-\(stops[0].id)", kind: terminus ? .busTerminus : .busStop,
-                                          pos: c, osmName: name, hasSeat: seat), terminus ? 10 : 6))
+                                          pos: c, osmName: name, hasSeat: seat, osmNameEn: stops.lazy.compactMap(\.nameEn).first), terminus ? 10 : 6))
         }
 
         for p in map.pois where inside(p.pos) {
             switch p.kind {
-            case .shelter: raw.append((LandmarkCandidate(id: "shelter-\(p.id)", kind: .shelter, pos: p.pos, osmName: p.name, hasSeat: true), 9))
-            case .bench: raw.append((LandmarkCandidate(id: "bench-\(p.id)", kind: .bench, pos: p.pos, osmName: p.name, hasSeat: true), 7))
-            case .market: raw.append((LandmarkCandidate(id: "market-\(p.id)", kind: .market, pos: p.pos, osmName: p.name, hasSeat: false), 9))
+            case .shelter: raw.append((LandmarkCandidate(id: "shelter-\(p.id)", kind: .shelter, pos: p.pos, osmName: p.name, hasSeat: true, osmNameEn: p.nameEn), 9))
+            case .bench: raw.append((LandmarkCandidate(id: "bench-\(p.id)", kind: .bench, pos: p.pos, osmName: p.name, hasSeat: true, osmNameEn: p.nameEn), 7))
+            case .market: raw.append((LandmarkCandidate(id: "market-\(p.id)", kind: .market, pos: p.pos, osmName: p.name, hasSeat: false, osmNameEn: p.nameEn), 9))
             case .mall:
                 let door = nearestRoadPoint(to: p.pos, in: map, maxDistance: 60) ?? p.pos
-                raw.append((LandmarkCandidate(id: "mall-\(p.id)", kind: .mall, pos: door, osmName: p.name, hasSeat: false), 8))
-            case .community: raw.append((LandmarkCandidate(id: "community-\(p.id)", kind: .community, pos: p.pos, osmName: p.name, hasSeat: true), 6))
-            case .playground: raw.append((LandmarkCandidate(id: "play-\(p.id)", kind: .playground, pos: p.pos, osmName: p.name, hasSeat: true), 6))
-            case .food: raw.append((LandmarkCandidate(id: "food-\(p.id)", kind: .food, pos: p.pos, osmName: p.name, hasSeat: false), 3))
+                raw.append((LandmarkCandidate(id: "mall-\(p.id)", kind: .mall, pos: door, osmName: p.name, hasSeat: false, osmNameEn: p.nameEn), 8))
+            case .community: raw.append((LandmarkCandidate(id: "community-\(p.id)", kind: .community, pos: p.pos, osmName: p.name, hasSeat: true, osmNameEn: p.nameEn), 6))
+            case .playground: raw.append((LandmarkCandidate(id: "play-\(p.id)", kind: .playground, pos: p.pos, osmName: p.name, hasSeat: true, osmNameEn: p.nameEn), 6))
+            case .food: raw.append((LandmarkCandidate(id: "food-\(p.id)", kind: .food, pos: p.pos, osmName: p.name, hasSeat: false, osmNameEn: p.nameEn), 3))
             default: break
             }
         }
@@ -127,11 +132,11 @@ enum LandmarkDeriver {
             let key = a.osmID.map { "\($0)" } ?? "i\(i)"
             switch a.kind {
             case .park where Polygon.area(a.outline) > 300:
-                raw.append((LandmarkCandidate(id: "park-\(key)", kind: .park, pos: c, osmName: a.name, hasSeat: true), 9))
+                raw.append((LandmarkCandidate(id: "park-\(key)", kind: .park, pos: c, osmName: a.name, hasSeat: true, osmNameEn: a.nameEn), 9))
             case .playground:
-                raw.append((LandmarkCandidate(id: "play-a\(key)", kind: .playground, pos: c, osmName: a.name, hasSeat: true), 6))
+                raw.append((LandmarkCandidate(id: "play-a\(key)", kind: .playground, pos: c, osmName: a.name, hasSeat: true, osmNameEn: a.nameEn), 6))
             case .pitch where Polygon.area(a.outline) > 200:
-                raw.append((LandmarkCandidate(id: "pitch-\(key)", kind: .pitch, pos: edgePoint(a.outline, toward: .zero), osmName: a.name, hasSeat: false), 5))
+                raw.append((LandmarkCandidate(id: "pitch-\(key)", kind: .pitch, pos: edgePoint(a.outline, toward: .zero), osmName: a.name, hasSeat: false, osmNameEn: a.nameEn), 5))
             default: break
             }
         }
@@ -140,7 +145,7 @@ enum LandmarkDeriver {
         for b in map.buildings where b.kind == .residential && b.levels >= 10 && b.name != nil {
             let lobby = nearestRoadPoint(to: b.centroid, in: map, maxDistance: 50) ?? edgePoint(b.outline, toward: .zero)
             guard inside(lobby) else { continue }
-            raw.append((LandmarkCandidate(id: "lobby-\(b.id)", kind: .lobby, pos: lobby, osmName: b.name, hasSeat: false), 4))
+            raw.append((LandmarkCandidate(id: "lobby-\(b.id)", kind: .lobby, pos: lobby, osmName: b.name, hasSeat: false, osmNameEn: b.nameEn), 4))
         }
 
         // 同一个 OSM 要素可能出几块（relation 多个外环）：id 重复的只留第一个。
@@ -177,16 +182,18 @@ enum LandmarkDeriver {
     /// 名字不能重复（语音、约会都靠名字分辨）：重名的加上最近的有名楼宇（"皇滙樓旁公園櫈仔"），还不行就加编号。
     /// 没有名的楼的楼下（模板叫"大堂"，长者分不出是哪座）：我屋企叫"你屋企樓下"；其他按附近有名的楼、店、路叫"21座旁"，
     /// 都没有就按在我屋企哪个方向叫"東邊嗰座樓下"。底座边的路口叫"X路口"（模板当涼亭，这里改名）。
-    static func uniqueNames(_ list: [Landmark], in map: MapModel, home: Int64? = nil) -> [Landmark] {
+    /// en = 起英文名（英文界面用：楼名、路名、店名用 OSM 英文名，冇就用中文名；「旁」「樓下」等改英文讲法）。
+    static func uniqueNames(_ list: [Landmark], in map: MapModel, home: Int64? = nil, en: Bool = false) -> [Landmark] {
         var out = list
         var used = Set<String>()
-        let named = map.buildings.filter { $0.name != nil && $0.kind != .small }
+        func nm(_ b: Building) -> String? { en ? (b.nameEn ?? b.name) : b.name }
+        let named = map.buildings.filter { $0.name != nil && $0.kind != .small }.map { b -> Building in var b = b; b.name = nm(b); return b }
         func roadDistance(_ r: Road, _ p: Vec2) -> Double {
             (0..<max(r.points.count - 1, 0)).map { closestPoint(on: r.points[$0], r.points[$0 + 1], to: p).distance(to: p) }.min() ?? .infinity
         }
         func namedRoads(near p: Vec2, within d: Double) -> [String] {
             map.roads.compactMap { r -> (String, Double)? in
-                guard let n = r.name, !n.isEmpty else { return nil }
+                guard let n = en ? (r.nameEn ?? r.name) : r.name, !n.isEmpty else { return nil }
                 let x = roadDistance(r, p)
                 return x < d ? (n, x) : nil
             }.sorted { $0.1 < $1.1 }.map(\.0)
@@ -195,22 +202,26 @@ enum LandmarkDeriver {
             let p = out[i].pos
             let taken = Set(out.enumerated().filter { $0.offset != i }.map(\.element.name))
             if out[i].id.hasPrefix("road-") {
-                out[i].name = namedRoads(near: p, within: 20).map { $0.hasSuffix("口") ? $0 : "\($0)口" }.first { !taken.contains($0) } ?? "路口"
+                out[i].name = en ? namedRoads(near: p, within: 20).map { "\($0) junction" }.first { !taken.contains($0) } ?? "Road junction"
+                    : namedRoads(near: p, within: 20).map { $0.hasSuffix("口") ? $0 : "\($0)口" }.first { !taken.contains($0) } ?? "路口"
                 continue
             }
             guard out[i].kind == .lobby, let id = Int64(out[i].id.dropFirst("lobby-".count)),
                   let b = map.building(id: id), b.name == nil else { continue }
-            if id == home { out[i].name = "你屋企樓下"; continue }
+            if id == home { out[i].name = en ? "Below your block" : "你屋企樓下"; continue }
             let byBuilding = named.filter { $0.id != id && distance(from: p, to: $0.outline) < 60 }
                 .sorted { distance(from: p, to: $0.outline) < distance(from: p, to: $1.outline) }.map { $0.name! }
             // 店名太长（"Win East Sanitary Ware Co., Ltd"）不好讲，只用 6 个字以内的。
-            let byPOI = map.pois.filter { $0.kind != .busStop && $0.kind != .busStation && (1...6).contains($0.name?.count ?? 0) && $0.pos.distance(to: p) < 50 }
-                .sorted { $0.pos.distance(to: p) < $1.pos.distance(to: p) }.map { $0.name! }
+            let byPOI = map.pois.filter { $0.kind != .busStop && $0.kind != .busStation && (1...(en ? 16 : 6)).contains((en ? ($0.nameEn ?? $0.name) : $0.name)?.count ?? 0) && $0.pos.distance(to: p) < 50 }
+                .sorted { $0.pos.distance(to: p) < $1.pos.distance(to: p) }.map { en ? ($0.nameEn ?? $0.name!) : $0.name! }
             // 方向按真北：底座转过 rotation（逆时针），转回去再算方位角。
             let c = b.centroid, cr = cos(-map.rotation), sr = sin(-map.rotation)
             let bearing = atan2(c.x * cr - c.y * sr, c.x * sr + c.y * cr) * 180 / .pi
-            let dir = ["北", "東北", "東", "東南", "南", "西南", "西", "西北"][Int(((bearing + 382.5).truncatingRemainder(dividingBy: 360)) / 45) % 8]
-            let options = (byBuilding + byPOI + namedRoads(near: p, within: 80)).map { "\($0)旁" } + ["\(dir)邊嗰座樓下"]
+            let k = Int(((bearing + 382.5).truncatingRemainder(dividingBy: 360)) / 45) % 8
+            let dir = (en ? ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"]
+                          : ["北", "東北", "東", "東南", "南", "西南", "西", "西北"])[k]
+            let options = en ? (byBuilding + byPOI + namedRoads(near: p, within: 80)).map { "Next to \($0)" } + ["Below the \(dir) block"]
+                : (byBuilding + byPOI + namedRoads(near: p, within: 80)).map { "\($0)旁" } + ["\(dir)邊嗰座樓下"]
             if let n = options.first(where: { !taken.contains($0) }) { out[i].name = n }
         }
         for i in out.indices {
@@ -218,9 +229,10 @@ enum LandmarkDeriver {
             let base = out[i].name, p = out[i].pos
             var name = named.filter { distance(from: p, to: $0.outline) < 60 && !base.contains($0.name!) }
                 .min { distance(from: p, to: $0.outline) < distance(from: p, to: $1.outline) }
-                .map { "\($0.name!)旁\(base)" }
+                .map { en ? "\(base) by \($0.name!)" : "\($0.name!)旁\(base)" }
             if let n = name, used.contains(n) { name = nil }
-            let name2 = name ?? ["二", "三", "四", "五", "六", "七"].map { "\(base)（\($0)）" }.first { !used.contains($0) } ?? "\(base)\(i + 1)"
+            let name2 = name ?? (en ? ["2", "3", "4", "5", "6", "7"].map { "\(base) (\($0))" } : ["二", "三", "四", "五", "六", "七"].map { "\(base)（\($0)）" })
+                .first { !used.contains($0) } ?? "\(base)\(en ? " " : "")\(i + 1)"
             out[i].name = name2
             used.insert(name2)
         }

@@ -11,9 +11,17 @@ struct DefaultLanguageTests {
         #expect(AppLanguage.systemDefault(preferred: ["zh-Hant-HK"], region: "HK") == .yue)
         #expect(AppLanguage.systemDefault(preferred: ["yue-Hant-HK"], region: "HK") == .yue)
         #expect(AppLanguage.systemDefault(preferred: ["zh-Hant-TW"], region: "TW") == .yue, "繁体照用粤语界面")
-        #expect(AppLanguage.systemDefault(preferred: ["en-US", "zh-Hans-CN"], region: "US") == .cmn, "睇第一个中文")
-        #expect(AppLanguage.systemDefault(preferred: ["en-GB"], region: "CN") == .cmn, "冇中文睇地区")
-        #expect(AppLanguage.systemDefault(preferred: ["en-US"], region: "HK") == .yue)
+        // 首选英文 → English（2026-10-17 加英文版）
+        #expect(AppLanguage.systemDefault(preferred: ["en-US", "zh-Hans-CN"], region: "US") == .en, "首选英文")
+        #expect(AppLanguage.systemDefault(preferred: ["en-GB"], region: "CN") == .en)
+        #expect(AppLanguage.systemDefault(preferred: ["en-HK", "zh-Hant-HK"], region: "HK") == .en)
+        #expect(AppLanguage.systemDefault(preferred: ["en"], region: nil) == .en)
+        // 首选唔系英文：睇第一个中文
+        #expect(AppLanguage.systemDefault(preferred: ["ja-JP", "zh-Hans-CN", "en-US"], region: "JP") == .cmn, "睇第一个中文")
+        #expect(AppLanguage.systemDefault(preferred: ["ja-JP", "en-US"], region: "HK") == .en, "冇中文、有英文")
+        #expect(AppLanguage.systemDefault(preferred: ["ja-JP"], region: "CN") == .cmn, "冇中文冇英文睇地区")
+        #expect(AppLanguage.systemDefault(preferred: ["ja-JP"], region: "HK") == .yue)
+        #expect(AppLanguage.systemDefault(preferred: ["fr-FR"], region: "FR") == .en)
         #expect(AppLanguage.systemDefault(preferred: [], region: nil) == .yue)
     }
 
@@ -30,6 +38,14 @@ struct DefaultLanguageTests {
         let chose = UserDefaults(suiteName: "lang-seed-\(UUID())")!
         AppLanguage(defaults: chose, arguments: []).set(.yue)
         #expect(AppLanguage.seedDefault(defaults: chose, preferred: ["zh-Hans-CN"], region: "CN") == nil)
+        #expect(chose.string(forKey: AppLanguage.key) == "yue")
+
+        // 英文系统第一次开：揀 English 存低；-lang en 都读得到
+        let en = UserDefaults(suiteName: "lang-seed-\(UUID())")!
+        #expect(AppLanguage.seedDefault(defaults: en, preferred: ["en-GB"], region: "HK") == .en)
+        #expect(en.string(forKey: AppLanguage.key) == "en")
+        #expect(AppLanguage(defaults: en, arguments: []).current == .en)
+        #expect(AppLanguage(defaults: chose, arguments: ["-lang", "en"]).current == .en, "启动参数只影响今次")
         #expect(chose.string(forKey: AppLanguage.key) == "yue")
 
         // 旧用户（已完成首次使用、未揀过）：保持粤语

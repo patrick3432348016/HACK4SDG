@@ -53,21 +53,21 @@ extension AppStore {
         mapSource = source
         if case .onboarding = phase {
             let me = loc.flatMap { TileKey.snap($0) == m.tile ? LocalProjection(origin: m.center).toLocal($0) : nil }
-            let notice: String? = loc == nil ? L.t("攞唔到你嘅位置，所以冇幫你估。而家用緊示例屋邨（\(m.placeName)），唔係你附近。", "拿不到你的位置，所以没帮你猜。现在先显示示例屋邨（\(m.placeName)），不是你家附近。")
-                : source == .fallback ? L.t("暫時攞唔到你附近嘅地圖，所以冇幫你估。而家用緊示例屋邨（\(m.placeName)），唔係你附近。", "暂时拿不到你附近的地图，所以没帮你猜。现在先显示示例屋邨（\(m.placeName)），不是你家附近。") : nil
+            let notice: String? = loc == nil ? L.t("攞唔到你嘅位置，所以冇幫你估。而家用緊示例屋邨（\(m.shownPlaceName)），唔係你附近。", "拿不到你的位置，所以没帮你猜。现在先显示示例屋邨（\(m.shownPlaceName)），不是你家附近。", "Couldn't get your location, so no guess. This is a sample estate (\(m.shownPlaceName)), not near you.")
+                : source == .fallback ? L.t("暫時攞唔到你附近嘅地圖，所以冇幫你估。而家用緊示例屋邨（\(m.shownPlaceName)），唔係你附近。", "暂时拿不到你附近的地图，所以没帮你猜。现在先显示示例屋邨（\(m.shownPlaceName)），不是你家附近。", "Couldn't get the map near you for now, so no guess. This is a sample estate (\(m.shownPlaceName)), not near you.") : nil
             showPickHome(near: me, notice: notice, animated: animated)
         } else {
             var homeID = home.flatMap { id in m.building(id: id) != nil ? id : nil }
             if homeID == nil {
                 if let t = homeTile, m.tile != t {
                     // 拉不到我屋企那格（离线又没缓存）：显示示例屋邨，但不把示例的楼当成你屋企。
-                    noticeMap(L.t("暫時攞唔到你屋企附近嘅地圖，而家顯示緊示例屋邨。", "暂时拿不到你家附近的地图，现在先显示示例屋邨。"), delay: 1)
+                    noticeMap(L.t("暫時攞唔到你屋企附近嘅地圖，而家顯示緊示例屋邨。", "暂时拿不到你家附近的地图，现在先显示示例屋邨。", "Couldn't get the map near your home for now. Showing a sample estate."), delay: 1)
                 } else {
                     homeID = defaultHome(in: m)
                 }
             } else if sampleHome {
-                noticeMap(L.t("而家顯示緊示例屋邨（\(m.placeName)），唔係你附近。喺屋企開定位，去設定「重新揀樓」就換到你附近。",
-                              "现在显示的是示例屋邨（\(m.placeName)），不是你家附近。在家打开定位，到设置里「重新选楼」就能换成你家附近。"), delay: 1)
+                noticeMap(L.t("而家顯示緊示例屋邨（\(m.shownPlaceName)），唔係你附近。喺屋企開定位，去設定「重新揀樓」就換到你附近。",
+                              "现在显示的是示例屋邨（\(m.shownPlaceName)），不是你家附近。在家打开定位，到设置里「重新选楼」就能换成你家附近。", "This is a sample estate (\(m.shownPlaceName)), not near you. At home, turn on location, then use \"Choose again\" in Settings to switch."), delay: 1)
             }
             installDiorama(home: homeID, animated: animated)
             loadingMap = false
@@ -83,13 +83,13 @@ extension AppStore {
         if let me, v.hasHomeCandidate {
             // 画面不是以我为中心（附近没有可选的楼）：讲清楚，免得以为橙色那几座就是我附近。
             let p = v.scenePoint(LocalProjection(origin: full.center).toGeo(me))
-            if max(abs(p.x), abs(p.y)) > v.half { notice = notice ?? L.t("你而家附近冇住宅樓（可能唔喺屋企），所以冇幫你估。而家顯示緊離你最近嘅住宅樓。", "你现在附近没有住宅楼（可能不在家），所以没帮你猜。现在显示的是离你最近的住宅楼。") }
+            if max(abs(p.x), abs(p.y)) > v.half { notice = notice ?? L.t("你而家附近冇住宅樓（可能唔喺屋企），所以冇幫你估。而家顯示緊離你最近嘅住宅樓。", "你现在附近没有住宅楼（可能不在家），所以没帮你猜。现在显示的是离你最近的住宅楼。", "No housing blocks near you right now (maybe you're not home), so no guess. Showing the nearest housing blocks.") }
         }
         if !v.hasHomeCandidate {
             full = full.addingPlaceholderHome(at: me ?? .zero).map
             fullMap = full
             v = full.pickView(near: me)
-            notice = L.t("附近未有樓宇資料，喺你位置放咗一座示意樓，撳佢就得。", "附近还没有楼宇数据，在你的位置放了一座示意楼，点它就行。")
+            notice = L.t("附近未有樓宇資料，喺你位置放咗一座示意樓，撳佢就得。", "附近还没有楼宇数据，在你的位置放了一座示意楼，点它就行。", "No building data nearby yet. A sample block is placed where you are. Just tap it.")
         }
         install(v, home: nil, animated: animated)
         pickCamera(animated: false)
@@ -101,7 +101,7 @@ extension AppStore {
         // 估唔到都要讲点解（A-2：喺学校装，冇估又冇讲，以为坏咗）。
         if let me, notice == nil {
             if let id = guessHome(in: v, at: v.scenePoint(LocalProjection(origin: full.center).toGeo(me))) { pickHome(id) }
-            else { notice = L.t("你而家附近冇住宅樓（可能唔喺屋企），所以冇幫你估。撳你住嗰座，或者返到屋企再揀。", "你现在附近没有住宅楼（可能不在家），所以没帮你猜。请点你住的那栋，或者回家后再选。") }
+            else { notice = L.t("你而家附近冇住宅樓（可能唔喺屋企），所以冇幫你估。撳你住嗰座，或者返到屋企再揀。", "你现在附近没有住宅楼（可能不在家），所以没帮你猜。请点你住的那栋，或者回家后再选。", "No housing blocks near you right now (maybe you're not home), so no guess. Tap your block, or choose again at home.") }
         }
         // 等「你係咪住…」/「撳一下你住嗰座樓」说完再说。
         if let notice { noticeMap(notice, delay: 2.5) }
@@ -143,7 +143,7 @@ extension AppStore {
         fullMap = MapService.fallback()
         mapSource = .fallback
         pendingHome = nil
-        showPickHome(near: nil, notice: L.t("而家用緊示例屋邨（\(fullMap?.placeName ?? "皇后山邨")），唔係你附近。", "现在先显示示例屋邨（\(fullMap?.placeName ?? "皇后山邨")），不是你家附近。"), animated: true)
+        showPickHome(near: nil, notice: L.t("而家用緊示例屋邨（\(fullMap?.shownPlaceName ?? "皇后山邨")），唔係你附近。", "现在先显示示例屋邨（\(fullMap?.shownPlaceName ?? "皇后山邨")），不是你家附近。", "This is a sample estate (\(fullMap?.shownPlaceName ?? "Queen's Hill Estate")), not near you."), animated: true)
     }
 
     /// 地图有状况（示例屋邨、示意楼）：mapNotice 留给画面显示，再用提示说一次（字 + 声）。
@@ -165,15 +165,50 @@ extension AppStore {
     func install(_ m: MapModel, home: Int64?, animated: Bool) {
         map = m
         let picked = LandmarkDeriver.derive(in: m, home: home)
-        let named = picked.map { Landmark(id: $0.id, name: ai.nameLandmark($0), kind: $0.kind, pos: $0.pos, hasSeat: $0.hasSeat) }
-        landmarks = LandmarkDeriver.uniqueNames(named, in: m, home: home)
+        // 中文原名一律用粤语起：上传服务器、两部手机对地标都靠呢个名（BackendMapping.LandmarkIndex），唔可以跟界面语言变。
+        let zh = Self.inLanguage(.yue) {
+            LandmarkDeriver.uniqueNames(picked.map { Landmark(id: $0.id, name: ai.nameLandmark($0), kind: $0.kind, pos: $0.pos, hasSeat: $0.hasSeat) },
+                                        in: m, home: home)
+        }
+        // 英文界面显示嘅名：有 OSM 英文名（name:en）就用英文名起，冇就照用中文名。
+        let en = Self.inLanguage(.en) {
+            LandmarkDeriver.uniqueNames(picked.map { c -> Landmark in
+                var c = c
+                c.osmName = c.osmNameEn ?? c.osmName
+                return Landmark(id: c.id, name: ai.nameLandmark(c), kind: c.kind, pos: c.pos, hasSeat: c.hasSeat)
+            }, in: m, home: home, en: true)
+        }
+        let enByID = Dictionary(en.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
+        landmarks = zh.map { var l = $0; l.nameEn = enByID[l.id]; return l }
         originalLandmarkNames = Dictionary(landmarks.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
+        localizeLandmarkNames()
         shade = ShadeService(map: m, landmarks: landmarks)
         scene.setHomeBuilding(home)
         scene.homeTarget = home.flatMap { m.building(id: $0)?.centroid } ?? .zero
         scene.load(map: m, landmarks: landmarks, animated: animated)
         scene.setCamera(target: scene.overviewTarget, distance: scene.overviewDistance, animated: false)
         updateSun(animated: false)
+    }
+
+    /// 用指定语言跑 f（地标起名用），跑完即刻转返；同一个主线程回合内完成，画面只会见到原来嘅语言。
+    static func inLanguage<T>(_ l: AppLang, _ f: () -> T) -> T {
+        let lang = AppLanguage.shared
+        let old = lang.current
+        guard old != l else { return f() }
+        lang.current = l
+        defer { lang.current = old }
+        return f()
+    }
+
+    /// 地标显示名跟界面语言：英文界面用 nameEn，其余用中文原名（自己改过嘅名之后由 applyLandmarkNames 盖上）。
+    func localizeLandmarkNames() {
+        for i in landmarks.indices {
+            let id = landmarks[i].id
+            let n = (L.isEn ? landmarks[i].nameEn : nil) ?? originalLandmarkNames[id] ?? landmarks[i].name
+            guard landmarks[i].name != n else { continue }
+            landmarks[i].name = n
+            scene.renameLandmark(id, to: n)
+        }
     }
 
     func defaultHome(in m: MapModel) -> Int64? {
@@ -197,7 +232,7 @@ extension AppStore {
 
     /// 揀中一座：只换染色，镜头唔郁（以前飞埋去放到好大，有时得一块地；要睇清楚可以双指放大）。
     func pickHome(_ id: Int64) {
-        guard map?.building(id: id)?.kind == .residential else { toast(L.t("請揀一座亮咗橙色嘅樓", "请选一座亮橙色的楼")); return }
+        guard map?.building(id: id)?.kind == .residential else { toast(L.t("請揀一座亮咗橙色嘅樓", "请选一座亮橙色的楼", "Please choose a bright orange block")); return }
         pendingHome = id
         highlightResidential(true)
         Haptics.select()
@@ -231,7 +266,7 @@ extension AppStore {
         uploadProfile()     // populate 之后：座数跟新屋企
         scene.resetCamera()
         if firstTime { startFirstDay() }   // 「今日」页顶「今日三件事」（AppStore+FirstDay）
-        say(firstTime ? L.t("搞掂！今日試吓做呢三件事。", "搞定！今天试试做这三件事。") : L.t("改好咗。", "改好了。"))
+        say(firstTime ? L.t("搞掂！今日試吓做呢三件事。", "搞定！今天试试做这三件事。", "All set! Try these 3 things today.") : L.t("改好咗。", "改好了。", "Changed."))
         startWalkDetection()   // 动作感应；通知权限等有街坊先问（requestNotificationsIfReady）
         locationOnboarded()    // 屋企范围；「始终允许」等第一次散步返屋企先问（AppStore+Location）
     }
@@ -240,6 +275,7 @@ extension AppStore {
     func populate() {
         guard let m = map else { return }
         adoptMapKey()
+        localizeLandmarkNames()
         applyLandmarkNames()
         let blocks = m.buildings.filter { $0.kind == .residential && $0.name != nil }.compactMap(\.name)
         community.setLandmarks(landmarks, originals: originalLandmarkNames)
@@ -337,14 +373,14 @@ extension AppStore {
                 let (meet, i) = point(along: rest, at: v * pathLength(back) / (fast - v))
                 motion = .catchUp(lead: back + rest.prefix(i + 1).dropFirst() + [meet], fast: fast, rest: [meet] + rest.dropFirst(i + 1), speed: v)
             }
-            people.append(ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility, motion: motion, label: "你"))
+            people.append(ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility, motion: motion, label: L.t("你", "你", "You")))
         }
         if let f = find, f.live, let p = resident(f.partnerID), p.isNeighbor {
             people += livePeople(f, partner: p)
         } else if let f = find, let p = resident(f.partnerID), p.isNeighbor, let lm = landmark(f.landmarkID) {
             let myStart = myPosition()
             people.append(ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility,
-                                      motion: f.stage == .asking || f.stage == .declined ? .stand(at: myStart) : .route(findRoute ?? [myStart, lm.pos], speed: Self.findSpeed), label: "你"))
+                                      motion: f.stage == .asking || f.stage == .declined ? .stand(at: myStart) : .route(findRoute ?? [myStart, lm.pos], speed: Self.findSpeed), label: L.t("你", "你", "You")))
             let spot = scene.nearestWalkable(lm.pos + Vec2(x: 5, y: 3))
             if f.spontaneous || f.partnerOut { people.append(ScenePerson(id: p.id, color: p.uiColor, mobility: p.mobility,
                                       motion: f.spontaneous ? .stand(at: spot) : .route(partnerRoute ?? [spot], speed: Self.findSpeed * 0.8),
@@ -354,7 +390,7 @@ extension AppStore {
             // 两人在碰面的地方并排站：散步中就在我走到的位置，不要跳回屋企。
             let spot = bumpMeetSpot()
             people.removeAll { $0.id == "me" }
-            people.append(ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility, motion: .stand(at: spot + Vec2(x: -4, y: 0)), label: "你"))
+            people.append(ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility, motion: .stand(at: spot + Vec2(x: -4, y: 0)), label: L.t("你", "你", "You")))
             people.append(ScenePerson(id: p.id, color: p.uiColor, mobility: p.mobility, motion: .stand(at: spot + Vec2(x: 4, y: 0)), label: "\(p.floorLabel) \(p.name)", highlighted: true))
         } else {
             bumpSpot = nil
@@ -366,7 +402,7 @@ extension AppStore {
         }
         scene.setPeople(people.map(withLook))
         // 只写「你屋企」：以前「· 已隱身」长者以为自己开咗乜嘢或者被人封咗（UX 评审 16）。
-        scene.homeLabel = (walk == nil && find == nil) ? L.t("你屋企", "你家") : nil
+        scene.homeLabel = (walk == nil && find == nil) ? L.t("你屋企", "你家", "Your home") : nil
         scene.reportMarks = reports.map { (id: $0.id.uuidString, pos: $0.pos, text: $0.kind.rawValue) }
     }
 
@@ -401,13 +437,13 @@ extension AppStore {
     /// 地标信息卡的遮荫一句（图标 + 文字）。日落后说"太陽落咗山"。
     func shadeFact(_ landmarkID: String) -> (symbol: String, text: String) {
         guard shade != nil else { return ("sun.max.fill", Self.shadeWords(0)) }
-        guard let v = shadeValue(landmarkID, at: now) else { return ("moon.stars.fill", L.t("太陽落咗山，冇得曬", "太阳下山了，晒不到")) }
+        guard let v = shadeValue(landmarkID, at: now) else { return ("moon.stars.fill", L.t("太陽落咗山，冇得曬", "太阳下山了，晒不到", "Sun has set")) }
         return (v >= 0.5 ? "building.2.fill" : "sun.max.fill", Self.shadeWords(v))
     }
 
     /// 遮荫讲日常话，唔讲百分比（长者睇唔明「0% 有樓遮」，UX 评审 16）：有陰 / 一半有陰 / 曬。
     static func shadeWords(_ v: Double) -> String {
-        v >= 0.6 ? L.t("而家有陰", "现在有阴凉") : v >= 0.3 ? L.t("而家一半有陰", "现在一半有阴凉") : L.t("而家曬", "现在晒")
+        v >= 0.6 ? L.t("而家有陰", "现在有阴凉", "Shady now") : v >= 0.3 ? L.t("而家一半有陰", "现在一半有阴凉", "Half shady now") : L.t("而家曬", "现在晒", "Too sunny now")
     }
 
     /// 约人理由：模板按遮荫写"嗰陣有樓遮住"，但日落后遮荫按 100% 计，要改成"嗰陣已經日落"。
