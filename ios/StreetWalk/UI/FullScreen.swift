@@ -5,7 +5,7 @@ import SwiftUI
 /// MainView 在 bumpStage == .searching 时全屏显示；找到对方后由 MainView 关掉。
 /// 真机（2026-10-10）：搵緊身邊部手機 → 靠近啲 → 再近啲 → 成功，中间一个进度环显示距离（组员 B 原型嘅进度环）；
 /// 失败讲清楚原因，提供「用二維碼」「再試」「去設定」。二维码画面见 BumpQRViews.swift。
-/// 2026-10-17：教人并排 / 背对背、隔一拳（顶部对顶部会弹「隔空投送」，D-4）；搵咗 12 秒都未搵到对方，
+/// 2026-10-17：教人并排、隔一拳（顶部对顶部会弹「隔空投送」，D-4；10-18 背对背会叫出 Siri，删咗）；搵咗 12 秒都未搵到对方，
 /// 「用二維碼」变大掣、提示开 Wi-Fi 同蓝牙（D-5 / D-6）；系统唔俾用流量就讲去设定开（D-5）。
 struct BumpView: View {
     @Environment(AppStore.self) private var store
@@ -154,10 +154,10 @@ struct BumpView: View {
 
     static func hint(_ p: BumpUpdate) -> String {
         switch p {
-        case .searching: return L.t("兩部手機都開住呢頁，並排或者背對背靠近，隔一個拳頭就得。唔好頂部對頂部；彈出「隔空投送」就撳「取消」。",
-                                    "两台手机都打开这一页，并排或背对背靠近，隔一个拳头就行。不要顶部对顶部；弹出「隔空投送」就点「取消」。", "Open this page on both phones. Hold them side by side or back to back, a fist apart. If AirDrop pops up, tap “Cancel”.")
+        case .searching: return L.t("兩部手機都開住呢頁，並排擺、隔一個拳頭就得。唔好頂部對頂部；彈出「隔空投送」就撳「取消」。",
+                                    "两台手机都打开这一页，并排放、隔一个拳头就行。不要顶部对顶部；弹出「隔空投送」就点「取消」。", "Open this page on both phones. Hold them side by side, a fist apart. If AirDrop pops up, tap “Cancel”.")
         case .needsLocalNetwork: return L.t("彈出問你嗰陣撳「允許」。撳錯咗就去「設定」打開，或者用二維碼。", "弹窗询问时点「允许」。点错了就去「设置」打开，或者用二维码。", "When asked, tap “Allow”. If you tapped wrong, turn it on in Settings, or use a QR code.")
-        case .ranging: return L.t("並排或者背對背，隔一個拳頭就得，拎穩一秒。唔使貼埋。", "并排或背对背，隔一个拳头就行，拿稳一秒。不用贴在一起。", "Side by side or back to back, a fist apart. Hold still for a second. No need to touch.")
+        case .ranging: return L.t("兩部手機並排擺、隔一個拳頭，拎穩一秒。唔使貼埋。", "两台手机并排放、隔一个拳头，拿稳一秒。不用贴在一起。", "Side by side, a fist apart. Hold still for a second. No need to touch.")
         case .nearMe: return L.t("你部已經夠近，等對方部都量到。", "你的已经够近了，等对方的也测到。", "Your phone is close enough. Waiting for the other one.")
         case .linking: return L.t("唔好走開，就快好。", "别走开，马上就好。", "Don't move away. Almost done.")
         case .paired: return L.t("你哋而家係街坊。", "你们现在是邻居了。", "You're now neighbours.")
@@ -178,7 +178,7 @@ private struct BumpRing: View {
             case .searching, .needsLocalNetwork:
                 FSBumpIllustration()
                     .accessibilityElement()
-                    .accessibilityLabel(L.t("碰一碰：兩部手機並排或者背對背靠近，隔一個拳頭，就會加做街坊", "碰一碰：两台手机并排或背对背靠近，隔一个拳头，就能加为邻居", "Tap phones: hold two phones side by side or back to back, a fist apart, to add a neighbour"))
+                    .accessibilityLabel(L.t("碰一碰：兩部手機並排擺、隔一個拳頭，就會加做街坊", "碰一碰：两台手机并排放、隔一个拳头，就能加为邻居", "Tap phones: hold two phones side by side, a fist apart, to add a neighbour"))
             default:
                 Circle()
                     .stroke(DS.accent.opacity(0.15), lineWidth: 16)

@@ -154,8 +154,8 @@ struct TodayTab: View {
         let more = store.invitations.count - 1
         return heroFrame(more > 0 ? L.t("等你回覆（仲有 \(more) 個）", "等你回复（还有 \(more) 个）", "Waiting for your reply (\(more) more)") : L.t("等你回覆", "等你回复", "Waiting for your reply"), symbol: "envelope.fill") {
             personLine(p, L.t("\(name)約你一齊行", "\(name)约你一起走", "\(name) invited you for a walk"), "\(store.dayTimeLabel(a.date)) · \(place)", demo: p?.isDemo == true)
-            if !a.reason.isEmpty {
-                Text(a.reason).ds(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if !store.meetupReason(a).isEmpty {
+                Text(store.meetupReason(a)).ds(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             InvitationButtons(a: a)
         }
@@ -1190,8 +1190,8 @@ struct NeighborsTab: View {
                     if p?.isDemo == true { DemoBadge(text: L.t("示範街坊", "示范邻居", "Demo neighbour")) }
                 }
             }
-            if !a.reason.isEmpty {
-                Text(a.reason)
+            if !store.meetupReason(a).isEmpty {
+                Text(store.meetupReason(a))
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -264,16 +264,18 @@ private struct OnbWelcomeStep: View {
     static var spoken: String { L.t("街坊行幫你記錄每日散步，約隔籬街坊一齊行；上面幅地圖幫你哋搵到對方。", "街坊行帮你记录每天散步，约隔壁邻居一起走；上面的地图帮你们找到对方。", "Kaifong Walk records your daily walks and helps you walk with neighbours. The map at the top helps you find each other.") }
 
     /// 测试反馈：做成卡片似可以撳嘅掣 → 改成普通介绍列表（细图标、冇卡片底、多一行解释），一眼睇得出系「介绍」唔系「功能入口」。
-    /// 第四行讲上面嗰幅小地图（测试反馈：唔知地图有咩用）。
+    /// 10-18 测试反馈：「今日」页第一次唔知有咩、散步时报「冇櫈 / 好曬」好似盲盒 → 每条写短，加「今日」页有咩同报地标两条。
     private var features: [(symbol: String, text: String, detail: String)] { [
         ("figure.walk", L.t("自動記錄散步", "自动记录散步", "Records walks for you"),
-         L.t("出門行就會記，唔使撳任何嘢。", "出门走路就会记，不用点任何东西。", "Just go out and walk. No need to tap anything.")),
+         L.t("出門行就會記，唔使撳嘢。", "出门走路就会记，不用点。", "Just go out and walk.")),
         ("person.2.fill", L.t("碰一碰做街坊", "碰一碰成为邻居", "Tap phones to add a neighbour"),
-         L.t("同隔籬見面時，兩部手機靠埋一碰。", "和隔壁见面时，两部手机靠在一起碰一下。", "When you meet, hold your two phones together.")),
-        ("map.fill", L.t("地圖幫你搵到對方", "地图帮你找到对方", "The map helps you find each other"),
-         L.t("「今日」頁上面係你屋企附近嘅地圖，街坊出咗門會喺地圖上出現。", "「今天」页上面是你家附近的地图，邻居出门了会在地图上出现。", "The top of the Today tab is a map near your home. Neighbours who are out show up on it.")),
+         L.t("見面時兩部手機並排擺，隔一個拳頭。", "见面时两台手机并排放，隔一个拳头。", "When you meet, hold the phones side by side, a fist apart.")),
+        ("map.fill", L.t("「今日」頁有咩", "「今天」页有什么", "What's on the Today tab"),
+         L.t("今日三件事、附近地圖、右邊橙色講嘢掣。", "今天三件事、附近地图、右边橙色说话按钮。", "3 things to do, a map nearby, the orange talk button.")),
         ("mic.fill", L.t("講一句就約到人", "说一句就能约人", "Say one line to invite"),
-         L.t("撳右邊橙色個咪，講「約佢聽日行」。", "点右边橙色的麦克风，说「约他明天一起走」。", "Tap the orange mic on the right and say \"Walk with her tomorrow\".")),
+         L.t("撳橙色個咪，講「約佢聽日行」。", "点橙色麦克风，说「约他明天一起走」。", "Tap the orange mic and say \"Walk with her tomorrow\".")),
+        ("chair.fill", L.t("幫街坊記低邊度冇櫈、好曬", "帮邻居记下哪里没凳子、太晒", "Note no-seat and sunny spots"),
+         L.t("散步時講「呢度冇櫈」「呢度好曬」，會記喺地圖上。", "散步时说「这里没有凳子」「这里太晒」，会记在地图上。", "While walking, say \"No seats here\" or \"Too sunny here\". It goes on the map.")),
     ] }
 
     var body: some View {
