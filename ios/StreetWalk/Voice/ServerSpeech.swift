@@ -20,8 +20,14 @@ enum TTSRoute: Equatable {
     /// - cached：手机缓存入面呢句嘅档案
     /// - scripted：自动演示脚本（-script…）：画面同声音要对得准，冇缓存就唔等服务器
     /// - mandarin：服务器有普通话声（豆包小何有；GPT-SoVITS 冇）
-    static func decide(language: SpokenLanguage, server: URL?, cached: URL?, scripted: Bool, mandarin: Bool = false) -> TTSRoute {
-        guard language == .cantonese || (language == .mandarin && mandarin) else { return .system }
+    /// - english：服务器有英文声（/v1/voice 嘅 locales 有 en-US）。三种语言都优先用服务器小何，冇先用 iPhone 系统声。
+    static func decide(language: SpokenLanguage, server: URL?, cached: URL?, scripted: Bool, mandarin: Bool = false, english: Bool = false) -> TTSRoute {
+        let serverSpeaks = switch language {
+        case .cantonese: true
+        case .mandarin: mandarin
+        case .english: english
+        }
+        guard serverSpeaks else { return .system }
         if let cached { return .cached(cached) }
         if scripted { return .system }
         if let server { return .server(server) }
@@ -442,7 +448,27 @@ enum VoicePrewarm {
 
     /// 第一轮：叫服务器排队合成（唔等）；已经合成好嘅就下载落手机（之后离线、演示脚本都用到真人声）。
     /// 90 秒后再行一轮，攞返第一轮未合成好嗰啲。
-    static func run(server: URL, speed: Double, voiceID: String, phrases: [String] = common) {
+    /// 英文界面常用句（同 L.t 第三个参数一字不差先用得到缓存）。
+    static let commonEnglish = [
+        "Didn't catch that. Please say it again, or pick a sentence.",
+        "Sorry, I didn't understand. Please say it again, or pick a sentence.",
+        "Day off cancelled.",
+        "Found them!",
+        "Who do you want to invite? Pick a neighbour.",
+        "Cancelled. Nothing was done.",
+        "Hello, I'm the Kaifong Walk voice assistant. Tap the mic and talk to me.",
+    ]
+
+    /// 跟播报语言揀句子、locale、缓存 key（同 Speaker.speak 一样：粤语用原 voiceID，其他加「/语言」）。
+    static func run(server: URL, speed: Double, voiceID: String, language: SpokenLanguage) {
+        switch language {
+        case .cantonese: run(server: server, speed: speed, voiceID: voiceID, phrases: common, locale: language.bcp47)
+        case .english: run(server: server, speed: speed, voiceID: "\(voiceID)/\(language.rawValue)", phrases: commonEnglish, locale: language.bcp47)
+        case .mandarin: break
+        }
+    }
+
+    static func run(server: URL, speed: Double, voiceID: String, phrases: [String] = common, locale: String = "zh-HK") {
         Task.detached(priority: .utility) {
             for round in 0..<2 {
                 if round == 1 { try? await Task.sleep(for: .seconds(90)) }
@@ -450,8 +476,8 @@ enum VoicePrewarm {
                 for text in phrases {
                     let key = SpeechAudioCache.key(text: text, voiceID: voiceID, speed: speed)
                     if SpeechAudioCache.file(for: key) != nil { continue }
-                    guard let code = await post(server, text: text, speed: speed, prefetch: true)?.code else { return }
-                    guard code == 200, let (_, data) = await post(server, text: text, speed: speed, prefetch: false), !data.isEmpty else {
+                    guard let code = await post(server, text: text, speed: speed, prefetch: true, locale: locale)?.code else { return }
+                    guard code == 200, let (_, data) = await post(server, text: text, speed: speed, prefetch: false, locale: locale), !data.isEmpty else {
                         missing += 1
                         continue
                     }
@@ -465,12 +491,12 @@ enum VoicePrewarm {
         }
     }
 
-    private static func post(_ server: URL, text: String, speed: Double, prefetch: Bool) async -> (code: Int, data: Data)? {
+    private static func post(_ server: URL, text: String, speed: Double, prefetch: Bool, locale: String) async -> (code: Int, data: Data)? {
         var req = URLRequest(url: server.appendingPathComponent("v1/speech/synthesize"))
         req.httpMethod = "POST"
         req.timeoutInterval = prefetch ? 5 : 20
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": text, "locale": "zh-HK", "speed": speed, "prefetch": prefetch])
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": text, "locale": locale, "speed": speed, "prefetch": prefetch])
         guard let (data, resp) = try? await URLSession.shared.data(for: req), let http = resp as? HTTPURLResponse else { return nil }
         return (http.statusCode, data)
     }

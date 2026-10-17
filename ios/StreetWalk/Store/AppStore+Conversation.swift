@@ -30,7 +30,7 @@ extension AppStore {
         }
         // 经 https 隧道要登录；局域网直连唔使（唔好将 token 明文送过 Wi-Fi）
         let token: String? = url.scheme == "wss" ? (try? await supabase?.api.accessToken()) ?? nil : nil
-        let ok = await ear.open(url, token: token, locale: L.isCmn ? "zh-CN" : "zh-HK") { [weak self] e in self?.earEvent(e) }
+        let ok = await ear.open(url, token: token, locale: L.lang.locale) { [weak self] e in self?.earEvent(e) }
         guard ok else { return false }
         hush()
         #if DEBUG
@@ -66,7 +66,7 @@ extension AppStore {
                 guard let self, self.conversing else { return }
                 if self.speaker.isSpeaking || self.voiceCard?.assistant?.kind == .thinking { self.lastEarActivity = Date() }
                 if Date().timeIntervalSince(self.lastEarActivity) > Self.conversationIdle {
-                    self.endConversation(toast: L.t("冇聲，收咗咪。想講再撳咪。", "没声音，关了麦克风。想说再按麦克风。"))
+                    self.endConversation(toast: L.t("冇聲，收咗咪。想講再撳咪。", "没声音，关了麦克风。想说再按麦克风。", "No sound, so the mic is off. Tap the mic to speak again."))
                     return
                 }
             }
@@ -97,21 +97,21 @@ extension AppStore {
             let text = AssistantFlow.hant(raw)
             guard !isEcho(text) else { return }
             lastEarActivity = Date()
-            show(partial: (earPending + [text]).joined(separator: "，"))
+            show(partial: (earPending + [text]).joined(separator: Self.utteranceSeparator))
             // 插嘴：用户开口就停播报（B：识别到新语句即停旧播报）
             if speaker.isSpeaking && text.count >= 2 { hush() }
         case .final(let raw):
             // 口吃 / 重复嘅词收埋（「帮我帮我约」）；同上一句一模一样嘅唔再叠（2026-10-17 用户测试：字叠埋）
             let text = Listener.collapseRepeats(AssistantFlow.hant(raw))
-            guard !isEcho(text) else { show(partial: earPending.joined(separator: "，")); return }
+            guard !isEcho(text) else { show(partial: earPending.joined(separator: Self.utteranceSeparator)); return }
             lastEarActivity = Date()
             if earPending.last != text { earPending.append(text) }
-            show(partial: earPending.joined(separator: "，"))
+            show(partial: earPending.joined(separator: Self.utteranceSeparator))
             earFlush?.cancel()
             earFlush = Task { @MainActor [weak self] in
                 try? await Task.sleep(for: Self.utteranceJoin)
                 guard let self, !Task.isCancelled, self.conversing, !self.earPending.isEmpty else { return }
-                let all = self.earPending.joined(separator: "，")
+                let all = self.earPending.joined(separator: Self.utteranceSeparator)
                 self.earPending = []
                 self.show(partial: "")
                 self.conversationTurn(all)
@@ -134,8 +134,13 @@ extension AppStore {
 
     enum YesNo { case yes, no }
 
+    /// 连续对话几段字串埋：中文用「，」、英文用「, 」。
+    static var utteranceSeparator: String { L.t("，", "，", ", ") }
+
     /// 对住复述卡讲嘅「好 / 唔好」（成句好短先算，免得「好想約阿芳」当咗「好」）。纯逻辑，有单元测试。
     nonisolated static func yesNo(_ text: String) -> YesNo? {
+        // 英文：yes / ok / sure / sounds good；no / don't / cancel / not now（否定优先）
+        if EnglishText.isEnglish(text) { return EnglishText.yesNo(text) }
         let t = text.filter { !$0.isPunctuation && !$0.isWhitespace }
         guard (1...6).contains(t.count) else { return nil }
         // 先认否定：「不好」「不对」「不可以」「唔得」「唔可以」都含「好 / 對 / 可以 / 得」，唔可以当「好」。
@@ -165,6 +170,18 @@ extension AppStore {
 
     /// 纯逻辑（有单元测试）：听到嘅字（≥ 2 个）大部分喺最近讲过嘅句子入面出现过。
     nonisolated static func looksLikeEcho(_ heard: String, spoken: [String]) -> Bool {
+        // 英文按字（word）比：字母人人都有，按字母比会将用户讲嘅嘢都当回声；一两个字（「yes」「no」）永远唔当回声
+        if EnglishText.isEnglish(heard) {
+            let h = EnglishText.words(heard)
+            guard h.count >= 3 else { return false }
+            for s in spoken where EnglishText.isEnglish(s) {
+                let sw = EnglishText.words(s)
+                if (" " + sw.joined(separator: " ") + " ").contains(" " + h.joined(separator: " ") + " ") { return true }
+                let set = Set(sw)
+                if h.count >= 4 && Double(h.filter(set.contains).count) / Double(h.count) >= 0.8 { return true }
+            }
+            return false
+        }
         let h = normalize(heard)
         guard h.count >= 2 else { return false }
         for s in spoken.map(normalize) where !s.isEmpty {

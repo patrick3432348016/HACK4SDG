@@ -34,9 +34,9 @@ final class VoiceServer {
         /// 设定页显示。
         var label: String {
             switch self {
-            case .connected: return L.t("已連線", "已连接")
-            case .warming: return L.t("準備緊（載入聲音）", "准备中（加载声音）")
-            case .searching, .unreachable: return L.t("未連線", "未连接")
+            case .connected: return L.t("已連線", "已连接", "Connected")
+            case .warming: return L.t("準備緊（載入聲音）", "准备中（加载声音）", "Getting ready (loading voice)")
+            case .searching, .unreachable: return L.t("未連線", "未连接", "Offline")
             }
         }
         var isConnected: Bool { if case .connected = self { return true }; return false }
@@ -75,6 +75,8 @@ final class VoiceServer {
     var assistantURL: URL? { if case .connected(let u, _, true) = status { return u }; return nil }
     /// 播报可唔可以用普通话（豆包有，GPT-SoVITS 冇）。
     var speaksMandarin: Bool { speechURL != nil && (info?.locales ?? []).contains("zh-CN") }
+    /// 播报可唔可以用英文（服务器 /v1/voice 嘅 locales 有 en-US）。
+    var speaksEnglish: Bool { speechURL != nil && (info?.locales ?? []).contains("en-US") }
     /// B 嘅豆包流式识别（WebSocket）：http → ws、https → wss。
     var earURL: URL? {
         guard case .connected(let u, _, _) = status, info?.ear == true,

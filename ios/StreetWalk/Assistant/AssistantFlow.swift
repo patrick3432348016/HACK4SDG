@@ -70,7 +70,7 @@ enum AssistantFlow {
 
     static func card(_ r: AssistantReply, lookup: Lookup) -> AssistantCard {
         let cmd = r.command ?? AssistantCommand()
-        let name = cmd.contactQuery.map(hant) ?? L.t("對方", "对方")
+        let name = cmd.contactQuery.map(hant) ?? L.t("對方", "对方", "them")
         let at = cmd.startsAt.flatMap(parseDate)
         var c = AssistantCard(kind: .info, title: hant(r.message), detail: nil, spoken: hant(r.speechText),
                               conversationID: r.conversationId, draftID: r.draftId)
@@ -80,37 +80,37 @@ enum AssistantFlow {
             switch cmd.intent {
             case "invite":
                 if at == nil {
-                    c.title = L.t("約\(name)幾時行？", "约\(name)什么时候走？")
-                    c.chips = [L.t("聽日朝早八點", "明天早上八点"), L.t("聽日下晝四點", "明天下午四点"), L.t("今日下晝五點", "今天下午五点")]
+                    c.title = L.t("約\(name)幾時行？", "约\(name)什么时候走？", "When to walk with \(name)?")
+                    c.chips = [L.t("聽日朝早八點", "明天早上八点", "Tomorrow 8 am"), L.t("聽日下晝四點", "明天下午四点", "Tomorrow 4 pm"), L.t("今日下晝五點", "今天下午五点", "Today 5 pm")]
                 } else if cmd.maxWalkMinutes == nil {
-                    c.title = L.t("你同\(name)最多行幾耐？", "你和\(name)最多走多久？")
-                    c.detail = at.map { L.t("時間：\(lookup.timeLabel($0))", "时间：\(lookup.timeLabel($0))") }
-                    c.chips = [L.t("最多行十分鐘", "最多走十分钟"), L.t("最多行十五分鐘", "最多走十五分钟"), L.t("最多行二十分鐘", "最多走二十分钟")]
+                    c.title = L.t("你同\(name)最多行幾耐？", "你和\(name)最多走多久？", "How far can you and \(name) walk?")
+                    c.detail = at.map { L.t("時間：\(lookup.timeLabel($0))", "时间：\(lookup.timeLabel($0))", "Time: \(lookup.timeLabel($0))") }
+                    c.chips = [L.t("最多行十分鐘", "最多走十分钟", "At most 10 minutes"), L.t("最多行十五分鐘", "最多走十五分钟", "At most 15 minutes"), L.t("最多行二十分鐘", "最多走二十分钟", "At most 20 minutes")]
                 } else {
-                    c.title = L.t("附近冇地方啱晒：唔夠近，或者嗰陣冇遮蔭資料。", "附近没有完全合适的地方：不够近，或者那时没有遮荫资料。")
-                    c.detail = L.t("可以行遠啲，或者轉個時間。", "可以走远一点，或者换个时间。")
-                    c.chips = [L.t("最多行二十分鐘", "最多走二十分钟"), L.t("聽日朝早八點", "明天早上八点")]
+                    c.title = L.t("附近冇地方啱晒：唔夠近，或者嗰陣冇遮蔭資料。", "附近没有完全合适的地方：不够近，或者那时没有遮荫资料。", "No place nearby fits: too far, or no shade info for that time.")
+                    c.detail = L.t("可以行遠啲，或者轉個時間。", "可以走远一点，或者换个时间。", "Walk a bit further, or try another time.")
+                    c.chips = [L.t("最多行二十分鐘", "最多走二十分钟", "At most 20 minutes"), L.t("聽日朝早八點", "明天早上八点", "Tomorrow 8 am")]
                 }
             case "leave":
-                c.title = L.t("邊日請假？", "哪天请假？")
-                c.chips = [L.t("今日請假", "今天请假"), L.t("聽日請假", "明天请假")]
+                c.title = L.t("邊日請假？", "哪天请假？", "Which day off?")
+                c.chips = [L.t("今日請假", "今天请假", "Day off today"), L.t("聽日請假", "明天请假", "Day off tomorrow")]
             case "rename":
-                c.title = L.t("網名想改做咩？", "网名想改成什么？")
+                c.title = L.t("網名想改做咩？", "网名想改成什么？", "What new nickname?")
             default:
                 c.title = hant(r.message)
             }
             c.spoken = c.title
         case .chooseContact:
             c.kind = .chooseContact
-            c.title = L.t("約邊個？", "约谁？")
+            c.title = L.t("約邊個？", "约谁？", "Invite who?")
             c.options = r.choices.map { .init(id: $0.id, label: hant($0.label), detail: nil) }
-            c.spoken = L.t("約邊個？揀一個街坊。", "约谁？选一位邻居。")
+            c.spoken = L.t("約邊個？揀一個街坊。", "约谁？选一位邻居。", "Who do you want to invite? Pick a neighbour.")
         case .choosePlace:
             c.kind = .choosePlace
-            c.title = L.t("約\(name)\(at.map(lookup.timeLabel) ?? "")，喺邊度等？", "约\(name)\(at.map(lookup.timeLabel) ?? "")，在哪里等？")
+            c.title = L.t("約\(name)\(at.map(lookup.timeLabel) ?? "")，喺邊度等？", "约\(name)\(at.map(lookup.timeLabel) ?? "")，在哪里等？", "Walk with \(name) \(at.map(lookup.timeLabel) ?? ""). Where to meet?")
             c.options = r.choices.map { .init(id: $0.id, label: lookup.placeName($0.id) ?? hant($0.label),
                                               detail: lookup.placeDetail($0.id, at) ?? hant($0.detail)) }
-            c.spoken = L.t("喺邊度等？揀一個地方：", "在哪里等？选一个地方：") + c.options.prefix(3).map(\.label).joined(separator: "、") + "。"
+            c.spoken = L.t("喺邊度等？揀一個地方：", "在哪里等？选一个地方：", "Where to meet? Pick a place: ") + c.options.prefix(3).map(\.label).joined(separator: L.t("、", "、", ", ")) + L.t("。", "。", ".")
         case .needsConfirmation:
             c.kind = .confirm
             let a = action(r.data)
@@ -120,34 +120,34 @@ enum AssistantFlow {
                 let who = a?.contactID.flatMap(lookup.contactName) ?? name
                 let when = (a?.startsAt ?? at).map(lookup.timeLabel) ?? ""
                 let place = a?.placeID.flatMap(lookup.placeName) ?? ""
-                c.title = L.t("約\(who)\(when)一齊行", "约\(who)\(when)一起走")
-                c.detail = L.t("地點：\(place)\n確認後會問\(who)，佢應承先算約好。", "地点：\(place)\n确认后会问\(who)，对方答应才算约好。")
-                c.spoken = L.t("約\(who)\(when)，喺\(place)", "约\(who)\(when)，在\(place)")
+                c.title = L.t("約\(who)\(when)一齊行", "约\(who)\(when)一起走", "Walk with \(who) \(when)")
+                c.detail = L.t("地點：\(place)\n確認後會問\(who)，佢應承先算約好。", "地点：\(place)\n确认后会问\(who)，对方答应才算约好。", "Place: \(place)\nWe'll ask \(who). It's set once they say yes.")
+                c.spoken = L.t("約\(who)\(when)，喺\(place)", "约\(who)\(when)，在\(place)", "Walk with \(who) \(when), at \(place)")
             case "leave":
                 let day = a?.date.flatMap(parseDay).map(lookup.dayLabel) ?? a?.date ?? ""
-                c.title = L.t("\(day)請假？", "\(day)请假？")
-                c.detail = L.t("連續日數會保留", "连续天数会保留")
+                c.title = L.t("\(day)請假？", "\(day)请假？", "Day off \(day)?")
+                c.detail = L.t("連續日數會保留", "连续天数会保留", "Your streak is kept")
                 c.spoken = c.title
             case "rename":
-                c.title = L.t("網名改做「\(a?.newName ?? cmd.newName ?? "")」？", "网名改成「\(a?.newName ?? cmd.newName ?? "")」？")
-                c.detail = L.t("排行榜同街坊會見到新網名", "排行榜和邻居会看到新网名")
-                c.spoken = L.t("網名改做\(a?.newName ?? cmd.newName ?? "")", "网名改成\(a?.newName ?? cmd.newName ?? "")")
+                c.title = L.t("網名改做「\(a?.newName ?? cmd.newName ?? "")」？", "网名改成「\(a?.newName ?? cmd.newName ?? "")」？", "Change nickname to \"\(a?.newName ?? cmd.newName ?? "")\"?")
+                c.detail = L.t("排行榜同街坊會見到新網名", "排行榜和邻居会看到新网名", "Neighbours and the leaderboard will see it")
+                c.spoken = L.t("網名改做\(a?.newName ?? cmd.newName ?? "")", "网名改成\(a?.newName ?? cmd.newName ?? "")", "Change nickname to \(a?.newName ?? cmd.newName ?? "")")
             default:
                 c.title = hant(r.message)
             }
         case .completed:
             c.kind = .done
-            c.title = L.t("做好咗", "完成了")
+            c.title = L.t("做好咗", "完成了", "Done")
             c.spoken = c.title
         case .cancelled:
             c.kind = .cancelled
-            c.title = L.t("取消咗，冇做任何嘢。", "已取消，什么都没做。")
+            c.title = L.t("取消咗，冇做任何嘢。", "已取消，什么都没做。", "Cancelled. Nothing was done.")
             c.spoken = c.title
         case .uncertain:
             c.kind = .uncertain
-            c.title = L.t("未知做咗未", "不确定是否完成")
-            c.detail = L.t("網絡唔穩。撳「查結果」，唔好再約多次。", "网络不稳。点「查结果」，不要再约一次。")
-            c.spoken = L.t("未知做咗未。撳查結果，唔好再約多次。", "不确定是否完成。点查结果，不要再约一次。")
+            c.title = L.t("未知做咗未", "不确定是否完成", "Not sure if it went through")
+            c.detail = L.t("網絡唔穩。撳「查結果」，唔好再約多次。", "网络不稳。点「查结果」，不要再约一次。", "Network is unstable. Tap \"Check result\". Don't invite again.")
+            c.spoken = L.t("未知做咗未。撳查結果，唔好再約多次。", "不确定是否完成。点查结果，不要再约一次。", "Not sure if it went through. Tap check result. Don't invite again.")
         case .info:
             let op = r.data["operation_status"]?.string ?? r.data["operationStatus"]?.string
             if let p = policy(r), p != "app" {
@@ -159,13 +159,13 @@ enum AssistantFlow {
                 c.title = policyTitle(p)
             } else if op == "failed" || op == "expired" {
                 c.kind = .failed
-                c.title = op == "expired" ? L.t("等得太耐，張卡過咗期，冇做到。", "等太久，卡片过期了，没有完成。") : L.t("做唔到：資料有變，冇寫入。", "做不到：资料有变，没有写入。")
-                c.detail = L.t("可以再講一次。", "可以再说一次。")
+                c.title = op == "expired" ? L.t("等得太耐，張卡過咗期，冇做到。", "等太久，卡片过期了，没有完成。", "Waited too long. The card expired. Nothing was done.") : L.t("做唔到：資料有變，冇寫入。", "做不到：资料有变，没有写入。", "Couldn't do it: details changed. Nothing saved.")
+                c.detail = L.t("可以再講一次。", "可以再说一次。", "Please say it again.")
                 c.spoken = c.title
             } else if cmd.intent == "help" {
                 c.kind = .notUnderstood
-                c.title = L.t("唔好意思，我未聽明白。", "不好意思，我没听明白。")
-                c.spoken = L.t("唔好意思，我未聽明白。可以再講一次，或者揀一句。", "不好意思，我没听明白。可以再说一次，或者选一句。")
+                c.title = L.t("唔好意思，我未聽明白。", "不好意思，我没听明白。", "Sorry, I didn't understand.")
+                c.spoken = L.t("唔好意思，我未聽明白。可以再講一次，或者揀一句。", "不好意思，我没听明白。可以再说一次，或者选一句。", "Sorry, I didn't understand. Please say it again, or pick a sentence.")
             } else {
                 c.kind = .info
             }
@@ -176,10 +176,11 @@ enum AssistantFlow {
     /// 完成卡：按确认卡嘅动作讲清楚做咗乜。
     static func doneTitle(_ a: AssistantCard.Action?, contactName: String?, timeLabel: String?, place: String?) -> String {
         switch a?.kind {
-        case "invite": return L.t("約咗\(contactName ?? "對方")\(timeLabel ?? "")\(place.map { "喺\($0)" } ?? "")，等緊佢確認。", "约了\(contactName ?? "对方")\(timeLabel ?? "")\(place.map { "在\($0)" } ?? "")，等对方确认。")
-        case "leave": return L.t("請咗假，連續日數會保留。", "已请假，连续天数会保留。")
-        case "rename": return L.t("網名改咗做「\(a?.newName ?? "")」。", "网名已改成「\(a?.newName ?? "")」。")
-        default: return L.t("做好咗。", "完成了。")
+        case "invite": return L.t("約咗\(contactName ?? "對方")\(timeLabel ?? "")\(place.map { "喺\($0)" } ?? "")，等緊佢確認。", "约了\(contactName ?? "对方")\(timeLabel ?? "")\(place.map { "在\($0)" } ?? "")，等对方确认。",
+                                  "Invited \(contactName ?? "them") \(timeLabel ?? "")\(place.map { " at \($0)" } ?? ""). Waiting for them to say yes.")
+        case "leave": return L.t("請咗假，連續日數會保留。", "已请假，连续天数会保留。", "Day off set. Your streak is kept.")
+        case "rename": return L.t("網名改咗做「\(a?.newName ?? "")」。", "网名已改成「\(a?.newName ?? "")」。", "Nickname changed to \"\(a?.newName ?? "")\".")
+        default: return L.t("做好咗。", "完成了。", "Done.")
         }
     }
 
@@ -190,13 +191,13 @@ enum AssistantFlow {
 
     static func policyTitle(_ p: String) -> String {
         switch p {
-        case "weather": return L.t("天文台天氣", "天文台天气")
-        case "deny": return L.t("呢個我幫唔到", "这个我帮不了")
-        case "emergency": return L.t("有危險請即刻求助", "有危险请马上求助")
-        case "traffic": return L.t("交通資料未接通", "交通资料未接通")
-        case "board": return L.t("排行榜", "排行榜")
-        case "history": return L.t("散步紀錄", "散步记录")
-        default: return L.t("我可以幫你", "我可以帮你")
+        case "weather": return L.t("天文台天氣", "天文台天气", "Observatory weather")
+        case "deny": return L.t("呢個我幫唔到", "这个我帮不了", "I can't help with this")
+        case "emergency": return L.t("有危險請即刻求助", "有危险请马上求助", "In danger? Get help now")
+        case "traffic": return L.t("交通資料未接通", "交通资料未接通", "No traffic info yet")
+        case "board": return L.t("排行榜", "排行榜", "Leaderboard")
+        case "history": return L.t("散步紀錄", "散步记录", "Walk history")
+        default: return L.t("我可以幫你", "我可以帮你", "I can help")
         }
     }
 
@@ -233,6 +234,6 @@ enum AssistantFlow {
 
     /// B 嘅简体字 → 繁体（意思唔变；冇对应粤语讲法时先用）。
     static func hant(_ s: String) -> String {
-        L.isCmn ? s : (s.applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? s)
+        L.lang != .yue ? s : (s.applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? s)
     }
 }
