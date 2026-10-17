@@ -256,3 +256,39 @@ struct DioramaFixTests {
         try? FileManager.default.removeItem(at: TileCache.dir.appendingPathComponent("v2/\(t).json"))
     }
 }
+
+// 10-18 组员真机测试：香港 5G 拉唔到地图、「你喺呢度」、转动地图
+@MainActor
+struct MapFix18Tests {
+    @Test func 服务器回覆要有资料先算() {
+        #expect(MapService.endpoints.first == "https://overpass.openstreetmap.fr/api/interpreter", "实测最快嗰个排头")
+        #expect(MapService.fetchTimeout >= 60, "overpass-api.de 繁忙时要 30 几秒")
+        let ok = Data(("{\"version\":0.6,\"elements\":[{\"type\":\"node\",\"id\":1,\"lat\":22.3,\"lon\":114.1}]}" + String(repeating: " ", count: 200)).utf8)
+        #expect(MapService.usable(ok))
+        let empty = Data(("{\"version\":0.6,\"elements\":[]}" + String(repeating: " ", count: 300)).utf8)
+        #expect(!MapService.usable(empty), "osm.ch 呢类只有本国资料，回空")
+        let partial = Data(("{\"elements\":[{\"type\":\"way\"}],\"remark\":\"runtime error: Query timed out\"}" + String(repeating: " ", count: 200)).utf8)
+        #expect(!MapService.usable(partial))
+    }
+
+    @Test func 你喺呢度位置同裁切后嘅底座对得上() {
+        let full = MapService.fallback()
+        let home = full.buildings.filter { $0.kind == .residential }.min { $0.centroid.length < $1.centroid.length }!
+        let m = full.simplified(around: home.centroid, home: home.id)
+        // 屋企楼中心嘅经纬度，放返落裁切后嘅底座，应该系屋企楼喺底座入面嘅中心
+        let g = LocalProjection(origin: full.center).toGeo(home.centroid)
+        let p = m.scenePoint(g), want = m.building(id: home.id)!.centroid
+        #expect(p.distance(to: want) < 3, "\(p) vs \(want)")
+    }
+
+    @Test func 场景外嘅位置贴边写距离() {
+        let c = DioramaController()
+        var m = MapService.fallback()
+        m = m.simplified(around: .zero)
+        c.load(map: m, landmarks: [], animated: false)
+        c.setHere(Vec2(x: 0, y: 0))
+        c.setHere(Vec2(x: 1500, y: 0))
+        #expect(HereText.distance(1500).contains("1.5"))
+        #expect(HereText.distance(347).contains("350"))
+    }
+}

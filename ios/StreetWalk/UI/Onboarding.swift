@@ -28,6 +28,12 @@ struct OnboardingFlow: View {
                     .transition(.opacity)
                     .accessibilityLabel(L.t("你附近嘅立體地圖", "你附近的立体地图", "3D map of your area"))
                     .accessibilityHint(L.t("用下面「用清單揀」都揀得到你住嗰座樓", "用下面「用清单选」也能选到你住的那栋楼", "You can also choose your block with \"Choose from list\" below"))
+                    // 选楼：单指都拖得动地图；「你喺呢度」跟 GPS（只喺本机）
+                    .onAppear { store.scene.oneFingerPan = true; store.startHere("pick") }
+                    .onDisappear { store.stopHere("pick") }
+                HereMarkerLayer(overlay: store.scene.overlay)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
             }
 
             stepContent(s)
@@ -524,7 +530,7 @@ private struct OnbLocateStep: View {
     @Environment(AppStore.self) private var store
     /// 撳咗「好」（系统定位框弹紧 / 等紧位置）。
     @State private var asked = false
-    /// 等咗 10 秒仲未有地图：讲明等紧网络，俾个「用示例屋邨」出路（A28；地图最多等 30 秒、定位最多 120 秒）。
+    /// 等咗 10 秒仲未有地图：讲明等紧网络，俾个「用示例屋邨」出路（A28；地图一轮最多等 75 秒、之后后台再试；定位最多 120 秒）。
     @State private var waitedLong = false
 
     /// 未问过定位、仲未开始搵：先解释（consent 冇自动开始，见 AppStore+Map.consent）。
@@ -645,7 +651,14 @@ private struct OnbPickHomeStep: View {
                     .transition(DS.slide(.top))
             }
             Spacer(minLength: 0)
-            attribution
+            HStack(alignment: .bottom) {
+                attribution
+                // 手指放大 / 移动 / 转动过：「回正」（同双击一样）
+                if store.scene.overlay.userMoved {
+                    MapResetButton { store.scene.resetUserCamera() }.transition(.opacity)
+                }
+            }
+            .animation(DS.motion(DS.snappy), value: store.scene.overlay.userMoved)
             if let id = store.pendingHome {
                 Group {
                     if manual { confirmCard(id) } else { guessCard(id) }

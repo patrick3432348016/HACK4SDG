@@ -21,16 +21,21 @@ final class MapService: NSObject, CLLocationManagerDelegate {
     private var locationContinuation: CheckedContinuation<GeoPoint?, Never>?
     private var locationTimer: DispatchWorkItem?
 
-    /// overpass.private.coffee 已失效（2026-10 起一律回 500），不再用。
+    /// 10-18 喺 Mac 实测（九龙城 720 m 一格、estate.overpassql）：
+    /// openstreetmap.fr 约 3 秒；overpass-api.de 要 26–38 秒先有第一个字节（以前限 30 秒，所以香港测试员次次失败）；
+    /// private.coffee 细查询得、成格查询 500；kumi.systems 500；mail.ru 504。全部同时问，边个先答到有效资料就用边个。
     nonisolated static let endpoints = [
+        "https://overpass.openstreetmap.fr/api/interpreter",
         "https://overpass-api.de/api/interpreter",
+        "https://overpass.private.coffee/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter",
         "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
     ]
     /// 实时拉取的边长（米）。比 400 m 格子大：屋企在格边（离格心约 200 m）时，以它为中心的 200 m 底座仍在资料范围内。
     /// 内置示例屋邨仍然是 560 m（TileKey.plinthSize）。
     nonisolated static let fetchSize = 720.0
-    /// 拉地图最多等几耐（秒）。两个服务器同时问，边个先答到就用边个。
-    nonisolated static let fetchTimeout = 30.0
+    /// 拉地图一轮最多等几耐（秒）。overpass-api.de 繁忙时要 30 几秒，所以放宽到 75 秒；拉唔到之后 AppStore 喺后台再试（scheduleMapRetry）。
+    nonisolated static let fetchTimeout = 75.0
 
     override init() {
         super.init()
@@ -39,6 +44,12 @@ final class MapService: NSObject, CLLocationManagerDelegate {
     }
 
     // MARK: - 位置
+
+    /// 最近一次攞到嘅位置（示例屋邨显示紧时，后台再试拉地图用；只喺本机）。
+    var lastLocation: GeoPoint?
+
+    /// 「你喺呢度」：地图开住时跟住 GPS 更新（只喺本机显示，唔上传）。
+    let here = HereTracker()
 
     /// 下一次 currentLocation 直接用呢个位置（「你係咪搬咗屋」按「係」：喺过夜嘅地方重新揀樓）。用一次就清。
     var pinnedLocation: GeoPoint?
@@ -99,7 +110,7 @@ final class MapService: NSObject, CLLocationManagerDelegate {
     nonisolated func locationManager(_ m: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let l = locations.last else { return }
         let p = GeoPoint(lat: l.coordinate.latitude, lon: l.coordinate.longitude)
-        Task { @MainActor in self.finishLocation(p) }
+        Task { @MainActor in self.lastLocation = p; self.finishLocation(p) }
     }
 
     nonisolated func locationManager(_ m: CLLocationManager, didFailWithError error: Error) {
@@ -121,6 +132,14 @@ final class MapService: NSObject, CLLocationManagerDelegate {
         return (Self.fallback(), .fallback)
     }
 
+    /// 后台再试一次拉 tile（示例屋邨显示紧时用）：拉到、解析得就写入缓存，返回 true；之后 load(tile:) 会读到缓存。
+    func refresh(tile: TileKey) async -> Bool {
+        guard !LaunchArgs.has("-offline"), let data = await fetch(tile),
+              (try? OSMParser.parse(data, tile: tile, size: Self.fetchSize, source: "live")) != nil else { return false }
+        TileCache.write(tile, data)
+        return true
+    }
+
     static func fallback() -> MapModel {
         let url = Bundle.main.url(forResource: "fallback_queenshill", withExtension: "json")!
         let data = try! Data(contentsOf: url)
@@ -137,7 +156,7 @@ final class MapService: NSObject, CLLocationManagerDelegate {
 
     private enum FetchResult: Sendable { case data(Data), failed, timeout }
 
-    /// 两个服务器同时问，边个先答到就用边个；总共最多等 fetchTimeout 秒。
+    /// 几个服务器同时问（后面嘅迟少少先开始），边个先答到有效资料就用边个；总共最多等 fetchTimeout 秒。
     private func fetch(_ tile: TileKey) async -> Data? {
         guard let qURL = Bundle.main.url(forResource: "estate", withExtension: "overpassql"),
               let template = try? String(contentsOf: qURL, encoding: .utf8) else { return nil }
@@ -145,8 +164,11 @@ final class MapService: NSObject, CLLocationManagerDelegate {
         let body = Data(("data=" + (query.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")).utf8)
         let deadline = Date().addingTimeInterval(Self.fetchTimeout)
         return await withTaskGroup(of: FetchResult.self) { group in
-            for endpoint in Self.endpoints {
-                group.addTask { await Self.post(endpoint, body: body, until: deadline) }
+            for (i, endpoint) in Self.endpoints.enumerated() {
+                group.addTask {
+                    if i > 1 { try? await Task.sleep(for: .seconds(Double(i - 1))) }
+                    return await Self.post(endpoint, body: body, until: deadline)
+                }
             }
             group.addTask {
                 try? await Task.sleep(for: .seconds(Self.fetchTimeout))
@@ -166,25 +188,87 @@ final class MapService: NSObject, CLLocationManagerDelegate {
         }
     }
 
-    /// 问一个服务器；好快就失败（504 / 429）就隔 2 秒再试，直到限期。
+    /// 有效嘅 Overpass 回覆：有 elements、最少一件嘢（overpass.osm.ch 呢类只有本国资料嘅会回空），唔系「runtime error」半截资料。
+    nonisolated static func usable(_ data: Data) -> Bool {
+        data.count > 200 && data.range(of: Data("\"elements\"".utf8)) != nil && data.range(of: Data("\"type\"".utf8)) != nil
+            && data.range(of: Data("runtime error".utf8)) == nil
+    }
+
+    /// 问一个服务器；好快就失败（502 / 504 / 429）就隔 3 秒再试，直到限期。
     private nonisolated static func post(_ endpoint: String, body: Data, until deadline: Date) async -> FetchResult {
         while !Task.isCancelled {
             let left = deadline.timeIntervalSinceNow
             guard left > 3 else { break }
-            var req = URLRequest(url: URL(string: endpoint)!, timeoutInterval: min(30, left))
+            var req = URLRequest(url: URL(string: endpoint)!, timeoutInterval: min(70, left))
             req.httpMethod = "POST"
             req.setValue("hack4sdg-streetwalk/0.1 (iOS prototype)", forHTTPHeaderField: "User-Agent")
             req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
             req.httpBody = body
             if let (data, resp) = try? await URLSession.shared.data(for: req),
-               let http = resp as? HTTPURLResponse, http.statusCode == 200, data.count > 200 {
+               let http = resp as? HTTPURLResponse, http.statusCode == 200, usable(data) {
                 return .data(data)
             }
             guard deadline.timeIntervalSinceNow > 5 else { break }
-            try? await Task.sleep(for: .seconds(2))
+            try? await Task.sleep(for: .seconds(3))
         }
         return .failed
     }
+}
+
+/// 「你喺呢度」嘅位置点：地图喺画面上（今日页、选楼）先开，离开就停。只用已有嘅定位权限，唔会弹框；位置唔离开手机。
+/// 截图自检：-hereAt lat,lon 当系 GPS 位置。
+@MainActor
+final class HereTracker: NSObject, CLLocationManagerDelegate {
+    private var manager: CLLocationManager?
+    private(set) var last: GeoPoint?
+    var onUpdate: ((GeoPoint?) -> Void)?
+    private var users = Set<String>()
+
+    /// who：边个画面要（今日页、选楼），全部唔要先停。
+    func start(_ who: String) {
+        users.insert(who)
+        if let s = LaunchArgs.value("-hereAt") {
+            let p = s.split(separator: ",").compactMap { Double($0) }
+            if p.count == 2 { update(GeoPoint(lat: p[0], lon: p[1])) }
+            return
+        }
+        guard !LaunchArgs.has("-offline") else { return }
+        if manager == nil {
+            let m = CLLocationManager()
+            m.delegate = self
+            m.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+            m.distanceFilter = 8
+            manager = m
+        }
+        guard let m = manager, m.authorizationStatus == .authorizedWhenInUse || m.authorizationStatus == .authorizedAlways else { return }
+        m.startUpdatingLocation()
+    }
+
+    func stop(_ who: String) {
+        users.remove(who)
+        guard users.isEmpty else { return }
+        manager?.stopUpdatingLocation()
+    }
+
+    private func update(_ p: GeoPoint?) {
+        last = p
+        onUpdate?(p)
+    }
+
+    nonisolated func locationManagerDidChangeAuthorization(_ m: CLLocationManager) {
+        Task { @MainActor in
+            guard !self.users.isEmpty else { return }
+            if m.authorizationStatus == .authorizedWhenInUse || m.authorizationStatus == .authorizedAlways { m.startUpdatingLocation() }
+        }
+    }
+
+    nonisolated func locationManager(_ m: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let l = locations.last, l.horizontalAccuracy >= 0, l.horizontalAccuracy < 300 else { return }
+        let p = GeoPoint(lat: l.coordinate.latitude, lon: l.coordinate.longitude)
+        Task { @MainActor in self.update(p) }
+    }
+
+    nonisolated func locationManager(_ m: CLLocationManager, didFailWithError error: Error) {}
 }
 
 /// 解析前的原始 Overpass 响应按格子存在 Caches 里，保留 30 天；拉不到时再旧也照用。

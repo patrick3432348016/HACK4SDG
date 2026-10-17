@@ -21,6 +21,12 @@ struct SceneLabelsLayer: View {
             let shown = placed(items, in: CGRect(origin: .zero, size: geo.size), focus: focus, onlyFocus: onlyFocus)
             ZStack(alignment: .topLeading) {
                 ForEach(shown) { item in
+                    if item.kind == .here {
+                        HereMarkerView(text: item.text, below: item.highlighted)
+                            .fixedSize()
+                            .frame(width: 0, height: 0, alignment: item.highlighted ? .top : .bottom)
+                            .position(item.point)
+                    } else {
                     SceneLabel(item: item,
                                emphasized: item.highlighted || focus.contains(item.id),
                                dot: dotColor(item),
@@ -28,6 +34,7 @@ struct SceneLabelsLayer: View {
                         .fixedSize()
                         .frame(width: 0, height: 0, alignment: item.kind == .report ? .center : .bottom)
                         .position(item.point)
+                    }
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
@@ -51,6 +58,7 @@ struct SceneLabelsLayer: View {
             .sorted { a, b in
                 // 「你」最重要（只靠橙色不够认，色弱也要找到自己）；其次高亮的人（约的对象、找的人）、焦点地标。
                 func rank(_ x: OverlayItem) -> Int {
+                    if x.kind == .here { return -1 }   // 最后先摆：撞到其他名牌就将字摆去圆点下面
                     if x.id == "p:me" { return 6 }
                     return x.kind == .person && x.highlighted ? 5 : (focus.contains(x.id) ? 4 : x.priority)
                 }
@@ -61,6 +69,14 @@ struct SceneLabelsLayer: View {
         var out: [OverlayItem] = []
         for item in candidates {
             let r = rect(for: item)
+            if item.kind == .here {
+                // 「你喺呢度」一定出、唔霸位（画喺最底，「你屋企」名牌照撳得）；字撞到就摆去圆点下面
+                guard r.intersects(bounds) else { continue }
+                var h = item
+                h.highlighted = taken.contains { $0.intersects(r) }
+                out.insert(h, at: 0)
+                continue
+            }
             guard r.intersects(bounds), !taken.contains(where: { $0.intersects(r) }) else { continue }
             taken.append(r.insetBy(dx: -3, dy: -3))
             out.append(item)
@@ -72,6 +88,12 @@ struct SceneLabelsLayer: View {
     private func rect(for item: OverlayItem) -> CGRect {
         let p = item.point
         if item.kind == .report { return CGRect(x: p.x - 16, y: p.y - 16, width: 32, height: 32) }
+        if item.kind == .here, item.text.isEmpty { return CGRect(x: p.x - 15, y: p.y - 15, width: 30, height: 30) }
+        if item.kind == .here {
+            // 圆点 + 上面嘅小标签（HereMarkerView：圆点中心对住 p）
+            let textW = item.text.reduce(CGFloat(0)) { $0 + ($1.isASCII ? fontSize * 0.58 : fontSize) } + 20
+            return CGRect(x: p.x - max(textW, 30) / 2, y: p.y - 15 - 34, width: max(textW, 30), height: 34 + 30)
+        }
         let textW = item.text.reduce(CGFloat(0)) { $0 + ($1.isASCII ? fontSize * 0.58 : fontSize) }
         let w = textW + 24 + fontSize + 6
         let h = max(36, fontSize * 1.25 + 10)
@@ -92,7 +114,10 @@ struct SceneLabelsLayer: View {
             let id = String(item.id.dropFirst(2))
             guard id != "me" else { return nil }
             return { [store] in if store.uiSceneTapsEnabled { store.select(.person(id)) } }
-        case .home, .report:
+        case .home:
+            // 撳「你屋企」名牌：出「你屋企」卡（住边座、几楼、改我住嘅楼）
+            return { [store] in if store.uiSceneTapsEnabled { store.select(.home) } }
+        case .report, .here:
             return nil
         }
     }
@@ -158,7 +183,7 @@ private struct SceneLabel: View {
             Image(systemName: "mappin.circle.fill").foregroundStyle(DS.accent)
         case .home:
             Image(systemName: "house.fill").foregroundStyle(DS.accent)   // 以前系「隱身」眼，长者以为被人封咗（UX 评审 16）
-        case .report:
+        case .report, .here:
             EmptyView()
         }
     }
@@ -167,7 +192,7 @@ private struct SceneLabel: View {
         switch item.kind {
         case .person: return item.id == "p:me" ? L.t("你", "你", "You") : L.t("街坊：\(item.text)", "邻居：\(item.text)", "Neighbour: \(item.text)")
         case .landmark: return L.t("地標：\(item.text)", "地标：\(item.text)", "Landmark: \(item.text)")
-        case .home: return item.text
+        case .home, .here: return item.text
         case .report: return L.t("你嘅反映：\(item.text)", "你的反映：\(item.text)", "Your report: \(item.text)")   // 场景上的反映标记都是自己的
         }
     }

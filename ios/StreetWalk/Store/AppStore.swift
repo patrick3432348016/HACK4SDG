@@ -10,7 +10,8 @@ final class AppStore: NeighborRegistry {
     enum Step: Int { case welcome, consent, locate, pickHome, floor, tryMic }
     enum Tab: Hashable { case today, board, neighbors }
     enum BumpStage: Equatable { case idle, searching, found(String) }
-    enum Selection: Equatable { case landmark(String), person(String) }
+    /// home：撳「你屋企」名牌 / 屋企嗰座楼，出「你屋企」卡（住边座、几楼、改我住嘅楼）。
+    enum Selection: Equatable { case landmark(String), person(String), home }
 
     // 服务
     @ObservationIgnored let ai: AIService = TemplateAI()
