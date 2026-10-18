@@ -162,6 +162,16 @@ struct IslandStoreTests {
         #expect(s.islandStatuses.isEmpty, "问紧对方：未有距离")
     }
 
+    @Test func 散步中找完人唔闪退() {
+        // 10-18 真机闪退：endFind 改 walk 嘅同时读 walk（独占检查 abort）
+        let s = makeStore()
+        s.walk = WalkSession(start: Date(), minutes: 12)
+        s.find = FindSession(partnerID: "chan", landmarkID: "shelter-1", spontaneous: true, stage: .met)
+        s.endFind()
+        #expect(s.find == nil)
+        #expect(s.walk != nil, "找完人继续散步")
+    }
+
     @Test func 撳散步展开讲行咗几耐() {
         let s = makeStore()
         s.walk = WalkSession(start: Date(), minutes: 12)

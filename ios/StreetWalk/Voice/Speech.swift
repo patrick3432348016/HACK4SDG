@@ -39,7 +39,16 @@ final class Speaker: ObservableObject {
 
     /// 每次 speak / stop 加一：等 token 嗰阵被打断就唔再开始。
     private var speakGeneration = 0
-    var isSpeaking: Bool { synth.isSpeaking || serverPlayer.isActive }
+    /// 10-18 真机闪退日志：问 synth.isSpeaking 会喺 TextToSpeech 嘅锁度等（约人时播报卡死主线程，被系统杀）。
+    /// 改为自己记：开始讲 → 真；最后一句讲完 / 取消 / 我哋 stop → 假。3 秒都未开始讲当冇讲（合成器冇反应）。
+    var isSpeaking: Bool { synthSpeaking || serverPlayer.isActive }
+    private var synthActive = false
+    private var synthQueuedAt = Date.distantPast
+    private var synthSpeaking: Bool { synthActive && (batchStarted || Date().timeIntervalSince(synthQueuedAt) < 3) }
+    private func haltSynth() {
+        synthActive = false
+        synth.stopSpeaking(at: .immediate)
+    }
     /// 连续对话收紧音（ServerSpeechPlayer 嘅 engine）：唔好改音频会话，否则咪会断。
     var capturing: Bool { serverPlayer.capturing }
     func startCapture(_ onPCM: @escaping @Sendable (Data) -> Void) throws { try serverPlayer.startCapture(onPCM) }
@@ -49,7 +58,7 @@ final class Speaker: ObservableObject {
         playGeneration += 1
         endPreview()
         serverPlayer.stop()
-        synth.stopSpeaking(at: .immediate)
+        haltSynth()
     }
 
     /// 播报一句：粤语有 Mac 服务器（或者手机存咗呢句）就用真人声，否则 / 太慢（6 秒）就用系统声音。
@@ -75,14 +84,14 @@ final class Speaker: ObservableObject {
             playSystem(text, language: language)
         case .cached(let file):
             activateSession()
-            synth.stopSpeaking(at: .immediate)
+            haltSynth()
             AppStore.debugEvent("tts phone-cache: \(text)")
             serverPlayer.play(file: file) { [weak self] outcome in
                 if outcome == .failedBeforeAudio { self?.playSystem(text, language: language) }
             }
         case .server(let url):
             activateSession()
-            synth.stopSpeaking(at: .immediate)
+            haltSynth()
             let gen = speakGeneration
             if url.scheme == "https", let token {
                 // 隧道（公网 HTTPS）要登录：攞 token 期间被 stop / 换咗句就唔好再开始
@@ -202,7 +211,7 @@ final class Speaker: ObservableObject {
         let text = Self.pronounced(text, language: language)
         serverPlayer.stop()
         activateSession()
-        synth.stopSpeaking(at: .immediate)
+        haltSynth()
         // 一定要指明边把声（只写语言会拎到最低档；普通话只会揀 zh-CN 声，见 VoicePicker）。
         let voice = v.flatMap(systemVoice) ?? fallback(language)
         let pace = settings.pace
@@ -228,7 +237,7 @@ final class Speaker: ObservableObject {
             guard let self, self.playGeneration == gen, !self.batchStarted else { return }
             AppStore.debugEvent("tts system: no start after 1.5s → new synthesizer")
             self.synth.delegate = nil
-            self.synth.stopSpeaking(at: .immediate)
+            self.haltSynth()
             self.synth = AVSpeechSynthesizer()
             self.activateSession()
             self.enqueue(make())
@@ -239,6 +248,8 @@ final class Speaker: ObservableObject {
         synth.delegate = observer
         batchLast = utterances.last.map(ObjectIdentifier.init)
         batchStarted = false
+        synthActive = true
+        synthQueuedAt = Date()
         utterances.forEach(synth.speak)
     }
 
@@ -246,7 +257,9 @@ final class Speaker: ObservableObject {
         batchStarted = true
     }
 
-    fileprivate func synthEnded(_ id: ObjectIdentifier) {}
+    fileprivate func synthEnded(_ id: ObjectIdentifier) {
+        if id == batchLast { synthActive = false }
+    }
 
     private func systemVoice(_ v: VoiceInfo) -> AVSpeechSynthesisVoice? {
         if let c = voiceCache[v.id] { return c }

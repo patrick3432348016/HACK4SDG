@@ -299,16 +299,21 @@ extension AppStore {
         scene.setRoute(nil)
         scene.highlightLandmark(nil)
         scene.fadeOccluders(toward: nil)
-        if walk != nil, walkDetector.recording {
+        // 10-18 真机闪退（5 份日志）：`walk?.x = …walk…` 改 walk 嘅同时读 walk（myPosition 都读），
+        // Swift 独占检查直接 abort。先算好新值放入本地变量，再一次过写返。
+        if var w = walk, walkDetector.recording {
             // 真机散步：继续跟定位，唔好自己行返屋企
-            walk?.route = walkDetector.trail.isEmpty ? [myPosition()] : walkDetector.trail
-            walk?.travelled = pathLength(walk?.route ?? [])
+            let trail = walkDetector.trail
+            w.route = trail.isEmpty ? [myPosition()] : trail
+            w.travelled = pathLength(w.route)
+            walk = w
             scene.followID = "me"
-        } else if walk != nil {
+        } else if var w = walk {
             // 找完人继续散步：从当前位置回屋企。
             let here = myPosition()
-            walk?.route = scene.route(from: here, to: scene.nearestWalkable(scene.homeTarget + Vec2(x: 0, y: -18)))
-            walk?.travelled = 0
+            w.route = scene.route(from: here, to: scene.nearestWalkable(scene.homeTarget + Vec2(x: 0, y: -18)))
+            w.travelled = 0
+            walk = w
             scene.followID = "me"
             startTicker()
         } else {
