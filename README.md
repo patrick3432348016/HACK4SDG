@@ -18,7 +18,7 @@
 | 灵动岛横幅 + Live Activity | 小组件扩展 `StreetWalkWidgets` |
 | 天气 | 香港天文台；香港以外（如深圳）用 Open-Meteo |
 | 语音助手 | 组员 B 的助手（`server/`）+ Mac 当场生成粤语声（GPT-SoVITS，`tools/voice_server.sh`）；连不上 Mac 时用手机系统声音和模板理解 |
-| 语言 | 粤语繁体 / 普通话简体，设定里即时切换 |
+| 语言 | 粤语繁体 / 普通话简体 / 英语，设定里即时切换 |
 
 ## 装到自己的 iPhone
 
