@@ -1,91 +1,120 @@
-# HACK4SDG · 街坊行（暂名）
+# HACK4SDG · StreetWalk
 
-香港跨校 GenAI Hackathon for SDGs 2026，赛道 2（Sustainable Northern Metropolis）。
+Hong Kong Inter-University GenAI Hackathon for SDGs 2026 — Track 2: **Sustainable Northern Metropolis**.
 
-北都新屋邨的街坊天天在同一条路上擦肩而过。这个 App 让大家在每天本来就会走的那段路上认识彼此：在排行榜上认出面孔，碰一碰手机成为街坊，说一句话就约好一起走。
+Residents of newly occupied Northern Metropolis estates often pass one another on the same paths without getting to know each other. StreetWalk helps residents of all ages turn everyday walks into opportunities to meet: recognize familiar neighbors, pair phones in person, arrange a walk by voice, and find each other when it is time to meet. The interface includes support for older residents.
 
-## 现状（2026-10-11）
+## Current status — 18 October 2026
 
-**全部功能都是真的，两部 iPhone（iPhone 15、iPhone Air）实测装好，碰一碰已在真机成功。** 「示範」角色只在演示模式（录视频、脚本）出现。
+The team reports three rounds of testing with members and roommates on 16–18 October, including an iPhone 15 and an iPhone Air. The user reports that neighbor pairing, voice invitations with acceptance on the other phone, and live finding have passed on two network-connected iPhones. These are **team-reported results**, not an independent reliability assessment or a trial with target residents. Demo mode includes simulated people and events.
 
-| 功能 | 怎么实现 |
+Use **`main`** for the integrated application. At this documentation review, main was `f8d63c9749ff5fc12b1d887afc3510ca2cc36dfd`; the repository's default branch was still `prototype/ios-3d-diorama`, a different version. Record the exact commit used for installation, testing, and demonstrations.
+
+| Capability | Implementation and limits |
 |---|---|
-| 实时地图、3D 纸雕场景、地标、楼影遮荫、寻路 | 定位 → 400 m 网格 → OpenStreetMap；SceneKit |
-| 认家、出门自动记录散步、搬家提示 | 「始终允许」定位 + 夜间学家 + 离家地理围栏（`Services/HomeLearner` `LocationMonitor`） |
-| 网名、附近真人排行榜、街坊、约会、出门提醒、反映 | Supabase 后端（新加坡，匿名登录，`supabase/`）；服务器上没有坐标和门牌，只有地标名 |
-| 碰一碰加街坊 | 超宽带测距（移植组员 B 的 `ios/UWBMeetDemo/`），两机 20 cm 内停 0.4 秒 → 服务器配对；旧机型用二维码（`Bump/`） |
-| 找人（像「查找」） | 私有频道互传 GPS + 指南针箭头；30 m 内切超宽带精确箭头（`Services/LiveFindSession`） |
-| 灵动岛横幅 + Live Activity | 小组件扩展 `StreetWalkWidgets` |
-| 天气 | 香港天文台；香港以外（如深圳）用 Open-Meteo |
-| 语音助手 | 组员 B 的助手（`server/`）+ Mac 当场生成粤语声（GPT-SoVITS，`tools/voice_server.sh`）；连不上 Mac 时用手机系统声音和模板理解 |
-| 语言 | 粤语繁体 / 普通话简体 / 英语，设定里即时切换 |
+| Live map, 3D paper-style scene, landmarks, building shade, and routing | Location → 400 m grid → OpenStreetMap/Overpass, with five endpoints, caching, retries, and fallback data; rendered with SceneKit. Drag, pinch, rotate, and a blue current-location marker. Building heights and shade are estimates. |
+| Walking guidance | Landmark cards describe estimated daytime shade, streetlights after dark, and seating where data is available. These are not independently verified safety or accessibility guarantees. |
+| Home learning and walk recording | Core Location and Core Motion, overnight home learning, departure detection at about 50 m, and manual start/end controls. A stationary period of about ten minutes can end a walk. See `Services/HomeLearner` and `LocationMonitor`. |
+| Community and invitations | Supabase in Singapore provides anonymous authentication, nicknames, nearby rankings, neighbor relationships, meetups, outings, reports, and feedback. Demo mode uses a local service. Queued writes and confirmed delivery are different states. |
+| Choosing a meeting place | Explicit ranking rules use shade, seating, and both participants' walking times. The assistant explains the choice in one sentence. Time and place can be changed independently, with manual time/place/walking-duration controls. Do not describe the ranking rules themselves as GenAI. |
+| In-person pairing | Nearby Interaction/UWB with server pairing, adapted from member B's `ios/UWBMeetDemo/`; cellular connectivity and QR fallback are supported. Current tuning is approximately 0.30 m held for 0.8 s, not a measured success guarantee. |
+| Live finding | After mutual agreement, a private pair channel exchanges precise GPS coordinates for distance and compass guidance. Within about 30 m, the app attempts UWB guidance on supported devices. See `Services/LiveFindSession`. |
+| Dynamic Island and Live Activity | `StreetWalkWidgets` extension. |
+| Weather | Hong Kong Observatory district/hourly data; Open-Meteo outside Hong Kong. |
+| Voice assistant | Member B's Doubao stack: streaming recognition, model-based understanding, and Xiaohe speech in three languages. Start `tools/voice_server.sh` on a Mac. Continuous conversation routes some commands locally and others to the server. Local templates and system speech provide a limited fallback when the server is unavailable. |
+| Languages | **Cantonese / Traditional Chinese, Mandarin / Simplified Chinese, and English.** Switch in onboarding or Settings; the default follows the system language. English place names are used when available. English documentation does not remove any app language or its test fixtures. |
 
-## 装到自己的 iPhone
+## Install on an iPhone
 
-看 **[ios/真机安装说明.md](ios/真机安装说明.md)**：装 Xcode、登录自己的 Apple ID（免费即可）、插线后跑 `cd ios && zsh tools/install_device.sh`。免费账号装的 App 7 天过期，重跑即可。
+Follow the **[device installation guide](ios/DEVICE_INSTALL.md)**. Install Xcode, sign in with an Apple ID, connect the phone, and run:
 
-## 剩下要做的
+```sh
+git clone --branch main https://github.com/patrick3432348016/HACK4SDG.git
+cd HACK4SDG/ios
+zsh tools/install_device.sh
+```
 
-- [ ] **真机实测**（两台两账号）：找人箭头和超宽带近距离、出门提醒（App 要先在家过一晚认家）、后台散步记录、灵动岛
-- [ ] **清理服务器测试用户**、执行后端建议的 3 条 SQL（见 `supabase/README.md`），否则测试用户会出现在真人排行榜
-- [ ] 普通话版收尾：iOS 菜单名「阅读与朗读」「朗读内容」未核对；`Info.plist` 权限说明仍是粤语
-- [ ] **Pitch deck**（10/18 交；要队名、队伍编号、成员姓名和大学）、WorkBuddy 报告
-- [ ] 宣传片：`video/`（Remotion 工程，英文旁白约 3 分钟，见 `video/README.md`）
-- [ ] AI 换真模型（组员 B，国内模型如智谱 GLM）
-- [ ] 10/17 晚前用 `install_device.sh` 重装两台演示机（免费签名到期）
-- [ ] 可选：开苹果付费开发者账号 → TestFlight 发链接 + 真推送
+A free Apple developer account can be used; its installed development build normally expires after seven days and must be installed again.
 
-其他文档（部分内容是 10/10 前写的，以本页为准）：
-- 产品规格：[docs/产品定稿_康乐社交App_v1.0.md](docs/产品定稿_康乐社交App_v1.0.md)
-- 排版草图：[docs/design/layout_sketch.html](docs/design/layout_sketch.html)（浏览器直接打开）
-- 演示视频：[docs/demo/streetwalk_demo.mp4](docs/demo/streetwalk_demo.mp4)
-- 成员 A 旧进度与手动验证清单：[docs/PROGRESS_member_A.md](docs/PROGRESS_member_A.md)
-- 后端表结构、权限规则、权限测试：[supabase/README.md](supabase/README.md)
+## Remaining validation and submission work
 
-## iOS 原型（`ios/`）
+- [ ] Record the commit, devices, accounts, language, network, steps, and evidence for the three core flows. Check outdoor finding/UWB, outing reminders, background recording, Live Activity, stationary auto-stop, and map gestures.
+- [ ] Verify deployed RLS and privacy controls. The SQL in [the backend guide](supabase/README.md) contains **proposals not confirmed as deployed**. Do not run it or delete test users as part of a documentation change.
+- [ ] Verify the English feedback schema: the app can send `lang=en`, while `002_feedback.sql` currently accepts only `yue` and `cmn`.
+- [ ] Compare the GenAI flow with a non-AI baseline on the same Cantonese, Mandarin, and English tasks. Report completion, field accuracy, latency, failures, and fallback behavior.
+- [ ] Complete the pitch deck and WorkBuddy evidence; identify the team, team number, members, and universities. The final submission date is 18 October.
+- [ ] Check the audible difference between slow and normal speech.
+- [ ] Optional: a paid Apple developer account for TestFlight and APNs work. Reliable background push delivery is not established by the current implementation.
+- [x] Doubao recognition, understanding, and speech are integrated; replacing them with GLM is no longer planned.
+- [x] Three-language UI, permission descriptions, and voice support are present in the source.
+- [x] The team reports reinstalling demo phones from main; record the installed commit for reproducibility.
 
-需要 Xcode 26.6 和 iOS 26.5 模拟器（`xcodebuild -downloadPlatform iOS` 可装）。
+The promotional-video project was removed from this repository in `f8d63c9`; it is maintained locally and is not part of this checkout.
+
+## Documentation
+
+- [Original product specification](docs/product-spec-v1.0.md) — dated design baseline, not a current implementation checklist.
+- [Layout sketch](docs/design/layout_sketch.html) — open in a browser; a historical sketch, not the current iOS UI reference.
+- [Earlier demo recording](docs/demo/streetwalk_demo.mp4).
+- [Member A's historical progress and manual checklist](docs/PROGRESS_member_A.md).
+- [Backend schema, access rules, and tests](supabase/README.md).
+- [Voice server setup and integration](server/README.md).
+
+Historical documents retain their dates, findings, and unresolved items. For implementation, use current source and record the branch and commit.
+
+## iOS prototype (`ios/`)
+
+The repository's development setup uses Xcode 26.6 and the iOS 26.5 simulator runtime (`xcodebuild -downloadPlatform iOS`). Check local Xcode/device compatibility before installation.
 
 ```sh
 cd ios
-./tools/selftest.sh      # 在 Mac 上跑核心逻辑自测：地图解析、地标、太阳位置、遮荫、天文台数据
-./tools/test.sh          # Xcode 单元测试（207 个）；失败返回非零（SIM="iPhone Air" 换模拟器）
-./tools/install_device.sh # 编译并装到插着线的 iPhone（见 真机安装说明.md）
-./tools/run.sh -demo     # 编译、装到 iPhone 17 模拟器并启动（定位设在皇后山邨）；编译失败会停下
-./tools/record_demo.sh   # 录演示视频（先关掉其他模拟器）
+./tools/selftest.sh       # Core logic: maps, landmarks, sun position, shade, and weather parsing
+./tools/test.sh           # Xcode unit tests; returns nonzero on failure
+./tools/install_device.sh # Build and install on a connected iPhone
+./tools/run.sh -demo      # Build and launch in the iPhone 17 simulator at Queen's Hill Estate
+./tools/record_demo.sh    # Record a demo; close other simulators first
 ```
 
-`run.sh` 可用 `SIM="iPhone 17 Pro"` 换模拟器。启动参数：
+Set `SIM="iPhone 17 Pro"` to select another simulator. The previous README reported 282 iOS tests; this documentation change does not independently verify that count or their results.
 
-- 演示：`-demo`（右上角演示菜单）、`-script`（主演示，约 105 秒）、`-captions`（配中英字幕）、`-script2`（街坊页、信息卡、语音卡、时间滑杆）、`-script3`（改约、反映回覆、出发提醒、过期、解除街坊、设置页）、`-resetOnboarding -scriptOnboarding`（首次使用）。
-- 状态：`-skipOnboarding`、`-resetOnboarding`、`-resetData`（清本机纪录）、`-withNeighbor`、`-hour 15`（指定时间）、`-offline`（强制用内置地图、不拉天气）、`-logNotifications`（打印已安排的约会通知）、`-autoWalk`（自动走一次演示散步，打印落脚点）、`-scriptWalk`（请假几日、提醒时段、关闭演示模式、改楼时返回上一步 / 定位中和选楼后按「唔改」）。
-- 画面：`-stats`、`-tilt`（移轴模糊）、`-pitch`、`-ovy`、`-ovd`。
+Launch arguments:
 
-### 分工与目录
+- Demo: `-demo`, `-script` (main sequence, about 105 seconds), `-captions` (Chinese/English captions), `-script2` (neighbors, information/voice cards, time slider), `-script3` (rescheduling, report replies, departure reminders, expiration, unlinking, settings), and `-resetOnboarding -scriptOnboarding`.
+- State: `-skipOnboarding`, `-resetOnboarding`, `-resetData` (clear local records), `-withNeighbor`, `-hour 15`, `-offline` (bundled map, no weather fetch), `-logNotifications`, `-autoWalk`, and `-scriptWalk` (leave, reminder hours, demo settings, and home-change cancellation).
+- Rendering: `-stats`, `-tilt`, `-pitch`, `-ovy`, and `-ovd`.
 
-| 目录 | 负责 | 内容 |
+### Ownership and directories
+
+Paths below are relative to `ios/StreetWalk/` unless stated otherwise.
+
+| Directory | Owner | Responsibility |
 |---|---|---|
-| `App/` `Design/` `Store/` `UI/` | A | App 骨架、设计规范、状态与流程（`AppStore` 按功能分成多个扩展文件）、全部界面、设置页 |
-| `Store/Community.swift` `Backend/` | A | `CommunityService`：要和别人同步的数据（街坊、约会、出门状态、反映）。真机用 `SupabaseCommunityService`，演示模式用 `LocalCommunityService` |
-| `Store/LocalStore.swift` | A | 本机持久化（街坊关系、约会、反映、地标名、每日散步纪录、请假） |
-| `Services/` | A | 香港天文台天气、真机步行检测（Core Motion + 定位 + 计步器）、散步纯逻辑（落脚点、补记、请假）、本地通知、电话 |
-| `Map/` | A | 定位 → 400 m 网格 → Overpass 实时地图 → 缓存/兜底、地标选取、寻路 |
-| `Scene/` | A | SceneKit 微缩模型、相机、人物、标签投影、移轴模糊 |
-| `Shade/` | A | 太阳位置（NOAA）、楼宇射线遮荫 |
-| `AI/` | B | `TemplateAI`：AIService 的模板实现（之后换真模型） |
-| `Voice/` | B | 粤语语音识别与播报 |
-| `Bump/` | A + B | 碰一碰：真机 `NearbyBumpService`（超宽带，移植自 B 的 `UWBMeetDemo`）+ 二维码；演示模式用 `SimulatedBumpService` |
-| `Domain/Contracts.swift` | A + B | 规格 §8 的接口，改动需两人同意（2026-10-07 加了改约 / 取消约意图和月报 `stats` 参数，待 B 确认） |
-| `StreetWalkTests/` | A | Xcode 单元测试 |
+| `App/`, `Design/`, `Store/`, `UI/` | A | App structure, design system, state and flows, screens, and settings; `AppStore` is split into feature extensions. |
+| `Store/Community.swift`, `Backend/` | A | Shared community data. Normal mode uses `SupabaseCommunityService`; demo mode uses `LocalCommunityService`. |
+| `Store/LocalStore.swift` | A | Persistence for neighbors, meetups, reports, landmark names, daily walks, and leave. |
+| `Services/` | A | Weather, motion/location/pedometer integration, stop detection, backfill, leave, local notifications, and phone calls. |
+| `Map/` | A | Grid-based Overpass loading, caching/fallbacks, landmark selection, and routing. |
+| `Scene/` | A | SceneKit model, camera, characters, projected labels, and tilt-shift effects. |
+| `Shade/` | A | NOAA sun position and building ray-cast shade estimates. |
+| `AI/`, `Assistant/` | B | Doubao server integration and `TemplateAI` fallback/meeting-place rules. |
+| `Voice/` | B | Recognition and speech in three languages, using server or system voices. |
+| `Bump/` | A + B | Nearby Interaction and QR pairing; simulated pairing in demo mode. |
+| `Domain/Contracts.swift` | A + B | Shared interfaces from specification §8. Contract changes require both sides to agree; the earlier reschedule/cancel and monthly-report changes retain their documented integration checks. |
+| `StreetWalkTests/` (under `ios/`) | A | Xcode unit tests. |
 
-新增 `.swift` 文件放进 `ios/StreetWalk/` 任意子目录即可，Xcode 工程用文件夹同步，不用改 `project.pbxproj`。
+The Xcode project uses synchronized folders. Add Swift files under `ios/StreetWalk/`; routine additions do not require editing `project.pbxproj`.
 
-### 隐私
+### Privacy and evidence boundaries
 
-- 只有 400 m 网格的范围会发给地图服务；天气请求不带位置；精确位置和散步路线只留在手机。
-- 对外（后端）只讲地标级位置；月报只出 10 人以上的匿名汇总。
-- 非街坊永远不会出现在 3D 场景里；街坊只在出门时、只以地标级位置出现。
+**Ordinary outing updates share only a nearby landmark. When both participants agree to find each other, precise location is shared temporarily and stops when the finding session ends.**
 
-## 数据署名
+- Map services receive a coarse geographic area. Outside Hong Kong, weather requests include a location rounded to approximately 0.1°. Do not claim that every weather request is location-free.
+- Finding uses a private real-time pair channel; precise coordinates do leave the phone during an agreed session. This does not establish end-to-end encryption or prove every exit path has been independently tested.
+- Profile data can include block and floor when sharing is enabled. Speech passes through the voice server and Doubao, and test conversation logging must be accounted for in a complete privacy notice.
+- Monthly aggregates require at least ten distinct anonymous user IDs. This is not verification of ten distinct residents. Sample reports and management responses must remain labeled as examples.
+- The current deletion flow clears selected tables, de-identifies the profile, and signs out. It must not be described as complete deletion of every account and server record.
+- Ordinary scene presence is limited to neighbors and landmark-level outing information. Live finding has the separate consent boundary described above.
 
-地图数据 © OpenStreetMap contributors，依 ODbL 授权。内置示例数据：`ios/StreetWalk/Resources/fallback_queenshill.json`（皇后山邨）。
+## Attribution
+
+Map data © OpenStreetMap contributors, licensed under ODbL. Bundled example data for Queen's Hill Estate is in `ios/StreetWalk/Resources/fallback_queenshill.json`.
