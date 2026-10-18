@@ -42,10 +42,10 @@ function harness(deferred = false) {
   assert.ok(h.sockets[0].sent.at(-1) instanceof ArrayBuffer,'noise must stream PCM without cancelling the waiting reply');
   h.event({type:'answer',turn_id:1,text:'天气测试',policy:'weather',weather:{requested_place:'北區',date:'2026-10-13',checked_at:'2026-10-12T12:00:00+08:00',observations:[],warnings:[],warnings_available:false,notes:[],forecast:{period:'2026-10-13',description:'有雨。',min_c:24,max_c:29,updated_at:'2026-10-12T11:00:00+08:00'}}});
   const weatherText=h.get('weather').children.map(p=>p.textContent).join('\n');
-  assert.ok(weatherText.includes('全港预报参考'));
-  assert.ok(weatherText.includes('未能确认最新天气警告'));
+  assert.ok(weatherText.includes('Hong Kong-wide forecast reference'));
+  assert.ok(weatherText.includes('Could not verify the latest weather warnings'));
   assert.ok(weatherText.includes('2026-10-13'));
-  assert.ok(!weatherText.includes('没有风险'));
+  assert.ok(!weatherText.includes('no risk'));
   const audio={type:'audio',turn_id:1,sample_rate:24000,data:Buffer.alloc(480).toString('base64')};
   h.event(audio);assert.equal(h.players.length,1);h.get('interrupt').onclick();assert.equal(h.players[0].stopped,true);
   h.event(audio);assert.equal(h.players.length,1,'late audio must not restart after interruption');

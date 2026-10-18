@@ -23,12 +23,12 @@ for a in "$@"; do
     --test) TESTONLY=1 ;;
     --port=*) PORT=${a#--port=} ;;
     --voice=*) VOICE=${a#--voice=} ;;
-    *) echo "唔识呢个参数：$a"; exit 2 ;;
+    *) echo "Unknown argument: $a"; exit 2 ;;
   esac
 done
 if [ ! -x "$PY" ]; then
   # First use creates a small Python environment with network access, roughly one minute; cloud Doubao needs no local voice model.
-  echo "第一次用：建 Python 环境（$RUNTIME/venv）…"
+  echo "First run: creating Python environment ($RUNTIME/venv)..."
   mkdir -p "$RUNTIME"
   if command -v uv >/dev/null 2>&1; then
     uv venv --python 3.12 "$RUNTIME/venv" && uv pip install --python "$PY" -r server/requirements.txt
@@ -36,11 +36,11 @@ if [ ! -x "$PY" ]; then
     BASE=""
     for c in python3.13 python3.12 python3.11 python3.10; do command -v $c >/dev/null 2>&1 && { BASE=$c; break; }; done
     if [ -z "$BASE" ]; then
-      echo "要 Python 3.10 或以上：brew install python@3.12（或者喺 python.org 装），装好再开。"
+      echo "Python 3.10 or later is required. Run brew install python@3.12 or install from python.org, then retry."
       exit 1
     fi
     "$BASE" -m venv "$RUNTIME/venv" && "$PY" -m pip install -q -r server/requirements.txt
-  fi || { echo "装唔到 Python 套件，睇下网络再试。"; rm -rf "$RUNTIME/venv"; exit 1; }
+  fi || { echo "Could not install Python packages. Check the network and retry."; rm -rf "$RUNTIME/venv"; exit 1; }
 fi
 if [ "$TESTONLY" = 1 ]; then cd server && exec "$PY" -m unittest discover -s tests; fi
 # Prefer separately stored local Doubao configuration; the legacy script can fall back to server/private in the private repository.
@@ -49,11 +49,11 @@ if [ -z "$DOUBAO_CONFIG" ]; then
 fi
 export DOUBAO_CONFIG
 if [ ! -f "$DOUBAO_CONFIG" ]; then
-  echo "搵唔到豆包配置：$DOUBAO_CONFIG"
+  echo "Doubao configuration not found: $DOUBAO_CONFIG"
   exit 1
 fi
 if [ "$VOICE" = sovits ] && [ ! -d "$RUNTIME/gptsovits/GPT_SoVITS/pretrained_models" ]; then
-  echo "--voice=sovits 要 GPT-SoVITS 声音模型：$RUNTIME/gptsovits（见 server/README.md）。"
+  echo "--voice=sovits requires GPT-SoVITS models at $RUNTIME/gptsovits (see server/README.md)."
   exit 1
 fi
 # Use the same Supabase URL and publishable key as BackendConfig.swift.
@@ -76,7 +76,7 @@ fi
 mkdir -p "$RUNTIME/data"
 
 IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo 127.0.0.1)
-NAME="街坊行語音 $(scutil --get LocalHostName 2>/dev/null || hostname -s)"
+NAME="StreetWalk Voice $(scutil --get LocalHostName 2>/dev/null || hostname -s)"
 PIDS=""
 cleanup() { for p in $PIDS; do kill "$p" 2>/dev/null || true; done; }
 trap cleanup EXIT INT TERM
@@ -95,22 +95,22 @@ if [ "$TUNNEL" = 1 ]; then
     PIDS="$PIDS $!"
     ( i=0; while [ $i -lt 40 ]; do
         U=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$LOG" | head -1)
-        if [ -n "$U" ]; then printf '\n  公網地址（填入 App 設定 → 聲音 → 語音伺服器）：%s\n\n' "$U"; break; fi
+        if [ -n "$U" ]; then printf '\n  Public URL (enter in app Settings > Voice > Voice Server): %s\n\n' "$U"; break; fi
         i=$((i + 1)); sleep 1
       done ) &
   else
-    echo "未裝 cloudflared：brew install cloudflared 之後再用 --tunnel。"
+    echo "cloudflared is not installed. Run brew install cloudflared before using --tunnel."
   fi
 fi
 
 echo "──────────────────────────────────────────────"
-echo "  街坊行語音伺服器"
-echo "  局域網地址：http://$IP:$PORT   （同一個 Wi-Fi 嘅 iPhone 會自動搵到）"
-echo "  模擬器：http://127.0.0.1:$PORT"
+echo "  StreetWalk Voice Server"
+echo "  LAN URL: http://$IP:$PORT (automatically discovered by iPhones on the same Wi-Fi)"
+echo "  Simulator: http://127.0.0.1:$PORT"
 if [ "$VOICE" = sovits ]; then
-  echo "  播報：Mac 本機真人聲（載入約 10–30 秒，未好之前 App 用系統聲音）"
+  echo "  Speech: local Mac voice (loads in about 10-30 seconds; the app uses system speech while loading)"
 else
-  echo "  播報：豆包「小何」聲，粵語 / 普通話 / English（組員 B 嗰套；識別、理解都係豆包，Mac 只做轉發）"
+  echo "  Speech: Doubao Xiaohe, Cantonese / Mandarin / English (B-side stack; Doubao recognition and understanding, relayed by the Mac)"
 fi
 echo "──────────────────────────────────────────────"
 cd "$REPO/server"

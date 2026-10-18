@@ -10,8 +10,8 @@ APP=build/DDdevice/Build/Products/Debug-iphoneos/StreetWalk.app
 mkdir -p build
 
 if [[ "$(xcode-select -p 2>/dev/null)" != *Xcode*.app* ]]; then
-  echo "找不到 Xcode：请先从 App Store 安装 Xcode，打开一次让它装完组件。"
-  echo "（装好后仍报这句，在终端运行：sudo xcode-select -s /Applications/Xcode.app）"; exit 1
+  echo "Xcode not found. Install it from the App Store and open it once to finish installing components."
+  echo "(If this persists, run: sudo xcode-select -s /Applications/Xcode.app)"; exit 1
 fi
 
 # Without an explicit team, choose the first Xcode account, preferring a paid team.
@@ -26,12 +26,12 @@ if teams: print(teams[0]['teamID'])
 ")
 fi
 if [[ -z "$TEAM" ]]; then
-  echo "Xcode 还没登录 Apple ID：打开 Xcode → 设置（Settings）→ Apple 账户（Apple Accounts）→ 左下角 + → 登录你的 Apple ID，再重跑。"; exit 1
+  echo "Sign in to Xcode first: Settings > Apple Accounts > + > sign in with your Apple ID, then retry."; exit 1
 fi
 # For other free-account teams, append the team identifier to obtain a globally unique bundle ID.
 if [[ "$TEAM" == "$OWNER_TEAM" ]]; then PREFIX=hk.hack4sdg; else PREFIX=hk.hack4sdg.t${TEAM:l}; fi
 BUNDLE=$PREFIX.streetwalk
-echo "签名团队 $TEAM，App 编号 $BUNDLE"
+echo "Signing team: $TEAM; bundle ID: $BUNDLE"
 
 # Find cable-connected iPhones.
 devices() {
@@ -49,13 +49,13 @@ for x in json.load(open('$J'))['result']['devices']:
 LIST=$(devices)
 # First-time devices require pairing and the phone's Trust This Computer prompt.
 for id in $(echo "$LIST" | awk '$2 != "paired" {print $1}'); do
-  echo "请在手机上按「信任」并输入锁屏密码……"
+  echo "Tap Trust on the phone and enter its passcode..."
   xcrun devicectl manage pair --device "$id" >/dev/null 2>&1 || true
 done
 [[ -n "$(echo "$LIST" | awk '$2 != "paired"')" ]] && LIST=$(devices)
 LIST=$(echo "$LIST" | awk '$2 == "paired"')
 if [[ -z "$LIST" ]]; then
-  echo "没有找到插着的 iPhone：请用数据线插上、解锁手机、按「信任」，再重跑。"; exit 1
+  echo "No connected iPhone found. Connect a data cable, unlock the phone, tap Trust, and retry."; exit 1
 fi
 
 for line in ${(f)LIST}; do
@@ -63,21 +63,21 @@ for line in ${(f)LIST}; do
   echo "== $name"
   mode=$(xcrun devicectl device info details --device "$id" 2>/dev/null | awk -F': ' '/developerModeStatus/ {print $2}')
   if [[ "$mode" == disabled ]]; then
-    echo "   要先打开开发者模式：手机 设置 → 隐私与安全性 → 开发者模式 → 打开 → 重新启动；"
-    echo "   重启解锁后按「打开」，再重跑这个命令。"
+    echo "   Enable Developer Mode on the phone: Settings > Privacy & Security > Developer Mode > On > Restart."
+    echo "   After restarting and unlocking, tap Turn On and run this command again."
     continue
   fi
   if ! xcodebuild -project StreetWalk.xcodeproj -scheme StreetWalk -configuration Debug \
       -destination "id=$udid" -derivedDataPath build/DDdevice \
       -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
       DEVELOPMENT_TEAM=$TEAM BUNDLE_ID_PREFIX=$PREFIX build -quiet > build/device_build.log 2>&1; then
-    echo "   编译失败，最后几行："; grep -E "error" build/device_build.log | tail -5
-    echo "   （完整记录在 ios/build/device_build.log）"; exit 1
+    echo "   Build failed; final error lines:"; grep -E "error" build/device_build.log | tail -5
+    echo "   (Full log: ios/build/device_build.log)"; exit 1
   fi
   xcrun devicectl device install app --device "$id" "$APP" >/dev/null
   if xcrun devicectl device process launch --device "$id" $BUNDLE 2>&1 | grep -q Launched; then
-    echo "   已安装并打开"
+    echo "   Installed and launched"
   else
-    echo "   已安装。第一次要信任开发者：手机 设置 → 通用 → VPN 与设备管理 → 点开发者那一栏 → 信任，然后点「街坊行」图标打开。"
+    echo "   Installed. First trust the developer: Settings > General > VPN & Device Management > developer profile > Trust. Then open StreetWalk."
   fi
 done

@@ -2,7 +2,7 @@ import Foundation
 
 // Server rows from supabase/migrations/001_init.sql. Preserve snake_case field names. Foundation only.
 
-/// profiles.avatar：{"mobility","color","skin","age"}。
+/// profiles.avatar: {"mobility", "color", "skin", "age"}.
 struct AvatarJSON: Codable, Equatable, Sendable {
     var mobility: String?
     var color: Int?

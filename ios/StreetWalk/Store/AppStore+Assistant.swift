@@ -53,7 +53,7 @@ extension AppStore {
                 self.showAssistant(reply, heard: heard)
             } catch {
                 guard self.assistantGen == gen else { return }
-                print("[assistant] turn failed: \(error) → 手機模板")
+                print("[assistant] turn failed: \(error) -> local template")
                 Self.debugEvent("assistant turn failed: \(error)")
                 if let e = error as? AssistantAPIError, e.code == "ACTION_UNRESOLVED" {
                     self.showAssistantUncertain(heard: heard)

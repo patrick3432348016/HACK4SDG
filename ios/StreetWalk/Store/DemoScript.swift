@@ -30,21 +30,21 @@ extension AppStore {
             }
             // -captions shows Chinese and English recording subtitles.
             @MainActor func cap(_ zh: String, _ en: String) { if LaunchArgs.has("-captions") { caption = L.isEn ? (en, "") : (zh, en) } }   // Avoid withAnimation; see showBanner.
-            await step(1, "開場") { cap(L.t("北都新屋邨：每日行嘅路，就係認識街坊嘅地方", "北部都会区新屋苑：每天走的路，就是认识邻居的地方", "New estates in the Northern Metropolis: your daily walk is where neighbours meet"), "New estates in the Northern Metropolis: your daily walk is where neighbours meet") }
-            await step(4, "排行榜") { tab = .board; cap(L.t("排行榜：同區常行嘅人；未係街坊只見網名同小人", "排行榜：同区常走的人；还不是邻居只看到网名和小人", "Leaderboard: regular walkers nearby. Non-neighbours show only a nickname and avatar"), "Circle board: regular walkers nearby — strangers show only a nickname and avatar") }
-            await step(9, "街坊 · 碰一碰") { tab = .neighbors; startBump(); cap(L.t("碰一碰：兩部手機貼近，就成為街坊", "碰一碰：两部手机靠近，就成为邻居", "Tap phones to become neighbours"), "Bump phones to become neighbours — the only way to connect") }
-            await step(19, "開出門提醒") { createNeighbor("chan", remind: true); cap(L.t("成為街坊時問一次：開唔開出門提醒", "成为邻居时问一次：开不开出门提醒", "Asked once: turn on out-and-about alerts?"), "Opt in to going-out alerts, once") }
-            await step(22, "今日 · 陳太出門") { tab = .today; neighborGoesOut("chan"); cap(L.t("街坊出門：只講地標，唔顯示地圖坐標", "邻居出门：只说地标，不显示地图坐标", "A neighbour heads out: shown by landmark, never coordinates"), "A neighbour heads out — shown by landmark, never coordinates") }
-            await step(28, "出門散步") { banner = nil; startWalk(); cap(L.t("出門自動記錄散步，唔使撳任何掣", "出门自动记录散步，不用按任何按钮", "Walks are recorded automatically, no buttons"), "Walks are recorded automatically — no buttons") }
-            await step(36, "過去搵陳太") { goFind("chan"); cap(L.t("散步中一撳：先問對方方唔方便", "散步中一按：先问对方方不方便", "One tap on a walk: the app asks your neighbour first"), "Drop by: the app asks your neighbour first") }
-            await step(41, "去") { startGoing(); cap(L.t("50 米內震動，大箭咀指住對方，唔用地圖", "50 米内震动，大箭头指着对方，不用地图", "Within 50 m: buzz and a big arrow, no map"), "Within 50 m: haptics and a big arrow, no map") }
-            await step(62, "語音約陳太") { cap(L.t("講一句就約好：AI 揀有樓遮、有櫈、兩個都近嘅地方", "说一句就约好：AI 选有楼遮阴、有凳子、离两人都近的地方", "Say one sentence: AI picks a shady spot with seats, near you both"), "Say one sentence — AI picks a shaded spot with seats, near you both") ; handle(L.t("約陳太聽日下晝三點一齊行", "约陈太明天下午三点一起走", "Invite 陳太 for a walk tomorrow 3 pm")) }
-            await step(68, "好") { confirmVoice() }
-            await step(73, "應承") { cap(L.t("影響別人嘅動作，一定先複述再按「好」", "影响别人的操作，一定先复述再按「好的」", "Anything that affects others is read back first"), "Anything that affects others is read back for confirmation first") }
-            await step(79, "天氣 + 遮蔭") { banner = nil; setDemoHour(15); setWeather(.hot); cap(L.t("天文台天氣 + 樓影遮蔭：建議幾點出門", "天文台天气 + 楼影遮阴：建议几点出门", "Observatory weather + building shade: when to head out"), "HK Observatory weather + building shade: when to head out") }
-            await step(87, "反映：呢度好曬") { banner = nil; report(.sunny); cap(L.t("講一句「呢度好曬」，記低喺最近嘅地標", "说一句「这里太晒」，记在最近的地标", "Say “too sunny here”: it is pinned to the nearest landmark"), "Say \"too sunny here\" — it's pinned to the nearest landmark") }
-            await step(92, "月尾報告") { showReport = true; cap(L.t("月報：只出多位街坊嘅匿名匯總，交社工同屋邨管理", "月报：只出多位邻居的匿名汇总，交社工和屋苑管理", "Monthly report: anonymous, several residents only, for social workers and estate management"), "Monthly report: anonymous, several residents only, for social workers & estate management") }
-            await step(101, "完") { showReport = false; caption = nil }
+            await step(1, "Opening") { cap(L.t("北都新屋邨：每日行嘅路，就係認識街坊嘅地方", "北部都会区新屋苑：每天走的路，就是认识邻居的地方", "New estates in the Northern Metropolis: your daily walk is where neighbours meet"), "New estates in the Northern Metropolis: your daily walk is where neighbours meet") }
+            await step(4, "Rankings") { tab = .board; cap(L.t("排行榜：同區常行嘅人；未係街坊只見網名同小人", "排行榜：同区常走的人；还不是邻居只看到网名和小人", "Leaderboard: regular walkers nearby. Non-neighbours show only a nickname and avatar"), "Circle board: regular walkers nearby — strangers show only a nickname and avatar") }
+            await step(9, "Neighbors: pairing") { tab = .neighbors; startBump(); cap(L.t("碰一碰：兩部手機貼近，就成為街坊", "碰一碰：两部手机靠近，就成为邻居", "Tap phones to become neighbours"), "Bump phones to become neighbours — the only way to connect") }
+            await step(19, "Enable outing alerts") { createNeighbor("chan", remind: true); cap(L.t("成為街坊時問一次：開唔開出門提醒", "成为邻居时问一次：开不开出门提醒", "Asked once: turn on out-and-about alerts?"), "Opt in to going-out alerts, once") }
+            await step(22, "Today: Mrs Chan goes out") { tab = .today; neighborGoesOut("chan"); cap(L.t("街坊出門：只講地標，唔顯示地圖坐標", "邻居出门：只说地标，不显示地图坐标", "A neighbour heads out: shown by landmark, never coordinates"), "A neighbour heads out — shown by landmark, never coordinates") }
+            await step(28, "Start walk") { banner = nil; startWalk(); cap(L.t("出門自動記錄散步，唔使撳任何掣", "出门自动记录散步，不用按任何按钮", "Walks are recorded automatically, no buttons"), "Walks are recorded automatically — no buttons") }
+            await step(36, "Find Mrs Chan") { goFind("chan"); cap(L.t("散步中一撳：先問對方方唔方便", "散步中一按：先问对方方不方便", "One tap on a walk: the app asks your neighbour first"), "Drop by: the app asks your neighbour first") }
+            await step(41, "Go") { startGoing(); cap(L.t("50 米內震動，大箭咀指住對方，唔用地圖", "50 米内震动，大箭头指着对方，不用地图", "Within 50 m: buzz and a big arrow, no map"), "Within 50 m: haptics and a big arrow, no map") }
+            await step(62, "Invite Mrs Chan by voice") { cap(L.t("講一句就約好：AI 揀有樓遮、有櫈、兩個都近嘅地方", "说一句就约好：AI 选有楼遮阴、有凳子、离两人都近的地方", "Say one sentence: AI picks a shady spot with seats, near you both"), "Say one sentence — AI picks a shaded spot with seats, near you both") ; handle(L.t("約陳太聽日下晝三點一齊行", "约陈太明天下午三点一起走", "Invite 陳太 for a walk tomorrow 3 pm")) }
+            await step(68, "Confirm") { confirmVoice() }
+            await step(73, "Accept") { cap(L.t("影響別人嘅動作，一定先複述再按「好」", "影响别人的操作，一定先复述再按「好的」", "Anything that affects others is read back first"), "Anything that affects others is read back for confirmation first") }
+            await step(79, "Weather and shade") { banner = nil; setDemoHour(15); setWeather(.hot); cap(L.t("天文台天氣 + 樓影遮蔭：建議幾點出門", "天文台天气 + 楼影遮阴：建议几点出门", "Observatory weather + building shade: when to head out"), "HK Observatory weather + building shade: when to head out") }
+            await step(87, "Report: too sunny here") { banner = nil; report(.sunny); cap(L.t("講一句「呢度好曬」，記低喺最近嘅地標", "说一句「这里太晒」，记在最近的地标", "Say “too sunny here”: it is pinned to the nearest landmark"), "Say \"too sunny here\" — it's pinned to the nearest landmark") }
+            await step(92, "Month-end report") { showReport = true; cap(L.t("月報：只出多位街坊嘅匿名匯總，交社工同屋邨管理", "月报：只出多位邻居的匿名汇总，交社工和屋苑管理", "Monthly report: anonymous, several residents only, for social workers and estate management"), "Monthly report: anonymous, several residents only, for social workers & estate management") }
+            await step(101, "End") { showReport = false; caption = nil }
         }
     }
 }
@@ -59,11 +59,11 @@ extension AppStore {
             var seen = 0
             while walk != nil {
                 try? await Task.sleep(for: .milliseconds(250))
-                for id in track.stopIDs.dropFirst(seen) { print("[autoWalk] 落腳點 \(landmark(id)?.name ?? id) t=\(walk?.minutes ?? 0)") }
+                for id in track.stopIDs.dropFirst(seen) { print("[autoWalk] Stop: \(landmark(id)?.name ?? id) t=\(walk?.minutes ?? 0)") }
                 seen = max(seen, track.stopIDs.count)
             }
             let l = log(for: now)
-            print("[autoWalk] 完 \(l.minutes) 分鐘 落腳點 \(l.stops.compactMap { landmark($0)?.name }) 一句：\(me.todayLine)")
+            print("[autoWalk] Finished: \(l.minutes) minutes; stops: \(l.stops.compactMap { landmark($0)?.name }); summary: \(me.todayLine)")
         }
     }
 }
@@ -82,27 +82,27 @@ extension AppStore {
                 action()
             }
             let (from, to) = (remindFrom, remindTo)
-            await step(1, "請 3 日假") { tab = .today; requestLeave(days: 3) }
-            await step(4, "聽日請假") { withdrawLeave(); _ = requestLeave(fromVoice: L.t("聽日請假", "明天请假", "Day off tomorrow")) }
-            await step(7, "演示時間 + 酷熱") { withdrawLeave(); setDemoHour(15); setWeather(.hot) }
-            await step(10, "設定：由、到一樣") { banner = nil; remindFrom = 21; remindTo = 21; showSettings = true }
-            await step(14, "關演示模式") { setDemoMode(false) }
-            await step(17, "返主畫面") { showSettings = false }
-            await step(21, "改樓") { remindFrom = from; remindTo = to; setDemoMode(true); beginChangeHome() }
+            await step(1, "Three days off") { tab = .today; requestLeave(days: 3) }
+            await step(4, "Day off tomorrow") { withdrawLeave(); _ = requestLeave(fromVoice: L.t("聽日請假", "明天请假", "Day off tomorrow")) }
+            await step(7, "Demo time and very hot weather") { withdrawLeave(); setDemoHour(15); setWeather(.hot) }
+            await step(10, "Settings: same start and end time") { banner = nil; remindFrom = 21; remindTo = 21; showSettings = true }
+            await step(14, "Disable demo mode") { setDemoMode(false) }
+            await step(17, "Return to main screen") { showSettings = false }
+            await step(21, "Change building") { remindFrom = from; remindTo = to; setDemoMode(true); beginChangeHome() }
             while phase != .onboarding(.pickHome) { try? await Task.sleep(for: .milliseconds(200)) }
-            await step(27, "揀樓") { if let b = residentialBuildings().first(where: { $0.name != nil }) { pickHome(b.id) } }
-            await step(30, "確認") { confirmHome() }
-            await step(34, "返上一步") { backToPickHome() }
-            await step(38, "唔改") { cancelChangeHome() }
+            await step(27, "Select building") { if let b = residentialBuildings().first(where: { $0.name != nil }) { pickHome(b.id) } }
+            await step(30, "Confirm") { confirmHome() }
+            await step(34, "Go back one step") { backToPickHome() }
+            await step(38, "Cancel change") { cancelChangeHome() }
             // Cancel during location loading; a late remote map result must not replace the saved home tile and building.
-            await step(44, "再改樓") { beginChangeHome() }
-            await step(44.3, "定位中按唔改") { print("[scriptWalk] phase=\(phase) loadingMap=\(loadingMap)"); cancelChangeHome() }
-            await step(56, "檢查底座") {
+            await step(44, "Change building again") { beginChangeHome() }
+            await step(44.3, "Cancel during location lookup") { print("[scriptWalk] phase=\(phase) loadingMap=\(loadingMap)"); cancelChangeHome() }
+            await step(56, "Check diorama base") {
                 let saved = (UserDefaults.standard.object(forKey: "homeBuilding") as? NSNumber)?.int64Value
                 let tile = UserDefaults.standard.string(forKey: "homeTile") ?? "-"
-                print("[scriptWalk] 底座 \(map.map { "\($0.tile.ix),\($0.tile.iy)" } ?? "-")（屋企格 \(tile)）樓 \(scene.homeBuildingID.map(String.init) ?? "-")（已存 \(saved.map(String.init) ?? "-")）\(phase)")
+                print("[scriptWalk] Base \(map.map { "\($0.tile.ix),\($0.tile.iy)" } ?? "-") (home tile \(tile)) building \(scene.homeBuildingID.map(String.init) ?? "-") (saved \(saved.map(String.init) ?? "-")) \(phase)")
             }
-            await step(58, "完") {}
+            await step(58, "End") {}
         }
     }
 }
@@ -123,15 +123,15 @@ extension AppStore {
                 print("[script2] t=\(Int(at)) \(name)")
                 action()
             }
-            await step(2, "街坊頁") { tab = .neighbors }
-            await step(2.6, "陳太約你") { partnerInvites("chan") }
-            await step(7, "地標資料卡") { banner = nil; select(.landmark(landmarks.first?.id ?? "")) }
-            await step(11, "改名") { renaming = selection.flatMap { if case .landmark(let id) = $0 { return id } else { return nil } } }
-            await step(15, "揀一句") { select(nil); phrasePicker = true }
-            await step(19, "語音複述卡") { handle(L.t("約陳太聽日下晝三點一齊行", "约陈太明天下午三点一起走", "Invite 陳太 for a walk tomorrow 3 pm")) }
-            await step(23, "時間滑杆") { rejectVoice(); showTimeSlider = true }
-            await step(28, "碰一碰等待") { showTimeSlider = false; residents.indices.forEach { if !residents[$0].isMe && residents[$0].id != "chan" { residents[$0].isNeighbor = false } }; startBump() }
-            await step(31, "完") { }
+            await step(2, "Neighbors screen") { tab = .neighbors }
+            await step(2.6, "Mrs Chan invites you") { partnerInvites("chan") }
+            await step(7, "Landmark information card") { banner = nil; select(.landmark(landmarks.first?.id ?? "")) }
+            await step(11, "Rename") { renaming = selection.flatMap { if case .landmark(let id) = $0 { return id } else { return nil } } }
+            await step(15, "Choose a phrase") { select(nil); phrasePicker = true }
+            await step(19, "Voice recap card") { handle(L.t("約陳太聽日下晝三點一齊行", "约陈太明天下午三点一起走", "Invite 陳太 for a walk tomorrow 3 pm")) }
+            await step(23, "Time slider") { rejectVoice(); showTimeSlider = true }
+            await step(28, "Waiting to pair") { showTimeSlider = false; residents.indices.forEach { if !residents[$0].isMe && residents[$0].id != "chan" { residents[$0].isNeighbor = false } }; startBump() }
+            await step(31, "End") { }
         }
     }
 }
@@ -143,29 +143,29 @@ extension AppStore {
         guard LaunchArgs.has("-scriptOnboarding") else { return }
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(4))
-            print("[script] 開始"); onbHush(); phase = .onboarding(.consent)
+            print("[script] Start"); onbHush(); phase = .onboarding(.consent)
             try? await Task.sleep(for: .seconds(4))
-            print("[script] 同意"); onbHush(); consent()
+            print("[script] Consent"); onbHush(); consent()
             try? await Task.sleep(for: .seconds(3))
-            if !loadingMap && map == nil { print("[script] 好（定位）"); onbHush(); startLocating() }
+            if !loadingMap && map == nil { print("[script] Confirm location lookup"); onbHush(); startLocating() }
             while map == nil || loadingMap || phase != .onboarding(.pickHome) { try? await Task.sleep(for: .milliseconds(200)) }
             try? await Task.sleep(for: .seconds(4))
             if let id = pendingHome {
-                print("[script] 估中：\(map?.building(id: id)?.name ?? "\(id)")")
+                print("[script] Suggested building: \(map?.building(id: id)?.name ?? "\(id)")")
             } else if let b = residentialBuildings().first(where: { $0.name != nil }) ?? residentialBuildings().first {
-                print("[script] 揀樓"); pickHome(b.id)
+                print("[script] Select building"); pickHome(b.id)
                 try? await Task.sleep(for: .seconds(3))
             }
-            print("[script] 係"); onbHush(); confirmHome()
+            print("[script] Confirm home"); onbHush(); confirmHome()
             try? await Task.sleep(for: .seconds(3))
-            print("[script] 樓層 + 網名"); floorChoice = min(12, max(1, homeLevels))
+            print("[script] Floor and nickname"); floorChoice = min(12, max(1, homeLevels))
             setNickname(nickname.isEmpty ? (LaunchArgs.value("-nickname") ?? "行路友") : nickname)   // -debugNickname was already applied at startup.
             try? await Task.sleep(for: .seconds(3))
-            print("[script] 試一次"); onbHush(); phase = .onboarding(.tryMic)
+            print("[script] Try once"); onbHush(); phase = .onboarding(.tryMic)
             try? await Task.sleep(for: .seconds(4))
-            print("[script] 撳「今日天氣點」"); NotificationCenter.default.post(name: .onbTryPhrase, object: nil)
+            print("[script] Tap the weather example"); NotificationCenter.default.post(name: .onbTryPhrase, object: nil)
             try? await Task.sleep(for: .seconds(6))
-            print("[script] 做完"); onbHush(); finishOnboarding()
+            print("[script] Complete"); onbHush(); finishOnboarding()
         }
     }
 }
@@ -207,21 +207,21 @@ extension AppStore {
                 print("[script3] t=\(Int(at)) \(name)")
                 action()
             }
-            await step(1, "做街坊 + 約陳太") { createNeighbor("chan", remind: true); proposeMeetup(with: "chan") }
-            await step(4, "好") { confirmProposal() }
-            await step(10, "應承咗 · 今日頁") { banner = nil; tab = .today }
-            await step(13, "語音：改做下晝五點") { handle(L.t("改做下晝五點", "改到下午五点", "Change to 5 pm")) }
-            await step(17, "好") { confirmVoice() }
-            await step(23, "改地標名 + 反映") { banner = nil; if let id = landmarks.first?.id { rename(id, to: "大樹底") }; report(.noSeat) }
-            await step(26, "屋邨管理回覆") { simulateFollowUp() }
-            await step(33, "陳太約你（街坊頁）") { banner = nil; tab = .neighbors; partnerInvites("chan") }
-            await step(38, "改約卡") { banner = nil; if let a = todaysAppointments.first { startEditing(a.id) } }
-            await step(42, "排行榜") { cancelProposal(); tab = .board }
-            await step(46, "下晝 4:36 · 出發提醒") { tab = .today; setDemoHour(16.6) }
-            await step(52, "夜晚 6:12 · 過期") { banner = nil; setDemoHour(18.2) }
-            await step(57, "解除街坊") { tab = .neighbors; unlinkNeighbor("chan") }
-            await step(62, "設定") { saveNow(); showSettings = true }
-            await step(68, "完") { showSettings = false }
+            await step(1, "Pair and invite Mrs Chan") { createNeighbor("chan", remind: true); proposeMeetup(with: "chan") }
+            await step(4, "Confirm") { confirmProposal() }
+            await step(10, "Accepted: Today screen") { banner = nil; tab = .today }
+            await step(13, "Voice: change to 5 pm") { handle(L.t("改做下晝五點", "改到下午五点", "Change to 5 pm")) }
+            await step(17, "Confirm") { confirmVoice() }
+            await step(23, "Rename landmark and report") { banner = nil; if let id = landmarks.first?.id { rename(id, to: "大樹底") }; report(.noSeat) }
+            await step(26, "Estate management reply") { simulateFollowUp() }
+            await step(33, "Mrs Chan invites you: Neighbors screen") { banner = nil; tab = .neighbors; partnerInvites("chan") }
+            await step(38, "Reschedule card") { banner = nil; if let a = todaysAppointments.first { startEditing(a.id) } }
+            await step(42, "Rankings") { cancelProposal(); tab = .board }
+            await step(46, "4:36 pm departure reminder") { tab = .today; setDemoHour(16.6) }
+            await step(52, "6:12 pm expiration") { banner = nil; setDemoHour(18.2) }
+            await step(57, "Remove neighbor") { tab = .neighbors; unlinkNeighbor("chan") }
+            await step(62, "Settings") { saveNow(); showSettings = true }
+            await step(68, "End") { showSettings = false }
         }
     }
 }

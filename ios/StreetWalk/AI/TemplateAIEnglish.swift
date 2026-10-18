@@ -54,7 +54,7 @@ enum EnglishText {
 
     // MARK: Dates, times, and walk duration
 
-    /// today 0、tomorrow 1、the day after tomorrow 2。
+    /// Today: 0; tomorrow: 1; the day after tomorrow: 2.
     static func parseDay(_ raw: String) -> Int? {
         let t = norm(raw)
         if t.contains(" day after tomorrow ") { return 2 }
@@ -102,7 +102,7 @@ enum EnglishText {
                 let next = i + used < w.count ? w[i + used] : ""
                 let prev = i > 0 ? w[i - 1] : ""
                 if ["o'clock", "oclock", "am", "pm"].contains(next) || prev == "at" || prev == "around" || prev == "about" || prev == "by" {
-                    // 「at 4」「at three fifteen」「at 2 30」
+                    // Examples: at 4, at three fifteen, at 2 30.
                     if !["o'clock", "oclock"].contains(next), let (m, _) = number(w, i + used), (0...59).contains(m),
                        !["minutes", "minute", "mins", "hours", "hour", "days", "day"].contains(i + used + 1 < w.count ? w[i + used + 1] : "") {
                         // In at 3 for 40 minutes, for is not numeric; only actual time expressions such as at three thirty contribute minutes.

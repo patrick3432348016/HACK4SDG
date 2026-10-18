@@ -31,7 +31,7 @@ class WindowsTests(unittest.TestCase):
     def test_page_and_key_not_embedded(self):
         result = self.client.get("/")
         self.assertEqual(result.status_code, 200)
-        self.assertIn("实时粤语助手", result.text)
+        self.assertIn("Live Cantonese Assistant", result.text)
         self.assertNotIn("test-key", result.text)
         self.assertIn("frame-ancestors 'none'", result.headers["Content-Security-Policy"])
         self.assertEqual(self.client.get("/app.js").status_code, 200)

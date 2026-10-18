@@ -11,7 +11,7 @@ mkdir -p build
 # Stop on build failure instead of installing a stale previous build.
 if ! xcodebuild -project StreetWalk.xcodeproj -scheme StreetWalk -destination "$DEST" -derivedDataPath build/DD build -quiet > "$LOG" 2>&1; then
   grep -E "error:" "$LOG" | head -20
-  echo "build failed（完整日志：ios/$LOG）"
+  echo "Build failed (full log: ios/$LOG)"
   exit 1
 fi
 grep -E "warning: .*StreetWalk/" "$LOG" | sort -u || true

@@ -21,7 +21,7 @@ function controls() {
   $("policyTest").disabled = !token || connected || connecting;
   fields.forEach(id => $(id).disabled = connecting || connected);
   $("choices").querySelectorAll("button").forEach(b => b.disabled = !connected || responsePending);
-  $("connection").textContent = connected ? "豆包已连接" : connecting ? "正在连接" : micOnly ? "本地麦克风检查" : "等待配置";
+  $("connection").textContent = connected ? "Doubao connected" : connecting ? "Connecting" : micOnly ? "Local microphone check" : "Awaiting configuration";
   $("connection").classList.toggle("online", connected);
   $("orb").classList.toggle("active", connected || micOnly);
 }
@@ -31,14 +31,14 @@ function config() {
     asr_resource: $("asrResource").value, tts_resource: $("ttsResource").value,
     end_window_ms: Number($("pauseMs").value), speech_rate: Number($("rate").value)};
   if ((!value.speech_key && !(value.app_id && value.access_key)) || !value.ark_key || !value.model || !value.speaker)
-    throw new Error("请先填写语音凭证、方舟 API Key、豆包模型 ID 和支持粤语的音色 ID。");
+    throw new Error("Enter Speech credentials, an Ark API key, a Doubao model ID, and a Cantonese-capable voice ID first.");
   return value;
 }
 function configurationEdited() {
   configRevision++;
   if (connecting || connected) return;
-  $("importStatus").textContent = "配置已修改，点击保存到本机服务可在刷新或换浏览器后自动填入。";
-  try { config(); status("配置已填写，尚未连接。点击开始粤语对话后会开启麦克风并连接豆包。"); }
+  $("importStatus").textContent = "Configuration changed. Save to the local service to restore it after refreshing or switching browsers.";
+  try { config(); status("Configuration entered; not connected. Start a Cantonese conversation to open the microphone and connect to Doubao."); }
   catch (error) { status(error.message); }
 }
 fields.forEach(id => { $(id).oninput = configurationEdited; $(id).onchange = configurationEdited; });
@@ -49,10 +49,10 @@ function stopAudio() {
 function interrupt() {
   stopAudio(); blockedTurn = turn; responsePending = false;
   if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type: "interrupt"}));
-  phase("你继续讲", "已停止旧回答，正在听你的下一句话。"); controls();
+  phase("Continue speaking", "The previous reply has stopped. Listening for your next sentence."); controls();
 }
 async function microphone(local, generation) {
-  if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) throw new Error("此浏览器不支持实时收音，请用 Windows Edge 或 Chrome 打开本机地址。");
+  if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) throw new Error("This browser does not support live audio capture. Open the local URL in Windows Edge or Chrome.");
   const stream = await navigator.mediaDevices.getUserMedia({audio: {channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true}});
   if (generation !== lifecycle) { stream.getTracks().forEach(t => t.stop()); return false; }
   mic = stream;
@@ -66,12 +66,12 @@ async function microphone(local, generation) {
     if (generation !== lifecycle) return;
     $("level").value = Math.min(1, data.rms * 5);
     if (local || !connected || ws?.readyState !== WebSocket.OPEN) return;
-    if (ws.bufferedAmount > 128000) { status("网络发送积压，已结束连接，避免播放过时对话。", true); disconnect(); return; }
+    if (ws.bufferedAmount > 128000) { status("Network backlog detected. Disconnected to avoid playing stale replies.", true); disconnect(); return; }
     // Volume alone cannot distinguish speech from noise. The backend interrupts
     // on a new ASR partial; acoustic onsets must not cancel a pending answer.
     ws.send(data.pcm);
   };
-  mic.getAudioTracks()[0].onended = () => { status("麦克风连接已断开。", true); disconnect(); };
+  mic.getAudioTracks()[0].onended = () => { status("The microphone was disconnected.", true); disconnect(); };
   return true;
 }
 async function disconnect() {
@@ -84,19 +84,19 @@ async function disconnect() {
   mic?.getTracks().forEach(track => { track.onended = null; track.stop(); }); mic = null;
   if (worklet) { worklet.port.onmessage = null; worklet.disconnect(); worklet = null; }
   if (context && context.state !== "closed") await context.close(); context = null;
-  $("level").value = 0; $("partial").textContent = "收音已停止";
-  phase("对话已结束", "录音已关闭；需要时可以重新连接。"); shuttingDown = false; controls();
+  $("level").value = 0; $("partial").textContent = "Audio capture stopped";
+  phase("Conversation ended", "Audio capture is off. Reconnect when needed."); shuttingDown = false; controls();
 }
 function bubble(who, text) {
   const chat = $("chat"); chat.querySelector(".empty")?.remove();
   const node = document.createElement("div"); node.className = `bubble ${who}`;
-  const label = document.createElement("small"); label.textContent = who === "user" ? "你" : "街坊助手 · 业务短回复";
+  const label = document.createElement("small"); label.textContent = who === "user" ? "You" : "StreetWalk assistant · concise app reply";
   node.append(label, document.createTextNode(text)); chat.append(node);
   while (chat.children.length > 40) chat.firstElementChild.remove(); chat.scrollTop = chat.scrollHeight;
 }
 function renderBusiness(data) {
   $("choices").replaceChildren(); $("businessEmpty").hidden = Boolean(data);
-  $("business").textContent = data?.message || ""; $("businessJson").textContent = data ? JSON.stringify(data, null, 2) : "暂无请求";
+  $("business").textContent = data?.message || ""; $("businessJson").textContent = data ? JSON.stringify(data, null, 2) : "No request yet";
   if (!data) return;
   const action = (label, params) => {
     const b = document.createElement("button"); b.className = "secondary"; b.textContent = label;
@@ -104,43 +104,43 @@ function renderBusiness(data) {
     $("choices").append(b);
   };
   for (const choice of data.choices || []) action(`${choice.label}${choice.detail ? " · " + choice.detail : ""}`, {kind: "choice", choice_kind: data.status === "choose_contact" ? "contact" : "place", value: choice.id});
-  if (data.status === "needs_confirmation") { action("核对无误，确认测试操作", {kind: "confirm"}); action("取消", {kind: "cancel"}); }
+  if (data.status === "needs_confirmation") { action("Check and confirm test action", {kind: "confirm"}); action("Cancel", {kind: "cancel"}); }
   controls();
 }
 function renderWeather(data) {
   if (!data) return;
   const card = $("weather"); card.replaceChildren();
   const line = (text, muted = false) => { const p = document.createElement("p"); p.textContent = text; if (muted) p.className = "muted"; card.append(p); };
-  const at = value => new Date(value).toLocaleString("zh-HK", {timeZone: "Asia/Hong_Kong", hour12: false});
-  line(`${data.requested_place} · 查询日期 ${data.date}`);
-  for (const item of data.observations || []) line(`${item.station}测站 ${item.temperature_c}°C · ${at(item.recorded_at)}`);
-  if (data.rainfall) line(`北区录得最高雨量 ${data.rainfall.max_mm} 毫米（${at(data.rainfall.from)} 至 ${at(data.rainfall.to)}）；这是过去雨量，不代表稍后会否下雨。`, true);
+  const at = value => new Date(value).toLocaleString("en-GB", {timeZone: "Asia/Hong_Kong", hour12: false});
+  line(`${data.requested_place} · Request date ${data.date}`);
+  for (const item of data.observations || []) line(`${item.station} station: ${item.temperature_c}°C · ${at(item.recorded_at)}`);
+  if (data.rainfall) line(`North District maximum recorded rainfall: ${data.rainfall.max_mm} mm (${at(data.rainfall.from)} to ${at(data.rainfall.to)}); past rainfall does not predict whether it will rain later.`, true);
   if (data.forecast) {
-    line(`全港预报参考 · ${data.forecast.period}`);
+    line(`Hong Kong-wide forecast reference · ${data.forecast.period}`);
     line(data.forecast.description);
-    if (data.forecast.min_c !== undefined) line(`全港预报气温 ${data.forecast.min_c}–${data.forecast.max_c}°C`);
-    line(`预报发布：${at(data.forecast.updated_at)}`, true);
+    if (data.forecast.min_c !== undefined) line(`Hong Kong-wide forecast temperature ${data.forecast.min_c}–${data.forecast.max_c}°C`);
+    line(`Forecast issued: ${at(data.forecast.updated_at)}`, true);
   }
-  line(data.warnings?.length ? `当前警告：${data.warnings.map(w => w.name).join("、")}` : data.warnings_available ? "查询时警告摘要未列出生效警告；不代表出行没有风险。" : "未能确认最新天气警告。");
+  line(data.warnings?.length ? `Current warnings: ${data.warnings.map(w => w.name).join(", ")}` : data.warnings_available ? "No active warnings were listed in the retrieved summary; travel may still carry risks." : "Could not verify the latest weather warnings.");
   for (const note of data.notes || []) line(note, true);
-  line(`查询时间（香港）：${at(data.checked_at)}`, true);
+  line(`Checked at (Hong Kong): ${at(data.checked_at)}`, true);
 }
 function play(message) {
   if (!context || message.turn_id !== turn || message.turn_id <= blockedTurn) return;
   const raw = atob(message.data), bytes = Uint8Array.from(raw, c => c.charCodeAt(0));
-  if (bytes.length % 2 || message.sample_rate !== 24000) throw new Error("收到无效播报数据。");
+  if (bytes.length % 2 || message.sample_rate !== 24000) throw new Error("Invalid speech audio received.");
   const view = new DataView(bytes.buffer), buffer = context.createBuffer(1, bytes.length/2, 24000), channel = buffer.getChannelData(0);
   for (let i=0; i<channel.length; i++) channel[i] = view.getInt16(i*2, true)/32768;
   nextPlay = Math.max(context.currentTime + .04, nextPlay);
-  if (nextPlay - context.currentTime > 50) throw new Error("播报队列过长，已停止播放。");
+  if (nextPlay - context.currentTime > 50) throw new Error("Speech queue too long; playback stopped.");
   const source = context.createBufferSource(); source.buffer = buffer; source.connect(context.destination); sources.add(source);
-  source.onended = () => { sources.delete(source); if (!sources.size) { $("orb").classList.remove("speaking"); if (!responsePending && connected) phase("我喺度听", "你可以继续问 App 相关问题。"); } };
-  source.start(nextPlay); nextPlay += buffer.duration; $("orb").classList.add("speaking"); phase("用粤语回答中", "你可以直接插话，或点击打断播报。");
-  if (firstAudio) { firstAudio = false; $("metrics").textContent = `从最终识别到收到首段音频：${((performance.now()-transcriptAt)/1000).toFixed(2)} 秒（不含前面的识别判停时间）`; }
+  source.onended = () => { sources.delete(source); if (!sources.size) { $("orb").classList.remove("speaking"); if (!responsePending && connected) phase("Listening", "You can continue asking about the app."); } };
+  source.start(nextPlay); nextPlay += buffer.duration; $("orb").classList.add("speaking"); phase("Replying in Cantonese", "Speak to interrupt, or click Interrupt speech.");
+  if (firstAudio) { firstAudio = false; $("metrics").textContent = `Final transcript to first audio: ${((performance.now()-transcriptAt)/1000).toFixed(2)} s (excludes earlier recognition and end-of-speech detection)`; }
 }
 function event(message) {
   if (message.type === "ready") {
-    connecting = false; connected = true; status("豆包识别通道已连接。请用粤语说话，句末停顿后自动回应。"); phase("我喺度听", "连续收音已开启，说完一句稍等就会回应。"); controls(); return;
+    connecting = false; connected = true; status("Doubao recognition connected. Speak Cantonese; a reply follows after a sentence-end pause."); phase("Listening", "Continuous capture is on. Pause after a sentence to receive a reply."); controls(); return;
   }
   if (message.type === "error") { status(`${message.message} [${message.code}]`, true); disconnect(); return; }
   if (message.type === "transcript") {
@@ -150,40 +150,40 @@ function event(message) {
   }
   if (message.type === "interrupted") { turn = message.turn_id; stopAudio(); responsePending = false; controls(); return; }
   if (message.turn_id !== turn || message.turn_id <= blockedTurn) return;
-  if (message.type === "thinking") { responsePending = true; firstAudio = true; phase("正在准备回答", "已收到你讲嘅内容，稍等就会用粤语回答。"); status("已识别完成，正在生成业务回复…"); controls(); }
-  if (message.type === "answer") { bubble("assistant", message.text); renderBusiness(message.business); renderWeather(message.weather); status(message.policy === "deny" ? "已按范围限制回复，没有展开无关话题。" : "回复已准备，等待粤语音频。"); }
+  if (message.type === "thinking") { responsePending = true; firstAudio = true; phase("Preparing a reply", "Your speech was received. A Cantonese reply will follow shortly."); status("Recognition complete; generating an app-related reply..."); controls(); }
+  if (message.type === "answer") { bubble("assistant", message.text); renderBusiness(message.business); renderWeather(message.weather); status(message.policy === "deny" ? "Reply limited to the supported scope; unrelated topics were not expanded." : "Reply ready; waiting for Cantonese audio."); }
   if (message.type === "audio") play(message);
-  if (message.type === "answer_done") { responsePending = false; if (!sources.size) phase("我喺度听"); controls(); }
-  if (message.type === "turn_error") { stopAudio(); responsePending = false; status(`${message.message} [${message.code}]`, true); phase("这次回应未完成", "可以继续讲话，或检查 API 配置后重连。"); controls(); }
+  if (message.type === "answer_done") { responsePending = false; if (!sources.size) phase("Listening"); controls(); }
+  if (message.type === "turn_error") { stopAudio(); responsePending = false; status(`${message.message} [${message.code}]`, true); phase("This reply did not complete", "Continue speaking, or check the API configuration and reconnect."); controls(); }
 }
 $("connect").onclick = async () => {
   if (connecting || connected) return;
   let generation;
   try {
     const settings = config(); generation = ++lifecycle; connecting = true; turn = -1; blockedTurn = -1; controls(); renderBusiness(null);
-    status("等待麦克风权限并连接豆包…"); if (!await microphone(false, generation)) return;
+    status("Waiting for microphone permission and connecting to Doubao..."); if (!await microphone(false, generation)) return;
     if (!connecting || generation !== lifecycle) return;
     ws = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/windows/realtime`);
     const current = ws;
     ws.onopen = () => current.send(JSON.stringify({token, config: settings}));
-    ws.onmessage = e => { if (current !== ws) return; try { event(JSON.parse(e.data)); } catch { status("消息处理失败，已停止本次对话。", true); disconnect(); } };
-    ws.onerror = () => { if (current === ws) status("实时连接失败，请确认本机服务已启动。", true); };
-    ws.onclose = () => { if (current === ws) { if (!$("status").classList.contains("error")) status("实时连接已关闭。请重新开始对话。"); disconnect(); } };
+    ws.onmessage = e => { if (current !== ws) return; try { event(JSON.parse(e.data)); } catch { status("Message handling failed; this conversation has stopped.", true); disconnect(); } };
+    ws.onerror = () => { if (current === ws) status("Live connection failed. Check that the local service is running.", true); };
+    ws.onclose = () => { if (current === ws) { if (!$("status").classList.contains("error")) status("Live connection closed. Start the conversation again."); disconnect(); } };
   } catch (error) {
     if (generation === undefined) { status(error.message, true); controls(); return; }
     if (generation !== undefined && generation !== lifecycle) return;
-    const permissions = {NotAllowedError: "麦克风权限被拒绝，请在浏览器网站权限及 Windows 隐私设置中允许麦克风。", NotFoundError: "未检测到麦克风。", NotReadableError: "麦克风不可用，请检查设备或其他软件占用。"};
+    const permissions = {NotAllowedError: "Microphone permission denied. Allow access in browser site permissions and Windows privacy settings.", NotFoundError: "No microphone detected.", NotReadableError: "Microphone unavailable. Check the device and whether another application is using it."};
     status(permissions[error.name] || error.message, true); await disconnect();
   }
 };
-$("micTest").onclick = async () => { const generation = ++lifecycle; micOnly = true; controls(); try { if (!await microphone(true, generation)) return; phase("正在检查麦克风", "请讲话观察音量条。没有上传声音，也没有进行识别。"); status("这是本地设备检查；点击结束对话可关闭麦克风。"); } catch { if (generation !== lifecycle) return; status("无法打开麦克风，请检查浏览器和 Windows 的录音权限。", true); await disconnect(); } };
-$("stop").onclick = () => { status("已主动结束对话。"); disconnect(); };
+$("micTest").onclick = async () => { const generation = ++lifecycle; micOnly = true; controls(); try { if (!await microphone(true, generation)) return; phase("Checking microphone", "Speak and watch the level meter. Audio is neither uploaded nor recognized during this check."); status("This is a local device check. Click End conversation to close the microphone."); } catch { if (generation !== lifecycle) return; status("Could not open the microphone. Check browser and Windows recording permissions.", true); await disconnect(); } };
+$("stop").onclick = () => { status("Conversation ended by the user."); disconnect(); };
 $("interrupt").onclick = interrupt;
 $("typed").oninput = controls;
 $("send").onclick = () => { const text = $("typed").value.trim(); if (!connected || !text) return; interrupt(); ws.send(JSON.stringify({type: "text", text})); $("typed").value = ""; controls(); };
 $("typed").onkeydown = e => { if (e.key === "Enter" && !e.isComposing && !$("send").disabled) $("send").click(); };
 function parseCredentialFile(text) {
-  if (typeof text !== "string" || text.length > 65536) throw new Error("文件过大，请选择 64 KB 以内的配置文件。");
+  if (typeof text !== "string" || text.length > 65536) throw new Error("File too large. Select a configuration file no larger than 64 KB.");
   text = text.replace(/^\uFEFF/, "").trim();
   let entries;
   if (text.startsWith("{")) {
@@ -226,12 +226,12 @@ $("configFile").onchange = async () => {
     const values = parseCredentialFile(await file.text());
     if (generation !== importGeneration) return;
     for (const [id, value] of Object.entries(values)) $(id).value = value;
-    const missing = [["model", "豆包文本模型 ID"], ["speaker", "粤语音色 ID"]].filter(([id]) => !$(id).value.trim()).map(([, label]) => label);
-    if (!$("speechKey").value && !($("appId").value && $("accessKey").value)) missing.push("语音凭证");
-    if (!$("arkKey").value) missing.push("方舟凭证");
-    const message = `本地配置已导入；尚未验证云端权限。${missing.length ? "还需填写：" + missing.join("、") + "。" : "可开始连接测试。"}`;
+    const missing = [["model", "Doubao text model ID"], ["speaker", "Cantonese voice ID"]].filter(([id]) => !$(id).value.trim()).map(([, label]) => label);
+    if (!$("speechKey").value && !($("appId").value && $("accessKey").value)) missing.push("Speech credentials");
+    if (!$("arkKey").value) missing.push("Ark credentials");
+    const message = `Local configuration imported; cloud permissions have not been verified. ${missing.length ? "Still required: " + missing.join(", ") + "." : "Ready for a connection test."}`;
     $("importStatus").textContent = message; status(message);
-  } catch { if (generation === importGeneration) { $("importStatus").textContent = "导入失败：请检查文件格式（64 KB 以内，字段名: 值或 JSON）。未更改现有配置。"; status("配置文件未导入。", true); } }
+  } catch { if (generation === importGeneration) { $("importStatus").textContent = "Import failed. Check the format (up to 64 KB; field: value or JSON). Existing configuration is unchanged."; status("Configuration file was not imported.", true); } }
   finally { $("configFile").value = ""; importing = false; controls(); }
 };
 $("saveConfig").onclick = async () => {
@@ -239,21 +239,21 @@ $("saveConfig").onclick = async () => {
     const values = config();
     const r = await fetch("/windows/config", {method:"POST", headers:{Authorization:`Bearer ${token}`, "Content-Type":"application/json"}, body:JSON.stringify(values)});
     if (!r.ok) throw new Error();
-    status("配置已保存到本机服务。刷新或换浏览器会自动填入；关闭本机服务后清空。");
-    $("importStatus").textContent = "本机服务已临时保存配置，密钥未写入文件。";
-  } catch { status("配置未保存，请检查各项填写是否完整及本机服务是否连接。", true); }
+    status("Configuration saved in the local service. It restores after refreshing or switching browsers and clears when the service stops.");
+    $("importStatus").textContent = "Configuration is temporarily held by the local service; keys were not written to a file.";
+  } catch { status("Configuration not saved. Check the required fields and the local service connection.", true); }
 };
 $("clear").onclick = async () => {
   importGeneration++; configRevision++;
   for (const id of ["speechKey", "accessKey", "arkKey"]) $(id).value = "";
-  $("importStatus").textContent = "本页凭证已清空。";
+  $("importStatus").textContent = "Credentials cleared from this page.";
   try {
     const r = await fetch("/windows/config", {method:"DELETE", headers:{Authorization:`Bearer ${token}`}});
     if (!r.ok) throw new Error();
-    status("本页凭证及本机保存的配置已清空；其他已打开页面如需清空，请刷新。");
-  } catch { status("本页已清空，但本机保存的配置未能删除，请重试清空或关闭本机服务。", true); }
+    status("Page credentials and locally saved configuration cleared. Refresh other open pages to clear them too.");
+  } catch { status("This page is cleared, but saved local configuration could not be removed. Retry Clear or stop the local service.", true); }
 };
-$("settingsToggle").onclick = () => { $("settings").hidden = !$("settings").hidden; $("settingsToggle").textContent = $("settings").hidden ? "展开 API 配置" : "收起 API 配置"; };
+$("settingsToggle").onclick = () => { $("settings").hidden = !$("settings").hidden; $("settingsToggle").textContent = $("settings").hidden ? "Show API configuration" : "Hide API configuration"; };
 $("policyTest").onclick = async () => {
   $("policyTest").disabled = true; $("policyResults").replaceChildren();
   try {
@@ -261,12 +261,12 @@ $("policyTest").onclick = async () => {
       const r = await fetch("/windows/policy-check", {method: "POST", headers: {Authorization: `Bearer ${token}`, "Content-Type": "application/json"}, body: JSON.stringify({text})});
       if (!r.ok) throw new Error(); const result = await r.json(), p = document.createElement("p"); p.textContent = `${text} → ${result.label}`; $("policyResults").append(p);
     }
-    status("本地规则检查完成；没有调用豆包，不代表真实模型或语音效果。");
-  } catch { status("规则检查失败，请确认本机服务已更新并启动。", true); }
+    status("Local rule check complete. Doubao was not called; this does not measure live model or speech performance.");
+  } catch { status("Rule check failed. Check that the local service is up to date and running.", true); }
   finally { controls(); }
 };
 window.addEventListener("pagehide", () => { mic?.getTracks().forEach(t => t.stop()); ws?.close(); for (const id of ["speechKey", "accessKey", "arkKey"]) $(id).value = ""; });
-document.addEventListener("visibilitychange", () => { if (document.hidden && (connected || micOnly || connecting)) { status("页面进入后台，已停止收音；返回后请重新连接。"); disconnect(); } });
+document.addEventListener("visibilitychange", () => { if (document.hidden && (connected || micOnly || connecting)) { status("Page moved to the background; capture stopped. Reconnect when you return."); disconnect(); } });
 (async () => {
   const revision = configRevision;
   try {
@@ -276,10 +276,10 @@ document.addEventListener("visibilitychange", () => { if (document.hidden && (co
     if (configRevision === revision && saved) {
       const mapping = {speech_key:"speechKey",app_id:"appId",access_key:"accessKey",ark_key:"arkKey",model:"model",speaker:"speaker",tts_resource:"ttsResource",asr_resource:"asrResource",end_window_ms:"pauseMs",speech_rate:"rate"};
       for (const [key,id] of Object.entries(mapping)) if (saved[key] !== undefined) $(id).value = String(saved[key]);
-      $("importStatus").textContent = "已自动载入本机服务保存的配置。";
-      status("配置已自动填好，直接点击开始粤语对话即可。");
-      $("settings").hidden = true; $("settingsToggle").textContent = "展开 API 配置";
-    } else if (configRevision === revision) status("本机服务已就绪。请填写或导入配置，再保存到本机服务。");
-  } catch { status("无法读取本机配置，请确认服务已更新并运行。", true); }
+      $("importStatus").textContent = "Loaded configuration saved by the local service.";
+      status("Configuration restored. Click Start Cantonese conversation.");
+      $("settings").hidden = true; $("settingsToggle").textContent = "Show API configuration";
+    } else if (configRevision === revision) status("Local service ready. Enter or import configuration, then save it to the local service.");
+  } catch { status("Could not read local configuration. Check that the service is up to date and running.", true); }
   controls();
 })();

@@ -153,13 +153,13 @@ extension AppStore {
 
     /// Submit the same one-time code contract as real pairing, then call addLinkedNeighbor on success.
     func debugLink(code: String) {
-        guard let s = supabase else { print("[debugLink] 演示模式冇真后端"); return }
+        guard let s = supabase else { print("[debugLink] Demo mode has no live backend"); return }
         Task { @MainActor in
             while self.phase != .main || self.map == nil || self.residents.isEmpty { try? await Task.sleep(for: .milliseconds(500)) }
             for _ in 0..<30 {
                 do {
                     if let peer = try await s.link(code: code) {
-                        print("[debugLink] 配上 \(peer.nickname) \(peer.id)")
+                        print("[debugLink] Paired with \(peer.nickname) \(peer.id)")
                         self.addLinkedNeighbor(peer)
                         return
                     }
@@ -168,7 +168,7 @@ extension AppStore {
                 }
                 try? await Task.sleep(for: .seconds(2))
             }
-            print("[debugLink] 60 秒都配唔上")
+            print("[debugLink] Pairing timed out after 60 seconds")
         }
     }
 

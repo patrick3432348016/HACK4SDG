@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- 和自动生成的 Info.plist 合并。只放 INFOPLIST_KEY_* 表达唔到的键（数组、后台模式）同真功能要用的权限说明。
-     放喺 StreetWalk/ 文件夹外面：文件夹同步会把里面的 plist 当资源复制，同生成的 Info.plist 撞名。
-     权限说明仲有本地化版本：StreetWalk/Resources/zh-Hans.lproj（普通话）、zh-HK.lproj（粤语）嘅 InfoPlist.strings，改呢度要一齐改。 -->
+<!-- Merge with the generated Info.plist. Include keys not expressible through INFOPLIST_KEY_* (arrays and background modes), plus required permission descriptions.
+     Keep outside StreetWalk/: synchronized folders would copy an internal plist as a resource, conflicting with the generated Info.plist.
+     Keep permission descriptions aligned with any localized InfoPlist.strings under the Mandarin and Cantonese resource directories. -->
 <plist version="1.0">
 <dict>
-	<!-- F1 真机自动记录、出门检测：离开屋企时系统喺后台叫醒 App，散步期间继续用定位。 -->
+	<!-- F1 automatic recording and departure detection: request background wakeups on departure and location updates during walks. -->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
@@ -17,8 +17,8 @@
 	</array>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>揀「始終允許」，你出門散步時就算手機鎖咗都會自動記錄，亦可以話俾你嘅街坊知你出咗門。你屋企喺邊只會留喺呢部手機，對外只講地標。</string>
-	<!-- F5 碰一碰：两部手机经本地网络搵到对方，再用超宽带量距离。
-	     _jiefongvoice._tcp：同一个 Wi-Fi 入面自动搵 Mac 语音服务器（粤语真人声 + 语音助手，tools/voice_server.sh）。 -->
+	<!-- F5 pairing: discover the other phone through the local network, then measure proximity with UWB.
+	     _jiefongvoice._tcp discovers the Mac voice server on the same Wi-Fi network (tools/voice_server.sh). -->
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_jiefong._tcp</string>
@@ -26,8 +26,8 @@
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>碰一碰加街坊時，用嚟搵到身邊另一部手機；亦用嚟連接同一個 Wi-Fi 入面嘅語音服務，令讀出嚟嘅聲更自然。</string>
-	<!-- Mac 语音服务器喺局域网用 HTTP（http://192.168.x.x:8765）：只放行本地网络（NSAllowsLocalNetworking），
-	     公网照样要 HTTPS（--tunnel 嘅 trycloudflare 地址系 HTTPS）。见 server/README.md。 -->
+	<!-- The Mac voice server uses LAN HTTP (http://192.168.x.x:8765); allow local networking through NSAllowsLocalNetworking.
+	     Public connections still require HTTPS, including the tunnel option's trycloudflare URL. See server/README.md. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
@@ -37,7 +37,7 @@
 	<string>碰一碰時量度兩部手機有幾近；搵街坊時喺附近指出佢喺邊個方向。</string>
 	<key>NSCameraUsageDescription</key>
 	<string>手機唔支援碰一碰時，用鏡頭掃街坊嘅二維碼加街坊；搵街坊時喺好近嘅距離，用鏡頭幫手指出佢喺邊個方向。</string>
-	<!-- 灵动岛 / 锁屏实时活动：散步、找人、约会快到（小组件扩展 StreetWalkWidgets 负责画，App 本地更新）。 -->
+	<!-- Dynamic Island / Lock Screen Live Activity for walking, finding, and upcoming meetups; StreetWalkWidgets renders locally supplied updates. -->
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 </dict>
