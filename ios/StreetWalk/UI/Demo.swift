@@ -236,6 +236,7 @@ struct TimeSliderSheet: View {
 
 struct ReportView: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
     @State private var shown = false
 
     var body: some View {
@@ -250,7 +251,7 @@ struct ReportView: View {
                         .padding(.vertical, 6)
                         .background(DS.accentSoft, in: Capsule())
                     Spacer()
-                    Button(L.t("完成", "完成", "Done")) { store.showReport = false }
+                    Button(L.t("完成", "完成", "Done")) { store.showReport = false; dismiss() }
                         .ds(.bodyBold)
                         .foregroundStyle(DS.accent)
                 }

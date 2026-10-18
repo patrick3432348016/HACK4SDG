@@ -131,6 +131,10 @@ struct SettingsView: View {
                     NavigationLink { PrivacyPolicyView() } label: {
                         Label(L.t("私隱政策", "隐私政策", "Privacy policy"), systemImage: "hand.raised").frame(minHeight: 56)
                     }
+                    // 10-18 组员：F10 月报以前只喺演示菜单，真用户模式睇唔到、测唔到
+                    NavigationLink { ReportView() } label: {
+                        Label(L.t("社區月報（俾社工睇）", "社区月报（给社工看）", "Community monthly report"), systemImage: "doc.text").frame(minHeight: 56)
+                    }
                 }
 
                 // 進階：开发同排查用嘅嘢，平时收埋（长者见到 IP 地址会惊）
