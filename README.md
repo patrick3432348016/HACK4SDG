@@ -4,6 +4,26 @@ Hong Kong Inter-University GenAI Hackathon for SDGs 2026 — Track 2: **Sustaina
 
 Residents of newly occupied Northern Metropolis estates often pass one another on the same paths without getting to know each other. StreetWalk helps residents of all ages turn everyday walks into opportunities to meet: recognize familiar neighbors, pair phones in person, arrange a walk by voice, and find each other when it is time to meet. The interface includes support for older residents.
 
+## Beginner's guide: let WorkBuddy help you deploy
+
+New to installing apps from source? **Copy the entire message below into WorkBuddy or another coding agent.** It includes the repository link and the instructions to get started; there is no need to package the files manually if the agent can access GitHub.
+
+```text
+I am a beginner. Help me install and run StreetWalk on my iPhone:
+https://github.com/patrick3432348016/HACK4SDG
+
+Use the main branch, not the historical default branch. Read README.md and
+ios/DEVICE_INSTALL.md first, then check my computer and iPhone setup.
+Guide me step by step and carry out the installation where your tools allow.
+Explain any steps I must complete myself, including Xcode setup, Apple ID
+signing, Developer Mode, and device trust prompts.
+If I need the voice service, follow server/README.md to help configure it.
+Check that the app launches, help troubleshoot errors, and clearly explain
+anything that still needs setup or verification.
+```
+
+**What you need:** a Mac with compatible Xcode, an iPhone, a USB data cable, and an Apple ID. The agent can help with setup, commands, and troubleshooting; you will still need to complete Apple sign-in and prompts on your devices. See the [device installation guide on main](https://github.com/patrick3432348016/HACK4SDG/blob/main/ios/DEVICE_INSTALL.md) for the full steps.
+
 ## Current status — 18 October 2026
 
 The team reports three rounds of testing with members and roommates on 16–18 October, including an iPhone 15 and an iPhone Air. The user reports that neighbor pairing, voice invitations with acceptance on the other phone, and live finding have passed on two network-connected iPhones. These are **team-reported results**, not an independent reliability assessment or a trial with target residents. Demo mode includes simulated people and events.
