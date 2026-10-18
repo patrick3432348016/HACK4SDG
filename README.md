@@ -1,5 +1,7 @@
 # HACK4SDG · StreetWalk
 
+> **Historical branch:** this is `prototype/ios-3d-diorama`. For the current application, English source comments, and integrated documentation, **[open main](https://github.com/patrick3432348016/HACK4SDG/tree/main)**. The guides below describe main unless explicitly labeled historical; this branch retains older application code and media.
+
 Hong Kong Inter-University GenAI Hackathon for SDGs 2026 — Track 2: **Sustainable Northern Metropolis**.
 
 Residents of newly occupied Northern Metropolis estates often pass one another on the same paths without getting to know each other. StreetWalk helps residents of all ages turn everyday walks into opportunities to meet: recognize familiar neighbors, pair phones in person, arrange a walk by voice, and find each other when it is time to meet. The interface includes support for older residents.
@@ -49,7 +51,7 @@ A free Apple developer account can be used; its installed development build norm
 - [x] Three-language UI, permission descriptions, and voice support are present in the source.
 - [x] The team reports reinstalling demo phones from main; record the installed commit for reproducibility.
 
-The promotional-video project was removed from this repository in `f8d63c9`; it is maintained locally and is not part of this checkout.
+The promotional-video project was removed from main in `f8d63c9`; it is maintained locally and is not part of this checkout.
 
 ## Documentation
 
@@ -59,6 +61,7 @@ The promotional-video project was removed from this repository in `f8d63c9`; it 
 - [Member A's historical progress and manual checklist](docs/PROGRESS_member_A.md).
 - [Backend schema, access rules, and tests](supabase/README.md).
 - [Voice server setup and integration](server/README.md).
+- [English translation scope and verification](docs/reviews/2026-10-19-english-translation.md) — preserves app languages and original evidence; records the existing Windows test failures.
 
 Historical documents retain their dates, findings, and unresolved items. For implementation, use current source and record the branch and commit.
 

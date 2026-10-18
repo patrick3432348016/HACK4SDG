@@ -1,88 +1,92 @@
-# 验证记录与交接验收
+# Historical validation record and handoff acceptance
 
-## 2026-10-12 Windows 全豆包增量
+> These are dated reports from member B's standalone delivery. Later entries supersede earlier statements only for the checks they explicitly describe. They are not independent validation of current StreetWalk or its deployed services.
 
-- Python 测试已扩展至 66 项并通过，包含模拟 ASR→业务检查→TTS 的 WebSocket 流程；实际 HTTP 业务 smoke 通过。
-- `node tools/test_capture.cjs`：合成 PCM 在 16/44.1/48 kHz 输入下的采样转换与连续分包通过。
-- `node tools/test_voice_ui.cjs`：打断后晚到音频丢弃、停止释放麦克风、授权返回晚于取消、本地设备检查不连接云端等状态测试通过。
-- 实际打开 Windows 页面，确认无密钥状态与本地拒答规则结果显示正确。
-- **没有实际调用豆包，也没有测量真实麦克风、老人粤语准确率、扬声器回声、粤语音色、连续对话稳定性或云端延迟。** 供应商返回均是测试夹具，不能当作真实能力证据。
-- Windows 新入口走全豆包模块化链路；iOS 源码仍是旧入口，不能称已完成 iPhone 实时迁移。详见 DOUBAO-WINDOWS.md。
+## 12 October 2026 — initial Windows Doubao increment
 
-以下保留此前的 iOS 与后端基线记录。
+- 66 Python tests passed, including a mock ASR → business checks → TTS WebSocket flow; real local HTTP business smoke passed.
+- test_capture.cjs passed synthetic PCM resampling/packetization at 16/44.1/48 kHz.
+- test_voice_ui.cjs passed stale-audio rejection after interruption, microphone release, permission arriving after cancellation, and local-only device checks.
+- The Windows page was opened to verify unconfigured status and local refusal display.
+- At this stage, **no real Doubao calls, microphone trials, older-speaker accuracy, speaker echo, voice quality, sustained conversation, or cloud latency had been measured**. Provider responses were fixtures.
+- The new Windows route used Doubao; iOS still used the old client and was not a completed real-time migration. See DOUBAO-WINDOWS.md.
 
-记录日期：2026-10-10（Asia/Shanghai）。运行环境：Windows、Python 3.12；当前无 Swift/Xcode，Docker 客户端存在但守护进程未启动。
+The following earlier baseline is retained for traceability.
 
-## 已实际验证
+## 10 October 2026 — iOS/backend baseline
 
-| 验证 | 结果 | 证明范围 |
+Environment: Windows, Python 3.12, no Swift/Xcode; Docker client present but daemon unavailable.
+
+| Check | Reported result | What it establishes |
 |---|---|---|
-| `python -m unittest discover -s tests -v` | 41项通过 | Python 业务流程、状态安全、API契约、供应商请求适配（模拟网络） |
-| `python -m compileall -q assistant` | 通过 | Python语法；不证明外部服务可用 |
-| `python tools/check_delivery.py` | 通过 | Xcode对象引用、包路径、plist、scheme结构；不证明Swift编译 |
-| 启动Uvicorn后执行 `tools/smoke.py` | 通过 | 实际HTTP文字约人→选地点→确认→重复确认，共用同一回执 |
+| python -m unittest discover -s tests -v | 41 passed | Business/state safety, API contracts, and provider request adaptation with mocked networking |
+| python -m compileall -q assistant | Passed | Python syntax only |
+| python tools/check_delivery.py | Passed | Xcode references, package paths, plist/scheme structure; not Swift compilation |
+| tools/smoke.py against Uvicorn | Passed | Actual local HTTP invitation → place selection → confirmation → duplicate confirmation using one receipt |
 
-测试覆盖：联系人同名消歧、已选联系人删除后不能替换成同名另一人、补充指令时保持联系人ID并重新校验、完整/部分/缺失月度记录的区分、缺时间/步行上限追问、过时地点与天气、客户端伪造身份被拒、跨用户草稿隔离、请求限流、错误不回显秘密、旧卡失效、取消/过期禁止提交、并发确认只有一次认领、进程中断后读取原回执、未知结果不重试写入、业务拒绝不显示成功、未配置语音不伪造转写、SSML转义、结构化输出校验。
+Coverage included duplicate-name disambiguation; refusing to replace a deleted contact with another same-name person; preserving/revalidating contact IDs during clarification; complete/partial/missing monthly data; missing time/walking-limit prompts; stale places/weather; forged identity rejection; cross-user draft isolation; rate limiting; secret-free errors; old-card invalidation; cancelled/expired draft rejection; one claim under concurrent confirmation; original-receipt recovery after interruption; no blind retry of uncertain writes; no false success on rejection; no canned transcription without configuration; SSML escaping; and structured-output validation.
 
-Starlette测试客户端给出一条 `httpx` 弃用提示，不影响41项测试通过。没有因此宣称其后续版本兼容；已记录并锁定当前依赖版本。
+The Starlette test client emitted an httpx deprecation warning without failing the 41 tests. This did not establish future-version compatibility; current dependencies were pinned.
 
-复查时已尝试现有 WSL Ubuntu：启动返回 `HCS_E_HYPERV_NOT_INSTALLED`，因此也无法用它取得 Swift 编译证据。未安装系统组件或修改虚拟化设置。iOS侧已补充取消后的结果检查，防止旧请求回来覆盖输入或开始播报；这部分仍需Mac编译及真机验收。
+An attempted existing WSL Ubuntu launch failed with HCS_E_HYPERV_NOT_INSTALLED, so it provided no Swift compilation evidence. No system components or virtualization settings were changed. iOS cancellation guards were added to prevent stale replies overwriting input or starting playback, but still required Mac/device checks.
 
-## 尚未验证，不能当作通过
+## Items not verified in that baseline
 
-| 项目 | 状态 | 执行者/所需条件 |
+| Item | Status | Required environment |
 |---|---|---|
-| Swift package 6项契约测试 | 未执行 | 朋友的Mac或GitHub macOS运行器 |
-| iOS联调App Debug/Release编译 | 未执行 | Xcode或GitHub macOS运行器 |
-| iPhone安装、真实录音、系统播报 | 未执行 | 签名及实际iPhone |
-| Azure识别与播报、Qwen真实理解 | 按用户要求暂缓 | 开通API后执行 |
-| A主App与真实业务接口 | 由朋友接入，尚未验证 | 见INTEGRATION.md四个业务端点 |
-| Docker构建与公网部署 | 未执行 | 运行中的Docker、TLS代理和部署账号 |
+| Six Swift contract tests | Not run | Mac or GitHub macOS runner |
+| iOS Debug/Release builds | Not run | Xcode/macOS runner |
+| iPhone installation, recording, system speech | Not run | Signing and physical iPhone |
+| Real Azure recognition/synthesis and Qwen understanding | Deferred by user | Authorized configured APIs |
+| A's app and real business API | Teammate integration pending | Four endpoints in INTEGRATION.md |
+| Docker build/public deployment | Not run | Docker daemon, TLS proxy, deployment account |
 
-因此本次交付的状态是：**模块代码和后端测试就绪，尚不能声称已上线验收。**
+The delivery was **module code with backend checks, not production acceptance**.
 
-## 朋友在Mac上的验收顺序
+## Mac handoff order
 
-1. 按README安装依赖，执行41项后端测试（可直接运行 `python tools/verify_backend.py` 完成后端综合验证）。
-2. 执行 `swift test --package-path ios`，再执行Debug和Release的两条xcodebuild命令。
-3. 安装到iPhone；填写同一Wi-Fi下电脑地址，检查测试模式和API未配置提示。
-4. 执行全部7个文字示例，并验证每一次写操作均需要确认。
-5. 按下面表格记录结果。失败时保留Xcode错误或服务返回的request_id，日志中不要贴token或真实语音。
+1. Install dependencies and rerun the backend checks, or use python tools/verify_backend.py. Historical test counts may differ from current code.
+2. Run swift test --package-path ios and both Debug/Release xcodebuild commands.
+3. Install on iPhone, enter the computer's same-Wi-Fi address, and check demo/unconfigured labels.
+4. Exercise all supplied text examples and confirm that every write requires approval. The earlier handoff called these seven examples; use the actual current example list.
+5. Record results below. Preserve Xcode errors/request_id, excluding tokens and real audio from shared logs.
 
-## 真机测试表
+## Physical-device checklist
 
-| 场景 | 应有结果 | 实测 |
+All entries below were pending in the original checklist.
+
+| Scenario | Expected behavior | Original result |
 |---|---|---|
-| 首次拒绝麦克风 | 明确提示，可继续文字输入 | 待测 |
-| 录音不足0.2秒、超过30秒 | 拒绝过短；30秒自动停止 | 待测 |
-| 放弃录音/来电/切后台 | 不提交被放弃录音；UI恢复可用 | 待测 |
-| 无API时录音 | 明确未配置；没有“识别成功”的预设句子 | 待测 |
-| 系统粤语/普通话播报 | 播报正确语言；缺音色时明确提示 | 待测 |
-| 接入API后人名识别错误 | 可编辑转写再发送，不自动执行 | 待测 |
-| 选择地点并确认 | 显示真实业务回执或明确测试结果 | 待测 |
-| 连点确认、断网、杀进程后重开 | 不重复写；恢复原操作并查询 | 待测 |
-| 确认后服务端已完成但手机超时 | 查询同一操作后恢复完成状态 | 待测 |
-| 令牌过期后更新令牌 | 使用同一账号标识恢复待查询操作 | 待测 |
-| 切换登录用户 | 不加载另一用户的待查询操作 | 待测 |
-| Release连接HTTP | 客户端拒绝；HTTPS正常连接 | 待测 |
-| VoiceOver和大字体 | 所有主操作可读、可点击，确认内容不截断 | 待测 |
+| First microphone denial | Clear explanation; text input remains usable | Pending |
+| Recording under 0.2 s or over 30 s | Reject too short; automatically stop at 30 s | Pending |
+| Abandon recording/call/background | No abandoned upload; usable recovered UI | Pending |
+| Recording without API configuration | Explicit unconfigured state; no fake recognized sentence | Pending |
+| Cantonese/Mandarin system speech | Correct language or clear missing-voice explanation | Pending |
+| Wrong recognized name with API enabled | Editable transcript before submission; no automatic action | Pending |
+| Select place and confirm | Actual receipt or explicitly labeled test result | Pending |
+| Repeated taps/network loss/process restart | No duplicate write; restore/query original operation | Pending |
+| Server completed but phone timed out | Reconcile the same operation and restore completion | Pending |
+| Refresh an expired token | Recover pending operation under the same account identity | Pending |
+| Switch users | Never load another user's pending operation | Pending |
+| Release over HTTP | Reject HTTP; allow valid HTTPS | Pending |
+| VoiceOver/large text | Main controls accessible; confirmation content untruncated | Pending |
 
-API开通后的评估集要分粤语/普通话，包含不同说话者、语速、噪声、混合人名及修正句。报告实际意图正确率、联系人/时间字段正确率、完成率和延迟分位数；当前没有这些实测数字。
+Provider-enabled evaluation must separate Cantonese/Mandarin and include multiple speakers, speeds, noise conditions, mixed names, and corrections. Report intent/field accuracy, completion, and latency percentiles. This baseline had none of those measured results.
 
-### 2026-10-12：识别后回复延迟及误打断修复
+## 12 October — response latency and false interruption fix
 
-- 使用用户授权的真实云端接口，将合成的“你好，你可以幫我做啲乜？”按 200 ms PCM 包输入本机服务；未使用麦克风，音频仅留在内存。
-- 修复前单次样本：最终识别到文字理解结果 19.218 秒，到首段合成音频约 20.50 秒。
-- 显式设置 Chat API `thinking.type=disabled`，同时移除客户端仅凭音量阈值取消回答的逻辑；保留 ASR 新内容与手动打断。
-- 修复后同句单次样本：文字理解 2.266 秒，最终识别到首段合成音频约 3.33 秒，收到 31 段音频并完成 `answer_done`。不是延迟分位数或真人可用性验收。
-- 豆包模块 20 项测试与前端状态测试通过；新增验证噪声 onset 不会取消待回复请求。
-- 重现工具：`python tools/check_voice_roundtrip.py`，需先授权云端用量并保存本机配置。测试脚本使用 Python 3.12 的 audioop，不适用于移除了 audioop 的 Python 3.13。
-- 真人收音、外放回声、实际粤语口音与中途插话仍待设备实测。
+- With authorized real provider access, synthesized Cantonese asking what the assistant can do was streamed in 200-ms PCM chunks. No microphone was used; audio stayed in memory.
+- Before the fix, one sample took 19.218 s from final recognition to interpretation and about 20.50 s to first audio.
+- Set Chat API thinking.type=disabled and removed volume-threshold-only cancellation, retaining ASR-content/manual interruption.
+- After the fix, the same single sample took 2.266 s to interpretation and about 3.33 s to first audio; 31 chunks arrived and answer_done completed. These are not percentiles or human usability results.
+- Twenty Doubao-module tests and frontend state checks passed, including noise-onset preservation of pending replies.
+- Reproduction: python tools/check_voice_roundtrip.py, with provider authorization and saved local configuration. It uses Python 3.12 audioop and is incompatible with Python 3.13's removal of that module.
+- Real microphones, speaker echo, accents, and interruption remained pending.
 
-### 2026-10-12：香港北区天气接入
+## 12 October — North District weather integration
 
-- 公共接口实测已收到天文台测站气温、北区雨量、全港预报及警告摘要；语音回答区分观测地点和预报范围。
-- 全部 79 项后端测试、结构检查、HTTP smoke、前端状态及 PCM 测试通过。新增天气测试覆盖日期、地域、新鲜度、取消/到期警告、网络和格式异常；没有用离线样本冒充实况。
-- 真实合成问句“北區今日天氣點呀？”经 ASR → 方舟 → 天文台 → TTS，返回带 weather 字段的回答和 67 段音频，完成 answer_done。单次文字结果 4.485 秒，最终识别至首段音频约 5.70 秒；这是合成输入单次测试，非老人真人或延迟分位数验收。
-- 用户在本次接入前反馈原语音对话“通了”；本次天气体验仍需用户用实际麦克风试用。
-- 当前 Windows 服务已加载该功能；保存的凭证只在服务内存中恢复，源码和交付包均不包含凭证。
+- Live public endpoints returned station temperatures, North District rainfall, Hong Kong-wide forecasts, and warning summaries. Responses distinguished observation location from forecast coverage.
+- All 79 backend tests, structure checks, HTTP smoke, UI-state, and PCM checks passed. Weather tests covered dates, regions, freshness, cancelled/expired warnings, networking, and malformed data.
+- One synthesized Cantonese North District weather question completed ASR → Ark → Observatory → TTS with a weather field, 67 audio chunks, and answer_done. Text result: 4.485 s; final recognition to first audio: about 5.70 s. This was one synthetic-input trial, not older-user validation or a latency distribution.
+- Before weather integration, the user reported that the original voice conversation connected. Actual microphone weather use still required trial.
+- The then-running Windows service had the feature loaded. That version restored credentials only in service memory and its original delivery package contained no credentials. Later private-package decisions differ; consult the current configuration guide.

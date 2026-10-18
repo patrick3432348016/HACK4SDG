@@ -1,107 +1,96 @@
-# 成员 A 进度（更新于 2026-10-10）
+# Member A Progress — Historical Snapshot, 2026-10-10
 
-分支：`prototype/ios-3d-diorama`。这份文档用来让组员知道：App 现在做到哪、哪些是真的、哪些是模拟，还缺什么。
+> This is a historical team status report, not current acceptance evidence. Several pending items below were subsequently implemented. Consult the [current README](../README.md), current code and dated validation records. The original branch note was updated on 2026-10-16 to refer to `main` (previously `prototype/ios-3d-diorama`); this does not mean GitHub's default-branch setting changed.
 
-## 一句话现状
+## Status at the time
 
-App 可以完整跑一遍演示，主要功能都有，演示视频也录好了（没有声音）。一大批审核后的修改已经写好，但还没装进 App（在 `wip/member-a-fixes/`）。声音升级、灵动岛横幅动画、普通话和英语版还没做。
+The App could run a complete demonstration and a silent demo video had been recorded. Many review fixes were prepared in `wip/member-a-fixes/` but not yet integrated. Voice improvements, Dynamic Island banner animation, Mandarin and English remained pending in this snapshot.
 
-## 一、App 里已经能用的功能
+## Implemented in that snapshot
 
-1. **首次使用**：说明谁能看到什么 → 点自己住的楼 → 选楼层 → 选小人。
-2. **3D 小模型**：用附近真实地图砌出屋企周围 200 米，白色纸雕风格，影子跟真实太阳走。
-3. **今日页**：今日行了几分钟、连续几日、AI 写的一句、请假。
-4. **碰一碰加街坊**（另一部手机是模拟的）：成为街坊后问一次要不要开出门提醒。
-5. **街坊出门提醒**：顶部横幅，只讲地标，不显示坐标。
-6. **出门自动记录散步**：路线、经过的地方。
-7. **过去找街坊**：先问对方方不方便 → 大箭头和距离 → 「見到喇」。
-8. **约人**：App 推荐时间、地点和理由（有冇楼遮、有冇櫈）；可以换时间、换地方、改约、取消；约会前 30 分钟提醒；过时自动收起。
-9. **讲一句就做事**：约人、请假、改地标名、反映「呢度好曬 / 冇櫈」；影响别人的事先复述，按「好」才执行。
-10. **香港天文台实时天气**：打风、暴雨时建议唔好出门。
-11. **反映与月报**：反映挂在地标上，屋邨管理回覆会通知你；月报只出 10 人以上的汇总。
-12. **排行榜**：连续天数排名、圈对圈步数比拼。
-13. **街坊页**：两个提醒开关（佢出门话我知 / 我出门话佢知）、「唔再做街坊」（对方不会收到通知）。
-14. **设置页**（左上角齿轮）：改楼、楼层、小人、提醒时段、演示模式、清除纪录。
-15. **重启后资料保留**：街坊、约会、改过的地标名、散步纪录。
-16. **其他**：深色模式、大字号、App 图标、演示视频（`docs/demo/streetwalk_demo.mp4`）、19 个自动测试。
+1. Onboarding explained visibility, then selected home building, floor and avatar.
+2. A white paper-style 3D model used nearby map data around a 200 m home area with solar shadows.
+3. Today showed walking minutes, streak, a generated sentence and leave controls.
+4. Simulated bump pairing asked once whether to enable outing alerts.
+5. Outing banners shared a landmark rather than coordinates.
+6. Automatic walking recorded the route and places passed.
+7. Finding asked permission, then showed an arrow, distance and meeting confirmation.
+8. Invitations suggested time/place with shade and seating reasons; supported alternatives, edits, cancellation, a 30-minute reminder and expiry.
+9. Voice commands covered invitations, leave, landmark names and reports about heat or missing seating. Actions affecting others required recap and confirmation.
+10. Live HKO weather supported typhoon / heavy-rain advice.
+11. Landmark reports and management replies fed monthly aggregates with a minimum threshold of 10 people in the original design.
+12. Leaderboards showed streaks and circle step comparisons.
+13. Neighbors had separate sending/receiving alert switches and silent relationship removal.
+14. Settings changed home, floor, avatar, alert hours, demo mode and local records.
+15. Relationships, meetings, renamed landmarks and walking records survived restart.
+16. Dark mode, large text, App icon, [demo video](demo/streetwalk_demo.mp4) and 19 automated tests were reported.
 
-哪些是真的、哪些是模拟，逐项说明在 [prototype_status.md](prototype_status.md)。
+The historical [prototype status](prototype_status.md) distinguishes implemented and simulated behavior. Anonymous account counts must not be presented as verified unique residents.
 
-## 二、已经改好、还没装进 App
+## Prepared but not yet integrated at the time
 
-2026-10-08 做了一次全面审核，确认 90 个问题，清单和每条的状态见 [audit/member_a_audit_2026-10-08.md](audit/member_a_audit_2026-10-08.md)。
+The 2026-10-08 review confirmed 90 findings; see the [audit and item statuses](audit/member_a_audit_2026-10-08.md).
 
-- 已经直接修在主版本里的：晚上 7 点后打开会闪退；后端草案的权限规则漏洞。
-- 其余大部分已经分四批改好，放在 [wip/member-a-fixes](../wip/member-a-fixes/README.md)，等合并：
-  - **语音与社交**：做完。
-  - **散步与数据**：差最后一轮修改。
-  - **地图与场景**：差最后一轮修改。
-  - **界面与无障碍**：差复核。
+- Already fixed directly: a crash after 19:00 and authorization gaps in the backend draft.
+- Four batches in [member-a-fixes](../wip/member-a-fixes/README.md): voice/social complete; walking/data and map/scene awaiting a final pass; UI/accessibility awaiting verification.
 
-## 三、还没做的
+## Pending at the time
 
-1. **灵动岛横幅动画**：横幅从灵动岛"长"出来、缩回去，平时在灵动岛两边显示「行緊 12 分」「35 米」这类状态。
-2. **声音升级**（调研见 [research/tts_voices.md](research/tts_voices.md)）：
-   - 第一档：声音总开关、粤语 / 普通话 / English 切换、选声音并试听、语速三档、教用户下载 iPhone 高品质声音。
-   - 第二档：用 Google Chirp 3 HD 把演示句子预先录好装进 App，并给演示视频配声音。等成员 A 提供 Google 密钥。
-3. **普通话版、英语版**的界面文字和语音提示。
-4. 审核清单里标「未做」的几条：普通话支持、几处文档和注释过时、死代码清理。
+1. Dynamic Island banners expanding from the island, with walking minutes and finding distance beside it.
+2. Voice improvements, researched in [tts_voices.md](research/tts_voices.md): first, master switch, three languages, voice preview, three speeds and instructions for downloading enhanced iPhone voices; second, proposed Google Chirp 3 HD prerecorded demo lines, awaiting credentials.
+3. Mandarin and English interface and spoken prompts.
+4. Remaining audit items: Mandarin support, stale documentation/comments and dead-code cleanup.
 
-## 四、已知 bug（主版本里还在的）
+## Known bugs recorded at the time
 
-- 同一份演示资料过了一日再打开，会显示「連續 0 日」（示範纪录只在第一次启动时生成）。临时办法：用 `-resetData` 参数重新打开。
-- 模拟器里按橙色的咪可能会闪退。这是模拟器借用 Mac 麦克风超时，不是 App 代码的问题，真 iPhone 要另外测。
-- 界面偶尔不跟着更新（横幅收不起、切页后内容没变）：已经修过两轮，彻底的修法在 ui 批次里。
-- 其余见审核清单里标「未合并」的条目。
+- Reopening demo data the next day could show a zero-day streak because sample records were seeded only once. Workaround: `-resetData`.
+- The orange microphone could crash in the simulator. The team attributed this to a timeout accessing the Mac microphone; real-iPhone testing was still required. This attribution was not a general proof that App code could never be involved.
+- UI updates sometimes stalled, leaving banners or old page content. Two fixes had been attempted; the fuller fix was in the UI batch.
+- Other open integration issues remained in the audit.
 
-## 五、需要组员 B 处理的
+## Requests to member B at the time
 
-- **确认接口改动**（`Domain/Contracts.swift`）：
-  - 语音意图加了「改约」「取消约」；
-  - 月报接口加了统计数字参数；
-  - `NeighborRegistry` 标为只在主线程调用。
-- **`AI/TemplateAI.swift` 的模板文案**：
-  - "天文台話下晝會落大雨"不是真的天文台说的；
-  - 早上 10 点还建议"夜晚 6 點後"再出门，读起来怪。
-- **真正的 AI 模型**：评分里 GenAI 占 20%，现在全部是模板。接 `AIService` 协议就能替换。
-- **真正的碰一碰**：Nearby Interaction 加 MultipeerConnectivity，接 `BumpService`。
-- **`Voice/Speech.swift`**：
-  - 改成可以按语言、按声音播报（声音升级要用）；
-  - 公开"正在讲吗 / 停止"，现在 A 侧只能变通地读它的内部状态。
+- Confirm `Domain/Contracts.swift` changes: reschedule/cancel intents, monthly-report statistics and MainActor-only `NeighborRegistry`.
+- Correct TemplateAI wording that falsely attributed a fixed afternoon-rain sentence to HKO or suggested waiting until after 18:00 even at 10:00.
+- Replace template-only understanding through `AIService` with an appropriate real model. The official technical category weighs 20% and asks for effective GenAI use; it is not a separate 20% award merely for using a model. Current integration has progressed beyond this historical gap.
+- Connect real Nearby Interaction / MultipeerConnectivity pairing through `BumpService`.
+- Extend `Voice/Speech.swift` with language/voice selection and public speaking/stop controls instead of indirect internal-state access.
 
-## 六、怎样运行和测试
+## Running the historical demo
 
-需要 Xcode 26.6 和 iOS 26.5 模拟器。
+The original environment required Xcode 26.6 and an iOS 26.5 simulator.
 
 ```sh
 cd ios
-./tools/run.sh -demo -skipOnboarding -resetData   # 用干净的演示资料打开
-./tools/run.sh -demo -resetOnboarding             # 从首次使用开始
-./tools/run.sh -demo -skipOnboarding -script -captions   # 自动演示（约 100 秒，带字幕）
-./tools/test.sh                                    # 自动测试
+./tools/run.sh -demo -skipOnboarding -resetData        # Clean demo data
+./tools/run.sh -demo -resetOnboarding                 # Start onboarding
+./tools/run.sh -demo -skipOnboarding -script -captions # About 100 seconds, with subtitles
+./tools/test.sh                                      # Automated tests
 ```
 
-右上角「演示」菜单用来模拟别人的动作（陳太出門、陳太約你、屋邨管理回覆等）。逐项手动验证的清单，见本文件第七节。
+The top-right Demo menu simulates other residents' outings, invitations and management replies.
 
-## 七、手动验证清单
+## Historical manual checklist
 
-| # | 怎样做 | 应该看到 |
+These are expected results, not a new record of passing tests. Labels below are English descriptions of the original localized UI.
+
+| # | Action | Expected result |
 |---|---|---|
-| 1 | 用 `-resetOnboarding` 打开，走完首次使用 | 说明 → 点橙色的楼 → 选楼层 → 选小人 → 主界面，楼宇"升起" |
-| 2 | 看今日页 | 3D 模型；「今日行咗 24 分鐘 · 連續 9 日」和「示範」小标签 |
-| 3 | 排行榜 | 其他人只显示楼层没有名字，最底固定显示你那行 |
-| 4 | 街坊 → 碰一碰加街坊 | 约 2 秒后「你同 8 樓陳太而家係街坊」，问开唔开提醒 |
-| 5 | 演示 → 陳太出門 | 顶部横幅；3D 模型出现陈太 |
-| 6 | 演示 → 出門 | 左上「行緊 N 分鐘」，小人沿路走，画出橙色路线 |
-| 7 | 散步中按「過去搵佢」→「去」 | 全屏路线，近了出现大箭头和米数，最后「見到喇！」 |
-| 8 | 今日页「約佢」→ 換個時間 / 換個地方 →「好」 | 约 4 秒后「陳太應承咗」 |
-| 9 | 约会卡上「改時間地點」「取消約會」 | 改了变「等緊確認」；取消前先问确定吗 |
-| 10 | 演示 → 陳太約你 → 街坊页 | 「約你嘅」卡片，有好 / 換個時間 / 唔去 |
-| 11 | 今日页天气卡；演示 → 酷熱、落雨 | 「天文台話…而家 X 度」；横幅换成对应提示 |
-| 12 | 演示 → 時間…，左右拖 | 影子跟着动，拖到晚上变暗，不闪退 |
-| 13 | 散步中按「好曬」→ 演示 → 屋邨管理回覆反映 | 地图出现小标记；横幅说明回覆 |
-| 14 | 演示 → 月尾報告 | 「皇后山邨 · 本月散步報告」 |
-| 15 | 街坊页：两个提醒开关、「唔再做街坊」 | 先问确定；陈太从名单和地图消失 |
-| 16 | 左上齿轮 | 改楼层、小人有效；关「演示模式」后陈太等人消失 |
-| 17 | 关掉 App 再用 `-demo -skipOnboarding` 打开 | 街坊、约会、改过的地标名还在 |
-| 18 | 模拟器菜单 Features → Toggle Appearance | 整个 App 和 3D 模型变深色 |
+| 1 | Launch with `-resetOnboarding` and complete setup | Explanation, orange building, floor, avatar, then main screen with rising buildings |
+| 2 | Inspect Today | 3D model, 24 walking minutes, 9-day streak and Demo label |
+| 3 | Open leaderboard | At that time, others showed floors without names; my row remained fixed at the bottom |
+| 4 | Neighbors → bump pairing | Simulated pairing after about 2 seconds, followed by the alert question |
+| 5 | Demo → Mrs Chan goes out | Banner and Mrs Chan in the scene |
+| 6 | Demo → go out | Elapsed minutes, moving avatar and orange route |
+| 7 | While walking, choose Find her → Go | Full-screen route, near-distance arrow, then meeting confirmation |
+| 8 | Invite, change time/place, confirm | Simulated acceptance after about 4 seconds |
+| 9 | Edit or cancel a meeting | Edits await confirmation; cancellation asks first |
+| 10 | Demo → Mrs Chan invites you, then Neighbors | Incoming card with accept, change time and decline |
+| 11 | Inspect weather; select heat/rain demos | Weather text and corresponding banner; simulated weather must be labeled |
+| 12 | Drag the demo time slider | Moving shadows, darkness at night, no crash |
+| 13 | Report heat while walking; simulate management reply | Map marker and reply banner |
+| 14 | Demo → monthly report | Queen's Hill Estate monthly walking report |
+| 15 | Toggle alerts and remove neighbor | Confirmation followed by removal from list and map |
+| 16 | Open Settings | Floor/avatar edits work; disabling demo removes simulated residents |
+| 17 | Relaunch with `-demo -skipOnboarding` | Relationships, meetings and renamed landmarks persist |
+| 18 | Simulator Features → Toggle Appearance | App and scene switch to dark mode |

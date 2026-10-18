@@ -1,33 +1,35 @@
-# 成员 B：出行语音助手
+# Member B — Mobility voice assistant
 
-可独立交付给原生 iPhone App 的功能模块：**Swift 包 + SwiftUI 联调 App + Python/FastAPI 服务**。不包含碰一碰，不重建成员 A 的界面、账号系统或数据库。
+> Historical standalone delivery. This document preserves its original scope, paths, and validation boundaries. The integrated StreetWalk app now uses Doubao; see [the current server guide](../README.md). Do not follow the old package-upload instructions to replace the integrated repository.
 
-**当前交付是可运行的后端及待 Mac 编译验收的 iOS 源码，不是已验证上线的 App。** 用户明确暂缓真实 API 验证；尚未验证 Azure/Qwen 的真实效果、iPhone 麦克风行为或生产业务接口。生产模式在配置不全时拒绝启动，不能把测试数据发布成真实服务。
+A module for a native iPhone app: **Swift package + SwiftUI integration shell + Python/FastAPI service**. It excludes proximity pairing and does not recreate member A's UI, accounts, or database.
 
-## 交付内容
+The original delivery was a runnable backend and iOS source awaiting Mac compilation/acceptance, **not a verified production app**. The user had deferred real API validation. Azure/Qwen quality, iPhone microphone behavior, and production business endpoints were unverified. Production mode refuses incomplete configuration so demo data cannot silently become a real service.
 
-| 目录 | 用途 |
+## Original delivery layout
+
+| Path | Purpose |
 |---|---|
-| `backend/` | 语音及模型适配器、业务流程、确认状态、部署配置、自动测试 |
-| `ios/` | 可直接导入 Xcode 的 `MobilityAssistant` Swift 包，最低 iOS 17 |
-| `ios/Demo/VoiceAssistantDemo.xcodeproj` | 独立 iPhone 联调壳，不依赖 A 的工程 |
-| `docs/INTEGRATION.md` | 给 A 的接入步骤和业务接口契约 |
-| `docs/DEPLOYMENT.md` | API 配置、生产部署、数据保留和上线门槛 |
-| `docs/VALIDATION.md` | 已验证项、未验证项与真机验收表 |
-| `.github/workflows/assistant.yml` | Linux 后端测试、Mac Swift 测试和 iOS Debug/Release 编译 |
+| `backend/` | Speech/model adapters, business flows, confirmation state, deployment configuration, and tests |
+| `ios/` | Importable MobilityAssistant Swift package, minimum iOS 17 |
+| `ios/Demo/VoiceAssistantDemo.xcodeproj` | Independent iPhone integration shell |
+| `docs/INTEGRATION.md` | A's integration steps and business contract |
+| `docs/DEPLOYMENT.md` | API configuration, deployment, retention, and release gates |
+| `docs/VALIDATION.md` | Verified/unverified items and device acceptance |
+| `.github/workflows/assistant.yml` | Linux backend tests, Mac Swift tests, and iOS Debug/Release builds |
 
-把本目录**里面的全部内容**上传到 GitHub 仓库根目录，包括 `.github`。不需要上传外层碰一碰工程，也不需要上传 `.env`、`data/` 或真实录音。CI 会在 GitHub 的 Mac 运行器验证 iOS 编译；CI 成功也不能替代 iPhone 真机验收。
+The original handoff required the package's complete contents, including .github, at a repository root, excluding the outer pairing project, .env, data/, and real recordings. That was a standalone-delivery instruction; this imported directory uses a different layout. Passing Mac CI does not replace iPhone acceptance.
 
-## 不配置 API 也能验证什么
+## What can be checked without provider configuration
 
-- 文字约人 → 明确联系人/日期/时间/步行上限 → 集合点选择 → 核对确认 → 保存**测试操作**。
-- 文字请假和改名，均需要显式确认；取消不会产生业务写入。
-- 生成今日一句、地标昵称候选、月报；示例统计和地点均明确标注虚构。
-- 天气数据缺失时如实提示，不编造天气。
-- 实际录音权限和采集（需 iPhone 验证）；没有 API 时返回“未配置”，**不会把录音替换成预设识别文本**。
-- 手机已安装相应音色时，可使用系统语音真实播报；界面明确说明未使用云端播报。
+- Text invitation → explicit person/date/time/walking limit → meeting-place selection → confirmation → saved **test action**.
+- Text leave and nickname changes require explicit confirmation; cancellation performs no business write.
+- Daily sentence, landmark-name candidates, and monthly reports use clearly labeled fictional statistics/places.
+- Missing weather is acknowledged rather than invented.
+- Recording permission/capture requires iPhone testing. Unconfigured transcription returns a configuration error; it does not substitute a canned transcript.
+- Installed system voices can speak locally; the UI identifies that cloud synthesis is not being used.
 
-没有 API 时，文字解析是有限规则，用于验证联调流程，不代表真实 AI 理解能力。测试语句示例：
+Without provider keys, text interpretation is limited rules for integration testing, not evidence of model understanding. These original Cantonese/Mandarin fixtures are intentionally preserved:
 
 ```text
 约陈伯明天下午四点散步，遮荫优先，最多15分钟
@@ -40,10 +42,11 @@
 生成月报
 ```
 
-## 朋友在 Mac 上最快跑通
+They cover inviting Mr Chan tomorrow at 4 pm with shade preference and a 15-minute limit, leave tomorrow, nickname change, walking advice, naming the community garden, a daily sentence, and a monthly report.
 
-1. 安装 Python 3.12 和可支持测试手机系统的 Xcode。进入 `backend`，运行：
+## Quick integration on a Mac
 
+1. Install Python 3.12 and Xcode supporting the test phone's OS. From the original backend directory:
    ```sh
    python3.12 -m venv .venv
    source .venv/bin/activate
@@ -51,32 +54,30 @@
    python -m unittest discover -s tests -v
    python -m uvicorn assistant.app:create_app --factory --host 0.0.0.0 --port 8000 --no-access-log
    ```
+   This is for a trusted LAN. The default mode is demo with token local-demo-only; do not expose that default publicly. On Windows, use python -m venv .venv and .venv\Scripts\Activate.ps1.
+2. Open ios/Demo/VoiceAssistantDemo.xcodeproj, select your signing Team and a unique bundle identifier if needed, choose the iPhone, and run.
+3. Use the same Wi-Fi. Enter the computer's LAN URL, such as http://192.168.1.20:8000, and the demo token. **localhost is not the computer from a physical phone**; it works in the simulator.
+4. Keep account ID demo-user, connect, choose a text example, select the place, and confirm.
+5. Test microphone denial/approval, the 30-second limit, abandoned recording, backgrounding, and Cantonese/Mandarin system speech.
 
-   本步骤只用于可信局域网的联调。默认模式 `demo`，令牌 `local-demo-only`。不要把默认令牌服务直接暴露到公网。Windows 上可用 `python -m venv .venv` 和 `.venv\Scripts\Activate.ps1`。
+The integration shell permits HTTP in Debug, **not Release**. Do not copy Debug ATS exceptions into A's production app. Transcription first fills an editable text field; it does not automatically execute a command.
 
-2. 双击 `ios/Demo/VoiceAssistantDemo.xcodeproj`。在 Signing & Capabilities 选择自己的 Team；必要时修改 Bundle Identifier。选择 iPhone，点击 Run。
-3. 手机与电脑连接同一 Wi-Fi。App 服务地址填写 `http://电脑局域网IP:8000`（例如 `http://192.168.1.20:8000`），令牌填 `local-demo-only`。**真机不能填 localhost**；模拟器可使用 `http://localhost:8000`。
-4. 账号标识保持 `demo-user`，点击连接，选择文字示例，完成地点选择和确认。
-5. 测试麦克风拒绝/允许、30秒上限、放弃录音、切后台，以及系统粤语和普通话播报。
+## Engineering checks
 
-Debug 联调壳允许 HTTP，**Release 不允许**。A 的正式 App 不应复制 Debug 的 ATS 放宽配置。录音转写后先填入文本框供用户校对，不自动执行指令。
-
-## 工程验证命令
-
-一条命令完成后端测试、结构检查及临时服务的真实 HTTP 冒烟，不使用已有 API 密钥，不污染联调数据库：
+This command runs backend tests, structure checks, and a real HTTP smoke test against a temporary service without using existing provider credentials or changing the integration database:
 
 ```sh
 python tools/verify_backend.py
 ```
 
-在本目录运行结构检查和真实 HTTP 冒烟（后端需已启动）：
+For separate structure and smoke checks, with the backend running:
 
 ```sh
 python tools/check_delivery.py
 python tools/smoke.py --url http://127.0.0.1:8000
 ```
 
-在 Mac 上运行：
+On Mac:
 
 ```sh
 swift test --package-path ios
@@ -84,22 +85,22 @@ xcodebuild -project ios/Demo/VoiceAssistantDemo.xcodeproj -scheme VoiceAssistant
 xcodebuild -project ios/Demo/VoiceAssistantDemo.xcodeproj -scheme VoiceAssistantDemo -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ```
 
-## 产品边界
+## Product boundaries
 
-- “约人成功”分成**邀请已发送**和**对方已接受**；B 只负责前者，不能凭一次调用显示双方约会已成立。
-- 只比较**集合点**遮荫和双方步行时间，不宣称路线遮荫、减排、健康收益或医学安全。
-- 推荐规则：过滤非明确开放、步行数据不全或超过用户上限的地点；要求遮荫时过滤无有效遮荫数据的地点，按遮荫比例降序，再按双方较长步行时间升序。未要求遮荫时先最小化双方较长步行时间。无随机评分或未验证权重。
-- 遮荫数据需来源和覆盖指定时刻的有效区间；天气采用有来源且不超过两小时的数据。A 必须提供适用于请求时刻的开放及步行信息。
-- 月报默认上一个完整自然月，以香港时区划分；A 需声明活动记录覆盖区间，缺失/部分数据不会被当成零活动。所有次数、分钟和米数由程序计算，模型不能改写数字。
-- 地标昵称只是候选，不自动改名真实地图地点。请假/昵称写入由 A 的业务后端执行。
-- 确认卡10分钟有效。修改请求使旧卡失效；并发重复确认只有一次写调用；超时后只查询原操作，不盲目重试。
+- **Invitation sent** and **recipient accepted** are separate outcomes. B handles sending and cannot infer mutual acceptance from one call.
+- Compare meeting-point shade and both walking times only. Do not claim route-wide shade, emissions reduction, health benefits, or medical safety.
+- Filter places that are not explicitly open, lack walking data, or exceed the limit. With shade requested, require valid shade data, sort by shade descending, then by the greater walking time ascending. Otherwise minimize the greater walking time first. No random scores or unverified weights.
+- Shade requires provenance and a validity interval covering the requested time. Weather requires a source and age under two hours. A supplies opening/walking data valid for the request.
+- Monthly reports default to the previous complete Hong Kong calendar month. A declares activity coverage; missing/partial data is not zero activity. Code computes counts, minutes, and metres; the model cannot rewrite them.
+- Landmark nicknames are candidates, not automatic live-map changes. A's backend performs leave/nickname writes.
+- Confirmation cards expire after ten minutes. Editing invalidates the old card. Concurrent duplicate confirmation makes one write call. After timeout, reconcile the original operation rather than blindly retrying.
 
-## 官方参考
+## Original references
 
-- [Azure 短音频识别接口](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-speech-to-text-short)
-- [Azure 播报接口](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech)
-- [Azure 语言支持](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/language-support)
-- [Qwen 结构化输出](https://help.aliyun.com/en/model-studio/qwen-structured-output)
+- [Azure short-audio recognition](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-speech-to-text-short)
+- [Azure speech synthesis](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech)
+- [Azure language support](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/language-support)
+- [Qwen structured output](https://help.aliyun.com/en/model-studio/qwen-structured-output)
 - [Apple AVAudioRecorder](https://developer.apple.com/documentation/avfaudio/avaudiorecorder)
 
-本实现采用按键结束后上传短录音的方式，不依赖持续实时对话；音频上限30秒，低于短音频 REST 的60秒限制。
+This original client uploads a short recording after the user stops it, rather than continuous conversation. Its 30-second cap is below the short-audio REST limit cited by that delivery.

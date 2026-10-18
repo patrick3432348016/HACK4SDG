@@ -1,116 +1,117 @@
-# 成员 A 全面审核：问题清单与处理状态
+# Member A Audit: Findings and Historical Resolution Status
 
-审核日期：2026-10-08。7 个角度审核成员 A 负责的全部代码，共报 196 条，去重后 104 条，再逐条找人反驳验证，确认属实 90 条（下表），另有 14 条被反驳掉。
+Audit date: **2026-10-08**. Seven review perspectives produced 196 reports, deduplicated to 104; challenge review accepted 90 and rejected 14. These are the team's historical review records, not a fresh independent verification of the current build.
 
-- 「已合并」= 四批修改已于 2026-10-10 合并进主版本（分支 `prototype/ios-3d-diorama`），见 [wip/member-a-fixes/README.md](../../wip/member-a-fixes/README.md)。
-- 每条问题的详细证据、出错位置和修法在 [member_a_audit_2026-10-08.json](member_a_audit_2026-10-08.json)。
+“Merged” refers to four batches integrated on 2026-10-10 into `prototype/ios-3d-diorama`; see [patch archive](../../wip/member-a-fixes/README.md). Detailed original evidence, locations and proposed fixes remain in the [unaltered source audit JSON](member_a_audit_2026-10-08.json). That archival evidence retains original-language quotations; the complete finding/status index below is English. Later code may supersede pending or rejected conclusions, especially language support and live-location privacy. Translation alone does not close findings.
 
-| 编号 | 问题 | 严重程度 | 归哪一批修 | 状态 |
+| ID | Finding | Severity | Batch | Historical status |
 |---|---|---|---|---|
-| A01 | 晚上 7 点后启动或回到前台必定闪退（遮荫时段的 Range 越界） | 严重 | 地图与场景 | **已修，已在主版本**（map2 批次的完整修复也已合并） |
-| A08 | 附近没有「住宅楼」时，首次选楼走进死胡同（北都新屋邨正是这种情况） | 严重 | 地图与场景 | **已合并**（已复核，复核意见已改完） |
-| A10 | 界面状态偶尔卡住：切标签后内容不刷新、横幅收不起、空白卡片和暗层留在屏幕上 | 严重 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A32 | 太阳落山后遮荫按 100% 算：卡片写「100% 有樓遮」，约人理由和天气提示说「有樓遮住」不属实 | 严重 | 地图与场景 | **已合并**（已复核，复核意见已改完） |
-| A02 | 语音改地标名不复述就生效（全圈都改），「撤回」撤不回，「講新名」按钮实际不能用 | 中等 | 语音与社交 | **已合并**（已复核） |
-| A03 | 语音约非街坊时会说出对方楼层（名字和楼层被对上），所有居民的真名都交给了 AI | 中等 | 语音与社交 | **已合并**（已复核） |
-| A04 | 知情同意没讲清「谁能看到什么」，第三句与实际相反，也不能拒绝或重听 | 中等 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A05 | 真机散步检测一退后台或锁屏就停，F1「全程不碰手机」做不到；新装真机默认是演示模式，根本不检测；文档和同意页却说会自动记录 | 中等 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A06 | 真机只在离家 55–96 m 这一窄圈内才开始记录，走远后整次漏记或只记 1 分钟；定位精度差时会提早收尾 | 中等 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A07 | 「重置演示」和演示散步会覆盖或吞掉真实散步纪录，和注释「真实记录唔郁」相反 | 中等 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A09 | 首次选楼只能点 3D 场景：读屏和切换控制用户完成不了首次使用，低层楼的可点范围只有约 10 pt | 中等 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A11 | 「我喺X」播送的内容和用户说的、按的不一致：语音原话被丢掉，「我就到」被播成「我喺涼亭」 | 中等 | 语音与社交 | **已合并**（已复核） |
-| A20 | F8「过约定时间 10 分钟问要不要打电话」没有自动触发，只能从演示菜单点出来，而为约会找人时那个菜单还按不到 | 中等 | 语音与社交 | **已合并**（已复核） |
-| A21 | 找人全屏时咪被隐藏，不能用讲的播「我喺涼亭」 | 中等 | 语音与社交 | **已合并**（已复核） |
-| A26 | 刚选好的低层屋企在 200 m 底座里消失（尺寸门槛对屋企也生效） | 中等 | 地图与场景 | **已合并**（已复核，复核意见已改完） |
-| A27 | 拉不到地图时悄悄换成皇后山邨示例图，当作「你附近、你屋企」：定位失败不说明、过期缓存被跳过、旧约会地点变成空白 | 中等 | 地图与场景 | **已合并**（已复核，复核意见已改完） |
-| A28 | Overpass 备用服务器已失效，超时与重试设置不当，最坏要等两分多钟，期间只有转圈 | 中等 | 地图与场景 | **已合并**（已复核，复核意见已改完） |
-| A29 | 地标常常不足 3 个，还会出现两个同名的「公園櫈仔」；地标不足时约人、找人、出门都静静失败 | 中等 | 地图与场景 | **已合并**（已复核，复核意见已改完） |
-| A33 | 关掉演示模式后，演示用的时间和天气仍然生效，而且改不回来 | 中等 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A39 | 语音和图像提示不同步：需确认的复述、约人提议、开提醒的提问只有画面；十多处确认只有语音 | 中等 | 语音与社交 | **已合并**（已复核） |
-| A40 | 字号低于规范：「示範」15pt、AI 标签 16pt、设置页约 17pt，对比度不足；系统字号调小时正文 24pt 会缩到约 20pt | 中等 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A41 | 放大字号后关键文字被截断：横幅、左上「行緊」、形象选项、找人底栏按钮 | 中等 | 语音与社交 + 界面与无障碍 | **已合并**（已复核） |
-| A42 | 人物配色在色弱下有几对分不清，其中一对和「我」的颜色相同；深色模式下灰色小人看不清 | 中等 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A45 | 地标信息卡和「改名」按钮只能靠点约 19×10 pt 的 3D 地标打开，读屏到不了，也和「场景只看不操作」矛盾 | 中等 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A46 | 「减少动态效果」没有覆盖 3D 镜头飞行、楼宇升起、光晕脉冲和多处滑入、缩放转场 | 中等 | 地图与场景 + 界面与无障碍 | **已合并**（已复核，复核意见已改完） |
-| A47 | 第一次按咪不等授权就开始录音，失败后也不说明原因 | 中等 | 语音与社交 | **已合并**（已复核） |
-| A48 | 排行榜首屏几乎看不到一个完整的名次；大字号下「我那行」也不会固定在底部 | 中等 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A50 | 卡通形象只有一种肤色，也没有年龄差异 | 中等 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A56 | 只能请「今日」的假：没有起止日期，说「聽日請假」会把今天设成请假 | 中等 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A59 | 后端草案的 RLS 有漏洞：街坊永远看不到出门状态；users、walks 等表没开 RLS；meetups 和 neighbors 可以单方面插入 | 中等 | 文档 | **已修，已在主版本**（后端草案文档） |
-| A100 | 寻路把水面当作可走，「我」会穿过水池 | 轻微 | 地图与场景 | **已合并**（已复核，复核意见已改完） |
-| A102 | 文档、注释和启动参数说明与代码不符（底座 300 m、-stats、演示时长、地标数、树数等） | 轻微 | 文档 / 多语言 | **未做** |
-| A103 | 死代码：手势和惯性、无人调用的函数和属性、空操作语句、走不到的天气分支 | 轻微 | 地图与场景 | **已合并**（已复核，复核意见已改完） |
-| A104 | prototype_status 的「未做」一节漏列了二维码添加、年龄与肤色、色弱检查 | 轻微 | 文档 / 多语言 | **未做** |
-| A12 | F1 的「落脚点」（停留 ≥2 分钟、半径 ≤30 m）没有实现：改成「经过 26 m 内」，每经过一个地标就上传，文档也没说明 | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A13 | 非街坊出门时，App 会存下对方位置，并用文字和语音告诉你「8 樓出咗門」 | 轻微 | 语音与社交 | **已合并**（已复核） |
-| A15 | 成为街坊时的提醒询问只说「佢出門會話你知」，但按「開」同时也会把我的出门发给对方 | 轻微 | 语音与社交 | **已合并**（已复核） |
-| A16 | 模拟出来的街坊和事件在大部分界面没有标「示範」，与 prototype_status「全部都标了」不符 | 轻微 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A18 | F10 反映：不在散步时也建议并接受「呢度好曬」（且没有按钮入口），撤回不同步还可能撤错条，上传接口带精确坐标 | 轻微 | 语音与社交 | **已合并**（已复核） |
-| A19 | CommunityService 缺接口：F8 找人的询问、回覆、播送、出门和到达都是 AppStore 自己编的；每日汇总、请假、个人资料、撤回反映也没法上传 | 轻微 | 语音与社交 | **已合并**（已复核） |
-| A22 | 找人状态没清干净：partnerAgreed 残留、延时任务不认是哪一次找人，会在还没问对方时就显示「陳太話好」 | 轻微 | 语音与社交 | **已合并**（已复核） |
-| A23 | 重建圈成员时不处理进行中的找人：问人卡变空而且关不掉，或者非街坊带着名字留在场景里 | 轻微 | 地图与场景 | **已合并**（已复核，复核意见已改完） |
-| A24 | 存档格式一加字段，旧存档就整份读不回，还会被空状态覆盖（街坊、约会、散步纪录全部丢失） | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A25 | 地标 id 按裁切后的数组下标生成：换楼或缓存刷新后，同一个 id 会指向别处；后端文档却说「同一格每部手机一样」 | 轻微 | 地图与场景 | **已合并**（已复核，复核意见已改完） |
-| A30 | 渲染线程和主线程不加锁共用场景状态（homeLabel、reportMarks、map、landmarkNodes、followID、target），可能偶发闪退 | 轻微 | 地图与场景 | **已合并**（已复核，复核意见已改完） |
-| A31 | 3D 场景一直以 60fps、4×MSAA、16 次采样软阴影重画，标签每秒发布 30 次，画面静止时也一样 | 轻微 | 地图与场景 | **已合并**（已复核，复核意见已改完） |
-| A34 | 场景里的太阳和楼影只在装地图时算一次，不跟真实时间；跨日后「今日」状态也不刷新 | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A35 | 演示菜单「喺而家位置重新生成」用的不是现在的位置，还会悄悄把我住的楼换成默认楼 | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A36 | 启动时对方的回覆比地图先到，横幅和语音出现空名字、空地点 | 轻微 | 语音与社交 | **已合并**（已复核） |
-| A37 | 请假当天连续天数会加 1，天天请假就能刷排行榜 | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A38 | 关掉演示模式后按「碰一碰加街坊」，提示「圈入面嘅人都已經係你街坊」；碰一碰也只认得圈里的人 | 轻微 | 语音与社交 | **已合并**（已复核） |
-| A43 | 卡片和横幅出现时读屏焦点不跟过去；横幅 8 秒、复述卡的「撤回」4 秒后自动消失 | 轻微 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A49 | 不支持普通话：识别、播报、界面和语言设置都没有，文档只说「普通话界面还没做」 | 轻微 | 文档 / 多语言 | **未做** |
-| A52 | F4 排行榜只显示楼层不显示座数；圈对圈没有月末公布胜出圈，也没有给胜出成员的卡通标记；文档也没列为未做 | 轻微 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A54 | 轮椅用户的散步检测不到（只认 walking 和 running） | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A55 | 在外面停下来时（不在家附近）散步不会结束，坐着的时间也被算成散步分钟 | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A58 | 完全没有本地或推送通知：出发前提醒、街坊出门提醒等都只在 App 开着时出现 | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A60 | prototype_status 把演示菜单触发或写死的功能列为「真的」：迟到询问、播送、打电话、步频提示 | 轻微 | 文档 / 多语言 | **未做** |
-| A61 | test.sh 不论测试成败都返回 0 | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A62 | 日期标签把昨天和三天后都叫「後日」 | 轻微 | 语音与社交 | **已合并**（已复核） |
-| A64 | 把编出来的数字当成真实的显示：地图装好前显示「連續 9 日」；真实散步没经过地标也写「今日行到X」 | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A65 | 街坊状态显示和后端规则不一致：没有出门事件就断言「喺屋企」；关掉「佢出門話我知」后仍显示对方在外面 | 轻微 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A66 | 出门提醒时段的「由」和「到」选同一个钟点时，会静默地永远收不到提醒 | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A67 | F8 到达估计算错：显示「大約 N 分鐘到涼亭」，用的却是我和对方之间的直线距离；一按「出發」就宣布对方出了门 | 轻微 | 语音与社交 | **已合并**（已复核） |
-| A68 | 月报的示範说明写「你自己嘅散步係真嘅」，其实含示範纪录；散步人次和一齊行也没有 ≥10 人门槛 | 轻微 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A69 | 单机版改名和反映的文案说「同圈街坊都會見到」「月尾交俾屋邨管理」，实际只存在本机 | 轻微 | 语音与社交 | **已合并**（已复核） |
-| A70 | 解除街坊时说「佢唔會收到通知」，但未完成的约会会以「取消」的形式通知对方 | 轻微 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A73 | 每次启动都会取一次定位，不只在散步时 | 轻微 | 地图与场景 | **已合并**（已复核，复核意见已改完） |
-| A74 | 定位跳动或旧的缓存定位点会生成 1 分钟的假散步，并计入连续天数 | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A75 | 演示散步中退到后台再回来，会一次记几百「分钟」 | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A76 | 退到后台时不立即存盘 | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A77 | 聆听中来了提醒或横幅会播报，打断语音识别 | 轻微 | 语音与社交 | **已合并**（已复核） |
-| A79 | 散步中碰一碰成功时，场景里的「我」会瞬移回屋企 | 轻微 | 地图与场景 | **已合并**（已复核，复核意见已改完） |
-| A80 | 改楼流程一开始就不能取消；从楼层页返回选楼时，场景状态不对 | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A81 | F9 天气提示拼成两三句；只因降雨概率「中高」就叫人「等雨停先」 | 轻微 | 语音与社交 | **已合并**（已复核） |
-| A82 | 下午和晚上也写「今朝 N 人經過」，示範人数还可能低于 10 人门槛 | 轻微 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A83 | 改地标名后，每日一句还在用旧名 | 轻微 | 语音与社交 | **已合并**（已复核） |
-| A84 | 「揀一句」的改约建议写死成「改做下晝四點」 | 轻微 | 语音与社交 | **已合并**（已复核） |
-| A85 | 步数是「分钟 × 100」估算的，圈对圈比的其实是分钟；真机的步频下降提示（F9）永远不会出现 | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A88 | 本机模型和后端文档的字段与 §7 不一致，也没有说明（walks、leaves、reports、users） | 轻微 | 文档 | **已修，已在主版本**（后端草案文档） |
-| A89 | 多处 VoiceOver 标签有误或有歧义 | 轻微 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A90 | App 自己的语音播报会和 VoiceOver 撞在一起，连续播报也会互相打断 | 轻微 | 语音与社交 | **已合并**（已复核） |
-| A92 | 自动开始散步时强行切到「今日」页 | 轻微 | 散步与数据 | **已合并**（已复核，复核意见已改完） |
-| A93 | 选楼页的提示同时显示两次，顶部那条压在进度点上 | 轻微 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A94 | 找人全屏时，提示框压住顶部卡 | 轻微 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A95 | 今日页可能同时出现多个橙色主按钮 | 轻微 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A96 | 右上「演示」胶囊显示成系统蓝 | 轻微 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A97 | 时间滑杆半屏 sheet 的玻璃底透出下面的橙色按钮，「完成」看不清 | 轻微 | 界面与无障碍 | **已合并**（复核没做完，合并时补查） |
-| A98 | 屋企靠近格子边时，200 m 底座有一大片超出已拉取的资料范围 | 轻微 | 地图与场景 | **已合并**（已复核，复核意见已改完） |
-| A99 | 地名不用屋邨名，出现「德逸樓圈」「石湖新村公廁」 | 轻微 | 地图与场景 | **已合并**（已复核，复核意见已改完） |
+| A01 | Launching or foregrounding after 19:00 crashed due to an invalid shade-time Range. | High | Map/scene | Fixed directly in the main version; full map2 fix also merged |
+| A08 | Onboarding could not complete where residential building data was missing, including new estates. | High | Map/scene | Merged; reviewed and follow-up corrections applied |
+| A10 | UI updates stalled: old tabs, undismissed banners, empty cards and lingering dimming. | High | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A32 | After sunset, computed 100% shade produced false building-shade claims in cards, invitations and weather. | High | Map/scene | Merged; reviewed and follow-up corrections applied |
+| A02 | Voice landmark renaming executed without recap, could not withdraw, and its name-input button did not work. | Medium | Voice/social | Merged; reviewed |
+| A03 | Inviting a non-neighbor exposed the person's floor and supplied all residents' names to AI. | Medium | Voice/social | Merged; reviewed |
+| A04 | Consent did not explain audiences, contradicted behavior and lacked refusal/replay. | Medium | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A05 | Device walking stopped on lock/background; new devices defaulted to demo, contradicting automatic-recording claims. | Medium | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A06 | Walks started only within a narrow 55–96 m band, missing longer departures; inaccurate fixes ended them early. | Medium | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A07 | Demo reset and simulated walks overwrote or swallowed real records despite preservation comments. | Medium | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A09 | 3D-only home selection blocked VoiceOver/Switch Control and offered roughly 10 pt low-building targets. | Medium | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A11 | Finding broadcasts discarded original speech and sent wording inconsistent with the user's chosen message. | Medium | Voice/social | Merged; reviewed |
+| A20 | The ten-minute-late prompt required a demo-menu trigger that was inaccessible during meeting finding. | Medium | Voice/social | Merged; reviewed |
+| A21 | Full-screen finding hid the microphone, preventing spoken broadcasts. | Medium | Voice/social | Merged; reviewed |
+| A26 | Size filtering removed a newly selected low-rise home from the 200 m base. | Medium | Map/scene | Merged; reviewed and follow-up corrections applied |
+| A27 | Failed maps silently became a sample estate presented as nearby/home; stale cache was skipped and old meeting places became blank. | Medium | Map/scene | Merged; reviewed and follow-up corrections applied |
+| A28 | A failed Overpass fallback and poor timeout/retry policy could leave users waiting over two minutes with only a spinner. | Medium | Map/scene | Merged; reviewed and follow-up corrections applied |
+| A29 | Fewer than three or duplicate-named landmarks caused silent invitation, finding and outing failures. | Medium | Map/scene | Merged; reviewed and follow-up corrections applied |
+| A33 | Disabling demo retained time/weather overrides with no way to restore them. | Medium | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A39 | Speech and visuals were inconsistent: some confirmations were visual-only, while many results were speech-only. | Medium | Voice/social | Merged; reviewed |
+| A40 | Demo, AI and Settings text fell below the design sizes/contrast; smaller system text reduced 24 pt body text to about 20 pt. | Medium | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A41 | Large text truncated banners, walking status, appearance choices and finding actions. | Medium | Voice/social + UI/accessibility | Merged; reviewed |
+| A42 | Avatar colors were indistinguishable under some color-vision simulations; gray avatars lacked dark-mode contrast. | Medium | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A45 | Landmark details/rename required a roughly 19 x 10 pt 3D target unavailable to VoiceOver, contradicting the view-only scene rule. | Medium | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A46 | Reduce Motion omitted camera flights, rising buildings, glow pulses and multiple slide/scale transitions. | Medium | Map/scene + UI/accessibility | Merged; reviewed and follow-up corrections applied |
+| A47 | First microphone use recorded before authorization completed and did not explain failure. | Medium | Voice/social | Merged; reviewed |
+| A48 | The leaderboard barely showed a complete rank and failed to pin my row at larger sizes. | Medium | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A50 | Avatars offered only one skin tone and no age variation. | Medium | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A56 | Leave supported only today; tomorrow's voice request incorrectly marked today. | Medium | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A59 | Draft RLS hid outings from neighbors, left several tables unprotected and allowed unilateral meetup/relationship insertion. | Medium | Docs | Fixed directly in the main version |
+| A100 | Routing treated water as walkable and sent the avatar through ponds. | Low | Map/scene | Merged; reviewed and follow-up corrections applied |
+| A102 | Documentation/comments/launch arguments disagreed with code on base size, -stats, demo duration and feature counts. | Low | Docs/languages | Pending in original record |
+| A103 | Dead code included unused gestures/inertia, functions/properties, no-ops and unreachable weather branches. | Low | Map/scene | Merged; reviewed and follow-up corrections applied |
+| A104 | The prototype backlog omitted QR pairing, age/skin choices and color-vision checks. | Low | Docs/languages | Pending in original record |
+| A12 | F1 stopping places of at least two minutes within 30 m were replaced by 26 m pass-through events and uploads without disclosure. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A13 | The App stored non-neighbor outings and announced their floors and location state. | Low | Voice/social | Merged; reviewed |
+| A15 | The pairing alert prompt described receiving only, but enabling it also shared my outings. | Low | Voice/social | Merged; reviewed |
+| A16 | Most simulated residents/events lacked Demo labels despite documentation claiming universal labeling. | Low | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A18 | Reports were offered/accepted outside walks; withdrawal could remove the wrong item or fail to synchronize, and the API included precise coordinates. | Low | Voice/social | Merged; reviewed |
+| A19 | CommunityService lacked finding/progress/message and summary/leave/profile/withdrawal interfaces, leaving AppStore to fabricate peer events. | Low | Voice/social | Merged; reviewed |
+| A22 | Stale finding state and unscoped delayed tasks could announce peer acceptance before asking. | Low | Voice/social | Merged; reviewed |
+| A23 | Rebuilding circle members left undismissable empty finding cards or named non-neighbors in the scene. | Low | Map/scene | Merged; reviewed and follow-up corrections applied |
+| A24 | Adding save fields made old saves unreadable and allowed empty state to overwrite all user records. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A25 | Crop-array landmark IDs could point elsewhere after home/cache changes despite shared-ID documentation. | Low | Map/scene | Merged; reviewed and follow-up corrections applied |
+| A30 | Render/main threads shared scene state without synchronization, risking intermittent crashes. | Low | Map/scene | Merged; reviewed and follow-up corrections applied |
+| A31 | The static scene still rendered at 60 fps with 4x MSAA, 16-sample shadows and 30 label publications per second. | Low | Map/scene | Merged; reviewed and follow-up corrections applied |
+| A34 | Sun/shadows updated only at map load, and Today did not refresh across midnight. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A35 | Regenerate-at-current-location used the wrong position and silently replaced the saved home. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A36 | Peer replies arriving before map load produced blank names and places in banners/speech. | Low | Voice/social | Merged; reviewed |
+| A37 | Leave added a streak day, allowing ranking inflation through daily leave. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A38 | Normal-mode pairing falsely said everyone was already a neighbor and recognized only existing circle residents. | Low | Voice/social | Merged; reviewed |
+| A43 | VoiceOver focus did not follow cards/banners, which disappeared before users could find actions. | Low | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A49 | Mandarin recognition, speech, interface and settings were absent, beyond the documented UI-only gap. | Low | Docs/languages | Pending in original record |
+| A52 | Leaderboard omitted building identifiers, month-end winners and winner badges without documenting them as pending. | Low | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A54 | Walking/running-only classification excluded wheelchair users. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A55 | Stopping outside never ended walks and counted sitting as walking minutes. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A58 | No local/push notifications existed; departures and outings were visible only while the App was open. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A60 | Prototype status labeled manually triggered or hard-coded late prompts, broadcasts, calls and cadence hints as real. | Low | Docs/languages | Pending in original record |
+| A61 | test.sh returned zero even when tests failed. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A62 | Relative-date labels called both yesterday and three days ahead the day after tomorrow. | Low | Voice/social | Merged; reviewed |
+| A64 | Invented streak/place values appeared before map load or after real walks without landmarks. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A65 | No outing event was treated as proof of being home; disabling receive still showed the peer outside. | Low | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A66 | Equal alert start/end hours silently disabled alerts forever. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A67 | ETA used straight-line inter-person distance rather than remaining route and asserted peer departure on my departure. | Low | Voice/social | Merged; reviewed |
+| A68 | Monthly-report demo text called mixed sample records real, and some totals lacked the ten-person threshold. | Low | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A69 | Local-only rename/report wording falsely promised circle synchronization or management delivery. | Low | Voice/social | Merged; reviewed |
+| A70 | Silent-unlink wording omitted that unfinished meetings would notify the peer of cancellation. | Low | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A73 | Each launch requested location, beyond the stated walking-only use. | Low | Map/scene | Merged; reviewed and follow-up corrections applied |
+| A74 | GPS jumps or stale fixes generated one-minute false walks that increased streaks. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A75 | Returning from background could add hundreds of simulated minutes at once. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A76 | Backgrounding did not save immediately. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A77 | Incoming alerts spoke during listening and interrupted recognition. | Low | Voice/social | Merged; reviewed |
+| A79 | Successful pairing during a walk teleported my avatar home. | Low | Map/scene | Merged; reviewed and follow-up corrections applied |
+| A80 | Home changes could not be cancelled and stepping back from floor selection left the wrong scene state. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A81 | Weather prompts became multiple sentences and suggested waiting for rain to stop based only on rain probability. | Low | Voice/social | Merged; reviewed |
+| A82 | Afternoon/evening passers still used morning wording; sample counts could fall below the ten-person threshold. | Low | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A83 | Daily greetings retained old landmark names after renaming. | Low | Voice/social | Merged; reviewed |
+| A84 | Reschedule examples always suggested the same fixed 16:00 time. | Low | Voice/social | Merged; reviewed |
+| A85 | Steps were only minutes times 100, and real-device cadence-drop hints never triggered. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A88 | Local/backend fields diverged from specification section 7 without explaining walks, leave, reports and users. | Low | Docs | Fixed directly in the main version |
+| A89 | Several VoiceOver labels were incorrect or ambiguous. | Low | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A90 | App speech collided with VoiceOver and interrupted other App speech. | Low | Voice/social | Merged; reviewed |
+| A92 | Automatic walking forcibly switched to Today. | Low | Walk/data | Merged; reviewed and follow-up corrections applied |
+| A93 | Duplicate home-selection notices overlapped progress indicators. | Low | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A94 | Full-screen finding toasts covered the top card. | Low | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A95 | Today could display several orange primary actions at once. | Low | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A96 | The Demo capsule appeared system blue. | Low | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A97 | The translucent time-slider sheet exposed orange controls underneath, obscuring Done. | Low | UI/accessibility | Merged; review incomplete, integration follow-up required |
+| A98 | Edge homes left a large part of the 200 m base outside fetched map coverage. | Low | Map/scene | Merged; reviewed and follow-up corrections applied |
+| A99 | Area names came from individual buildings or a public toilet instead of the estate. | Low | Map/scene | Merged; reviewed and follow-up corrections applied |
 
-## 被反驳掉的 14 条（不用修）
+## Fourteen findings rejected in that review
 
-- A14 出门状态在退到后台、App 被杀、重置演示、改楼后都不撤回，后端也没有过期机制，街坊会一直看到我「在外面」
-- A17 「清除我嘅紀錄」只清本机：不删住址、楼层和地图缓存，也不把解除街坊、取消约会同步出去
-- A44 找人方向只靠箭头，读屏标签和语音都不讲方向，也没有地标图标
-- A51 碰一碰画面没有失败、超时、机型不支持的状态，没有二维码后备，找到对方后也没有「走近挥手」
-- A53 「打電話」没有号码来源：PhoneBook 永远为空，后端设计又明确不收电话
-- A57 没有用户身份和昵称：首次使用不问昵称，「我」写死成 id me、名字「你」
-- A63 隐私规则、真机散步逻辑和约会生命周期都没有单元测试
-- A71 F8 找人要用实时距离和方向，与「服务器没有任何坐标」「街坊只以地标级出现」冲突，文档没说怎么解决
-- A72 家附近约 560 m 范围会发给第三方 Overpass 镜像（包括 maps.mail.ru），README 却写「400 m 网格」
-- A78 拉时间滑杆会把今日约会永久标成过期，或提前用掉提醒
-- A86 F2 圈：示範成员被轮流分到附近各座楼，没有「刚入伙按同一座楼分圈」，也不支持一人多圈
-- A87 §8 接口签名偏离规格且没有记录：getShade 只接时刻、不接时段，createNeighbor 没有成功或失败结果
-- A91 主界面的读屏顺序没有设定，咪和设置按钮排在内容后面
-- A101 小人因换颜色或行动方式重建后不再移动
+These were rejected then, not certified impossible in every later version. Consult the original evidence before reusing a conclusion.
+
+- **A14** — Claim: outings were never withdrawn on background/termination/reset/home change and lacked expiry.
+- **A17** — Claim: clearing records failed to remove home/floor/cache or synchronize unlink/cancellation.
+- **A44** — Claim: finding used only a visual arrow without accessible direction or landmark icons.
+- **A51** — Claim: pairing lacked failure/timeout/unsupported states, QR fallback and post-pair approach guidance.
+- **A53** — Claim: calling had no number source because PhoneBook was empty and backend collected no phone numbers.
+- **A57** — Claim: identity/nickname were absent, onboarding did not ask and my identity was hard-coded.
+- **A63** — Claim: privacy, device walking and meeting lifecycle had no unit tests.
+- **A71** — Claim: real-time finding conflicted with coordinate-free privacy without a documented resolution.
+- **A72** — Claim: Overpass received roughly 560 m including third-party mirrors despite a 400 m README description.
+- **A78** — Claim: the demo time slider permanently expired meetings or consumed reminders early.
+- **A86** — Claim: sample circles lacked building-based new-resident grouping and multiple-circle membership.
+- **A87** — Claim: shade and neighbor-creation signatures diverged from specification section 8 without documentation.
+- **A91** — Claim: main-screen VoiceOver order left microphone/Settings after content without explicit ordering.
+- **A101** — Claim: avatar rebuilding after appearance/mobility changes stopped movement.

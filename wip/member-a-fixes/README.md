@@ -1,12 +1,12 @@
-# 成员 A：2026-10-08 审核后的四批修改（已合并）
+# Member A: Four Audit Fix Batches (Merged)
 
-这里的四个补丁，是按 2026-10-08 全面审核（见 [docs/audit](../../docs/audit/member_a_audit_2026-10-08.md)）分四批做的修改。**2026-10-10 已经全部合并进主版本**（分支 `prototype/ios-3d-diorama`），按 语音 → 散步 → 地图 → 界面 的顺序，每批一个提交。补丁只留作存档，不用再套用。
+These patches address the [2026-10-08 audit](../../docs/audit/member_a_audit_2026-10-08.md). All four were merged on **2026-10-10** into `prototype/ios-3d-diorama`, in voice → walking → map → UI order, one commit per batch. They are historical patch artifacts; **do not reapply them**. Original patch bytes and original-language evidence are retained.
 
-| 补丁 | 内容 | 合并情况 |
+| Patch | Scope | Historical integration status |
 |---|---|---|
-| `voice.patch` | 语音与社交：语音改名先复述、播送跟原话、迟到 10 分钟自动问、找人时可讲嘢、播报排队不撞读屏、CommunityService 补齐接口 | 全部合并 |
-| `walk.patch` | 散步与数据：落脚点、锁屏补记、真实计步、多日请假、本地通知、存档升级不丢资料、真机默认关演示 | 全部合并；修了一个写错的单元测试 |
-| `map2.patch` | 地图与场景：没有住宅楼也能选楼、地标太少时补足、天黑不说「有樓遮」、Overpass 换服务器、定位失败讲明、线程安全、省电 | 全部合并 |
-| `ui.patch` | 界面与无障碍：界面卡住、色弱配色、肤色和年龄、排行榜、用名单选楼、知情同意 | 全部合并；合并后实测横幅偶尔不出，查到根因是 store 里用 withAnimation 改界面状态会丢更新，已修；横幅、底部卡片、提示也改回常驻视图 |
+| `voice.patch` | Rename recap, faithful broadcasts, automatic ten-minute-late prompt, finding microphone, speech/VoiceOver queue and complete CommunityService contract | Merged |
+| `walk.patch` | Stopping places, locked-screen backfill, measured steps, multi-day leave, local notifications, tolerant saves and device demo defaults | Merged; one incorrect unit test corrected |
+| `map2.patch` | Missing-residence fallback, sufficient landmarks, sunset wording, Overpass endpoints, disclosed location failure, thread safety and idle rendering | Merged |
+| `ui.patch` | Stalled UI, color-vision palette, skin/age choices, leaderboard, accessible building list and consent | Merged; integration exposed lost updates from store-level withAnimation, subsequently fixed. Banners, cards and toasts became persistent views |
 
-合并时一并接上的跨批次调用：每日汇总上传（uploadDay）、请假上传（setLeave，含语音「聽日請假」按日子请）、个人资料上传（updateProfile，含座数、肤色、年纪）；设置页加了年纪、肤色和私隱说明；首次使用的定位一步等 10 秒后可以「用示例屋邨」。
+Cross-batch integration connected `uploadDay`, date-specific `setLeave` including voice requests, and `updateProfile` including building/skin/age. Settings added age, skin tone and privacy explanations. Onboarding offered the sample estate after ten seconds waiting for location/map data. This record does not constitute a new acceptance run of current code.
