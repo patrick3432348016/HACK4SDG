@@ -14,7 +14,7 @@ struct HelpView: View {
         (L.t("橙色個咪做咩用？", "橙色的麦克风有什么用？", "What is the orange mic for?"),
          L.t("撳一下就可以講嘢，唔使打字。例如：「約阿明聽日行」「今日天氣點」「搵阿明」；散步時講「呢度冇櫈」。講完佢會讀返俾你聽，影響到別人嘅事要你撳「好」先做。", "点一下就能说话，不用打字。比如：「约阿明明天一起散步」「今天天气怎么样」「找阿明」；散步时可以说「这里没凳子」。说完它会把听到的话读给你听；会影响到别人的事，要你点「好的」才会去做。", "Tap it and speak, no typing. For example: \"Walk with Ming tomorrow\", \"What's the weather today?\", \"Find Ming\". On a walk, say \"No seats here\". It reads back what it heard. Anything that affects other people waits until you tap \"OK\".")),
         (L.t("點樣加街坊？", "怎样加邻居？", "How do I add a neighbour?"),
-         L.t("見到面，兩個人都打開街坊行，喺「街坊」頁撳「碰一碰加街坊」，兩部手機靠埋。加咗之後先見到對方住邊座、幾樓。", "见面时，两个人都打开街坊行，在「邻居」页点「碰一碰加邻居」，把两部手机靠在一起就加好了。加了以后，才能看到对方住哪栋、几楼。", "When you meet, both open Kaifong Walk. On the Neighbours tab tap \"Tap phones to add a neighbour\" and hold the phones together. After that you can see each other's block and floor.")),
+         L.t("見到面，兩個人都打開街坊行，喺「街坊」頁撳「碰一碰加街坊」，兩部手機靠埋。加咗之後先見到對方住邊座、幾樓。", "见面时，两个人都打开街坊行，在「邻居」页点「碰一碰加邻居」，把两部手机靠在一起就加好了。加了以后，才能看到对方住哪栋、几楼。", "When you meet, both open StreetWalk. On the Neighbours tab tap \"Tap phones to add a neighbour\" and hold the phones together. After that you can see each other's block and floor.")),
         (L.t("散步點樣記錄？", "散步怎么记录？", "How are walks recorded?"),
          L.t("唔使撳任何嘢。定位揀「始終允許」，出門行就會自動記，返到屋企就計好。", "什么都不用点。定位选「始终允许」，出门走路就会自动记录，回到家就记好了。", "No need to tap anything. Choose \"Always Allow\" for location. Walks are recorded when you go out, and saved when you get home.")),
         (L.t("約咗人之後喺邊度睇？", "约好以后在哪里看？", "Where do I see my walk plans?"),
@@ -98,7 +98,7 @@ struct FeedbackView: View {
             } header: {
                 Text(L.t("你嘅意見", "你的意见", "Your feedback")).ds(.caption)
             } footer: {
-                Text(L.t("會匿名傳畀街坊行開發團隊（伺服器喺新加坡），連埋 App 版本同手機型號方便搵問題；唔會傳你嘅位置。", "会匿名发给街坊行开发团队（服务器在新加坡），同时附上 App 版本和手机型号，方便查问题；不会发送你的位置。", "Sent anonymously to the Kaifong Walk team (server in Singapore), with the app version and phone model to help find problems. Your location is not sent.")).ds(.caption)
+                Text(L.t("會匿名傳畀街坊行開發團隊（伺服器喺新加坡），連埋 App 版本同手機型號方便搵問題；唔會傳你嘅位置。", "会匿名发给街坊行开发团队（服务器在新加坡），同时附上 App 版本和手机型号，方便查问题；不会发送你的位置。", "Sent anonymously to the StreetWalk team (server in Singapore), with the app version and phone model to help find problems. Your location is not sent.")).ds(.caption)
             }
 
             Section {

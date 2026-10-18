@@ -12,14 +12,18 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@react-three/fiber": "^9.1.2",
     "@remotion/cli": "^4.0.534",
     "@remotion/google-fonts": "^4.0.534",
     "@remotion/media-utils": "^4.0.534",
     "@remotion/paths": "^4.0.534",
     "@remotion/shapes": "^4.0.534",
+    "@remotion/three": "^4.0.534",
     "@remotion/transitions": "^4.0.534",
+    "@types/three": "^0.170.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "remotion": "^4.0.534"
+    "remotion": "^4.0.534",
+    "three": "^0.170.0"
   }
 }

@@ -267,7 +267,7 @@ private struct OnbWelcomeStep: View {
     var onSkip: () -> Void
     @State private var appeared = false
 
-    static var spoken: String { L.t("街坊行幫你記錄每日散步，約隔籬街坊一齊行；上面幅地圖幫你哋搵到對方。", "街坊行帮你记录每天散步，约隔壁邻居一起走；上面的地图帮你们找到对方。", "Kaifong Walk records your daily walks and helps you walk with neighbours. The map at the top helps you find each other.") }
+    static var spoken: String { L.t("街坊行幫你記錄每日散步，約隔籬街坊一齊行；上面幅地圖幫你哋搵到對方。", "街坊行帮你记录每天散步，约隔壁邻居一起走；上面的地图帮你们找到对方。", "StreetWalk records your daily walks and helps you walk with neighbours. The map at the top helps you find each other.") }
 
     /// 测试反馈：做成卡片似可以撳嘅掣 → 改成普通介绍列表（细图标、冇卡片底、多一行解释），一眼睇得出系「介绍」唔系「功能入口」。
     /// 10-18 测试反馈：「今日」页第一次唔知有咩、散步时报「冇櫈 / 好曬」好似盲盒 → 每条写短，加「今日」页有咩同报地标两条。
@@ -295,11 +295,12 @@ private struct OnbWelcomeStep: View {
                         .accessibilityAddTraits(.isHeader)
                     LanguageChooser(short: true) { store.onbSay(Self.spoken) }
                 }
-                Text(L.t("歡迎嚟到街坊行", "欢迎来到街坊行", "Welcome to Kaifong Walk"))
+                .onAppear { if LaunchArgs.value("-videoShot") == "lang" { store.runVideoShotIfNeeded() } }   // 录宣传片：语言切换
+                Text(L.t("歡迎嚟到街坊行", "欢迎来到街坊行", "Welcome to StreetWalk"))
                     .ds(.title)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
-                Text(L.t("街坊行可以幫你：", "街坊行可以帮你：", "Kaifong Walk can help you:"))
+                Text(L.t("街坊行可以幫你：", "街坊行可以帮你：", "StreetWalk can help you:"))
                     .ds(.body)
                     .foregroundStyle(.secondary)
 
@@ -930,6 +931,7 @@ private struct OnbFloorNameStep: View {
             if store.floorChoice > maxFloor { store.floorChoice = maxFloor }
             if store.floorChoice < 1 { store.floorChoice = 1 }
             // 网名先填一个现成嘅（撳「好」就用得），想改可以撳第二个或者自己打。
+            if name.isEmpty, LaunchArgs.videoClean, let n = LaunchArgs.value("-nickname") { name = n }
             if name.isEmpty { name = store.nickname.isEmpty ? (store.nicknameSuggestions.first ?? "") : store.nickname }
             store.onbSay(L.t("你住幾樓？大家點叫你？", "你住几楼？大家怎么称呼你？", "Which floor do you live on? What should people call you?"))
         }

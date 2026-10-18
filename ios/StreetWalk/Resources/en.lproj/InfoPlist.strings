@@ -1,7 +1,7 @@
 /* 系统权限框说明（英文）：iPhone 系统语言系英文时用（2026-10-17 加英文版）。
    粤语版喺 zh-HK.lproj、普通话版喺 zh-Hans.lproj；内容要同 StreetWalk-Info.plist / 工程 INFOPLIST_KEY_* 对得上。 */
 
-"CFBundleDisplayName" = "Kaifong Walk";
+"CFBundleDisplayName" = "StreetWalk";
 
 "NSLocationWhenInUseUsageDescription" = "Uses the streets and blocks near you to build a small 3D map of your estate. On walks, location draws the path you took. Your routes stay on this phone and are never uploaded. Others only see landmarks.";
 

@@ -433,7 +433,7 @@ struct FindOverlay: View {
                 VStack(spacing: 8) {
                     // 演示：约会找人时都撳得到演示菜单（「遲到」= 将时间拨到约定后 11 分钟）。
                     if store.demoMode && !f.spontaneous {
-                        HStack { Spacer(minLength: 0); DemoMenu() }
+                        HStack { Spacer(minLength: 0); if !LaunchArgs.videoClean { DemoMenu() } }
                     }
                     topCard(f, p, place)
                     ToastView()   // 提示放在顶卡下面（全屏时 MainView 不画自己那个）

@@ -307,7 +307,7 @@ private struct MainScene: View {
                 .frame(width: width, height: height, alignment: .bottomLeading)
                 .allowsHitTesting(false)
             if !full { expandHandle }
-            if store.mapSource == .fallback && !full { sampleBadge }
+            if store.mapSource == .fallback && !full && !LaunchArgs.videoClean { sampleBadge }
             // 手指放大 / 移动 / 转动过：右上角「回正」（同双击一样）
             if store.scene.overlay.userMoved && !full {
                 MapResetButton { store.scene.resetUserCamera() }
@@ -398,7 +398,7 @@ private struct MainTopChips: View {
         HStack(alignment: .top, spacing: DS.gap) {
             HomeChip(hasIsland: hasIsland)
             // 「演示」放左边：右上角留俾咪（排行榜、街坊冇场景，咪就喺顶部右边）
-            if store.demoMode { DemoMenu() }
+            if store.demoMode && !LaunchArgs.videoClean { DemoMenu() }
             if store.backendOffline { OfflineChip().transition(.opacity) }
             Spacer(minLength: DS.gap)
         }

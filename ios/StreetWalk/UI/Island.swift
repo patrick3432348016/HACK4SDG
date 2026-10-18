@@ -264,6 +264,7 @@ struct IslandBanner: View {
 
     /// 示範数据的横幅都标「示範」：有对象就看对象；没有对象的（示範街坊答应了、屋邨管理示範回覆、手选天气）看句子。
     private func isDemo(_ b: BannerItem) -> Bool {
+        if LaunchArgs.videoClean { return false }
         switch b.action {
         case .invite(let id), .goFind(let id): return store.resident(id)?.isDemo ?? false
         case .depart(let id): return store.appointments.first { $0.id == id }.flatMap { store.resident($0.partnerID) }?.isDemo ?? false

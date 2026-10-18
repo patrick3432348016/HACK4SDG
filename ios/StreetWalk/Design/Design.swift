@@ -214,6 +214,9 @@ struct SceneChip<Label: View>: View {
 struct DemoBadge: View {
     var text = L.t("示範", "示范", "Demo")
     var body: some View {
+        if !LaunchArgs.videoClean { badge }
+    }
+    private var badge: some View {
         Label(text, systemImage: "sparkles")
             .ds(.captionBold)
             .foregroundStyle(.primary)
@@ -277,6 +280,9 @@ struct DSMenuPicker<Value: Hashable>: View {
 struct DemoNote: View {
     var text: String
     var body: some View {
+        if !LaunchArgs.videoClean { note }
+    }
+    private var note: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: "sparkles").foregroundStyle(.secondary).accessibilityHidden(true)
             Text(text).fixedSize(horizontal: false, vertical: true)

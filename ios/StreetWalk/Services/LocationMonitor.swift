@@ -108,7 +108,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
 
     /// AppDelegate：系统喺背景开 App（App 之前冇开住，例如俾系统收咗；多数係定位事件）。
     func noteLocationLaunch() {
-        record(.launch, L.t("App 冇開住，iOS 喺背景重新開咗街坊行", "App 没开着，iOS 在后台重新打开了街坊行", "App was closed. iOS reopened Kaifong Walk in the background"))
+        record(.launch, L.t("App 冇開住，iOS 喺背景重新開咗街坊行", "App 没开着，iOS 在后台重新打开了街坊行", "App was closed. iOS reopened StreetWalk in the background"))
         wake(.launch)
     }
 

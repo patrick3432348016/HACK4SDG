@@ -7,6 +7,7 @@ extension AppStore {
 
     func runScriptIfNeeded() {
         guard !Self.scriptStarted else { return }
+        if LaunchArgs.has("-videoShot") { Self.scriptStarted = true; runVideoShotIfNeeded(); return }   // DemoScript+Video
         if LaunchArgs.has("-script2") { Self.scriptStarted = true; runScript2(); return }
         if LaunchArgs.has("-script3") { Self.scriptStarted = true; runScript3(); return }
         if LaunchArgs.has("-autoWalk") { Self.scriptStarted = true; runAutoWalk(); return }
@@ -158,7 +159,7 @@ extension AppStore {
             print("[script] 係"); onbHush(); confirmHome()
             try? await Task.sleep(for: .seconds(3))
             print("[script] 樓層 + 網名"); floorChoice = min(12, max(1, homeLevels))
-            setNickname(nickname.isEmpty ? "行路友" : nickname)   // -debugNickname 已经喺启动时填咗
+            setNickname(nickname.isEmpty ? (LaunchArgs.value("-nickname") ?? "行路友") : nickname)   // -debugNickname 已经喺启动时填咗
             try? await Task.sleep(for: .seconds(3))
             print("[script] 試一次"); onbHush(); phase = .onboarding(.tryMic)
             try? await Task.sleep(for: .seconds(4))

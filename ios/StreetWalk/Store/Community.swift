@@ -144,9 +144,10 @@ final class LocalCommunityService: CommunityService {
     init(demoEnabled: Bool) { self.demoEnabled = demoEnabled }
 
     /// 示範街坊：同一格子每次一样。住在附近的住宅楼，常去的地标各不相同；连续天数是示範数据。
-    private static let roster: [(id: String, name: String, floor: Int, color: Int, mobility: Mobility, streak: Int)] = [
-        ("chan", "陳太", 8, 0, .walk, 21), ("wong", "黃太", 3, 1, .walk, 30), ("lee", "李伯", 15, 2, .wheelchair, 14),
-        ("leung", "梁太", 6, 3, .stroller, 12), ("ho", "何生", 21, 4, .walk, 5), ("cheung", "張伯", 9, 5, .cane, 2),
+    /// 英文界面用英文名（en），中文名仍然认得（语音讲「陳太」都揾到）。
+    private static let roster: [(id: String, name: String, en: String, floor: Int, color: Int, mobility: Mobility, streak: Int)] = [
+        ("chan", "陳太", "Mrs Chan", 8, 0, .walk, 21), ("wong", "黃太", "Mrs Wong", 3, 1, .walk, 30), ("lee", "李伯", "Uncle Lee", 15, 2, .wheelchair, 14),
+        ("leung", "梁太", "Mrs Leung", 6, 3, .stroller, 12), ("ho", "何生", "Mr Ho", 21, 4, .walk, 5), ("cheung", "張伯", "Uncle Cheung", 9, 5, .cane, 2),
     ]
 
     func circleMembers(blocks: [String], landmarks: [Landmark]) -> [Resident] {
@@ -154,10 +155,11 @@ final class LocalCommunityService: CommunityService {
         guard demoEnabled else { return [] }
         let seatFirst = landmarks.sorted { ($0.hasSeat ? 0 : 1, $0.pos.length) < ($1.hasSeat ? 0 : 1, $1.pos.length) }
         return Self.roster.enumerated().map { i, r in
-            var res = Resident(id: r.id, name: r.name, floor: r.floor, blockName: blocks.isEmpty ? nil : blocks[i % blocks.count],
+            var res = Resident(id: r.id, name: L.isEn ? r.en : r.name, floor: r.floor, blockName: blocks.isEmpty ? nil : blocks[i % blocks.count],
                                colorIndex: r.color, mobility: r.mobility, streakDays: r.streak, todayLine: "")
             res.homeLandmarkID = seatFirst.isEmpty ? nil : seatFirst[i % seatFirst.count].id
             res.isDemo = true
+            if L.isEn { res.altName = r.name }
             return res
         }
     }

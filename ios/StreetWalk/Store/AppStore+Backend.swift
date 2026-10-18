@@ -314,7 +314,7 @@ extension AppStore {
         guard isInBackground else { return }
         Self.debugEvent("notify \(body)")
         let c = UNMutableNotificationContent()
-        c.title = L.t("街坊行", "街坊行", "Kaifong Walk")
+        c.title = L.t("街坊行", "街坊行", "StreetWalk")
         c.body = body
         c.sound = .default
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: c, trigger: nil))

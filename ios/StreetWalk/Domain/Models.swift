@@ -21,6 +21,8 @@ struct Resident: Identifiable, Equatable {
     var neighborSince: Date?
     /// 示範街坊：单机演示时由 LocalCommunityService 模拟的居民（界面要标明）。
     var isDemo = false
+    /// 另一个叫法（示範街坊英文界面时系中文名），语音认人用。
+    var altName: String?
     /// 外形（规格 §4：不同肤色、年龄）。由 AppStore.applyLooks 填：示範街坊各一套，我用自己选的。
     var skinTone = 1
     var ageGroup: AgeGroup = .adult

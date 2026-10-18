@@ -436,7 +436,7 @@ extension AppStore {
 
     /// 复述卡讲完点样确认：讲「好」或者撳掣（2026-10-17 起讲「好 / 不要」都得）。
     static func confirmPrompt(_ s: String) -> String {
-        L.t("\(s)。啱就講「好」或者撳「好」。", "\(s)。没问题就说「好」，或者按「好的」。", "\(s). If that's right, say \"yes\" or tap Yes.")
+        L.t("\(s)。啱就講「好」或者撳「好」。", "\(s)。没问题就说「好」，或者按「好的」。", "\(s). If that's right, say \"OK\" or tap OK.")
     }
 
     /// 理由后面加嘅「，一齊行四十分鐘」（同 setCustomProposal 一样写入理由，对方都见到）。

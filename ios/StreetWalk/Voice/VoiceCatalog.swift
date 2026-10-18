@@ -35,7 +35,7 @@ enum SpokenLanguage: String, CaseIterable, Codable, Sendable {
         switch self {
         case .cantonese: return "你好，我係街坊行。陳太啱啱出咗門，喺涼亭附近。"
         case .mandarin: return "你好，我是街坊行。陈太刚刚出门了，在凉亭附近。"
-        case .english: return "Hello, this is Kaifong Walk. Mrs Chan just went out. She is near the pavilion."
+        case .english: return "Hello, this is StreetWalk. Mrs Chan just went out. She is near the pavilion."
         }
     }
 

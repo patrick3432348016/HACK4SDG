@@ -32,7 +32,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         guard plan != lastPlan else { return }
         lastPlan = plan
         if LaunchArgs.has("-logNotifications") { plan.forEach { print("[notify] \($0.id) \($0.at) \($0.body)") } }
-        let title = L.t("街坊行", "街坊行", "Kaifong Walk")   // 喺主线程揀好语言
+        let title = L.t("街坊行", "街坊行", "StreetWalk")   // 喺主线程揀好语言
         queue.async {
             let c = UNUserNotificationCenter.current()
             c.removeAllPendingNotificationRequests()

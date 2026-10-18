@@ -456,7 +456,7 @@ enum VoicePrewarm {
         "Found them!",
         "Who do you want to invite? Pick a neighbour.",
         "Cancelled. Nothing was done.",
-        "Hello, I'm the Kaifong Walk voice assistant. Tap the mic and talk to me.",
+        "Hello, I'm the StreetWalk voice assistant. Tap the mic and talk to me.",
     ]
 
     /// 跟播报语言揀句子、locale、缓存 key（同 Speaker.speak 一样：粤语用原 voiceID，其他加「/语言」）。

@@ -179,7 +179,7 @@ struct OfflineChip: View {
                 chip(L.t("未允許用流動數據", "没允许用流量", "Mobile data not allowed"), symbol: "antenna.radiowaves.left.and.right.slash")
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(L.t("街坊行未允許用流動數據", "街坊行没有被允许使用流量", "Kaifong Walk isn't allowed to use mobile data"))
+            .accessibilityLabel(L.t("街坊行未允許用流動數據", "街坊行没有被允许使用流量", "StreetWalk isn't allowed to use mobile data"))
             .accessibilityHint(L.t("撳一下去設定，打開「流動數據」或者「無線數據」。", "点一下去设置，打开「无线数据」或「蜂窝数据」。", "Tap to open Settings and turn on “Mobile Data” or “Wireless Data”."))
         } else {
             chip(L.t("未連線", "未联网", "Offline"), symbol: "wifi.slash")

@@ -46,4 +46,6 @@ enum LaunchArgs {
         return a[i + 1]
     }
     static var hour: Double? { value("-hour").flatMap(Double.init) }
+    /// 录宣传片：收起「示範」标签、演示说明同演示菜单（功能照旧系演示模式）。
+    static let videoClean = has("-videoClean")
 }

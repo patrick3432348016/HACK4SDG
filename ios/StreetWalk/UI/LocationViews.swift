@@ -291,7 +291,7 @@ enum LocationStatusText {
     }
 
     @MainActor static func footer(_ lm: LocationMonitor) -> String {
-        problem(lm) ?? L.t("出門會自動記錄，鎖咗機都得。唔好喺多工畫面將街坊行掃走，否則出門唔會自動記錄。", "出门会自动记录，锁屏也可以。别在多任务界面把街坊行划掉，否则出门不会自动记录。", "Walks are recorded automatically, even when locked. Don't swipe Kaifong Walk away in the app switcher, or walks won't be recorded.")
+        problem(lm) ?? L.t("出門會自動記錄，鎖咗機都得。唔好喺多工畫面將街坊行掃走，否則出門唔會自動記錄。", "出门会自动记录，锁屏也可以。别在多任务界面把街坊行划掉，否则出门不会自动记录。", "Walks are recorded automatically, even when locked. Don't swipe StreetWalk away in the app switcher, or walks won't be recorded.")
     }
 }
 
@@ -333,7 +333,7 @@ struct LocationLogView: View {
             }
 
             Section {
-                if wakes.isEmpty { Text(L.t("未有。出門、返屋企時 iOS 會喺背景叫醒街坊行，會喺呢度記低。", "暂无。出门、回家时 iOS 会在后台唤醒街坊行，会记在这里。", "None yet. When you go out or come home, iOS wakes Kaifong Walk in the background and it's noted here.")).ds(.caption).foregroundStyle(.secondary) }
+                if wakes.isEmpty { Text(L.t("未有。出門、返屋企時 iOS 會喺背景叫醒街坊行，會喺呢度記低。", "暂无。出门、回家时 iOS 会在后台唤醒街坊行，会记在这里。", "None yet. When you go out or come home, iOS wakes StreetWalk in the background and it's noted here.")).ds(.caption).foregroundStyle(.secondary) }
                 ForEach(Array(wakes)) { e in EventRow(event: e) }
             } header: { Text(L.t("最近喚醒", "最近唤醒", "Recent wake-ups")).ds(.caption) }
 
@@ -342,9 +342,9 @@ struct LocationLogView: View {
             } header: { Text(L.t("其他紀錄", "其他记录", "Other records")).ds(.caption) }
 
             Section {
-                Label(L.t("唔好喺多工畫面將街坊行掃走，否則出門唔會自動記錄。", "别在多任务界面把街坊行划掉，否则出门不会自动记录。", "Don't swipe Kaifong Walk away in the app switcher, or walks won't be recorded."), systemImage: "exclamationmark.triangle.fill")
+                Label(L.t("唔好喺多工畫面將街坊行掃走，否則出門唔會自動記錄。", "别在多任务界面把街坊行划掉，否则出门不会自动记录。", "Don't swipe StreetWalk away in the app switcher, or walks won't be recorded."), systemImage: "exclamationmark.triangle.fill")
                     .ds(.body)
-                Label(L.t("手機重新開機之後，打開一次街坊行。", "手机重启之后，打开一次街坊行。", "After restarting your phone, open Kaifong Walk once."), systemImage: "arrow.clockwise")
+                Label(L.t("手機重新開機之後，打開一次街坊行。", "手机重启之后，打开一次街坊行。", "After restarting your phone, open StreetWalk once."), systemImage: "arrow.clockwise")
                     .ds(.body)
             } header: { Text(L.t("提提你", "提醒你", "Reminders")).ds(.caption) }
 
@@ -372,7 +372,7 @@ struct LocationLogView: View {
         if let p = LocationStatusText.problem(lm) { return L.t("未開齊。\(p)", "未开全。\(p)", "Not fully on. \(p)") }
         if lm.home == nil { return L.t("未有屋企位置（打開一次主畫面）", "还没有家的位置（打开一次主界面）", "No home location yet (open the main screen once)") }
         guard lm.monitoring else { return L.t("未開始監察（打開一次主畫面）", "未开始监测（打开一次主界面）", "Not watching yet (open the main screen once)") }
-        return lm.lowPower ? L.t("開咗，但低耗電模式開緊：iOS 可能遲啲先叫醒街坊行", "已开启，但低电量模式开着：iOS 可能晚点才唤醒街坊行", "On, but Low Power Mode is on: iOS may wake Kaifong Walk later") : L.t("開咗：離開屋企會自動開始記錄", "已开启：离开家会自动开始记录", "On: recording starts when you leave home")
+        return lm.lowPower ? L.t("開咗，但低耗電模式開緊：iOS 可能遲啲先叫醒街坊行", "已开启，但低电量模式开着：iOS 可能晚点才唤醒街坊行", "On, but Low Power Mode is on: iOS may wake StreetWalk later") : L.t("開咗：離開屋企會自動開始記錄", "已开启：离开家会自动开始记录", "On: recording starts when you leave home")
     }
 
     private func verdictText(_ v: HomeVerdict) -> String {

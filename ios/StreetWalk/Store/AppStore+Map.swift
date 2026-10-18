@@ -54,7 +54,7 @@ extension AppStore {
         mapSource = source
         if case .onboarding = phase {
             let me = loc.flatMap { TileKey.snap($0) == m.tile ? LocalProjection(origin: m.center).toLocal($0) : nil }
-            let notice: String? = loc == nil ? L.t("攞唔到你嘅位置，所以冇幫你估。而家用緊示例屋邨（\(m.shownPlaceName)），唔係你附近。", "拿不到你的位置，所以没帮你猜。现在先显示示例屋邨（\(m.shownPlaceName)），不是你家附近。", "Couldn't get your location, so no guess. This is a sample estate (\(m.shownPlaceName)), not near you.")
+            let notice: String? = loc == nil && !LaunchArgs.videoClean ? L.t("攞唔到你嘅位置，所以冇幫你估。而家用緊示例屋邨（\(m.shownPlaceName)），唔係你附近。", "拿不到你的位置，所以没帮你猜。现在先显示示例屋邨（\(m.shownPlaceName)），不是你家附近。", "Couldn't get your location, so no guess. This is a sample estate (\(m.shownPlaceName)), not near you.")
                 : source == .fallback ? L.t("暫時攞唔到你附近嘅地圖，先用示例屋邨（\(m.shownPlaceName)），唔係你附近。我會繼續搵，搵到就自動換。", "暂时拿不到你附近的地图，先显示示例屋邨（\(m.shownPlaceName)），不是你家附近。我会继续找，找到就自动换。", "Couldn't get the map near you yet, so this is a sample estate (\(m.shownPlaceName)), not near you. I'll keep trying and switch when it arrives.") : nil
             showPickHome(near: me, notice: notice, animated: animated)
             if source == .fallback, let loc { scheduleMapRetry(tile: TileKey.snap(loc), loc: loc) }
@@ -218,6 +218,7 @@ extension AppStore {
 
     /// 地图有状况（示例屋邨、示意楼）：mapNotice 留给画面显示，再用提示说一次（字 + 声）。
     func noticeMap(_ text: String, delay: Double = 0) {
+        if LaunchArgs.videoClean { return }   // 录宣传片：示例屋邨当系自己屋企
         mapNotice = text
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(delay))
@@ -351,6 +352,7 @@ extension AppStore {
         let blocks = m.buildings.filter { $0.kind == .residential && $0.name != nil }.compactMap(\.name)
         community.setLandmarks(landmarks, originals: originalLandmarkNames)
         var list = community.circleMembers(blocks: blocks, landmarks: landmarks)
+        list.removeAll { $0.isDemo && !nickname.isEmpty && ($0.name == nickname || $0.altName == nickname) }   // 示範街坊唔好同我撞名
         for i in list.indices {
             // 真后端：今日一句、街坊关系由服务器嚟（只有街坊先有今日一句）；示範街坊先用模板生成
             guard list[i].isDemo || !community.ownsNeighborLinks else { continue }

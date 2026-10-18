@@ -54,7 +54,7 @@ extension AppStore {
     /// 用流量但系统唔俾：讲清楚去设定开。
     var cellularDeniedHint: String {
         L.t("設定入面未允許「街坊行」用流動數據。撳「去設定」打開「流動數據」（或者將「無線數據」改做「無線局域網與流動網絡」），或者連 Wi-Fi。",
-            "设置里没有允许「街坊行」用流量。点「去设置」，把「无线数据」改成「WLAN与蜂窝网络」（或者打开「蜂窝数据」），也可以连上 Wi-Fi。", "Kaifong Walk isn’t allowed to use mobile data. Tap Open Settings and turn on Mobile Data, or connect to Wi-Fi.")
+            "设置里没有允许「街坊行」用流量。点「去设置」，把「无线数据」改成「WLAN与蜂窝网络」（或者打开「蜂窝数据」），也可以连上 Wi-Fi。", "StreetWalk isn’t allowed to use mobile data. Tap Open Settings and turn on Mobile Data, or connect to Wi-Fi.")
     }
 
     /// 停晒碰一碰、二维码嘅工作（唔改画面）。
@@ -148,7 +148,7 @@ extension AppStore {
     func qrScanned(_ payload: String) {
         guard let q = bumpQR, q.mode == .scan, !q.linking, !q.paired else { return }
         guard let code = PairCode.parseQR(payload) else {
-            let s = L.t("呢個唔係街坊行嘅二維碼。請對方撳「出示二維碼」。", "这不是街坊行的二维码。请对方按「出示二维码」。", "This isn’t a Kaifong Walk QR code. Ask them to show their QR code.")
+            let s = L.t("呢個唔係街坊行嘅二維碼。請對方撳「出示二維碼」。", "这不是街坊行的二维码。请对方按「出示二维码」。", "This isn’t a StreetWalk QR code. Ask them to show their QR code.")
             if q.note != s { Haptics.warning(); say(s) }
             bumpQR?.note = s
             return

@@ -378,7 +378,7 @@ struct InfoCard: View {
     /// 「有冇櫈」「曬唔曬」点嚟：櫈系地图资料（OpenStreetMap 标咗凳、涼亭、公园等），曬唔曬系按太阳位置同模型入面嘅楼影即时计。
     /// 示例屋邨、演示时间都讲明。
     private var factSource: String {
-        let sample = store.mapSource == .fallback ? L.t("示範資料：示例屋邨，唔係你附近。", "示范数据：示例屋邨，不是你家附近。", "Demo data: a sample estate, not near you.") : ""
+        let sample = store.mapSource == .fallback && !LaunchArgs.videoClean ? L.t("示範資料：示例屋邨，唔係你附近。", "示范数据：示例屋邨，不是你家附近。", "Demo data: a sample estate, not near you.") : ""
         let sun = store.demoHour != nil ? L.t("按演示時間太陽位置", "按演示时间太阳位置", "sun position at demo time") : L.t("按而家太陽位置", "按现在太阳位置", "sun position now")
         return sample + L.t("櫈：睇地圖資料；曬唔曬：\(sun)同樓影推算，大約準。",
                             "凳子：看地图资料；晒不晒：\(sun)和楼影推算，大概准。", "Seats: from map data. Sun: \(sun) and building shadows, roughly right.")

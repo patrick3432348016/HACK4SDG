@@ -16,7 +16,7 @@ struct TemplateAI: AIService {
         if Self.asksLeave(text) { return .leave }
 
         // 改约 / 取消约：要讲到时间或地标，免得同改地标名撞。
-        let partnerHit = context.residents.first { !$0.isMe && (text.contains($0.name) || text.contains("\($0.floor)樓") || text.contains("\($0.floor)層")) }
+        let partnerHit = context.residents.first { !$0.isMe && (text.contains($0.name) || $0.altName.map(text.contains) == true || text.contains("\($0.floor)樓") || text.contains("\($0.floor)層")) }
         if text.contains("唔約") || text.contains("不約") || (text.contains("取消") && (text.contains("約") || partnerHit != nil)) {
             return .cancelMeetup(partnerID: partnerHit?.id)
         }
@@ -48,7 +48,7 @@ struct TemplateAI: AIService {
         // 讲到名 / 楼层就揀嗰个；只讲「鄰居 / 街坊」（普通话常见：「约邻居明天一起走」「找邻居」）就揀一个街坊：
         // 找人揀喺外面嗰个，约人揀第一个。
         let others = context.residents.filter { !$0.isMe }
-        let named = others.first { text.contains($0.name) || text.contains("\($0.floor)樓") || text.contains("\($0.floor)層") }
+        let named = others.first { text.contains($0.name) || $0.altName.map(text.contains) == true || text.contains("\($0.floor)樓") || text.contains("\($0.floor)層") }
         let generic = Self.genericNeighborWords.contains(where: text.contains)
         let wantsFind = Self.findWords.contains(where: text.contains) && !text.contains("約")
         let wantsInvite = Self.inviteWords.contains(where: text.contains)

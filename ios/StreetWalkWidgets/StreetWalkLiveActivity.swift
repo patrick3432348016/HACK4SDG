@@ -193,7 +193,7 @@ private struct LockScreenView: View {
             HStack(spacing: 6) {
                 Image(systemName: "figure.walk.circle.fill")
                     .foregroundStyle(IslandStyle.accentOnBlack)
-                Text(s.t("街坊行", "街坊行", "Kaifong Walk"))
+                Text(s.t("街坊行", "街坊行", "StreetWalk"))
                     .foregroundStyle(.white.opacity(0.75))
                 Spacer(minLength: 8)
                 if s.demo {

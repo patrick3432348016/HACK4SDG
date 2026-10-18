@@ -272,7 +272,7 @@ extension AppStore {
     /// 背景开始 / 记好散步：静音通知（App 打开时唔弹）。
     func notifyWalk(_ body: String) {
         let c = UNMutableNotificationContent()
-        c.title = L.t("街坊行", "街坊行", "Kaifong Walk")
+        c.title = L.t("街坊行", "街坊行", "StreetWalk")
         c.body = body
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "walk-\(UUID().uuidString)", content: c, trigger: nil))
     }

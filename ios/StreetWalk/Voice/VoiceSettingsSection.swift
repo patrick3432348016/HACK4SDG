@@ -165,13 +165,13 @@ struct VoiceDownloadGuide: View {
         }
         let group = language == .english ? L.t("英文", "英文", "English") : L.t("中文", "中文", "Chinese")
         return [
-            L.t("撳下面「打開 iPhone 設定」。如果見到「街坊行」嗰頁，撳左上角「‹」返去，直到見到「設定」兩個大字。", "点下面「打开 iPhone 设置」。如果看到「街坊行」那页，点左上角「‹」返回，直到看到「设置」两个大字。", "Tap \"Open iPhone Settings\" below. If you see the Kaifong Walk page, tap \"‹\" at the top left until you see the big word \"Settings\"."),
+            L.t("撳下面「打開 iPhone 設定」。如果見到「街坊行」嗰頁，撳左上角「‹」返去，直到見到「設定」兩個大字。", "点下面「打开 iPhone 设置」。如果看到「街坊行」那页，点左上角「‹」返回，直到看到「设置」两个大字。", "Tap \"Open iPhone Settings\" below. If you see the StreetWalk page, tap \"‹\" at the top left until you see the big word \"Settings\"."),
             L.t("撳「輔助使用」。", "点「辅助功能」。", "Tap \"Accessibility\"."),
             L.t("撳「\(Self.menuName)」。", "点「\(Self.menuName)」。", "Tap \"\(Self.menuName)\"."),
             L.t("撳「聲音」。", "点「声音」。", "Tap \"Voices\"."),
             L.t("撳「\(group)」，再撳「\(region)」。", "点「\(group)」，再点「\(region)」。", "Tap \"\(group)\", then \"\(region)\"."),
             L.t("揀\(names)：要名後面寫住「優質」嗰個（冇就揀「已強化」）。撳旁邊個雲朵掣下載，等佢下載完。", "选\(names)：要名字后面写着「高音质」的那个（没有就选「增强音质」）。点旁边的云朵按钮下载，等它下载完。", "Pick \(names) marked \"Premium\" (or \"Enhanced\"). Tap the cloud button and wait for the download."),
-            L.t("返嚟街坊行，會自動轉用新聲音。", "回到街坊行，会自动换成新声音。", "Come back to Kaifong Walk. The new voice is used by itself."),
+            L.t("返嚟街坊行，會自動轉用新聲音。", "回到街坊行，会自动换成新声音。", "Come back to StreetWalk. The new voice is used by itself."),
         ]
     }
 
@@ -384,7 +384,7 @@ private struct VoiceServerSection: View {
             }
             if server.speechURL != nil {
                 PreviewButton(speaker: store.speaker, key: "assistant", title: L.t("試聽助手把聲", "试听助手的声音", "Preview assistant"), wide: false) {
-                    store.previewVoice(nil, current: true, text: L.t("你好，我係街坊行嘅語音助手，有咩想問就撳咪同我講。", "你好，我是街坊行的语音助手，有什么想问就按麦克风跟我说。", "Hello, I'm the Kaifong Walk voice assistant. Tap the mic and talk to me."), key: "assistant")
+                    store.previewVoice(nil, current: true, text: L.t("你好，我係街坊行嘅語音助手，有咩想問就撳咪同我講。", "你好，我是街坊行的语音助手，有什么想问就按麦克风跟我说。", "Hello, I'm the StreetWalk voice assistant. Tap the mic and talk to me."), key: "assistant")
                 }
             }
         } header: {

@@ -758,7 +758,7 @@ struct BoardTab: View {
             if store.backendOffline {
                 DemoNote(text: L.t("未連線：而家顯示上次嘅排行榜，連返網會自動更新。", "未联网：现在显示上次的排行榜，联网后会自动更新。", "Offline: showing the last leaderboard. It updates when you're back online."))
             } else if !store.community.isSimulated && rows.isEmpty {
-                DemoNote(text: L.t("附近暫時未有其他人用街坊行。同區有人用，就會喺呢度出現。", "附近暂时没有其他人用街坊行。同区有人用，就会出现在这里。", "No one else nearby uses Kaifong Walk yet. When someone in your area does, they'll show here."))
+                DemoNote(text: L.t("附近暫時未有其他人用街坊行。同區有人用，就會喺呢度出現。", "附近暂时没有其他人用街坊行。同区有人用，就会出现在这里。", "No one else nearby uses StreetWalk yet. When someone in your area does, they'll show here."))
             }
             circleCard
             VStack(spacing: 0) {
