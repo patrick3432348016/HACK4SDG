@@ -6,6 +6,12 @@ Hong Kong Inter-University GenAI Hackathon for SDGs 2026 — Track 2: **Sustaina
 
 Residents of newly occupied Northern Metropolis estates often pass one another on the same paths without getting to know each other. StreetWalk helps residents of all ages turn everyday walks into opportunities to meet: recognize familiar neighbors, pair phones in person, arrange a walk by voice, and find each other when it is time to meet. The interface includes support for older residents.
 
+## Beginner's Notice: Copy the following message to an agent and let it help you with the operation:
+
+"Guide me and help me deploy the software at https://github.com/patrick3432348016/HACK4SDG on my phone."
+
+(You can send this message to WorkBuddy, ChatGPT, Claude, Doubao, etc.)
+
 ## Current status — 18 October 2026
 
 The team reports three rounds of testing with members and roommates on 16–18 October, including an iPhone 15 and an iPhone Air. The user reports that neighbor pairing, voice invitations with acceptance on the other phone, and live finding have passed on two network-connected iPhones. These are **team-reported results**, not an independent reliability assessment or a trial with target residents. Demo mode includes simulated people and events.
