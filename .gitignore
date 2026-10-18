@@ -8,3 +8,7 @@ Secrets.*
 Local.xcconfig
 .build/
 .claude/worktrees/
+
+# 宣传片制作只放本地，唔入 GitHub（10-18 用户）
+video/
+docs/pitch/
