@@ -2,25 +2,25 @@ import SwiftUI
 import AVFoundation
 import Speech
 
-// 语音
+// Voice interaction.
 extension AppStore {
-    // MARK: - 播报
+    // MARK: - Speech output
 
-    /// 所有播报都经呢度：排队唔互相截断、读屏开着改用公告、聆听中先收起、过期唔讲（见 Announcer）。
-    /// prompt：要用户回应嘅句子（复述确认、问题），优先讲、唔会被挤走。
-    /// force：用户亲手要求（「再聽一次」），设定入面「語音播報」关咗都读。
+    /// Route all speech through Announcer for queuing, VoiceOver announcements, listening deferral and expiry.
+    /// prompt marks response-required messages with priority and protection from displacement.
+    /// force honors explicit replay requests even when spoken announcements are disabled in Settings.
     func say(_ s: String, prompt: Bool = false, force: Bool = false) {
-        // 连续对话：一路收音一路可以讲（回声消除），唔使收起；记低讲过咩（回声保险）
+        // Continuous conversation may speak while capturing with echo cancellation; remember output for the echo guard.
         if conversing { recentSpoken.append((s, Date())) }
         announcer.say(s, kind: prompt ? .prompt : .info, force: force, via: speaker, holding: listening && !conversing)
     }
 
-    /// 停低兼清空播报（换标签、开关设定、引导换页、关卡、取消、退后台）。连续对话照听，唔会收咪。
+    /// Stop and clear announcements on navigation, card changes, cancellation or backgrounding; continuous capture remains active where applicable.
     func hush() {
         announcer.interrupt(speaker)
     }
 
-    /// 「再聽一次」：停低而家讲紧嘅，即刻由头讲（排队嘅话，长句讲紧时再撳会排到过期、静静鸡唔讲）。
+    /// Replay stops current speech and restarts immediately, avoiding queued requests expiring during long sentences.
     func sayAgain(_ s: String) {
         guard !listening || conversing else { say(s, force: true); return }
         announcer.hold(speaker)
@@ -28,34 +28,34 @@ extension AppStore {
         say(s, prompt: true, force: true)
     }
 
-    /// 聆听结束：讲返聆听期间收起嘅提示（排喺对用户嗰句嘅回应之后；排得太耐嘅资讯句唔再讲）。
+    /// After listening, flush deferred prompts behind the response; discard stale informational messages.
     func flushHeldSpeech(_ held: [Announcer.Line]) {
         held.forEach { announcer.enqueue($0, via: speaker, holding: listening && !conversing) }
     }
 
-    // MARK: - 语音
+    // MARK: - Voice input
 
     func micTapped() {
         if conversing { endConversation(); return }
         if listening { stopListening(); return }
         guard !micStarting else { return }
-        // 复述卡仲等紧确认：张卡留住，开咪听「好 / 不要」（2026-10-17 用户测试：讲「不要」冇反应）；讲第二句就当新请求。
+        // Keep pending recap cards while listening for confirmation / cancellation; other sentences start a new request (2026-10-17 testing).
         let answer: Listener.Answer? = voiceCard?.needsConfirm == true ? .confirm : nil
         if answer == nil { voiceCard = nil }
-        _ = listener.nextAnswerGen()   // 等紧自动开咪嘅作废
+        _ = listener.nextAnswerGen()   // Invalidate pending automatic microphone activation.
         micStarting = true
         Task { @MainActor in
             defer { micStarting = false }
-            // Mac 语音服务器有 B 嘅豆包识别：连续对话（AppStore+Conversation）；开唔到先用手机识别
+            // Use B's Doubao recognition through the Mac server for continuous conversation; fall back to device recognition if unavailable.
             if canConverse, await startConversation() { return }
-            // 第一次按咪：等用户答完权限框先开始听，唔系第一句会冇咗（A47）。
+            // A47: wait for first-use permission responses before listening, preserving the first utterance.
             let auth = await ensureVoiceAuth()
             guard auth.granted else {
                 toast(L.t("未開咪或者語音識別權限。可以揀一句，或者去設定開。", "没开麦克风或语音识别权限。可以选一句，或者去设置打开。", "No mic or speech permission. Pick a sentence, or turn it on in Settings."))
                 phrasePicker = true
                 return
             }
-            // 啱啱弹完权限框：等音频会话定落嚟先开咪（模拟器上即刻开录音引擎试过超时崩溃，见复核 A47）。
+            // After permission prompts, let the audio session settle; immediately starting the engine caused simulator timeout crashes (A47 review).
             if auth.prompted { try? await Task.sleep(for: .milliseconds(400)) }
             guard AVAudioSession.sharedInstance().isInputAvailable else {
                 toast(L.t("而家用唔到咪，可以揀一句。", "现在用不了麦克风，可以选一句。", "The mic isn't available now. Pick a sentence."))
@@ -64,7 +64,7 @@ extension AppStore {
             }
             announcer.hold(speaker)
             do {
-                // 讲完停 1.5 秒就自动当讲完（唔使撳「講完」；2026-10-17 用户测试：讲完冇反应，以为认唔到，再讲一次字就叠埋）
+                // Finish after 1.5 seconds of silence so users need not tap Done or repeat themselves (2026-10-17 testing).
                 listener.answering = answer
                 listener.onSilence = { [weak self] in self?.listenerSilent() }
                 try listener.start(idle: answer == nil ? 15 : 8)
@@ -81,7 +81,7 @@ extension AppStore {
         }
     }
 
-    /// 语音识别同麦克风权限：未问过就等用户答。granted：两样都允许；prompted：今次弹过权限框。
+    /// Await microphone and speech authorization when undetermined. granted means both allowed; prompted means dialogs appeared this time.
     func ensureVoiceAuth() async -> (granted: Bool, prompted: Bool) {
         var prompted = false
         var speech = SFSpeechRecognizer.authorizationStatus()
@@ -104,7 +104,7 @@ extension AppStore {
         listening = false
         if text.isEmpty {
             let held = announcer.release()
-            // 自动开咪等答案（复述卡 / 帮助卡）冇人讲：静静鸡收咪，张卡同掣照留
+            // If automatic listening hears nothing, close the microphone silently and retain the card and buttons.
             if !answering {
                 say(L.t("聽唔清楚。可以再講一次，或者揀一句。", "没听清楚。可以再说一次，或者选一句。", "Didn't catch that. Please say it again, or pick a sentence."), prompt: true)
                 phrasePicker = true
@@ -115,23 +115,23 @@ extension AppStore {
         }
     }
 
-    /// 手机识别：讲完停咗一阵 / 一直冇讲嘢（Listener.onSilence）。
+    /// Device recognition silence callback after a finished utterance or no speech.
     func listenerSilent() {
         guard listening, !conversing else { return }
         stopListening()
     }
 
-    // MARK: - 卡出咗之后自动再听一次（手机识别；连续对话本身一直听紧）
+    // MARK: - Listen again after cards; continuous conversation already keeps listening
 
-    /// 复述卡（等「好 / 不要」）、帮助卡（例句）、助手问问题：提示讲完就自动开咪听一次，唔使再撳咪（2026-10-17 用户测试）。
-    /// 只喺已经俾咗咪同语音识别权限、冇开读屏、喺主画面前台时先开；8 秒冇人讲就静静鸡收咪（张卡同掣照留）。
+    /// After recap, help or assistant-question speech, listen once automatically without another microphone tap (2026-10-17 testing).
+    /// Require existing permissions, no VoiceOver and the foreground main screen; stop silently after 8 seconds without speech.
     func listenForAnswer(_ kind: Listener.Answer) {
         guard !conversing, let id = voiceCard?.id, Self.autoListenAllowed else { return }
         let gen = listener.nextAnswerGen()
         Task { @MainActor [weak self] in
             let start = Date()
             var quiet = 0
-            // 等提示讲完（最多 25 秒）：连续两次睇到冇讲紧、冇排紧先开（播报会抢咪，仲会录埋入去）
+            // Wait up to 25 seconds for output, requiring two consecutive idle-and-empty checks to avoid audio-session conflict and self-recording.
             while Date().timeIntervalSince(start) < 25 {
                 try? await Task.sleep(for: .milliseconds(200))
                 guard let self, self.listener.answerGen == gen else { return }
@@ -153,7 +153,7 @@ extension AppStore {
                 self.flushHeldSpeech(self.announcer.release())
                 return
             }
-            // 张卡收咗 / 换咗（撳「收起」、自动收）：咪都收埋，唔好变成一张空白「聽緊」卡
+            // Stop listening when the card closes or changes; do not leave an empty Listening card.
             while self.listening, self.listener.answering != nil, self.listener.answerGen == gen {
                 try? await Task.sleep(for: .milliseconds(300))
                 if self.voiceCard?.id != id { self.stopAnswerListening(); return }
@@ -161,13 +161,13 @@ extension AppStore {
         }
     }
 
-    /// 自动开咪：已经俾咗权限（唔会自己弹权限框）、冇开读屏、唔系自动演示。
+    /// Automatic activation requires granted permissions, no VoiceOver and no automated demo; never prompt for permission automatically.
     static var autoListenAllowed: Bool {
         SFSpeechRecognizer.authorizationStatus() == .authorized && AVAudioApplication.shared.recordPermission == .granted
             && !UIAccessibility.isVoiceOverRunning && !Speaker.scripted
     }
 
-    /// 撳咗卡上嘅掣 / 张卡换咗：自动开咗嘅咪收埋（唔处理听到嘅字）。
+    /// On a card-button action or replacement, stop automatically started capture without processing its transcript.
     func stopAnswerListening() {
         _ = listener.nextAnswerGen()
         guard listening, !conversing, listener.answering != nil else { return }
@@ -176,8 +176,8 @@ extension AppStore {
         flushHeldSpeech(announcer.release())
     }
 
-    /// 改名卡真係喺度先算改名中：揀中嗰个地标、冇约人 / 找人 / 出门提醒 / 碰一碰盖住。
-    /// renaming 本身会留低（例如撳咗「改名」就去约人），唔好用佢判断（复核 A02）。
+    /// Renaming is active only when its selected landmark card is visible and not covered by invitation, finding, outing or bump UI.
+    /// The renaming flag alone can outlive its visible card, so do not rely on it (A02 review).
     var renamingNow: String? {
         guard let id = renaming, selection == .landmark(id), proposal == nil, find == nil,
               remindPromptFor == nil, bumpStage == .idle else { return nil }
@@ -185,13 +185,13 @@ extension AppStore {
     }
 
     var suggestedPhrases: [String] {
-        // 改名中：建议几个新名，撳一个 = 讲咗个新名（之后照样复述确认）。
+        // During rename, offer suggested names; tapping one follows the same recap-confirmation path as speech.
         if let id = renamingNow, let lm = landmark(id) { return ai.alternativeNames(for: lm) }
-        // 只用街坊的名字（非街坊唔出名）；未有街坊就唔出约人嘅句子。
+        // Use only neighbors' names; omit invitation examples when no neighbors exist.
         let name = neighbors.first?.name
         if find != nil { return [L.t("我喺\(landmark(find?.landmarkID)?.name ?? "涼亭")", "我在\(landmark(find?.landmarkID)?.name ?? "涼亭")", "I'm at \(landmark(find?.landmarkID)?.name ?? "the pavilion")")] }
-        // 散步中：三种反映 + 一句同街坊有关（有街坊喺外面就去找，冇就约聽日）或者问天气，一共 4 句
-        // （10-18 真机：冇街坊时只剩「太晒 / 没凳子」两句）
+        // While walking, offer three report examples plus finding / tomorrow's invitation if possible, otherwise weather: four total.
+        // 10-18 device feedback found only two examples remaining without neighbors.
         if walk != nil {
             let out = residents.first(where: { $0.isNeighbor && !$0.isMe && $0.isOut })
             let social = out.map { L.t("過去搵\($0.name)", "去找\($0.name)", "Go find \($0.name)") }
@@ -202,22 +202,22 @@ extension AppStore {
         }
         if let a = targetAppointment(partnerID: nil), let p = resident(a.partnerID),
            let other = landmarks.filter({ $0.id != a.landmarkID }).max(by: { $0.name.count < $1.name.count }) {
-            // 建议一个同而家唔同嘅钟点（约咗四点就建议五点）。
+            // Suggest a time different from the current meeting, such as five instead of four.
             let five = Self.hk.component(.hour, from: a.date) == 16
             let alt = five ? "五" : "四", altEn = five ? "5" : "4"
             return [L.t("改做下晝\(alt)點", "改到下午\(alt)点", "Change to \(altEn) pm"), L.t("改去\(other.name)", "改到\(other.name)", "Move to \(other.name)"), L.t("取消同\(p.name)嘅約", "取消和\(p.name)的约会", "Cancel walk with \(p.name)"), L.t("今日請假", "今天请假", "Day off today")]
         }
-        // 反映只喺散步时讲（F10）；唔散步时唔建议。改地标名好少用、仲会以为改咗地名（UX 报告 33），唔建议；
-        // 问天气：手机自己答天文台嗰句（showWeatherAnswer，唔交服务器）。
+        // F10: offer reports only during walks. Omit rarely used rename suggestions that confused users about changing official place names (UX 33).
+        // Weather examples use the local HKO response through showWeatherAnswer.
         let weather = [L.t("今日天氣點", "今天天气怎么样", "What's the weather today?")]
         let find = residents.first(where: { $0.isNeighbor && !$0.isMe && $0.isOut }).map { [L.t("過去搵\($0.name)", "去找\($0.name)", "Go find \($0.name)")] } ?? []
         return (name.map { [L.t("約\($0)聽日下晝三點一齊行", "约\($0)明天下午三点一起走", "Invite \($0) tomorrow at 3 pm")] } ?? []) + weather + find + [L.t("今日請假", "今天请假", "Day off today")]
     }
 
     func handle(_ text: String) {
-        let text = Listener.collapseRepeats(text)   // 口吃 / 识别重复嘅词（「帮我帮我约」）收埋
+        let text = Listener.collapseRepeats(text)   // Collapse stutters or repeated recognition fragments.
         phrasePicker = false
-        // 连续对话：继续听，唔使收起播报
+        // Continuous conversation keeps listening without deferring speech.
         guard !conversing else { routeHeard(text); return }
         if listening { _ = listener.stop() }
         listening = false
@@ -226,20 +226,20 @@ extension AppStore {
         routeHeard(text)
     }
 
-    /// 听到 / 揀咗一句之后：手机模板先认，约人同听唔明嘅交俾组员 B 嘅助手。
+    /// After input or an example tap, try device templates first; route invitations and unknown requests to B's assistant.
     private func routeHeard(_ text: String) {
-        // 安全先行（两种语言、有冇 Mac 服务器都一样）：求救叫打 999；问食咩藥 / 睇咩醫生叫问医生（B 嘅规则只喺粤语服务器有）。
+        // Apply the local emergency and medical-response safety rules before App actions, regardless of server availability or language.
         if let s = TemplateAI.safety(text) { showSafety(s, heard: text); return }
-        // 复述卡等紧确认：讲「好 / 可以 / 行」= 撳「好」，讲「不要 / 算了 / 取消」= 撳「唔係」（2026-10-17 用户测试）
+        // Pending recaps accept spoken affirmative / negative variants as the corresponding buttons (2026-10-17 testing).
         if answerConfirm(text) { return }
-        // 只俾 AI 睇我同街坊（非街坊连名都唔传，A03）。讲非街坊个名 = 听唔明，唔会讲出佢住几楼。
+        // A03: AI context includes only me and neighbors, excluding even non-neighbor names and floors.
         let known = residents.filter { $0.isMe || $0.isNeighbor }
         let ctx = AIContext(residents: known, landmarks: landmarks, now: now, walking: walk != nil, finding: find != nil)
         var intent = ai.parseVoice(text, context: ctx)
-        // 问天气：普通话（B 嘅服务器普通话唔答天气）或者连唔到 Mac 时手机自己答（天文台）；粤语有服务器就照旧交俾 B（分区、逐个钟、「咁聽日呢」都答到）。
+        // Use local HKO weather when the server path is unavailable or unsupported; the Cantonese server supports district, hourly and follow-up questions.
         if renamingNow == nil, intent == .unknown, TemplateAI.asksWeather(text),
            VoiceSettings.shared.language != .cantonese || !VoiceServer.shared.status.isConnected { showWeatherAnswer(text); return }
-        // 地标卡撳咗「講新名」：成句当新名（A02）。
+        // A02: after explicit rename input activation, treat the whole utterance as the new name.
         if let id = renamingNow {
             switch intent {
             case .rename, .leave, .report: break
@@ -248,14 +248,14 @@ extension AppStore {
                 intent = .rename(landmarkID: id, newName: name)
             }
         }
-        // 约人 / 听唔明：有 Mac 语音服务器就交俾组员 B 嘅助手（AppStore+Assistant）；冇就照旧用手机模板。
+        // Route invitations and unknown input to B when the voice server is available, otherwise use local templates.
         let heard = intent
         if renamingNow == nil, handleWithAssistant(text, local: heard, fallback: { [weak self] in self?.handleLocally(text, heard) }) { return }
         handleLocally(text, heard)
     }
 
-    /// 对住等紧确认嘅复述卡讲嘢：「好」类 → 确认；「唔好」类 → 撤回；好短又听唔明（多数系听错咗「好」）→ 张卡留住、再问一次。
-    /// 返回 true = 已经处理。长句当新请求：手机自己嘅复述卡先撤回（同以前撳咪一样）；助手嘅卡唔撤（B 嘅对话可以接住改）。
+    /// For pending recaps, affirmative confirms, negative withdraws, and short unrecognized input retains the card and asks again.
+    /// True means handled. Longer input starts a request, cancelling local recaps but preserving B's editable conversation draft.
     func answerConfirm(_ text: String) -> Bool {
         guard let card = voiceCard, card.needsConfirm else { return false }
         switch Self.yesNo(text) {
@@ -268,7 +268,7 @@ extension AppStore {
             return true
         case nil:
             let t = text.filter { !$0.isPunctuation && !$0.isWhitespace }
-            // 改名中两个字可能系新名；「請假」之类系新请求（英文：一两个字）
+            // Short rename input may be a new name; recognized actions still begin a new request, including short English commands.
             let english = EnglishText.isEnglish(text)
             let short = english ? EnglishText.words(text).count <= 2 : t.count <= 2
             if short, renamingNow == nil, !TemplateAI.asksLeave(english ? text : TemplateAI.toHant(t)), TemplateAI.topic(english ? text : t) == nil {
@@ -281,13 +281,13 @@ extension AppStore {
         }
     }
 
-    /// 手机模板（TemplateAI）嘅流程：离线、演示模式、服务器连唔到时都系呢个。
+    /// TemplateAI flow for offline use, demos and unavailable servers.
     func handleLocally(_ text: String, _ intent: VoiceIntent) {
         switch intent {
         case .invite(let id, let day, let hour):
             guard let p = resident(id), p.isNeighbor else { toast(L.t("你講嘅人仲未係你街坊。見到面碰一碰，先可以約。", "你说的人还不是你的邻居。见面碰一碰，才可以约。", "That person isn't your neighbour yet. Tap phones when you meet, then you can invite them.")); return }
             proposeMeetup(with: id, day: day, hour: hour, announce: false)
-            // 讲咗分钟（「三點十五」）、行几耐（「走四十分鐘」）：复述卡讲埋（理由加「一齊行…」，对方都见到）
+            // Include explicit minutes and shared walking duration in the recap and peer-visible reason.
             let walk = applySpokenTime(text, day: day, hour: hour)
             if let prop = proposal?.options.first {
                 let place = landmark(prop.landmarkID)?.name ?? ""
@@ -303,23 +303,23 @@ extension AppStore {
             showConfirm(VoiceCard(heard: text, title: L.t("過去搵\(p.name)", "去找\(p.name)", "Find \(p.name)"), detail: L.t("會先問\(p.name)方唔方便", "会先问\(p.name)方不方便", "We'll ask \(p.name) first if it's OK"), needsConfirm: true, intent: intent),
                         spoken: L.t("過去搵\(p.name)，會先問佢方唔方便", "去找\(p.name)，会先问对方方不方便", "Find \(p.name). We'll ask them first if it's OK"))
         case .leave:
-            // 按原句判断日子（「聽日請假」「請三日假」）；已经请咗就唔再出卡（免得「撤回」撤咗之前请嘅假）。
+            // Parse leave dates / duration from the original utterance; avoid duplicate cards that could withdraw previously granted leave.
             let r = LeaveRequest.parse(Self.leaveText(text), today: now)
             guard !leaveKeys(r).allSatisfy(leaveDays.contains) else { toast(L.t("你已經\(leaveTitle(r))喇。", "你已经\(leaveTitle(r))了。", "Already set: \(leaveTitle(r)).")); return }
             let title = requestLeave(fromVoice: Self.leaveText(text))
             voiceCard = VoiceCard(heard: text, title: title, detail: L.t("連續日數會保留", "连续天数会保留", "Your streak is kept"), needsConfirm: false, intent: intent)
         case .rename(let id, let name):
-            // 改名全圈生效（F3）：影响别人，先复述，撳「好」先改（A02）。
+            // F3 / A02: shared landmark renaming affects others and requires spoken recap and explicit confirmation.
             let old = landmark(id)?.name ?? ""
             guard name != old else { toast(L.t("而家已經叫\(name)。", "现在已经叫\(name)了。", "It's already called \(name).")); return }
             showConfirm(VoiceCard(heard: text, title: L.t("\(old)改名做\(name)？", "\(old)改名叫\(name)？", "Rename \(old) to \(name)?"), detail: renameNote, needsConfirm: true, intent: intent))
         case .report(let kind):
-            // F10：反映喺散步时讲，挂喺最近嘅地标（A18）。
+            // F10 / A18: walking reports attach to the nearest landmark.
             guard walk != nil else { toast(L.t("散步時講「呢度好曬」「呢度冇櫈」，我會記喺附近嘅地標。", "散步时说「这里太晒」「这里没有凳子」，我会记在附近的地标。", "While walking, say \"Too sunny here\" or \"No seats here\". I'll note it at the nearest landmark.")); return }
             let rid = report(kind, rawText: text)
             voiceCard = VoiceCard(heard: text, title: L.t("記低：呢度\(kind.label)", "记下：这里\(kind.label)", "Noted: \(kind.label) here"), detail: reportNote, needsConfirm: false, intent: intent, reportID: rid)
         case .broadcast(let raw):
-            // 复述同真正播出去嘅係同一句（A11）。
+            // A11: the displayed recap matches the spoken sentence.
             let msg = Self.cleanBroadcast(raw)
             let name = find.flatMap { resident($0.partnerID)?.name } ?? L.t("對方", "对方", "them")
             showConfirm(VoiceCard(heard: text, title: L.t("播俾\(name)聽", "播给\(name)听", "Send to \(name)"), detail: msg, needsConfirm: true, intent: .broadcast(msg)),
@@ -344,9 +344,9 @@ extension AppStore {
         }
     }
 
-    /// 听到咗字但唔知做乜（手机模板 / Mac 助手都认唔到）：唔好话「冇聽清楚」（用户睇到字已经认咗）。
-    /// 复述听到嘅句子，讲清楚点解做唔到，再俾两三句撳得嘅例句（撳 = 讲咗嗰句）。
-    /// 问天气：冇 Mac 服务器都答（天文台嗰句，同「今日」页一样）。
+    /// If recognition produced text but neither parser understands it, do not claim the speech was inaudible.
+    /// Repeat the transcript, explain the limitation and offer two or three tappable actionable examples.
+    /// Answer weather locally with Today's HKO sentence even without the Mac server.
     func showNotUnderstood(_ text: String) {
         phrasePicker = false
         if TemplateAI.asksWeather(text) { showWeatherAnswer(text); return }
@@ -367,21 +367,21 @@ extension AppStore {
         voiceCard = VoiceCard(heard: text, title: title, detail: nil, needsConfirm: false, intent: .unknown,
                               assistant: AssistantCard(kind: .notUnderstood, title: title, spoken: title, chips: chips, conversationID: ""))
         let example = chips.first.map { L.t("例如「\($0)」。", "比如「\($0)」。", "For example: \"\($0)\".") } ?? ""
-        // 标题本身以「例如：」结尾就唔好再讲多次「例如」（以前讲成「比如，比如『…』」）
+        // Avoid repeating the example introducer when the title already includes it.
         let lead = String(title.dropLast())
         let spoken = L.isEn ? title + (chips.first.map { title.hasSuffix(":") ? " \"\($0)\"." : " For example: \"\($0)\"." } ?? "")
             : !title.hasSuffix("：") ? title
             : lead.hasSuffix("例如") || lead.hasSuffix("比如") ? lead + (chips.first.map { "「\($0)」。" } ?? "。")
             : lead + "，" + example
         say(spoken, prompt: true)
-        // 手机识别：讲完就再开咪，用户直接再讲一次就得，唔使撳例句（2026-10-17 用户测试）
+        // Device recognition listens again after the prompt so users can retry directly (2026-10-17 testing).
         listenForAnswer(.retry)
     }
 
-    /// 问天气：手机答天文台嗰句（同「今日」页一样）；问聽日就加埋天文台嘅聽日降雨机会。
+    /// Local weather matches Today; tomorrow questions add HKO's next-day rain probability.
     func showWeatherAnswer(_ text: String) {
         phrasePicker = false
-        refreshWeatherTip()   // 用而家嘅界面语言重出（唔好用转语言之前定咗嘅句子）
+        refreshWeatherTip()   // Regenerate in the current UI language rather than retaining a pre-switch sentence.
         var answer = tryAnswer
         if TemplateAI.parseDay(TemplateAI.toHant(text)) == 1, !hko.demoOverride, let psr = hko.report?.tomorrowPSR, !psr.isEmpty {
             answer = Self.oneSentence([answer, L.t("天文台話聽日降雨機會\(psr)", "天文台说明天降雨概率\(psr)", "The Observatory says the chance of rain tomorrow is \(HKOReport.psrEnglish(psr))")])
@@ -391,11 +391,11 @@ extension AppStore {
         say(answer)
     }
 
-    /// 求救 / 问医疗（TemplateAI.safety）：唔做任何 App 动作，出卡兼即刻讲。等紧确认嘅复述卡先撤回。
+    /// TemplateAI.safety shows and immediately speaks safety guidance without executing App actions; withdraw pending recaps first.
     func showSafety(_ s: TemplateAI.Safety, heard text: String) {
         phrasePicker = false
         if voiceCard?.needsConfirm == true { rejectVoice() }
-        assistantGen = UUID()   // 服务器仲答紧上一句：答返嚟都唔好盖住呢张卡
+        assistantGen = UUID()   // Prevent an outstanding earlier server reply from replacing the safety card.
         assistant.reset()
         hush()
         let title: String, detail: String?
@@ -413,7 +413,7 @@ extension AppStore {
         say(title, prompt: true)
     }
 
-    /// 撳得嘅例句：只出而家真係做得到嘅（有街坊先出约人 / 找人；散步先出反映；天气手机都答到）。
+    /// Offer only currently feasible examples: neighbors for inviting / finding, active walks for reports, local weather always available.
     var voiceExamples: [String] {
         var out: [String] = []
         if let n = neighbors.first {
@@ -426,7 +426,7 @@ extension AppStore {
         return Array(out.prefix(3))
     }
 
-    /// 要撳「好」嘅复述卡：画面同语音一齐出（§4），讲埋点样确认（同个掣一样：粤语「好」、普通话「好的」）。
+    /// Section 4: show and speak confirmation recaps together, using the same localized confirmation wording as the button.
     private func showConfirm(_ card: VoiceCard, spoken: String? = nil) {
         voiceCard = card
         let s = (spoken ?? card.title).trimmingCharacters(in: CharacterSet(charactersIn: "。？?！! "))
@@ -434,29 +434,29 @@ extension AppStore {
         listenForAnswer(.confirm)
     }
 
-    /// 复述卡讲完点样确认：讲「好」或者撳掣（2026-10-17 起讲「好 / 不要」都得）。
+    /// Explain that users can confirm or cancel by speech or button (since 2026-10-17).
     static func confirmPrompt(_ s: String) -> String {
         L.t("\(s)。啱就講「好」或者撳「好」。", "\(s)。没问题就说「好」，或者按「好的」。", "\(s). If that's right, say \"OK\" or tap OK.")
     }
 
-    /// 理由后面加嘅「，一齊行四十分鐘」（同 setCustomProposal 一样写入理由，对方都见到）。
+    /// Append shared walking duration to the peer-visible reason, as in setCustomProposal.
     static func walkNote(_ minutes: Int) -> String {
         L.t("，", "，", ", walk together ") + TemplateAI.walkPhrase(minutes)
     }
 
-    /// 请假句：英文先转成中文写法（LeaveRequest.parse 认中文），中文原样。
+    /// Normalize English leave requests into the Chinese syntax accepted by LeaveRequest.parse; preserve Chinese input.
     static func leaveText(_ text: String) -> String {
         EnglishText.isEnglish(text) ? EnglishText.leaveText(text) : text
     }
 
-    /// 约人讲咗分钟（「三點十五」）同行几耐（「走四十分鐘」）：改第一个提议嘅时间、全部提议嘅理由。
-    /// 返回行几耐（分钟）；冇讲返回 nil。
+    /// Apply spoken minutes to the first proposal and shared duration to every proposal's reason.
+    /// Return requested walking duration in minutes, or nil if absent.
     @discardableResult
     func applySpokenTime(_ text: String, day: Int, hour: Int?) -> Int? {
         guard var p = proposal, !p.options.isEmpty else { return nil }
         let walk = TemplateAI.parseDuration(text)
         if let h = hour, let m = TemplateAI.parseClock(text)?.minute, m > 0 {
-            // 同 candidateTimes 一样：今日嗰个钟已经过咗就聽日
+            // As in candidateTimes, an already-passed time means tomorrow.
             var date = Self.today(at: Double(h) + Double(m) / 60, dayOffset: day)
             if date <= now { date = date.addingTimeInterval(86400) }
             p.options[0] = honestReason(MeetProposal(date: date, landmarkID: p.options[0].landmarkID, reason: p.options[0].reason))
@@ -468,15 +468,15 @@ extension AppStore {
         return walk
     }
 
-    /// 改名、反映嘅说明：未接伺服器时唔好讲成已经同步咗（A69）。
+    /// A69: rename/report explanations must not claim synchronization without a server connection.
     var renameNote: String { community.sharesLandmarkNames ? L.t("同圈街坊都會見到", "同圈邻居都会看到", "Neighbours in your circle will see it") : L.t("暫時只喺你部手機", "暂时只在你的手机上", "Only on your phone for now") }
     var reportNote: String { community.hasServer ? L.t("同一個地方多位街坊都反映，我哋會匿名整理好轉告社區", "同一个地方多位邻居都反映，我们会匿名整理好转告社区", "When several neighbours report the same place, we'll pass it on to the community anonymously") : L.t("暫時只喺你部手機", "暂时只在你的手机上", "Only on your phone for now") }
 
-    /// 改名中只讲新名：去掉「改名做」「叫」之类同标点；太长（超过 10 个字）当听错。
+    /// Strip rename prefixes and punctuation; reject names longer than 10 Chinese characters as likely recognition errors.
     static func spokenName(_ text: String) -> String? {
         let strip = CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters).union(.symbols)
         if EnglishText.isEnglish(text) {
-            // 英文：「call it Chess Corner」「rename it to …」→ 新名（最多 24 个字母）
+            // English rename prefixes yield the new name, limited to 24 letters.
             var s = text.trimmingCharacters(in: strip)
             for p in ["rename it to ", "change it to ", "call it ", "name it ", "rename to ", "it's called ", "call "] where s.lowercased().hasPrefix(p) {
                 s.removeFirst(p.count)
@@ -494,7 +494,7 @@ extension AppStore {
         return (1...10).contains(s.count) ? s : nil
     }
 
-    /// 播送嘅句子：去掉头尾空格同标点。
+    /// Trim whitespace and punctuation around the spoken sentence.
     static func cleanBroadcast(_ raw: String) -> String {
         raw.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
     }
@@ -502,7 +502,7 @@ extension AppStore {
     func confirmVoice() {
         guard let card = voiceCard else { return }
         stopAnswerListening()
-        hush()   // 撳咗「好」：唔好再叫人撳「好」，之后讲结果
+        hush()   // After confirmation, stop asking for confirmation and announce the result.
         if card.assistant != nil { assistantConfirm(card); return }
         voiceCard = nil
         switch card.intent {
@@ -523,7 +523,7 @@ extension AppStore {
     func rejectVoice() {
         guard let card = voiceCard else { return }
         stopAnswerListening()
-        hush()   // 撳咗「唔係 / 取消」：「撳好就約」唔好再讲落去
+        hush()   // After cancellation, stop the pending invitation-confirmation prompt.
         voiceCard = nil
         if card.assistant != nil { assistantReject(card); return }
         switch card.intent {

@@ -1,6 +1,6 @@
 import Foundation
 
-// 不依赖模拟器的核心逻辑自测：在 Mac 上用 swiftc 编译运行（见 tools/selftest.sh）。
+// Simulator-free core tests compiled with swiftc on Mac; see tools/selftest.sh.
 var failures = 0
 func check(_ ok: Bool, _ msg: String) {
     print(ok ? "  ok  \(msg)" : "  FAIL \(msg)")
@@ -42,7 +42,7 @@ var worstClear = Double.infinity, maxGreen = 0.0, wrongNames: [String] = [], dro
 let estates = map.areas.filter { $0.kind == .residential && $0.name != nil }
 for h in map.buildings where h.kind == .residential {
     let d = map.simplified(around: h.centroid, home: h.id)
-    // 地名：屋企所在的屋苑（住宅用地）名，否则是整个邨名。
+    // Use the home's residential estate name, otherwise the wider estate name.
     let expected = estates.first { Polygon.contains($0.outline, h.centroid) }?.name ?? "皇后山邨"
     if d.placeName != expected { wrongNames.append("\(h.name ?? "#\(h.id)")→\(d.placeName)") }
     if !d.buildings.contains(where: { $0.id == h.id }) { dropped += 1 }
@@ -61,22 +61,22 @@ check(worstClear >= 7.9, "地标离楼最近 \(String(format: "%.1f", worstClear
 let pickView = map.pickView(near: .zero)
 check(pickView.buildings.filter { $0.kind == .residential }.count <= 10 && pickView.buildings.filter { $0.kind != .residential }.count <= 3,
       "选楼画面 \(pickView.buildings.count) 座楼（住宅 \(pickView.buildings.filter { $0.kind == .residential }.count)）")
-// 站在每座住宅楼：自己那座一定选得到；没有位置时整格的住宅楼都选得到（离格心太远、底座会出界的除外）。
+// At every residence, its own building must be selectable; without location allow tile residences except unsafe edge crops.
 let allHomes = map.simplified(around: .zero, size: map.size, maxBuildings: nil).buildings
     .filter { $0.kind == .residential && map.dioramaFits(at: map.building(id: $0.id)!.centroid) }.map(\.id)
 let missing = allHomes.filter { id in !map.pickView(near: map.building(id: id)!.centroid).buildings.contains { $0.id == id && $0.kind == .residential } }
 check(missing.isEmpty, "站在 \(allHomes.count) 座住宅楼，自己那座都可以揀（漏 \(missing.count)）")
 let noLoc = Set(map.pickView(near: nil).buildings.filter { $0.kind == .residential }.map(\.id))
 check(allHomes.allSatisfy(noLoc.contains), "没有位置时 \(allHomes.count) 座住宅楼都选得到（\(allHomes.filter(noLoc.contains).count) 座）")
-// 每座可选的楼，做屋企时都要留在底座（A26：转正角度不同也不能漏）。
+// A26: retain every selected home in the base under all alignment rotations.
 let pickable = map.pickView(near: nil).buildings.filter { $0.kind == .residential }.map(\.id)
 let lost = pickable.filter { id in !map.simplified(around: map.building(id: id)!.centroid, home: id).buildings.contains { $0.id == id } }
 check(lost.isEmpty, "\(pickable.count) 座可揀的楼做屋企都留喺底座（漏 \(lost.count)）")
 
-// 实时拉到的格子（STREETWALK_TILES=放 v1/、v2/ 缓存的目录）：每座可揀的楼做屋企，地名、地标都要合理。
+// For STREETWALK_TILES real caches, inspect estate names and landmarks with every selectable building as home.
 if let dir = ProcessInfo.processInfo.environment["STREETWALK_TILES"] {
     print("Live tiles")
-    func name(_ c: LandmarkCandidate) -> String {   // 只模仿模板 AI 的楼下命名（没名叫"大堂"），其他用类型
+    func name(_ c: LandmarkCandidate) -> String {   // Approximate only TemplateAI's entrance naming, using a generic lobby for unnamed buildings and type names otherwise.
         c.kind == .lobby ? (c.osmName.map { "\($0)樓下" } ?? "大堂") : (c.osmName ?? c.kind.rawValue)
     }
     for (v, size) in [("v2", 720.0), ("v1", TileKey.plinthSize)] {
@@ -95,7 +95,7 @@ if let dir = ProcessInfo.processInfo.environment["STREETWALK_TILES"] {
                 let named = LandmarkDeriver.uniqueNames(lms, in: dm, home: h).map(\.name)
                 let label = "\(full.homeLabel(h) ?? "#\(h)")@\(dm.placeName)"
                 if named.count < 3 || Set(named).count != named.count || named.contains(where: { $0.hasPrefix("大堂") }) { bad.append("\(label) \(named)") }
-                // 地名只用底座里的有名住宅楼（示意楼不借 180 m 外的"第五座"）
+                // Estate naming uses named residences inside the base, not a distant building beside a placeholder.
                 if let b = dm.buildings.first(where: { $0.name == dm.placeName }), b.kind == .residential,
                    max(abs(b.centroid.x), abs(b.centroid.y)) > MapModel.dioramaSize / 2 + 1 { bad.append("\(label) 地名用底座外的楼") }
             }

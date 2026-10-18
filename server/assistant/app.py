@@ -18,7 +18,7 @@ from .service import Assistant
 from .store import Store
 from .sovits import SovitsEngine, SpeechService, SynthesisFailed
 from .supabase_business import SupabaseBusiness, UploadedContext
-# 成员 A 加（2026-10-12）：换成 B 新版嗰套——豆包识别（app_ear）、豆包理解 + 天文台 + B 嘅范围规则（app_policy）、豆包小何播报。
+# A integration, 2026-10-12: B's Doubao ASR, policy/model/HKO understanding and Xiaohe synthesis.
 from .app_ear import add_ear_route
 from .app_policy import TurnPolicy
 from .doubao import Doubao
@@ -78,19 +78,19 @@ class Limiter:
 
 
 def voice_id(settings):
-    """声音版本：换模型 / 参考录音就换 id，App 同服务器嘅缓存自动作废。"""
+    """Change voice ID after model/reference changes to invalidate App and server caches."""
     import os
     ref = os.path.basename(settings.sovits_ref_wav or "none")
     return f"sovits-v2ProPlus-{ref.rsplit('.', 1)[0]}-1"
 
 
 def tts_text(text, locale):
-    """10-18：普通话将 App 名「街坊行」读成 jiē fang háng；送去合成前换同音字（屏幕文字唔变）。粤语「行」读 haang4 啱，唔改。"""
+    """10-18: correct Mandarin App-name pronunciation with a synthesis-only homophone; leave display text and Cantonese unchanged."""
     return text.replace("街坊行", "街坊形") if locale == "zh-CN" else text
 
 
 def is_lan_caller(request):
-    """直接由局域网 / 本机连入（唔经隧道或者代理）：播报可以唔使登录（模拟器、演示模式）。"""
+    """Direct LAN/localhost synthesis may omit authentication when no tunnel/proxy is involved."""
     if any(h in request.headers for h in ("cf-connecting-ip", "x-forwarded-for", "forwarded", "x-real-ip", "cf-ray")):
         return False
     try:
@@ -126,7 +126,7 @@ def create_app(settings=None, client=None, clock=None, speech=None):
             speech.start(warm_text=None if settings.tts == "doubao" else "你好。")
         app.state.business, app.state.providers = business, providers
         app.state.assistant = Assistant(settings, store, business, providers, clock)
-        # B 嘅豆包理解 + 天文台 + 范围规则：有豆包配置先用；冇就照旧（千问 / 有限规则）。
+        # Use B's Doubao policy/HKO path when configured; otherwise retain Qwen or limited rules.
         app.state.policy = (TurnPolicy(settings, store, app.state.assistant, Doubao(settings.doubao, vendor_client))
                             if settings.doubao is not None else None)
         store.cleanup()
@@ -201,7 +201,7 @@ def create_app(settings=None, client=None, clock=None, speech=None):
         return await app.state.providers.transcribe(await request.body(), locale)
 
     async def speech_principal(request: Request):
-        """播报：登录用户，或者（speech_lan_open）直接由局域网连入嘅请求。经隧道嚟嘅一定要登录。"""
+        """Synthesis requires login except permitted direct LAN requests; tunnels always require authentication."""
         header = request.headers.get("authorization", "")
         scheme, _, token = header.partition(" ")
         if scheme.lower() == "bearer" and token and len(token) <= 4096:
@@ -214,13 +214,13 @@ def create_app(settings=None, client=None, clock=None, speech=None):
 
     @app.get("/v1/voice")
     async def voice_info():
-        """App 搵服务器 / 设定页「已連線」用：唔使登录，唔含任何用户资料。"""
+        """Unauthenticated discovery/status endpoint contains no user data."""
         engine = app.state.speech
         return {"service": "jiefong-voice", "tts": settings.tts, "voice_id": engine.voice_id if engine else None,
                 "status": engine.status if engine else ("ready" if settings.tts == "azure" else "off"),
                 "locales": list(engine.locales) if engine else [], "assistant": settings.mode,
                 "sample_rate": engine.sample_rate if engine else None,
-                # 成员 A 加（2026-10-12）：ear = 有 B 嘅豆包流式识别（/v1/voice/ear）；brain = 理解用乜
+                # A, 2026-10-12: ear advertises streaming recognition and brain identifies the understanding provider.
                 "ear": settings.doubao is not None, "brain": "doubao" if settings.doubao is not None else (
                     "model" if settings.model_ready else "rules")}
 
@@ -258,12 +258,12 @@ def create_app(settings=None, client=None, clock=None, speech=None):
 
     @app.post("/v1/assistant/context")
     async def upload_context(body: UploadedContext, user=Depends(principal)):
-        """App 上传而家嘅地标、步行分钟、遮荫（冇坐标）。只喺 supabase 模式用。"""
+        """App uploads landmark names, walking minutes and shade, without coordinates, in Supabase mode only."""
         if settings.mode != "supabase":
             raise AssistantError("NOT_SUPPORTED", "测试模式使用虚构地点。", 409)
         return {"version": app.state.business.save_context(user[0], body)}
 
-    # ── B 文档入面「A 必须提供的业务 API」（supabase 模式由本服务实现，方便以后 B 嘅 production 模式经 HTTP 接返）──
+    # Business API required by B, implemented here for Supabase and future HTTP production integration.
 
     def business_api():
         if settings.mode != "supabase":

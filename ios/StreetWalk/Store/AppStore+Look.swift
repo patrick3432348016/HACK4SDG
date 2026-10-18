@@ -1,14 +1,14 @@
 import SwiftUI
 
-// 卡通形象：肤色、年龄段（规格 §4「不同年龄和肤色」）
+// Avatar skin tones and age groups (specification section 4).
 extension AppStore {
-    /// 示範街坊各配一套（肤色档、年龄段），同名字对得上：伯 = 長者，太 = 中年 / 長者，梁太推 BB 车 = 後生。
+    /// Assign demo neighbors consistent skin tones and age groups matching their characters, including older residents and a young parent.
     static let demoLooks: [String: (skin: Int, age: AgeGroup)] = [
         "chan": (1, .adult), "wong": (0, .elder), "lee": (3, .elder),
         "leung": (2, .young), "ho": (2, .adult), "cheung": (1, .elder),
     ]
 
-    /// 圈成员装好后套上外形：我用自己选的，示範街坊用上面那套；上个月赢了的圈全员有奖牌。
+    /// Apply saved appearance to me and preset appearance to demo neighbors; award medals to last month's winning circle.
     func applyLooks(_ list: inout [Resident]) {
         let medal = lastMonthResult?.weWon == true
         for i in list.indices {
@@ -23,7 +23,7 @@ extension AppStore {
         }
     }
 
-    /// 场景里的小人用和居民资料一样的外形。
+    /// Scene figures use resident-profile appearance.
     func withLook(_ p: ScenePerson) -> ScenePerson {
         guard let r = resident(p.id) else { return p }
         var q = p
@@ -32,7 +32,7 @@ extension AppStore {
         return q
     }
 
-    /// 改我的外形（首次使用、设置页用）。
+    /// Change my appearance in onboarding or Settings.
     func setLook(skin: Int? = nil, age: AgeGroup? = nil) {
         if let skin { skinChoice = min(max(skin, 0), Palette.skins.count - 1) }
         if let age { ageChoice = age }
@@ -40,7 +40,7 @@ extension AppStore {
             residents[i].skinTone = skinChoice
             residents[i].ageGroup = ageChoice
         }
-        // 首次使用 / 改楼途中唔上传（完成时一次过传；「唔改」会还原）
+        // Do not upload midway through onboarding / home changes; upload on completion and restore on cancellation.
         if phase == .main { uploadProfile() }
         syncScene()
     }

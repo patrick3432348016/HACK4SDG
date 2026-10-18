@@ -3,7 +3,7 @@ import SwiftUI
 import Testing
 @testable import StreetWalk
 
-// 语音与社交流程：改名复述、非街坊保护、播送、反映、找人、约会日子、迟到询问、播报排队（对应审核 A02–A90）。
+// Voice/social regressions A02–A90: rename recap, non-neighbor protection, broadcasts, reports, finding, dates, late prompts and speech queue.
 
 @MainActor
 struct VoiceFlowTests {
@@ -13,7 +13,7 @@ struct VoiceFlowTests {
     var chan: Resident { var r = Resident(id: "chan", name: "陳太", floor: 8, colorIndex: 0, mobility: .walk, streakDays: 3, todayLine: "8 樓喺涼亭坐咗陣"); r.isNeighbor = true; return r }
     let wong = Resident(id: "wong", name: "黃太", floor: 3, colorIndex: 1, mobility: .walk, streakDays: 30, todayLine: "")
 
-    /// 测试用的 store：唔写盘、唔跑定时器、唔用读屏公告。
+    /// Test store disables persistence, timers and VoiceOver announcements.
     func makeStore(_ people: [Resident]? = nil) -> AppStore {
         let s = AppStore()
         s.restoring = true
@@ -61,7 +61,7 @@ struct VoiceFlowTests {
         #expect(!(s.toast ?? "").contains("3 樓"))
         let title = s.voiceCard?.title ?? ""
         #expect(title.contains("3 樓") == false)
-        // 当听唔明：复述听到嘅字 + 撳得嘅例句（唔再话「冇聽明白」）
+        // On unsupported input, recap the transcript and offer tappable examples instead of claiming recognition failed.
         #expect(s.voiceCard?.assistant?.kind == .notUnderstood)
         #expect(s.voiceCard?.heard == "約黃太聽日行")
         #expect(!(s.voiceCard?.assistant?.chips.isEmpty ?? true))
@@ -148,7 +148,7 @@ struct VoiceFlowTests {
         s.checkLate(&f)
         #expect(!f.latePrompt)
 
-        // 冇喺找人画面：横幅提一次；冇陳太电话号码（PhoneBook 全空）就唔出「打電話」，叫佢喺附近搵吓
+        // Outside finding, remind once; without Mrs Chan's number, omit calling and suggest looking nearby.
         let t = makeStore()
         t.demoHour = 16 + 12.0 / 60
         t.appointments = [Appointment(partnerID: "chan", date: AppStore.today(at: 16), landmarkID: "shelter-1", reason: "", status: .accepted)]
@@ -164,10 +164,10 @@ struct VoiceFlowTests {
         #expect(s.dayTimeLabel(AppStore.today(at: 16)) == "今日下晝 4 點", "整点照旧")
         #expect(s.dayLabel(AppStore.today(at: 16.75, dayOffset: 1)) == "聽日")
         #expect(AppStore.clockLabel(AppStore.today(at: 9.5)) == "朝早 9 點 30 分")
-        // 只改日子：分钟保留
+        // Date-only edits preserve minutes.
         let a = Appointment(partnerID: "chan", date: AppStore.today(at: 16.75, dayOffset: 1), landmarkID: "shelter-1", reason: "", status: .accepted)
         #expect(s.changed(a, day: 2, hour: nil, landmarkID: nil).date == AppStore.today(at: 16.75, dayOffset: 2))
-        // 过期通知都讲埋分钟
+        // Expiry notifications include minutes too.
         let items = NotificationPlan.items([a], now: Date(), partner: { _ in "陳太" }, place: { _ in "涼亭" })
         #expect(items.first { $0.id.hasSuffix("-expire") }?.body == "同陳太下晝 4 點 45 分喺涼亭嘅約過咗時間，收埋咗。")
     }
@@ -188,13 +188,13 @@ struct VoiceFlowTests {
         #expect(s.voiceCard?.needsConfirm == false)
         s.handle("要唔要食藥")
         #expect(s.voiceCard?.title == "呢個我幫唔到，請問醫生或者藥劑師。")
-        // 复述卡等紧撳「好」：求救先撤回张卡，唔会改名
+        // Safety input withdraws a pending rename recap before any rename can execute.
         s.handle("涼亭改名做大樹底")
         #expect(s.voiceCard?.needsConfirm == true)
         s.handle("我跌親，起唔到身")
         #expect(s.voiceCard?.title.contains("999") == true)
         #expect(s.landmark("shelter-1")?.name == "涼亭")
-        // 问天气：手机答，唔记反映
+        // Weather answers locally without creating a report.
         s.handle("今日熱唔熱")
         #expect(s.voiceCard?.assistant?.kind == .info)
         #expect(s.reports.isEmpty)
@@ -236,7 +236,7 @@ struct VoiceFlowTests {
         s.select(.landmark("shelter-1"))
         s.renaming = "shelter-1"
         #expect(s.renamingNow == "shelter-1")
-        // 冇撳「唔改喇」就去找人：找人画面盖住改名卡
+        // Finding covers a lingering rename card even without explicit rename cancellation.
         s.find = FindSession(partnerID: "chan", landmarkID: "shelter-1", spontaneous: false, stage: .going)
         #expect(s.renamingNow == nil)
         #expect(s.suggestedPhrases == ["我喺涼亭"])
@@ -244,7 +244,7 @@ struct VoiceFlowTests {
         #expect(s.voiceCard?.intent == .broadcast("我喺涼亭"))
         s.voiceCard = nil
         s.find = nil
-        // 约人卡盖住都一样
+        // An invitation card supersedes rename input too.
         s.renaming = "shelter-1"
         s.proposal = Proposal(partnerID: "chan", options: [MeetProposal(date: AppStore.today(at: 16), landmarkID: "park-0", reason: "")], index: 0)
         #expect(s.renamingNow == nil)
@@ -267,19 +267,19 @@ struct VoiceFlowTests {
         s.syncScene()
         #expect(s.scene.personPosition("chan") == nil, "等緊佢出門：场景冇佢")
         #expect(s.scene.personPosition("me") != nil)
-        // 我已经行到约定地方：对方未出门唔会「見到」
+        // My arrival alone cannot count as meeting before the peer departs.
         var g = f
         s.tickFind(&g, 10)
         #expect(g.stage == .going)
-        // 收到出门通知：先入场景、开始讲几耐到
+        // Add the peer to the scene and estimate arrival only after departure notification.
         s.partnerUpdate(token: f.token, trip: PartnerTrip(etaMinutes: nil))
         #expect(s.find?.partnerOut == true)
         #expect(s.scene.personPosition("chan") != nil)
-        // 后端报到咗：几耐到 = 0
+        // Backend arrival means zero remaining minutes.
         s.partnerUpdate(token: f.token, trip: PartnerTrip(etaMinutes: nil, arrived: true))
         #expect(s.find?.etaMinutes == 0)
         #expect(s.partnerTravelled == s.pathLength(s.partnerRoute ?? []))
-        // 旧一次嘅通知唔理
+        // Ignore previous-session notifications.
         s.partnerUpdate(token: UUID(), trip: PartnerTrip(etaMinutes: 9))
         #expect(s.find?.etaMinutes == 0)
     }
@@ -288,21 +288,21 @@ struct VoiceFlowTests {
         let s = makeStore()
         var t = Date()
         s.announcer.clock = { t }
-        s.announcer.busy = { true }   // 当成讲紧一句长嘢
-        s.say("開頭")                  // 讲紧（经 Announcer 开始）
+        s.announcer.busy = { true }   // Simulate a long utterance in progress.
+        s.say("開頭")                  // Speaking through Announcer.
         #expect(s.speaker.lastSpoken == "開頭")
-        // 同一个动作连住出嘅几句（0.5 秒内）：排队
+        // Queue messages from the same action arriving within 0.5 seconds.
         s.say("資訊一")
         s.say("資訊二")
         #expect(s.announcer.queued.map(\.text) == ["資訊一", "資訊二"])
-        // 复述确认：清走排喺前面嘅资讯句
+        // Confirmation recaps clear preceding informational messages.
         s.say("約陳太聽日三點。啱就撳「好」。", prompt: true)
         #expect(s.announcer.queued.map(\.text) == ["約陳太聽日三點。啱就撳「好」。"])
-        // 排满都唔会挤走要回应嘅句子
+        // A full queue must not displace response-required prompts.
         s.say("資訊三"); s.say("資訊四"); s.say("資訊五")
         #expect(s.announcer.queued.count == Announcer.maxQueued)
         #expect(s.announcer.queued.first?.kind == .prompt)
-        // 停咪后交返嘅句子：排咗超过 6 秒嘅资讯句唔讲
+        // After microphone stop, discard informational messages queued longer than 6 seconds.
         s.listening = true
         s.say("舊資訊")
         let held = s.announcer.release()
@@ -310,7 +310,7 @@ struct VoiceFlowTests {
         s.listening = false
         s.flushHeldSpeech(held)
         #expect(!s.announcer.queued.map(\.text).contains("舊資訊"))
-        s.announcer.hold(s.speaker)   // 停咗排队循环
+        s.announcer.hold(s.speaker)   // Queue-processing loop stopped.
     }
 
     @Test func 新嘅取代旧嘅_换画面即停() {
@@ -321,12 +321,12 @@ struct VoiceFlowTests {
         s.say("約陳太今日下晝五點。啱就撳「好」就約。", prompt: true)
         s.say("同一個動作嘅第二句")
         #expect(s.announcer.queued.map(\.text) == ["同一個動作嘅第二句"])
-        // 一秒后撳咗「好」：结果句即刻讲，唔会排到过期冇咗（UX 报告 2）
+        // UX 2: confirming after one second speaks the result immediately instead of letting it expire in the queue.
         t = t.addingTimeInterval(1)
         s.say("幫你約咗陳太")
         #expect(s.speaker.lastSpoken == "幫你約咗陳太")
         #expect(s.announcer.queued.isEmpty)
-        // 换标签：停低兼清空
+        // Changing tabs stops and clears output.
         t = t.addingTimeInterval(0.1)
         s.say("仲有一句")
         s.tab = .board
@@ -339,7 +339,7 @@ struct VoiceFlowTests {
         let suite = "voice-off-\(UUID())"
         let v = VoiceSettings(defaults: UserDefaults(suiteName: suite)!, scanner: { [] }, watch: false)
         s.speaker.settings = v
-        s.announcer.busy = { false }   // 当成合成器得闲，每句即刻讲
+        s.announcer.busy = { false }   // Simulate an idle synthesizer speaking each sentence immediately.
         v.enabled = false
         s.say("陳太出咗門")
         #expect(s.speaker.lastSpoken != "陳太出咗門", "关咗唔自动读")
@@ -368,7 +368,7 @@ struct VoiceFlowTests {
     }
 
     @Test func 今日三件事打勾() {
-        let s = makeStore()     // 陳太已经係街坊
+        let s = makeStore()     // Mrs Chan is already a neighbor.
         s.firstDay = FirstDayProgress(started: Date())
         s.firstDayCheck()
         #expect(s.firstDay?.bumped == true)
@@ -376,11 +376,11 @@ struct VoiceFlowTests {
         #expect(s.firstDay?.walked == false)
         s.firstDayWalked(6)
         #expect(s.firstDay?.walked == true && s.firstDay?.finishedAt == nil)
-        // 人哋约你、未应承：唔算
+        // An unaccepted incoming invitation does not complete the task.
         s.appointments = [Appointment(partnerID: "chan", date: Date().addingTimeInterval(86400), landmarkID: "park-0", reason: "", status: .waiting, fromPartner: true)]
         s.firstDayCheck()
         #expect(s.firstDay?.invited != true)
-        // 自己约咗：三件做齐
+        // My sent invitation completes all three tasks.
         s.appointments.append(Appointment(partnerID: "chan", date: Date().addingTimeInterval(86400), landmarkID: "park-0", reason: "", status: .waiting))
         s.firstDayCheck()
         #expect(s.firstDay?.allDone == true && s.firstDay?.finishedAt != nil)
@@ -401,7 +401,7 @@ struct VoiceFlowTests {
         s.firstDay = FirstDayProgress(started: Date(), walkMinutes: 4, bumped: true)
         let img = try #require(render())
         #expect(img.size.height > 150, "有任务卡：三行都画得出")
-        // 留低一张图俾人睇（STREETWALK_SNAPSHOT_DIR 有设先写）
+        // Write a review snapshot only when STREETWALK_SNAPSHOT_DIR is set.
         if let dir = ProcessInfo.processInfo.environment["STREETWALK_SNAPSHOT_DIR"], let png = img.pngData() {
             try png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("first_day_card.png"))
         }
@@ -436,7 +436,7 @@ struct CommunityFindTests {
     }
 }
 
-// 10-18 室友反馈：「換個時間」只换时间、「換個地方」只换地点；时间选项至少 6 个。
+// 10-18 roommate feedback: time/place controls change only their own field; provide at least six time choices.
 @MainActor struct MeetupChangeOneThingTests {
     @Test func 换时间唔改地点_换地点唔改时间() {
         let s = VoiceFlowTests().makeStore()

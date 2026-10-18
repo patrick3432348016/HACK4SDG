@@ -1,7 +1,7 @@
-"""成员 A 加（2026-10-12）：`python -m assistant.serve …`（参数同 uvicorn）。
+"""A, 2026-10-12: python -m assistant.serve accepts uvicorn arguments.
 
-经 assistant 包先载入 compat（Python 3.10 兼容，见 compat.py），之后先载入 uvicorn 同 websockets，
-等佢哋同 B 嘅代码用同一个 TimeoutError。tools/voice_server.sh 用呢个开服务器。
+Load assistant.compat before uvicorn and websockets for Python 3.10,
+ensuring a consistent TimeoutError; voice_server.sh uses this entry point.
 """
 import uvicorn
 

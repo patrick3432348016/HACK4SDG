@@ -1,13 +1,13 @@
 import Foundation
 
 #if DEBUG
-/// 开发用（-scriptBump）：喺模拟器（冇超宽带、冇镜头）行一次真机碰一碰嘅后备流程，逐步截图检查。
-/// 用法：./tools/run.sh -demoMode NO -skipOnboarding -resetData -scriptBump -bumpScanCode jiefong:<32 位十六进制>
-/// （-demoMode NO = 关演示模式，用真机碰一碰；后端用 LocalTestLinker，3 秒后扮对方配上。）
+/// -scriptBump exercises the real flow's fallback in a simulator without UWB / camera for screenshot inspection.
+/// Usage: ./tools/run.sh -demoMode NO -skipOnboarding -resetData -scriptBump -bumpScanCode jiefong:<32 hexadecimal characters>
+/// -demoMode NO selects device pairing; LocalTestLinker simulates a peer match after 3 seconds.
 extension AppStore {
     func runScriptBump() {
-        // 截图自检：-scriptBump -uiPreview bumpSearching / bumpRanging / bumpTimeout：直接摆出碰一碰画面（唔开超宽带、唔连伺服器）。
-        // bumpSearching 等 12 秒会变「仲未搵到」+ 大「用二維碼」掣。
+        // -scriptBump with -uiPreview bumpSearching / bumpRanging / bumpTimeout renders states without UWB or server access.
+        // After 12 seconds, bumpSearching shows a slow-search explanation and a prominent QR button.
         if let p = LaunchArgs.value("-uiPreview"), p.hasPrefix("bump") {
             Task { @MainActor in
                 while map == nil { try? await Task.sleep(for: .milliseconds(200)) }

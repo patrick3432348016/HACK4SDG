@@ -1,8 +1,8 @@
 import Foundation
 
-/// F4：上个月圈对圈结果（月末公布胜出的圈，胜出圈全员有卡通奖牌）。
+/// F4 previous-month circle result and cartoon medals for winning members.
 struct MonthResult: Equatable {
-    var month: Int              // 1...12（香港时间的上个月）
+    var month: Int              // Previous month in Hong Kong time, numbered 1...12.
     var ourName: String
     var rivalName: String
     var ourSteps: Int
@@ -12,8 +12,8 @@ struct MonthResult: Equatable {
 }
 
 extension LocalCommunityService {
-    /// 上个月结果。单机演示：示範数据（我们圈小胜）；没开演示就没有（未接后端）。
-    /// 接后端时：CommunityService 加同名方法，由每月结算表出（见 docs/backend_supabase.md 的 circle_race）。
+    /// Previous-month results are simulated in demo mode (a narrow local win); absent in normal mode without a backend result.
+    /// Future backend integration should supply the matching CommunityService method from monthly settlement data; see circle_race in docs/backend_supabase.md.
     func lastMonthRace(placeName: String, month: Int) -> MonthResult? {
         guard demoEnabled else { return nil }
         return MonthResult(month: month, ourName: L.t("我哋呢頭", "我们这边", "Our area"), rivalName: L.t("隔籬", "隔壁", "Next door"),

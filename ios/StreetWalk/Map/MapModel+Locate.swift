@@ -1,7 +1,7 @@
 import Foundation
 
 extension MapModel {
-    /// 经纬度 → 场景坐标：先投影到本图中心，再按转正角度旋转（与 simplified 里的 shift 一致）。
+    /// Project geographic coordinates around the map centre, then rotate consistently with simplified.shift.
     func scenePoint(_ g: GeoPoint) -> Vec2 {
         let v = LocalProjection(origin: center).toLocal(g)
         let cs = cos(rotation), sn = sin(rotation)

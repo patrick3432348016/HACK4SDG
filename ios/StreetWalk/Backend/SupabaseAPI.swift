@@ -1,26 +1,26 @@
 import Foundation
 import Security
 
-// Supabase 的最小客户端（唔用第三方包）：匿名登录 + 续期、PostgREST、RPC。只用 Foundation + Security。
-// 用法见 supabase/tests/rls_test.py：每个请求带 apikey（publishable key）同 Authorization: Bearer <access_token>。
+// Minimal Supabase client: anonymous login/refresh, PostgREST, and RPC using Foundation and Security only.
+// See supabase/tests/rls_test.py: each request carries apikey and Authorization: Bearer <access_token>.
 
-/// 登录状态（匿名用户）。access_token 一个钟过期，用 refresh_token 换新（每个 refresh_token 只用一次）。
+/// Anonymous session: access_token expires after one hour; each refresh_token is single-use.
 struct BackendSession: Codable, Equatable, Sendable {
     var accessToken: String
     var refreshToken: String
     var expiresAt: Date
     var userID: String
 
-    /// 过期前 90 秒就续期。
+    /// Refresh 90 seconds before expiry.
     func isFresh(at now: Date = Date()) -> Bool { expiresAt.timeIntervalSince(now) > 90 }
 }
 
 enum BackendError: Error, Equatable, CustomStringConvertible {
-    /// 冇网络 / 超时 / 服务器暂时唔得（5xx、429）：可以迟啲再试。
+    /// Network failures, timeouts, 5xx, and 429 can be retried later.
     case offline(String)
-    /// 服务器拒绝（4xx）：再试都冇用（例如权限、格式）。
+    /// Other 4xx rejections, such as permission or format errors, are not usefully retried.
     case rejected(Int, String)
-    /// 未登录（仲未同意 / 未建资料）。
+    /// Not signed in: consent/profile setup has not completed.
     case notSignedIn
 
     var isRetryable: Bool { if case .offline = self { return true }; return false }
@@ -33,7 +33,7 @@ enum BackendError: Error, Equatable, CustomStringConvertible {
     }
 }
 
-/// 保存登录状态的地方：App 用钥匙圈（锁屏后台都读得到），命令行测试用内存。
+/// Session storage: Keychain in the app, accessible while locked after first unlock; memory in CLI tests.
 protocol SessionStore: Sendable {
     func load() -> BackendSession?
     func save(_ s: BackendSession?)
@@ -61,7 +61,7 @@ struct KeychainSessionStore: SessionStore {
         guard let s, let data = try? JSONEncoder().encode(s) else { return }
         var q = query
         q[kSecValueData as String] = data
-        // 第一次解锁之后背景都读得到（BGAppRefresh、定位唤醒时要用）。
+        // Accessible after first unlock for background refresh and location wake-ups.
         q[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
         SecItemAdd(q as CFDictionary, nil)
     }
@@ -75,7 +75,7 @@ final class MemorySessionStore: SessionStore, @unchecked Sendable {
     func save(_ s: BackendSession?) { lock.lock(); value = s; lock.unlock() }
 }
 
-/// HTTP 层。actor：续期只会同时做一次（refresh_token 用一次就作废，两个请求同时续期会令登录失效）。
+/// HTTP actor serializes refresh: concurrent use of the same single-use refresh_token would invalidate the session.
 actor SupabaseAPI {
     let baseURL: URL
     let apiKey: String
@@ -83,9 +83,9 @@ actor SupabaseAPI {
     private let http: URLSession
     private var session: BackendSession?
     private var refreshing: Task<BackendSession, Error>?
-    /// 每次换咗 token（登录、续期、登出）都通知（Realtime 要跟住换）。
+    /// Notify on every token change (login/refresh/logout) so Realtime follows it.
     private var tokenListener: (@Sendable (String?) -> Void)?
-    /// 打 log（开发用：-logBackend）。
+    /// Development logging enabled by -logBackend.
     nonisolated let log: Bool
 
     init(baseURL: URL, apiKey: String, store: SessionStore, log: Bool = false) {
@@ -107,14 +107,14 @@ actor SupabaseAPI {
     var userID: String? { session?.userID }
     var isSignedIn: Bool { session != nil }
 
-    /// 而家有效嘅 access token（快过期就先续期）。未登录返回 nil。
+    /// Return a valid access token, refreshing near expiry; nil when signed out.
     func accessToken() async throws -> String? {
         guard let s = session else { return nil }
         if s.isFresh() { return s.accessToken }
         return try await refresh().accessToken
     }
 
-    /// 匿名登录（只喺用户同意、完成首次使用之后先叫）。已经登录就直接返回。
+    /// Anonymous login only after consent/onboarding. Return immediately if already signed in.
     @discardableResult
     func signInAnonymously() async throws -> BackendSession {
         if let s = session { return s }
@@ -151,7 +151,7 @@ actor SupabaseAPI {
             setSession(new)
             return new
         } catch BackendError.rejected(let code, let msg) where code == 400 || code == 401 || code == 403 {
-            // refresh_token 作废（用户俾人删咗）：登出，下次重新匿名登录。
+            // If refresh is invalidated, such as by account deletion, sign out and create a new anonymous session next time.
             if log { print("[backend] refresh rejected \(code) \(msg) → sign out") }
             if session?.refreshToken == s.refreshToken { setSession(nil) }
             throw BackendError.notSignedIn
@@ -172,9 +172,9 @@ actor SupabaseAPI {
         return BackendSession(accessToken: r.access_token, refreshToken: r.refresh_token, expiresAt: exp, userID: r.user.id.lowercased())
     }
 
-    // MARK: - 请求
+    // MARK: - Requests
 
-    /// 已登录请求：带 token；401 就续期再试一次。
+    /// Authenticated request: attach token, then refresh and retry once on 401.
     func request(_ method: String, _ path: String, query: String? = nil, body: Data? = nil, prefer: String? = nil) async throws -> Data {
         guard let token = try await accessToken() else { throw BackendError.notSignedIn }
         do {
@@ -194,7 +194,7 @@ actor SupabaseAPI {
         try decode(T.self, try await request("GET", "/rest/v1/\(table)", query: query))
     }
 
-    /// upsert（插入，有冲突就合并更新）：只更新 body 入面有嘅栏。
+    /// Upsert merges on conflict and updates only fields present in the body.
     func upsert<B: Encodable>(_ table: String, _ body: B, onConflict: String) async throws {
         _ = try await request("POST", "/rest/v1/\(table)", query: "on_conflict=\(onConflict)",
                               body: try BackendCoding.encoder.encode(body), prefer: "resolution=merge-duplicates,return=minimal")
@@ -234,7 +234,7 @@ actor SupabaseAPI {
     }
 }
 
-/// PostgREST 查询参数要编码（uuid、日期入面有 : + 等字符）。
+/// Encode PostgREST query parameters, including punctuation in UUID/date values.
 enum PG {
     static func q(_ s: String) -> String {
         var allowed = CharacterSet.alphanumerics

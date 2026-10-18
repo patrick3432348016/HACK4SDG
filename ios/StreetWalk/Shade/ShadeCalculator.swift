@@ -1,6 +1,6 @@
 import Foundation
 
-/// 遮荫计算：从地标周围的采样点朝太阳射线，看有没有被楼宇棱柱挡住。
+/// Estimate shade by ray-casting sample points toward the sun against building prisms.
 struct ShadeCalculator {
     struct Prism {
         var outline: [Vec2]
@@ -22,7 +22,7 @@ struct ShadeCalculator {
         solidOutlines = map.buildings.filter { $0.kind != .canopy }.map(\.outline)
     }
 
-    /// 采样点：中心 + 4 m 一圈 6 个 + 8 m 一圈 12 个，落在楼里的跳过。
+    /// Samples: centre, six points at 4 m, and twelve at 8 m; skip points inside buildings.
     func samplePoints(around c: Vec2) -> [Vec2] {
         var pts = [c]
         for k in 0..<6 { let a = Double(k) * .pi / 3; pts.append(c + Vec2(x: cos(a), y: sin(a)) * 4) }
@@ -30,7 +30,7 @@ struct ShadeCalculator {
         return pts.filter { p in !solidOutlines.contains { Polygon.contains($0, p) } }
     }
 
-    /// 遮荫比例 0–1。太阳低于 2° 当作全阴（只用于排序；文案要分开讲"日落"，见 ShadeService.isSunUp）。
+    /// Shade fraction 0–1. Below two-degree sun elevation, use full shade for ranking only; wording must distinguish sunset (ShadeService.isSunUp).
     func shade(at c: Vec2, sun: SolarPosition) -> Double {
         guard sun.elevation > 2 else { return 1 }
         let pts = samplePoints(around: c)
@@ -43,7 +43,7 @@ struct ShadeCalculator {
         let d = sun.direction
         let dir = Vec2(x: d.east, y: d.north).normalized
         let slope = tan(sun.elevation * .pi / 180)
-        // 太阳越高，能挡住的楼越近；最远只看 400 m。
+        // Higher sun limits relevant blockers to nearer buildings; cap search at 400 m.
         let reach = min(400, (prisms.map(\.maxHeight).max() ?? 0) / max(slope, 0.01) + 10)
         let end = p + dir * reach
         let segMin = Vec2(x: min(p.x, end.x), y: min(p.y, end.y)), segMax = Vec2(x: max(p.x, end.x), y: max(p.y, end.y))
@@ -61,7 +61,7 @@ struct ShadeCalculator {
         return false
     }
 
-    /// 射线 p + t·dir 与多边形各边的交点参数 t。
+    /// Intersection parameters t between ray p+t*dir and polygon edges.
     private func crossings(from p: Vec2, dir: Vec2, polygon: [Vec2]) -> [Double] {
         var ts: [Double] = []
         for i in 0..<polygon.count {

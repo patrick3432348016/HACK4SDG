@@ -3,45 +3,45 @@ import Foundation
 import Observation
 import UIKit
 
-/// 真·灵动岛 + 锁屏嘅实时活动（ActivityKit，小组件扩展 StreetWalkWidgets 负责画）。
-/// 只做本地更新（免费开发者账号冇推送）：散步、找人、约会快到期间 App 自己开始、更新、结束。
-/// - 同一时间只有一个实时活动，显示最紧要嗰样（IslandStatus.ordered：找人 > 约会 > 散步）。
-/// - 更新最多每秒一次（演示散步 1 秒 = 1 分钟）。内容冇变唔送。
-/// - iOS 唔俾 App 喺背景「开始」实时活动（锁住机时自动开始嘅散步）：等下次返前台先开，之后背景都会更新。
-/// - 约会倒数由小组件自己按 target 计（App 喺背景唔使醒）。
+/// ActivityKit for the real Dynamic Island and Lock Screen, rendered by StreetWalkWidgets.
+/// Local updates only: the free developer account has no push updates. The app starts/updates/ends activities for walks, finding, and upcoming meetups.
+/// - Keep one Live Activity, showing the highest priority from IslandStatus.ordered: finding > meetup > walking.
+/// - Update at most once per second (one demo second represents one walking minute); skip unchanged content.
+/// - iOS cannot start a Live Activity while backgrounded. Defer automatically started walks until foreground, then continue background updates.
+/// - Widgets count down from target themselves without waking the background app.
 @MainActor
 final class LiveIsland {
     static let shared = LiveIsland()
 
     private var activity: Activity<StreetWalkActivityAttributes>?
-    /// 最后送咗出去嘅内容。
+    /// Last published content.
     private var sent: IslandStatus?
-    /// 而家想显示嘅内容（nil = 冇嘢进行紧）。
+    /// Desired content; nil means no active task.
     private var wanted: IslandStatus?
     private var lastPush = Date.distantPast
     private var flushTask: Task<Void, Never>?
     private var provider: (() -> IslandStatus?)?
     private var clock: Task<Void, Never>?
     private var stateTask: Task<Void, Never>?
-    /// 用户喺锁屏扫走咗：今次（直到冇嘢进行紧）唔再开。
+    /// After the user dismisses the Lock Screen activity, do not reopen it until the current task ends.
     private var userDismissed = false
     private var observers: [NSObjectProtocol] = []
     private let launchedAt = Date()
-    /// 启动后几耐内唔收上次留低嘅实时活动（等散步检测接手）。
+    /// Startup grace period before ending an inherited activity, allowing walk detection to resume.
     static let launchGrace: TimeInterval = 20
 
     private init() {
-        // 上次 App 被收咗留低嘅：接手第一个（内容稍后会更新或者结束），其余收走。
+        // Adopt the first activity left after termination and close extras; update/end it after state recovery.
         let existing = Activity<StreetWalkActivityAttributes>.activities
         if let a = existing.first { adopt(a) }
         for a in existing.dropFirst() { Task { await a.end(nil, dismissalPolicy: .immediate) } }
-        // 返前台：背景嗰阵开唔到嘅，而家开（或者补一次更新）
+        // On foreground, start any deferred activity or refresh the existing one.
         observers.append(NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
         })
     }
 
-    /// 由 App 嘅 store 提供「而家最紧要嘅状态」；Observation 一变就重算，另外每 30 秒（约会倒数）。
+    /// Store supplies the highest-priority state. Recompute on Observation changes and every 30 seconds for meetup countdowns.
     func attach(_ provider: @escaping () -> IslandStatus?) {
         self.provider = provider
         track()
@@ -57,7 +57,7 @@ final class LiveIsland {
     private func track() {
         guard let provider else { return }
         let s = withObservationTracking { provider() } onChange: { [weak self] in
-            // onChange 喺改值之前叫：下一轮先读新值
+            // onChange fires before mutation; read the new value on the next turn.
             Task { @MainActor in self?.track() }
         }
         show(s)
@@ -94,8 +94,8 @@ final class LiveIsland {
                 start(s)
             }
         } else if let a = activity {
-            // 啱啱启动（例如锁住机时系统喺背景重开 App）：等散步检测接返手先决定收唔收，
-            // 接得返就喺背景继续更新同一个（背景唔准开新嘅）。
+            // After startup, especially a locked/background relaunch, wait for walk detection to recover before ending an activity.
+            // Recovered activity can keep updating in background, where creating a new one is prohibited.
             let since = Date().timeIntervalSince(launchedAt)
             if since < Self.launchGrace {
                 Task { [weak self] in
@@ -104,7 +104,7 @@ final class LiveIsland {
                 }
                 return
             }
-            // 冇嘢进行紧：散步完就留「散步完成」喺锁屏一阵；其他（找人、约会）即刻收
+            // When idle, briefly retain a completed-walk summary; end finding/meetup activities immediately.
             let last = sent
             activity = nil
             sent = nil
@@ -128,7 +128,7 @@ final class LiveIsland {
             sent = s
             lastPush = Date()
         } catch {
-            // 喺背景开唔到（ActivityAuthorizationError.visibility）：返前台再试（didBecomeActive → refresh）
+            // On ActivityAuthorizationError.visibility, retry at didBecomeActive through refresh.
             sent = nil
         }
     }
@@ -141,7 +141,7 @@ final class LiveIsland {
             for await state in a.activityStateUpdates {
                 guard let self, self.activity?.id == a.id else { return }
                 if state == .dismissed || state == .ended {
-                    // 用户扫走 / 系统收咗（超过 8 个钟）：今次唔再开
+                    // After user dismissal or system expiry beyond eight hours, do not reopen during the same task.
                     self.activity = nil
                     self.sent = nil
                     if state == .dismissed { self.userDismissed = true }
@@ -150,10 +150,10 @@ final class LiveIsland {
         }
     }
 
-    /// 过期时间：约会 = 约定时间（之后小组件讲「夠鐘」，唔会倒数变「1 分鐘前」）；其他 20 分钟冇更新就当旧（锁屏提示「打開 App 更新」）。
+    /// Meetup stale time is its scheduled time, so the widget shows due rather than negative countdown. Other states become stale after 20 minutes without updates.
     static func content(_ s: IslandStatus) -> ActivityContent<IslandStatus> {
         var s = s
-        s.lang = L.lang   // 小组件係另一个进程，读唔到 App 嘅语言设定
+        s.lang = L.lang   // The widget runs separately and cannot read app language settings.
         let stale: Date
         if s.kind == .meet, let t = s.target {
             stale = t

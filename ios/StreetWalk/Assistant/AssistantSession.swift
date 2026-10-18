@@ -1,28 +1,28 @@
 import Foundation
 
-/// 组员 B 嘅 AssistantViewModel 规则搬入嚟（冇用佢嘅界面，界面用我哋原有嘅复述卡）：
-/// - 撳「好」之前先记低 draft id（UserDefaults，按服务器 + 登录用户分开），超时 / 闪退之后用同一个 id 查结果，唔会盲目再做一次；
-/// - 结果「未知」（uncertain）时唔准开新请求，只可以「查結果」；
-/// - 换用户 / 换服务器 = 换 identityScope，唔会读到人哋嘅待查操作；
-/// - 会话过期（SESSION_NOT_FOUND）或者联系人变咗（CONTACT_CHANGED）就重新开始。
+/// Adapt B's AssistantViewModel rules while retaining the app's existing read-back UI:
+/// - Persist the draft ID before confirmation, scoped by server and authenticated user. After a timeout/crash, query that ID instead of blindly repeating the action.
+/// - An uncertain result blocks new requests; only reconciliation is allowed.
+/// - A user/server change creates a different identityScope and cannot expose another identity's pending action.
+/// - Restart on SESSION_NOT_FOUND or CONTACT_CHANGED.
 @MainActor
 final class AssistantSession {
     private(set) var conversationID: String?
     private(set) var lastReply: AssistantReply?
     private(set) var unresolvedDraftID: String?
-    /// 今次对话讲过嘅句子（复述卡「我聽到」用）。
+    /// Utterances in the current conversation, shown in the read-back card.
     var heard = ""
     private var client: AssistantClient?
     private var scope = ""
     private let defaults: UserDefaults
-    /// 上传过嘅地点资料（一样就唔再传）。
+    /// Last uploaded place context; do not upload identical data again.
     private var uploadedContext: (scope: String, body: AssistantContextUpload, at: Date)?
 
     init(defaults: UserDefaults = .standard) { self.defaults = defaults }
 
     private var recoveryKey: String { "MobilityAssistant.pending." + scope }
 
-    /// 用边个服务器、边个用户。变咗就重新开始（旧对话唔再用）。
+    /// Server/user identity. Restart when it changes; do not reuse the previous conversation.
     func configure(baseURL: URL, userID: String, session: URLSession? = nil, token: @escaping AssistantClient.TokenProvider) {
         let newScope = "supabase:\(userID):\(baseURL.absoluteString)"
         guard newScope != scope || client == nil else { return }
@@ -66,7 +66,7 @@ final class AssistantSession {
     }
 
     func confirm(draftID: String) async throws -> AssistantReply {
-        // 送出之前先记低：超时 / 闪退之后唔可以盲目再做一次（B 嘅规则）。
+        // Persist before sending so a timeout/crash cannot cause blind re-execution (B's rule).
         remember(draftID)
         return try await run { try await $0.confirm(draftID: draftID) }
     }

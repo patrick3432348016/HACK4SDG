@@ -1,10 +1,10 @@
 import Foundation
 
-// 组员 B 嘅语音助手（MobilityAssistant Swift 包，Sources/MobilityAssistant/Models.swift）抄入嚟用，冇改佢嘅字段同状态。
-// 成员 A 改动（2026-10-11）：
-// - 唔用 Swift 包（免改 pbxproj），直接放喺 App 入面；去掉 public。
-// - JSONValue 改名 AssistantJSON（App 入面已经有一个 JSONValue，见 Backend/BackendJSON.swift）。
-// - AssistantReply 加 command（B 服务器本来就有回传，App 要用嚟出粤语复述卡）。
+// Copied from B's MobilityAssistant/Sources/MobilityAssistant/Models.swift without changing fields or states.
+// Member A changes (2026-10-11):
+// - Embed directly in the app instead of a Swift package to avoid pbxproj changes; remove public.
+// - Rename JSONValue to AssistantJSON to avoid the existing type in Backend/BackendJSON.swift.
+// - Add AssistantReply.command, already returned by B's server, for Cantonese read-back cards.
 
 enum AssistantLocale: String, CaseIterable, Codable, Sendable {
     case cantonese = "zh-HK"
@@ -17,7 +17,7 @@ enum AssistantLocale: String, CaseIterable, Codable, Sendable {
         case .english: return "English"
         }
     }
-    /// 跟界面语言（英文界面一律 en-US，见 AppLang.locale）。
+    /// Follow UI language; English always uses en-US (AppLang.locale).
     static var current: AssistantLocale { AssistantLocale(rawValue: L.lang.locale) ?? .cantonese }
 }
 
@@ -65,7 +65,7 @@ enum AssistantJSON: Decodable, Sendable, Equatable {
     subscript(key: String) -> AssistantJSON? { if case .object(let o) = self { return o[key] }; return nil }
 }
 
-/// B 服务器解析出嚟嘅指令（Command 模型）。冇讲到嘅字段系 nil。
+/// Command parsed by B's server. Fields not supplied by the user are nil.
 struct AssistantCommand: Decodable, Sendable, Equatable {
     var intent: String = "help"
     var contactQuery: String?
@@ -112,7 +112,7 @@ enum AssistantCoding {
     }
 }
 
-// MARK: - 成员 A 加：上传俾服务器嘅地点 / 步行 / 遮荫（冇坐标）
+// MARK: - Member A: upload place, walking-time, and shade context without coordinates
 
 struct AssistantContextUpload: Encodable, Equatable {
     struct Slot: Encodable, Equatable {

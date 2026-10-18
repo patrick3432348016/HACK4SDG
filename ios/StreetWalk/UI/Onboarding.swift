@@ -1,15 +1,15 @@
 import SwiftUI
 
-/// 首次使用 5 步（UX 报告第五节）：① 欢迎（讲用途）② 私隐三句 ③ 屋企（定位 → 估你住边座）④ 樓層同網名 ⑤ 試一次撳咪。
-/// 每步屏幕最多两句话、大字；每步出现时只讲一句（≤ 8 秒），换步先停上一句（onbHush）。
-/// 设定「改我住嘅樓」都用呢个流程，但只行 ③④。顶部「第几步，共几步」固定，内容按方向滑入淡出。
+/// UX section 5: welcome, three privacy statements, location/home suggestion, floor/nickname, microphone trial.
+/// At most two large-text sentences per step; speak one sentence within 8 seconds and stop previous output on navigation.
+/// Settings home changes reuse only steps 3–4; fixed step count and directional slide/fade transitions.
 struct OnboardingFlow: View {
     @Environment(AppStore.self) private var store
-    /// 往回走时新内容从左边进来。
+    /// Backward navigation brings new content from the left.
     @State private var back = false
-    /// 「我識用，跳過介紹」：唔使「試一次」，樓層同網名之后直接入主画面。
+    /// Skipping the introduction also skips the trial and enters the main screen after floor/nickname.
     @State private var skipIntro = false
-    /// 选楼：撳咗「唔係，我揀」（或者估唔到）→ 全部住宅楼亮橙色，自己撳。
+    /// Rejecting or lacking a home suggestion highlights all residences for manual selection.
     @State private var pickManual = false
 
     private var step: AppStore.Step {
@@ -28,7 +28,7 @@ struct OnboardingFlow: View {
                     .transition(.opacity)
                     .accessibilityLabel(L.t("你附近嘅立體地圖", "你附近的立体地图", "3D map of your area"))
                     .accessibilityHint(L.t("用下面「用清單揀」都揀得到你住嗰座樓", "用下面「用清单选」也能选到你住的那栋楼", "You can also choose your block with \"Choose from list\" below"))
-                    // 选楼：单指都拖得动地图；「你喺呢度」跟 GPS（只喺本机）
+                    // Home selection allows one-finger panning and a local-only GPS marker.
                     .onAppear { store.scene.oneFingerPan = true; store.startHere("pick") }
                     .onDisappear { store.stopHere("pick") }
                 HereMarkerLayer(overlay: store.scene.overlay)
@@ -40,7 +40,7 @@ struct OnboardingFlow: View {
                 .id(s)
                 .transition(stepTransition)
 
-            // 其他步骤的提示（例如地图说明）：放在进度点下面，不压住它；选楼页自己在说明卡下面显示。
+            // Place general notices below progress without overlap; home selection uses its own position below the explanation card.
             if s != .pickHome {
                 ToastView()
                     .padding(.top, 8)
@@ -52,7 +52,7 @@ struct OnboardingFlow: View {
         .animation(DS.motion(DS.spring), value: s)
     }
 
-    // MARK: 导航
+    // MARK: Navigation
 
     private var stepTransition: AnyTransition {
         if DS.reduceMotion { return .opacity }
@@ -60,7 +60,7 @@ struct OnboardingFlow: View {
                            removal: .opacity)
     }
 
-    /// 换步：先停上一步讲紧嘅（新一步出现时自己讲一句）。
+    /// Stop the prior step's output before changing steps; the new step announces itself.
     private func go(back b: Bool = false, _ action: () -> Void) {
         back = b
         store.onbHush()
@@ -81,7 +81,7 @@ struct OnboardingFlow: View {
     private func sceneTapped(_ hit: DioramaController.Hit?) {
         guard store.phase == .onboarding(.pickHome) else { return }
         guard case .building(let id)? = hit, store.isHomeCandidate(id) else {
-            // 点空了、点中唔係住宅楼：转去自己揀（全部住宅楼亮橙色），讲点样揀。
+            // Tapping empty space or a non-residence switches to manual selection, highlights residences and explains how to choose.
             if !pickManual { pickManual = true; store.pickHomeManually() }
             store.toast(L.t("撳一座橙色嘅樓，或者用下面嘅清單揀", "点一栋橙色的楼，或者用下面的清单选", "Tap an orange block, or choose from the list below"))
             return
@@ -100,7 +100,7 @@ struct OnboardingFlow: View {
         case .floor:
             OnbFloorNameStep(onNext: {
                 go {
-                    // 改楼、或者话识用：唔使「試一次」
+                    // Skip the trial for home changes or experienced-user setup.
                     if store.changingHome || skipIntro { store.finishOnboarding() } else { store.phase = .onboarding(.tryMic) }
                 }
             })
@@ -108,7 +108,7 @@ struct OnboardingFlow: View {
         }
     }
 
-    /// 进度点：而家行紧边几步（改楼得 2 步；跳过介绍得 3 步）。
+    /// Active progress steps: two for home changes, three when skipping the introduction.
     private var stages: [[AppStore.Step]] {
         if store.changingHome { return [[.locate, .pickHome], [.floor]] }
         var f: [[AppStore.Step]] = [[.consent], [.locate, .pickHome], [.floor]]
@@ -146,7 +146,7 @@ struct OnboardingFlow: View {
                 }
             Spacer()
             if store.changingHome {
-                // 改楼途中可以退返出去（A80）
+                // A80: permit exiting home changes midway.
                 topPill(L.t("唔改", "不改", "Don't change"), a11y: L.t("唔改，返主畫面", "不改，回主画面", "Don't change, back to main screen")) { store.onbHush(); store.cancelChangeHome() }
             } else if s == .tryMic {
                 topPill(L.t("跳過", "跳过", "Skip"), a11y: L.t("跳過，入主畫面", "跳过，进入主画面", "Skip, go to main screen")) { go { store.finishOnboarding() } }
@@ -170,25 +170,25 @@ struct OnboardingFlow: View {
     }
 }
 
-// MARK: - 讲嘢：换步先停
+// MARK: - Stop speech before step changes
 
 extension AppStore {
-    /// 引导换步：停掉上一步讲紧、排紧嘅句子（换 phase 时 AppStore 已经自动 hush；同一步入面换画面靠呢个）。聆听中唔郁。
+    /// Stop current and queued onboarding speech; phase changes hush automatically, while within-step changes use this helper. Leave listening untouched.
     func onbHush() {
         guard !listening else { return }
         hush()
     }
 
-    /// 每步出现时讲嘅一句（≤ 8 秒）：先停上一句再讲，唔会排喺旧句后面。
+    /// On appearance, replace prior speech with one sentence of at most 8 seconds rather than queueing behind it.
     func onbSay(_ s: String) {
         onbHush()
         say(s)
     }
 }
 
-// MARK: - 进度（文字）
+// MARK: - Text progress
 
-/// 「第 1 步，共 5 步」：测试反馈 A-1，以前一排小圆点似翻页点，长者以为可以左右扫；改成直接讲第几步。
+/// A-1: explicit step counts replace dots that older testers mistook for swipeable pages.
 private struct OnbProgressDots: View {
     var current: Int
     var total: Int
@@ -206,7 +206,7 @@ private struct OnbProgressDots: View {
     }
 }
 
-/// 按下微缩回弹（无底色的按钮用）。
+/// Subtle press-scale feedback for background-free buttons.
 private struct OnbPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -215,7 +215,7 @@ private struct OnbPressStyle: ButtonStyle {
     }
 }
 
-/// 底部大按钮（固定在安全区上方）。
+/// Large bottom button fixed above the safe area.
 private struct OnbBottomPrimary: View {
     var title: String
     var action: () -> Void
@@ -232,7 +232,7 @@ private struct OnbBottomPrimary: View {
     }
 }
 
-/// 圆形大图标（底色淡橙）+ 右上角小徽章：欢迎页、私隐、试一次共用。
+/// Shared large circular icon with pale orange background and a top-right badge for welcome, privacy and trial.
 private struct OnbBadgeIcon: View {
     var symbol: String
     var badge: String?
@@ -259,7 +259,7 @@ private struct OnbBadgeIcon: View {
     }
 }
 
-// MARK: - 1 欢迎：讲用途
+// MARK: - 1 Welcome: explain purpose
 
 private struct OnbWelcomeStep: View {
     @Environment(AppStore.self) private var store
@@ -269,8 +269,8 @@ private struct OnbWelcomeStep: View {
 
     static var spoken: String { L.t("街坊行幫你記錄每日散步，約隔籬街坊一齊行；上面幅地圖幫你哋搵到對方。", "街坊行帮你记录每天散步，约隔壁邻居一起走；上面的地图帮你们找到对方。", "StreetWalk records your daily walks and helps you walk with neighbours. The map at the top helps you find each other.") }
 
-    /// 测试反馈：做成卡片似可以撳嘅掣 → 改成普通介绍列表（细图标、冇卡片底、多一行解释），一眼睇得出系「介绍」唔系「功能入口」。
-    /// 10-18 测试反馈：「今日」页第一次唔知有咩、散步时报「冇櫈 / 好曬」好似盲盒 → 每条写短，加「今日」页有咩同报地标两条。
+    /// Feedback: replace button-like introduction cards with plain icon/text rows and explanations.
+    /// 10-18: shorten each introduction and explain Today and landmark reports, which testers found unpredictable.
     private var features: [(symbol: String, text: String, detail: String)] { [
         ("figure.walk", L.t("自動記錄散步", "自动记录散步", "Records walks for you"),
          L.t("出門行就會記，唔使撳嘢。", "出门走路就会记，不用点。", "Just go out and walk.")),
@@ -287,7 +287,7 @@ private struct OnbWelcomeStep: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // 语言：放最顶，长者一眼见到；三种语言自己嘅写法，撳一下成页即时转、读返一次欢迎
+                // Place language selection first using each language's own name; switch immediately and repeat the welcome.
                 VStack(alignment: .leading, spacing: 8) {
                     Label("語言 · 语言 · Language", systemImage: "globe")
                         .ds(.captionBold)
@@ -295,7 +295,7 @@ private struct OnbWelcomeStep: View {
                         .accessibilityAddTraits(.isHeader)
                     LanguageChooser(short: true) { store.onbSay(Self.spoken) }
                 }
-                .onAppear { if LaunchArgs.value("-videoShot") == "lang" { store.runVideoShotIfNeeded() } }   // 录宣传片：语言切换
+                .onAppear { if LaunchArgs.value("-videoShot") == "lang" { store.runVideoShotIfNeeded() } }   // Promotional recording: language switching.
                 Text(L.t("歡迎嚟到街坊行", "欢迎来到街坊行", "Welcome to StreetWalk"))
                     .ds(.title)
                     .fixedSize(horizontal: false, vertical: true)
@@ -337,7 +337,7 @@ private struct OnbWelcomeStep: View {
                     Text(L.t("開始", "开始", "Start")).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.dsPrimary)
-                // 后生啲、识用嘅人：跳过介绍同「試一次」
+                // Experienced users can skip the introduction and trial.
                 Button(action: onSkip) {
                     Text(L.t("我識用，跳過介紹", "我会用，跳过介绍", "I know how. Skip intro"))
                         .ds(.caption)
@@ -359,9 +359,9 @@ private struct OnbWelcomeStep: View {
     }
 }
 
-// MARK: - 2 私隐：三句，「詳細」展开原来 5 段
+// MARK: - 2 Privacy: three statements with five detailed sections
 
-/// 「谁能看到什么」：按受众逐行讲（规格 §4 知情同意）。设置页「私隱說明」也可以用 PrivacyRows 重看；首次使用喺「詳細」入面。
+/// Section 4: explain visibility by audience; reuse PrivacyRows in Settings and onboarding details.
 struct PrivacyRows: View {
     static var rows: [(symbol: String, text: String)] { [
         ("figure.walk", L.t("你行街嘅時候自動記錄，唔使撳掣；定位揀「始終允許」，鎖咗機出門都會記。行過嘅路線同屋企位置只留喺你部手機。", "你散步时自动记录，不用按按钮；定位选「始终允许」，锁屏出门也会记。走过的路线和家的位置只留在你的手机里。", "Walks are recorded when you go out, no buttons. Choose \"Always Allow\" for location and it records even when the phone is locked. Your routes and home location stay on your phone.")),
@@ -370,7 +370,7 @@ struct PrivacyRows: View {
         ("doc.text.magnifyingglass", L.t("你嘅反映會匿名，幾位街坊都反映先會整理好轉交社工同屋邨管理。", "你对地点的反馈是匿名的，同一个地方有几位邻居都反映了，才会整理好转交社工和屋邨管理处。", "Your reports about places are anonymous. When several neighbours report the same place, we pass it on to social workers and estate management.")),
         ("network", L.t("地圖資料向 OpenStreetMap 攞你附近一格；講嘢可能要經 Apple 辨認。", "地图数据来自 OpenStreetMap，只下载你家附近一格；说话时可能要经过苹果的语音识别。", "Map data comes from OpenStreetMap, only the area near your home. When you speak, Apple may help recognise your voice.")),
     ] }
-    /// 读出来的一段（和上面几行内容一致；设定页「讀出嚟」用）。
+    /// Spoken version matches the visible explanation, reused by Settings' read-aloud action.
     static var spoken: String { L.t("你行街會自動記錄，定位揀始終允許，鎖咗機出門都會記，路線同屋企位置只留喺你部手機。同區嘅人只見到你嘅網名、小人同連續日數，唔見到你住邊座幾樓。用碰一碰加咗嘅街坊先見到你住邊座幾樓、今日一句，同你出門時喺邊個地標附近。反映會匿名，幾位街坊都反映先會轉交社工同屋邨管理。", "你散步会自动记录，定位选始终允许，锁屏出门也会记，路线和家的位置只留在你的手机里。附近的人只看到你的网名、卡通小人和连续天数，看不到你住哪栋、几楼。用碰一碰加过的邻居，才能看到你住哪栋几楼、今天走过哪些地方，和你出门时在哪个地标附近。地点反馈是匿名的，同一个地方有几位邻居都反映了，才会转交社工和屋邨管理处。", "Walks are recorded when you go out. Choose Always Allow for location and it records even when the phone is locked. Your routes and home location stay on your phone. People nearby only see your nickname, figure and streak, not your block or floor. Only neighbours added by tapping phones see your block, floor, your line for today, and which landmark you are near when out. Reports are anonymous. When several neighbours report the same place, we pass it on to social workers and estate management.") }
 
     var appeared = true
@@ -404,10 +404,10 @@ private struct OnbConsentStep: View {
     var onNext: () -> Void
     @State private var appeared = false
     @State private var showDetail = UIPreview.is("privacyDetail")
-    /// 选了「唔同意」：不记录、不进圈，讲清楚之后怎么办。
+    /// On refusal, do not record or join a circle; explain the next step.
     @State private var declined = UIPreview.is("declined")
 
-    /// 三句话（UX 报告第五节）；「詳細」入面先係原来 5 段。
+    /// UX section 5: three summary statements, with the original five sections under Details.
     private var points: [(symbol: String, text: String)] { [
         ("lock.fill", L.t("行過嘅路只留喺你部手機。", "走过的路只留在你的手机里。", "Where you walk stays on your phone.")),
         ("eye.slash.fill", L.t("唔識你嘅人，只見到你個網名。", "不认识你的人，只看到你的网名。", "People who don't know you only see your nickname.")),
@@ -444,7 +444,7 @@ private struct OnbConsentStep: View {
                     }
                 }
 
-                // 「詳細」：原来 5 段（谁见到乜、反映、地图同语音资料去边）
+                // Details cover audience visibility, reports and map / speech data destinations.
                 Button {
                     withAnimation(DS.motion(DS.spring)) { showDetail.toggle() }
                 } label: {
@@ -476,7 +476,7 @@ private struct OnbConsentStep: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 8) {
                 if declined { declinedNote.transition(DS.slide(.bottom)) }
-                // 「唔同意」和「同意」并排（同复述卡「唔係 / 好」）；大字号放不下就上下排。
+                // Place refusal and consent side-by-side, stacking when larger text cannot fit.
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 8) { consentButtons(stacked: false) }
                     VStack(spacing: 8) { consentButtons(stacked: true) }
@@ -507,7 +507,7 @@ private struct OnbConsentStep: View {
         .buttonStyle(.dsPrimary)
     }
 
-    /// 不同意：什么都不记录、不进圈；想用时回来按「同意」。
+    /// Refusal prevents recording / circle entry; users may return and consent later.
     private var declinedNote: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "hand.raised.fill")
@@ -527,16 +527,16 @@ private struct OnbConsentStep: View {
     }
 }
 
-// MARK: - 3a 屋企：先讲点解要定位，再弹系统框；之后等地图
+// MARK: - 3a Home: explain location before the system prompt, then load the map
 
 private struct OnbLocateStep: View {
     @Environment(AppStore.self) private var store
-    /// 撳咗「好」（系统定位框弹紧 / 等紧位置）。
+    /// Consent given; system authorization or location retrieval is pending.
     @State private var asked = false
-    /// 等咗 10 秒仲未有地图：讲明等紧网络，俾个「用示例屋邨」出路（A28；地图一轮最多等 75 秒、之后后台再试；定位最多 120 秒）。
+    /// A28: after 10 seconds explain network waiting and offer the sample estate; map attempts may take 75 seconds, location up to 120.
     @State private var waitedLong = false
 
-    /// 未问过定位、仲未开始搵：先解释（consent 冇自动开始，见 AppStore+Map.consent）。
+    /// When location has not been requested, explain first; AppStore+Map.consent does not start automatically.
     private var needsAsk: Bool { !asked && !store.loadingMap && store.mapService.locationUndetermined }
 
     var body: some View {
@@ -565,7 +565,7 @@ private struct OnbLocateStep: View {
         }
     }
 
-    /// 一句解释 + 「好」：撳咗先弹系统定位框（使用 App 期間）。
+    /// One explanation and consent button before requesting While Using location.
     private var askCard: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 16) {
@@ -630,7 +630,7 @@ private struct OnbLocateStep: View {
     }
 }
 
-// MARK: - 3b 屋企：「你係咪住XX樓？」唔係先自己揀
+// MARK: - 3b Home: confirm a suggested building or select manually
 
 private struct OnbPickHomeStep: View {
     @Environment(AppStore.self) private var store
@@ -643,7 +643,7 @@ private struct OnbPickHomeStep: View {
     var body: some View {
         VStack(spacing: 8) {
             if manual { instruction.transition(DS.slide(.top)) }
-            // 冇估到点解（示例屋邨、唔喺屋企）已经一直写喺说明卡，提示唔使再叠一次
+            // The explanation card already states why no suggestion exists; avoid duplicating the notice.
             if let t = store.toast, !(manual && t == store.mapNotice) {
                 Label(t, systemImage: "exclamationmark.circle.fill")
                     .ds(.caption)
@@ -656,7 +656,7 @@ private struct OnbPickHomeStep: View {
             Spacer(minLength: 0)
             HStack(alignment: .bottom) {
                 attribution
-                // 手指放大 / 移动 / 转动过：「回正」（同双击一样）
+                // Show Reset after manual camera changes, equivalent to double-tap.
                 if store.scene.overlay.userMoved {
                     MapResetButton { store.scene.resetUserCamera() }.transition(.opacity)
                 }
@@ -668,7 +668,7 @@ private struct OnbPickHomeStep: View {
                 }
                 .transition(DS.slide(.bottom))
             } else {
-                // 3D 里的楼很小、读屏也点不到：用清单也能选。
+                // Provide a list because small 3D buildings are hard to tap and inaccessible to VoiceOver selection.
                 Button { showList = true } label: {
                     Label(L.t("揀唔到？用清單揀", "选不到？用清单选", "Can't tap it? Choose from list"), systemImage: "list.bullet").frame(maxWidth: .infinity)
                 }
@@ -683,7 +683,7 @@ private struct OnbPickHomeStep: View {
         .animation(DS.motion(DS.spring), value: manual)
         .animation(DS.motion(DS.snappy), value: store.toast)
         .onAppear {
-            // 估唔到（冇定位、示例屋邨、附近冇住宅楼）就直接自己揀
+            // Without a suggestion due to location, sample map or missing residences, enter manual selection directly.
             manual = store.pendingHome == nil
             speak()
         }
@@ -719,12 +719,12 @@ private struct OnbPickHomeStep: View {
                 .symbolEffect(.breathe, isActive: !DS.reduceMotion)
                 .frame(width: 52, height: 52)
                 .background(DS.accentSoft, in: Circle())
-            // 揀咗之后提示跟住变（以前一直写「撳一下」，唔知揀咗未）
+            // Update guidance after selection instead of continuing to ask for a tap.
             VStack(alignment: .leading, spacing: 4) {
                 if store.pendingHome == nil {
                     Text(L.t("撳一下你住嗰座樓", "点一下你住的那栋楼", "Tap the block you live in")).ds(.bodyBold)
                     Text(L.t("橙色嘅係住宅樓", "橙色的是住宅楼", "Orange ones are homes")).ds(.caption).foregroundStyle(.secondary)
-                    // 点解冇幫你估（攞唔到位置 / 地图、唔喺屋企）：一直显示，唔好一闪就冇（A-2）
+                    // A-2: keep the reason for missing suggestions visible instead of flashing briefly.
                     if let n = store.mapNotice {
                         Text(n).ds(.caption).foregroundStyle(.secondary)
                     }
@@ -740,7 +740,7 @@ private struct OnbPickHomeStep: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// 地图资料来源（OpenStreetMap 授权要求注明）；唔再显示「快取 / 即時」呢类技术字眼。
+    /// Show required OpenStreetMap attribution, omitting technical cache/live jargon.
     private var attribution: some View {
         Text("©\u{00A0}OpenStreetMap")
             .ds(.caption)
@@ -763,12 +763,12 @@ private struct OnbPickHomeStep: View {
 
     private func detail(_ b: Building?) -> String? {
         guard let b else { return nil }
-        let d = b.centroid.length       // 选楼画面以你个位置为原点
+        let d = b.centroid.length       // Home-selection coordinates originate at the user's position.
         let far = d < 30 ? L.t("就喺你度", "就在你这里", "Right where you are") : L.t("離你大約 \(OnbBuildingList.meters(d))", "离你大约 \(OnbBuildingList.meters(d))", "About \(OnbBuildingList.meters(d)) away")
         return L.t("\(b.levels) 層 · \(far)", "\(b.levels) 层 · \(far)", "\(b.levels) floors · \(far)")
     }
 
-    /// 估中嘅楼：「你係咪住XX樓？」[唔係，我揀] [係]
+    /// Suggested-building card offers confirmation or manual choice.
     private func guessCard(_ id: Int64) -> some View {
         let b = store.map?.building(id: id)
         return VStack(alignment: .leading, spacing: 16) {
@@ -808,7 +808,7 @@ private struct OnbPickHomeStep: View {
         .buttonStyle(.dsPrimary)
     }
 
-    /// 自己揀咗：显示名同层数，「就係呢座」。
+    /// After manual selection show name, floors and a confirmation action.
     private func confirmCard(_ id: Int64) -> some View {
         let b = store.map?.building(id: id)
         return VStack(alignment: .leading, spacing: 16) {
@@ -838,13 +838,13 @@ private struct OnbPickHomeStep: View {
     }
 }
 
-/// 选楼清单：附近住宅楼按距离排（近的先），每座一个大按钮；读屏、切换控制都能用。
+/// Accessible building list sorts residences nearest-first with large buttons supporting VoiceOver and Switch Control.
 private struct OnbBuildingList: View {
     @Environment(AppStore.self) private var store
     var onPick: (Int64) -> Void
 
     var body: some View {
-        // pickView 的坐标以定位点为原点：centroid.length 就是和你的距离。
+        // pickView is centered on location, so centroid.length equals distance from the user.
         let list = store.residentialBuildings().sorted { $0.centroid.length < $1.centroid.length }
         NavigationStack {
             ScrollView {
@@ -892,7 +892,7 @@ private struct OnbBuildingList: View {
     static func meters(_ m: Double) -> String { m < 1000 ? L.t("\(Int((m / 10).rounded()) * 10) 米", "\(Int((m / 10).rounded()) * 10) 米", "\(Int((m / 10).rounded()) * 10) m") : String(format: L.t("%.1f 公里", "%.1f 公里", "%.1f km"), m / 1000) }
 }
 
-// MARK: - 4 樓層同網名（同一页）
+// MARK: - 4 Floor and nickname on one page
 
 private struct OnbFloorNameStep: View {
     @Environment(AppStore.self) private var store
@@ -930,12 +930,12 @@ private struct OnbFloorNameStep: View {
         .onAppear {
             if store.floorChoice > maxFloor { store.floorChoice = maxFloor }
             if store.floorChoice < 1 { store.floorChoice = 1 }
-            // 网名先填一个现成嘅（撳「好」就用得），想改可以撳第二个或者自己打。
+            // Prefill a usable nickname, with alternative suggestions and free text.
             if name.isEmpty, LaunchArgs.videoClean, let n = LaunchArgs.value("-nickname") { name = n }
             if name.isEmpty { name = store.nickname.isEmpty ? (store.nicknameSuggestions.first ?? "") : store.nickname }
             store.onbSay(L.t("你住幾樓？大家點叫你？", "你住几楼？大家怎么称呼你？", "Which floor do you live on? What should people call you?"))
         }
-        .onChange(of: store.nickname) { _, n in if !n.isEmpty { name = n } }   // 自动脚本 / 启动参数填咗
+        .onChange(of: store.nickname) { _, n in if !n.isEmpty { name = n } }   // Already populated by the script or launch argument.
     }
 
     private func next() {
@@ -946,7 +946,7 @@ private struct OnbFloorNameStep: View {
         onNext()
     }
 
-    /// 大 − / + 按钮（撳住会连续跳），中间大数字；读屏当一个可调元件（上下扫）。
+    /// Large minus/plus controls repeat on hold; expose the central value as one adjustable VoiceOver element.
     private var floorStepper: some View {
         let f = store.floorChoice
         let top = maxFloor
@@ -989,7 +989,7 @@ private struct OnbFloorNameStep: View {
     }
 }
 
-/// 楼层 − / + 大圆钮（72 pt）：撳一下跳一层，撳住半秒之后连续跳。
+/// 72 pt floor buttons change one level per tap and repeat after half a second held.
 private struct OnbStepButton: View {
     var symbol: String
     var enabled: Bool
@@ -1011,7 +1011,7 @@ private struct OnbStepButton: View {
     }
 }
 
-/// 撳住连续触发（楼层高嘅唔使撳几十下）。
+/// Hold-repeat avoids dozens of taps for high floors.
 private struct RepeatPressStyle: ButtonStyle {
     var onRepeat: () -> Void
 
@@ -1045,18 +1045,18 @@ private struct RepeatPressStyle: ButtonStyle {
     }
 }
 
-// MARK: - 5 試一次：撳咪讲「今日天氣點」
+// MARK: - 5 Trial: ask about today's weather
 
 private struct OnbTryMicStep: View {
     @Environment(AppStore.self) private var store
     @ObservedObject var listener: Listener
     var onDone: () -> Void
-    /// 听到 / 撳咗嘅句子，同答案（有答案先出「做完」）。
+    /// Show the recognized / selected sentence and answer; reveal completion only after an answer.
     @State private var heard: String?
     @State private var answer: String?
-    /// 讲完停顿 2 秒自动停（唔记得再撳都得）。
+    /// Stop automatically after two seconds of silence without requiring another tap.
     @State private var autoStop: Task<Void, Never>?
-    /// 上一次听唔到 / 用唔到咪：画面同声音讲同一句。
+    /// Use matching visible and spoken explanations after recognition or microphone failure.
     @State private var missed: String?
 
     private var phrase: String { L.t("今日天氣點", "今天天气怎么样", "What's the weather today?") }
@@ -1093,7 +1093,7 @@ private struct OnbTryMicStep: View {
                 } else if let answer {
                     answerCard(answer).transition(DS.slide(.bottom))
                 } else {
-                    // 冇咪 / 唔想讲：撳呢句都得
+                    // Offer a tappable sentence without requiring speech or a microphone.
                     VStack(alignment: .leading, spacing: 8) {
                         Text(L.t("或者撳呢句：", "或者点这句：", "Or tap this line:")).ds(.caption).foregroundStyle(.secondary)
                         Button { usePhrase() } label: {
@@ -1118,7 +1118,7 @@ private struct OnbTryMicStep: View {
         .animation(DS.motion(DS.spring), value: on)
         .animation(DS.motion(DS.spring), value: answer)
         .onAppear {
-            store.refreshLiveWeather()      // 答「今日天氣點」用（天文台实时）
+            store.refreshLiveWeather()      // Answer the trial weather question using live HKO data.
             store.onbSay(L.t("試吓撳咪講嘢。", "试试按麦克风说话。", "Try speaking to the mic."))
         }
         .onDisappear {
@@ -1146,7 +1146,7 @@ private struct OnbTryMicStep: View {
                 heard = nil
                 answer = nil
                 missed = nil
-                // 一直冇讲嘢：15 秒后自动停
+                // Stop after 15 seconds with no speech.
                 autoStop = Task { @MainActor in
                     try? await Task.sleep(for: .seconds(15))
                     guard !Task.isCancelled, store.listening else { return }
@@ -1175,7 +1175,7 @@ private struct OnbTryMicStep: View {
         reply(to: phrase)
     }
 
-    /// 答：天气（同「今日」页一样嘅一句）。答完先出「做完」。
+    /// Use Today's weather sentence, then expose completion.
     private func reply(to text: String) {
         missed = nil
         heard = text
@@ -1217,7 +1217,7 @@ private struct OnbTryMicStep: View {
     }
 }
 
-/// 「試一次」嘅大咪：同主画面个咪一样嘅橙色圆，大啲；聆听时显示声波 + 外圈脉冲。
+/// Trial microphone matches the main orange design at a larger size, with waveform and pulse while listening.
 private struct OnbBigMic: View {
     var on: Bool
     var action: () -> Void

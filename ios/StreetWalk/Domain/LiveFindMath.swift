@@ -1,30 +1,30 @@
 import Foundation
 
-/// 「查找」式找人（真街坊）嘅计算：GPS 距离、方位、箭咀角度、远 / 近模式、几时算「見到」。纯函数，单元测试用。
-/// 远：GPS 方位 − 指南针方向；近（≤ 10 m）：超宽带精确距离同方向；≤ 3 m 或者撳「見到喇」就结束。
+/// Pure live-finding calculations: GPS distance/bearing, arrow angle, far/near mode, and arrival detection; unit-testable.
+/// Far: GPS bearing minus heading. Near (<= 10 m): UWB distance/direction. End within 3 m or on explicit found confirmation.
 enum LiveFindMath {
     enum Mode: Equatable { case waiting, far, near }
 
-    /// ≤ 呢个距离用近距离画面（超宽带箭咀）。
+    /// Distance threshold for the close-range UWB-arrow screen.
     static let nearDistance = 10.0
-    /// ≤ 呢个距离自动「見到喇」。
+    /// Distance threshold for automatic found confirmation.
     static let metDistance = 3.0
-    /// GPS 话 ≤ 呢个距离就交换超宽带令牌（GPS 有误差，早少少准备好）。
+    /// Exchange UWB tokens below this GPS distance, allowing early setup despite GPS error.
     static let niStartDistance = 30.0
-    /// 每隔几秒传一次位置。
+    /// Location transmission interval in seconds.
     static let sendInterval = 3.0
-    /// 对方位置旧过呢个秒数就当暂时收唔到。
+    /// Maximum peer-location age before treating it as unavailable.
     static let staleAfter = 30.0
-    /// 超宽带读数旧过呢个秒数就唔用。
+    /// Maximum usable UWB-reading age.
     static let niFresh = 2.0
-    /// 箭咀同前面差唔多 ±呢个角度就当「对正咗」（转绿 + 震）。
+    /// Angular tolerance around straight ahead for green-arrow/haptic alignment feedback.
     static let facingTolerance = 15.0
-    /// 长者步速（米 / 分钟，同约会估时间一致）。
+    /// Walking speed in metres per minute, matching meetup estimates for older residents.
     static let metersPerMinute = 70.0
-    /// 指南针误差大过呢个角度就叫用户将手机放平。
+    /// Heading-error threshold above which the user is asked to hold the phone flat.
     static let headingMaxError = 35.0
 
-    /// 两点距离（米，haversine）。
+    /// Haversine distance between two points in metres.
     static func distance(_ a: GeoPoint, _ b: GeoPoint) -> Double {
         let r = 6_371_000.0
         let φ1 = a.lat * .pi / 180, φ2 = b.lat * .pi / 180
@@ -33,7 +33,7 @@ enum LiveFindMath {
         return 2 * r * atan2(sqrt(h), sqrt(max(0, 1 - h)))
     }
 
-    /// a 望去 b 嘅方位角（度，正北 0、顺时针，0..<360）。
+    /// Bearing from a to b, clockwise from north in 0..<360 degrees.
     static func bearing(from a: GeoPoint, to b: GeoPoint) -> Double {
         let φ1 = a.lat * .pi / 180, φ2 = b.lat * .pi / 180, dλ = (b.lon - a.lon) * .pi / 180
         let y = sin(dλ) * cos(φ2)
@@ -42,44 +42,44 @@ enum LiveFindMath {
         return (deg + 360).truncatingRemainder(dividingBy: 360)
     }
 
-    /// 角度收窄到 -180...180。
+    /// Normalize to -180...180 degrees.
     static func normalize(_ deg: Double) -> Double {
         var d = deg.truncatingRemainder(dividingBy: 360)
         if d > 180 { d -= 360 } else if d <= -180 { d += 360 }
         return d
     }
 
-    /// 箭咀相对手机顶嘅角度（顺时针为正）= 方位 − 手机指住嘅方向。冇指南针就当手机顶向正北。
+    /// Clockwise arrow angle relative to the phone top = bearing minus heading. Assume north-up without a compass.
     static func arrowAngle(bearing: Double, heading: Double?) -> Double { normalize(bearing - (heading ?? 0)) }
 
-    /// 指南针用唔用得（CLHeading.headingAccuracy：负数 = 无效）。
+    /// Validate CLHeading.headingAccuracy; a negative value is invalid.
     static func headingUsable(accuracy: Double?) -> Bool {
         guard let a = accuracy else { return false }
         return a >= 0 && a <= headingMaxError
     }
 
-    /// 大约几多分钟行到（至少 1 分钟；到咗就 0）。
+    /// Estimated walking minutes: at least one while travelling, zero on arrival.
     static func etaMinutes(_ meters: Double) -> Int {
         meters <= metDistance ? 0 : max(1, Int((meters / metersPerMinute).rounded(.up)))
     }
 
-    /// 远 / 近：有新鲜超宽带读数（佢只喺几米到十几米内先有）就近；否则按 GPS。
+    /// Use near mode with a fresh UWB reading; otherwise fall back to GPS.
     static func mode(gps: Double?, ni: Double?) -> Mode {
         if let ni, ni <= nearDistance * 1.5 { return .near }
         guard let gps else { return .waiting }
         return gps <= nearDistance ? .near : .far
     }
 
-    /// 自动「見到喇」：超宽带 ≤ 3 m；冇超宽带读数时 GPS ≤ 3 m。
+    /// Automatic arrival: UWB <= 3 m, or GPS <= 3 m when no UWB reading exists.
     static func isMet(gps: Double?, ni: Double?) -> Bool {
         if let ni { return ni <= metDistance }
         if let gps { return gps <= metDistance }
         return false
     }
 
-    /// 超宽带方向（手机坐标：x 向右、y 向上、−z 向机背前面）→ 水平角（度，向右为正）。
+    /// Convert the UWB phone-coordinate direction (x right, y up, -z forward) to horizontal degrees, positive right.
     static func niAzimuth(x: Float, z: Float) -> Double { Double(atan2(x, -z)) * 180 / .pi }
 
-    /// 对正咗（箭咀差唔多向前）。
+    /// Whether the arrow is approximately straight ahead.
     static func isFacing(_ angle: Double) -> Bool { abs(normalize(angle)) <= facingTolerance }
 }

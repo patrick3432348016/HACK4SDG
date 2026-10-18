@@ -1,57 +1,59 @@
-# Mac / Xcode 运行版
+# Mac / Xcode reference delivery
 
-适用于 macOS 13 或以上、Xcode 15 或以上、Python 3.12，Intel 和 Apple Silicon 均使用本机 Python。此次目标为 **My Mac**，不包含 iPhone 实时客户端迁移。
+> Historical member B delivery. Paths and validation results below refer to the original ZIP layout, not the integrated repository. For the current StreetWalk server, use [server/README.md](../../README.md).
 
-## 最快启动
+Requires macOS 13+, Xcode 15+, and Python 3.12. Intel and Apple Silicon use native Python. The target is **My Mac**; this delivery does not migrate the real-time client to iPhone.
 
-1. 解压整个 ZIP，保留文件夹结构。安装 Python 3.12（python.org 官方 macOS 安装包，或已有 Homebrew 时执行 `brew install python@3.12`）。
-2. 双击 `macOS/Setup.command`，安装项目 Python 依赖。首次需要网络。若文件没有执行权限，在解压目录执行 `bash macOS/Setup.command`。
-3. 打开 `macOS/VoiceAssistantMac.xcodeproj`，Scheme 选 **VoiceAssistantMac**，设备选 **My Mac**，按 **⌘R**。
-4. 等待本机服务自动启动。配置自动填好，按“开始粤语对话”，允许 macOS 和页面的麦克风权限。
+## Quick start
 
-无需重新输入 API Key，无需单独手动启动后端。默认采用本机 ad-hoc 签名，不要求先配置开发者 Team。首次打开 Xcode 自身的安装/许可步骤由 Mac 使用者完成。
+1. Extract the whole ZIP, preserving its directory structure. Install Python 3.12 from python.org or use `brew install python@3.12` if Homebrew is available.
+2. Double-click `macOS/Setup.command` to install dependencies; the first run needs network access. If it is not executable, run `bash macOS/Setup.command` from the extracted root.
+3. Open `macOS/VoiceAssistantMac.xcodeproj`, choose **VoiceAssistantMac → My Mac**, and press **⌘R**.
+4. Wait for the local service to start. Configuration is loaded automatically. Start the Cantonese conversation and allow both macOS and page microphone permissions.
 
-若想先测原页面，也可双击 `macOS/Run-in-Browser.command`，自动启动服务并打开系统浏览器。浏览器版结束时按终端 Control-C 关闭服务。若 WebKit 收音有设备兼容问题，用浏览器版测试相同后端，不能将其视为原生壳已通过验收。
+No repeated API-key entry or separate backend start is required. Local ad-hoc signing is the default; a developer Team is not required first. The Mac user must complete Xcode's installation/licensing prompts.
 
-## 保留的核心功能
+Alternatively, double-click `macOS/Run-in-Browser.command` to start the same backend in the system browser. Press Control-C in its terminal to stop it. Browser testing can help diagnose WebKit audio issues, but does not prove the native shell has passed acceptance.
 
-- 豆包流式 ASR → 方舟结构化理解 → 原有范围限制和业务逻辑 → 豆包粤语 TTS。
-- 连续粤语对话、插话打断、文字输入、确认卡、单次十分钟上限。
-- 香港天文台北区测站实况、北区雨量、全港预报及当前警告；原有新鲜度校验保持不变。
-- 当前小何 2.0 女声、语速、模型与资源配置均从正在运行的 Windows 服务导出。
-- 业务操作仍为既有演示数据，原本未接入的真实交通、账号和邀请不会因为迁移就变成真实功能。
+## Preserved capabilities
 
-`backend/assistant/` 和 `windows/web/` 按原文件逐字节复制，完整性记录在 `CORE-SHA256.json`。目录名 windows/web 是原代码的文件定位方式，不表示只能在 Windows 上运行。没有换成旧的 iOS 按句识别版本。
+- Doubao streaming ASR → Ark structured understanding → existing scope/business rules → Doubao Cantonese TTS.
+- Continuous Cantonese conversation, interruption, text input, confirmation cards, and a ten-minute session limit.
+- Observatory North District station readings/rainfall, Hong Kong-wide forecasts, and current warnings with the existing freshness checks.
+- Xiaohe 2.0 female voice, speed, model, and resource settings exported from the then-running Windows service.
+- Business operations remain demo data. Unconnected transport, accounts, and invitations do not become real through this migration.
 
-## 配置与文件位置
+The original delivery copied `backend/assistant/` and `windows/web/` byte-for-byte and recorded hashes in `CORE-SHA256.json`. That manifest describes the original package; later comment translations do not preserve those file hashes. The windows/web directory name is a source-layout convention, not a Windows-only restriction. This shell does not revert to the older iOS short-recording client.
 
-按用户明确要求，ZIP 的 `Private/voice-config.json` 包含当前实际使用的豆包语音 Key、火山方舟 Key，以及全部运行参数。不会在本文或源码里打印 Key；没有添加过期、未使用的历史 Key。
+## Configuration and files
 
-这份 ZIP 是含凭证的私有交付包，只交给你信任的朋友，不适合公开上传 GitHub。其内 `.gitignore` 排除了 Private 和本地运行环境。配置文件保留在解压目录外部资源中，不编译到 Swift 源码或 App Bundle。程序每次启动读取它，页面改动仍只保存到该次后端内存；要持久更换参数可修改该 JSON。
+At the user's explicit request, the original private ZIP included active provider configuration in `Private/voice-config.json`. This document does not reproduce credentials. The package was intended only for trusted recipients and was unsuitable for public GitHub upload; its .gitignore excluded Private and local runtime directories.
 
-页面的“清空凭证”只清空该次运行内存，不删除你要求随包交付的 JSON；再次启动会重新读入。若要彻底移除，需由你删除 Private 中的配置文件。
+The configuration remains an external resource in the extracted source directory, not Swift source or the App Bundle. It is read at each launch. Page edits affect backend memory for that run; edit the JSON to persist a configuration change.
 
-Mac App 使用 SwiftUI + WKWebView 承载原页面，启动项目 `.venv` 中的 Python，仅监听 `127.0.0.1` 的自动空闲端口。关闭最后一个窗口或退出 App 会停止它创建的后端；不接管其他服务。外部天文台链接交给系统浏览器；仅允许本机页面请求麦克风，不允许摄像头。
+The page's clear-credentials action clears memory only. It does not delete the packaged JSON, which is loaded again on restart. Complete removal requires deleting the configuration file separately.
 
-这是从源代码目录运行的开发交付，**不能仅复制编译后的 .app 脱离项目目录使用**。移动整个解压目录后重新运行 Setup 并重新构建（Python 虚拟环境不能跨目录复制）。不含可公开分发的公证 .dmg，也不是 App Store 包。
+The SwiftUI/WKWebView app hosts the original page and launches Python from the project's .venv on an available 127.0.0.1 port. Closing the last window or quitting stops only the backend it created. Observatory links open in the system browser. Only the local page can request microphone access; camera access is denied.
 
-## 验证边界
+This is a source-directory development delivery: **copying only the built .app is insufficient**. After moving the whole directory, rerun Setup and rebuild; virtual environments are not portable between paths. No notarized public .dmg or App Store package is included.
 
-交付环境是 Windows，没有 Xcode/macOS SDK。已对后端和前端做已有自动测试，并用新 Mac 启动器测试真实 HTTP 启动、读取测试配置及关闭清理；这些不等于 Xcode 编译或 Mac 麦克风实测通过。
+## Validation boundaries
 
-本次共核对 19 个核心文件哈希，79 项后端测试通过，原前端状态与音频重采样测试通过。包内 `ios/` 是保留供结构测试使用的旧版 iOS 源码；这次请只打开上述 macOS 工程，不用旧的 VoiceAssistantDemo iPhone 工程。
+The delivery environment was Windows without Xcode/macOS SDK. Existing backend/frontend tests and the new launcher covered HTTP startup, test configuration, and shutdown cleanup. These results do not establish Xcode compilation or Mac microphone behavior.
 
-Mac 编译验证：
+The original report records 19 matching core hashes, 79 backend tests passing, and existing UI-state/audio-resampling tests passing. The retained ios directory serves older structure tests; open the macOS project for this delivery.
+
+Mac build:
 
 ```sh
 xcodebuild -project macOS/VoiceAssistantMac.xcodeproj -scheme VoiceAssistantMac -configuration Debug -destination 'platform=macOS' build
 ```
 
-核心校验及测试：
+Integrity and backend checks in the original package:
 
 ```sh
 .venv/bin/python tools/verify_mac_delivery.py
 .venv/bin/python tools/verify_backend.py
 ```
 
-真人试用顺序：问“你好” → “北区今日天气点呀” → “听日呢” → 回答时插话 → 测试医疗/投资拒答 → 关闭窗口确认麦克风释放。音色自然程度、扬声器回声和老人语速需要真实设备验证。
+Manual trial: greet the assistant → ask today's North District weather → ask about tomorrow → interrupt its answer → test medical/investment refusals → close the window and confirm microphone release. Voice naturalness, speaker echo, and suitable pacing for older residents require actual-device evaluation.

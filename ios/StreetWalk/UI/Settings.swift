@@ -1,15 +1,15 @@
 import SwiftUI
 
-/// 设置（左上齿轮）。常用嘅放上面：字體大小、聲音、語言、我嘅資料、出門提醒；
-/// 其余（语音服务器、揀把声、下载声音指引、定位、演示模式、私隱、清除纪录）收喺最底「進階」，平时收埋（UX 评审 17）。
-/// 一页到底，不做多级菜单。
+/// Settings orders frequent controls first: text size, sound, language, profile and outing alerts.
+/// UX 17: collapse server, voice selection/download, location, demo and data controls under Advanced.
+/// Use one scrolling page rather than nested menus.
 struct SettingsView: View {
     @Environment(AppStore.self) private var store
     @State private var confirmClear = false
     @State private var confirmMove = false
     @State private var editingNickname = false
     @State private var showAdvanced = false
-    /// 截图自检：-voiceSettings x -uiPreview settingsProfile(End) / help / privacyPolicy / privacyScrolled / feedback / feedbackFailed 直接推入去嗰页。
+    /// Screenshot routes: -voiceSettings x -uiPreview settingsProfile(End), help, privacyPolicy, privacyScrolled, feedback or feedbackFailed.
     @State private var previewPage: String?
 
     var body: some View {
@@ -17,7 +17,7 @@ struct SettingsView: View {
         NavigationStack {
           ScrollViewReader { proxy in
             Form {
-                // 字體大小：即时生效、存低（TextSizeSetting），覆盖 iOS 文字大小
+                // TextSizeSetting applies and persists immediately, overriding system text size.
                 Section {
                     TextSizePicker().padding(.vertical, 8)
                 } header: {
@@ -29,9 +29,9 @@ struct SettingsView: View {
 
                 VoiceSettingsSection()
 
-                // 界面同播报一齐转；默认粤语。演示 / 截图可以用启动参数 -lang cmn。
+                // Switch UI and speech together; default Cantonese, with -lang cmn for demo/screenshots.
                 Section {
-                    // 三种语言：一行排唔落（「普通话（简体）」太长）就上下排
+                    // Stack language options when full localized names do not fit one row.
                     LanguageChooser { store.languageChanged() }
                     .padding(.vertical, 8)
                     .accessibilityLabel(L.t("語言", "语言", "Language"))
@@ -41,7 +41,7 @@ struct SettingsView: View {
                     Text(L.t("文字同播報一齊轉。", "文字和播报一起切换。", "Words and voice change together.")).ds(.caption)
                 }
 
-                // 每项下面一行小字：讲清楚系乜、喺边度见到、边个见到（测试反馈 K-1）
+                // K-1: explain each setting's meaning, display location and audience below it.
                 Section {
                     Button { editingNickname = true } label: {
                         VStack(alignment: .leading, spacing: 2) {
@@ -118,12 +118,12 @@ struct SettingsView: View {
                 } header: {
                     Text(L.t("街坊出門話我知", "邻居出门告诉我", "Tell me when neighbours go out")).ds(.caption)
                 } footer: {
-                    // 由、到一樣當全日（A66）
+                    // Equal start and end mean all day (A66).
                     Text(store.remindFrom == store.remindTo ? L.t("「由」同「到」一樣，即係全日都會通知你。每個街坊仲可以喺「街坊」頁分開開關。", "「从」和「到」一样，就是全天都会通知你。每个邻居还可以在「邻居」页单独开关。", "\"From\" and \"To\" are the same, so alerts come all day. You can also turn each neighbour on or off in the Neighbours tab.")
                          : L.t("只喺呢段時間通知你\(store.remindFrom > store.remindTo ? "（跨夜）" : "")。每個街坊仲可以喺「街坊」頁分開開關。", "只在这段时间通知你\(store.remindFrom > store.remindTo ? "（跨夜）" : "")。每个邻居还可以在「邻居」页单独开关。", "Alerts only during these hours\(store.remindFrom > store.remindTo ? " (overnight)" : ""). You can also turn each neighbour on or off in the Neighbours tab.")).ds(.caption)
                 }
 
-                // 测试反馈：设定要有隐私政策同帮助反馈（放喺「進階」上面，唔使展开就见到）
+                // Place privacy and help/feedback above Advanced so they remain visible without expansion.
                 Section {
                     NavigationLink { HelpView() } label: {
                         Label(L.t("幫助同意見", "帮助与反馈", "Help & feedback"), systemImage: "questionmark.circle").frame(minHeight: 56)
@@ -131,13 +131,13 @@ struct SettingsView: View {
                     NavigationLink { PrivacyPolicyView() } label: {
                         Label(L.t("私隱政策", "隐私政策", "Privacy policy"), systemImage: "hand.raised").frame(minHeight: 56)
                     }
-                    // 10-18 组员：F10 月报以前只喺演示菜单，真用户模式睇唔到、测唔到
+                    // 10-18 team feedback: expose F10 monthly reports outside the demo menu for normal users and testing.
                     NavigationLink { ReportView() } label: {
                         Label(L.t("社區月報（俾社工睇）", "社区月报（给社工看）", "Community monthly report"), systemImage: "doc.text").frame(minHeight: 56)
                     }
                 }
 
-                // 進階：开发同排查用嘅嘢，平时收埋（长者见到 IP 地址会惊）
+                // Hide developer and troubleshooting controls under Advanced to avoid confusing ordinary users with server addresses.
                 Section {
                     Button {
                         withAnimation(DS.motion(DS.snappy)) { showAdvanced.toggle() }
@@ -181,7 +181,7 @@ struct SettingsView: View {
                 }
             }
             .onAppear {
-                // 截图用：-uiPreview settingsProfile 捲去「我嘅資料」；其余推入「幫助」「私隱政策」「提意見」
+                // Screenshot routes scroll to profile or push Help, Privacy and Feedback.
                 if let p = LaunchArgs.value("-uiPreview"), ["settingsProfile", "settingsProfileEnd", "help", "privacyPolicy", "privacyScrolled", "feedback", "feedbackFailed"].contains(p) {
                     Task { @MainActor in
                         try? await Task.sleep(for: .seconds(0.8))
@@ -189,18 +189,18 @@ struct SettingsView: View {
                     }
                     return
                 }
-                // 截图用：-voiceSettings voiceList 打开就捲去「聲音」嗰段（voiceGuideEnd = 指引卡底）；揀把声 / 指引喺「進階」入面，先打开
+                // -voiceSettings voiceList scrolls to Sound; voiceGuideEnd targets the guide bottom. Expand Advanced first.
                 guard LaunchArgs.has("-voiceSettings") else { return }
                 let id = LaunchArgs.value("-voiceSettings").flatMap { $0.hasPrefix("voice") ? $0 : nil } ?? "voice"
                 if id != "voice" { showAdvanced = true }
                 Task { @MainActor in
-                    for _ in 0..<2 {   // 第一次未必捲到（列表仲未排好），隔阵再捲一次
+                    for _ in 0..<2 {   // Retry scrolling after layout because the first attempt may run before rows exist.
                         try? await Task.sleep(for: .seconds(0.8))
                         if id.hasSuffix("End") { proxy.scrollTo(String(id.dropLast(3)), anchor: .bottom) } else { proxy.scrollTo(id, anchor: .top) }
                     }
                 }
             }
-            // 由 iPhone 设定下载完返嚟：下载指引变咗「裝好咗」（矮咗），捲返去声音列表，见到新声音已经剔咗
+            // After downloading a system voice, the guide shrinks to installed state; scroll back to show the selected new voice.
             .onChange(of: VoiceSettings.shared.upgradedAt) { _, at in
                 guard at != nil else { return }
                 showAdvanced = true
@@ -212,11 +212,11 @@ struct SettingsView: View {
           }
             .navigationTitle(L.t("設定", "设置", "Settings"))
             .navigationBarTitleDisplayMode(.inline)
-            // 实色导航栏：往下拉时内容唔会同「設定」标题叠埋（UX 评审 29）
+            // UX 29: opaque navigation prevents scrolling content from overlapping the Settings title.
             .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
             .toolbarBackgroundVisibility(.visible, for: .navigationBar)
             .toolbar {
-                // 标题和「完成」都用设计规范字号（系统默认 17pt 太小）；导航栏高度固定，特大字都封顶喺 xxLarge。
+                // Use design-system title and Done sizes instead of 17 pt defaults; cap navigation text at xxLarge for fixed bar height.
                 ToolbarItem(placement: .principal) {
                     Text(L.t("設定", "设置", "Settings")).ds(.bodyBold).accessibilityAddTraits(.isHeader)
                         .dynamicTypeSize(...DynamicTypeSize.xxLarge)
@@ -244,7 +244,7 @@ struct SettingsView: View {
         }
     }
 
-    /// 「進階」打开后：语音服务器 / 揀把声 / 下载指引、出门自动记录（定位纪录）、演示模式、私隱、清除纪录。
+    /// Advanced contains server/voice/download, automatic recording/location records, demo, privacy and deletion controls.
     @ViewBuilder private var advancedSections: some View {
         VoiceAdvancedSections()
 
@@ -268,19 +268,19 @@ struct SettingsView: View {
         }
     }
 
-    /// 每项下面嘅说明小字。
+    /// Explanatory text below each setting.
     private func rowNote(_ text: String) -> some View {
         Text(text).ds(.caption).foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// 冇掣嘅一行（肤色、颜色）嘅标题。
+    /// Title for rows without an action button, such as skin tone or clothing color.
     private func rowTitle(_ text: String) -> some View {
         Text(text).ds(.body).accessibilityAddTraits(.isHeader)
     }
 
-    /// 楼层：两粒 56pt 大掣（系统 Stepper 嘅 −/+ 得 32pt 高，长者撳唔中）。字大排唔落一行就将掣放落第二行。
+    /// Use 56 pt floor buttons instead of the 32 pt system Stepper; wrap controls below the label at large text sizes.
     private var floorRow: some View {
         let f = store.floorChoice
         let top = max(1, store.homeLevels)
@@ -326,13 +326,13 @@ struct SettingsView: View {
                 .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.borderless)   // 表单一行有两粒掣：唔用 borderless 会撳一下两粒一齐郁
+        .buttonStyle(.borderless)   // Use borderless buttons in a Form row so tapping one does not trigger both.
         .foregroundStyle(enabled ? Color.primary : Color.secondary.opacity(0.4))
         .disabled(!enabled)
         .accessibilityLabel(label)
     }
 
-    /// 肤色（A50）：同颜色一行一样，圆点 + 剔号，读屏读肤色名。
+    /// A50: skin-tone dots include a checkmark and accessible tone names.
     private var skinRow: some View {
         HStack(spacing: 0) {
             ForEach(0..<Palette.skins.count, id: \.self) { i in
@@ -373,8 +373,8 @@ struct SettingsView: View {
     }
 }
 
-/// 揀界面语言（设定页、首次使用欢迎页共用）：粵語 / 普通话 / English，撳一下即时转，播报跟住转（AppLanguage.choose）。
-/// 一行排得落就一行，排唔落就上下排。short = 欢迎页用短名（唔写繁简）。
+/// Shared welcome/Settings language chooser switches Cantonese, Mandarin and English immediately through AppLanguage.choose.
+/// Prefer one row, then stack when needed; short uses compact welcome labels without script descriptions.
 struct LanguageChooser: View {
     var short = false
     var onChange: () -> Void = {}
@@ -421,21 +421,21 @@ struct LanguageChooser: View {
 }
 
 extension AppStore {
-    /// 转咗界面语言：地标名、街坊今日一句等跟住转，再用新语言试读一句（播报语言 AppLanguage.choose 已经转咗）。
+    /// On language change, refresh landmark names and daily greetings, then preview the new spoken language.
     func languageChanged() {
         populate()
         syncScene()
         previewVoice(VoiceSettings.shared.active, current: true)
     }
 
-    /// 设定页「住喺」显示嘅楼名：英文界面有英文名用英文（me.blockName 系中文原名，上传用）。
+    /// Settings displays the English home-building name when available; me.blockName remains canonical for upload.
     var homeBlockShown: String? {
         guard let id = scene.homeBuildingID, let m = map else { return me.blockName }
         if MapModel.placeholderPos(id) != nil { return L.t("示意樓", "示意楼", "Sample block") }
         return m.building(id: id)?.shownName ?? me.blockName
     }
 
-    /// 我住的楼有几层（选楼层的上限）。
+    /// Number of floors in my building, bounding the floor picker.
     var homeLevels: Int { scene.homeBuildingID.flatMap { (fullMap ?? map)?.building(id: $0)?.levels } ?? 30 }
 
     func setFloor(_ f: Int) {
@@ -452,25 +452,25 @@ extension AppStore {
             residents[i].mobility = mobilityChoice
             residents[i].colorIndex = colorChoice
         }
-        // 坐轮椅：散步检测唔靠「行路」判断（A54）
+        // A54: wheelchair walk detection does not depend on a walking classification.
         walkDetector.seated = mobilityChoice == .wheelchair
         uploadProfile()
         syncScene()
         Haptics.select()
     }
 
-    /// 开 / 关演示模式：示範街坊、示範纪录、演示菜单跟住变。
+    /// Toggling demo updates sample neighbors, records and menu.
     func setDemoMode(_ on: Bool) {
         demoMode = on
         UserDefaults.standard.set(on, forKey: "demoMode")
-        installCommunity()      // 演示 → 示範街坊；真 → Supabase（AppStore+Backend）
+        installCommunity()      // Demo uses sample neighbors; normal mode uses Supabase via AppStore+Backend.
         if on && walkLog.isEmpty { seedDemoHistory() }
-        // 演示模式同真机散步检测唔好同时开
+        // Do not run demo mode and real-device walk detection together.
         if on {
             if walkDetector.recording { finishLiveWalk() }
             walkDetector.stop()
         } else {
-            // 关演示：演示散步 / 找人、时间滑杆、手选天气全部收返，用返真实时间同天文台（A33）
+            // A33: leaving demo ends simulated walking/finding, clears time/weather overrides and restores actual time and HKO data.
             if walk != nil, !walkDetector.recording {
                 ticker?.cancel(); ticker = nil
                 walk = nil; paceTip = nil; track = WalkTrack()
@@ -488,7 +488,7 @@ extension AppStore {
         syncNotifications()
     }
 
-    /// 重新揀我住的楼：回到首次使用的选楼一步，完成后回主界面。中途可以「唔改」退返出去。
+    /// Changing home re-enters building selection, returns to main on completion and supports cancellation midway.
     func beginChangeHome() {
         walk = nil; if find != nil { endFind() }; findFullScreen = false; proposal = nil; selection = nil
         pendingHome = nil
@@ -498,7 +498,7 @@ extension AppStore {
         Task { await loadMap(home: nil, animated: true) }
     }
 
-    /// 改楼途中「唔改」：用返已存嘅楼、楼层、小人，返主界面（A80）。
+    /// A80: cancelling restores saved building, floor and avatar before returning to main.
     func cancelChangeHome() {
         let d = UserDefaults.standard
         changingHome = false
@@ -506,28 +506,28 @@ extension AppStore {
         floorChoice = d.object(forKey: "floor") as? Int ?? floorChoice
         mobilityChoice = Mobility(rawValue: d.string(forKey: "mobility") ?? "") ?? mobilityChoice
         colorChoice = d.object(forKey: "color") as? Int ?? colorChoice
-        if let l = lookBeforeChange { skinChoice = l.skin; ageChoice = l.age }   // 肤色、年纪一改就存，要还原
+        if let l = lookBeforeChange { skinChoice = l.skin; ageChoice = l.age }   // Restore skin tone and age because edits save immediately.
         lookBeforeChange = nil
         highlightResidential(false)
         scene.highlightBuildings([], color: nil)
         phase = .main
         Task {
-            // 定位一步嘅 loadMap 可能仲未返（人喺外面、嗰格要上网拉）：等佢完咗先装返屋企格，
-            // 唔係旧结果后返嚟会将底座换成外面嗰格、屋企变默认楼
+            // A location-step loadMap may still be fetching an outside tile; wait before restoring the home tile,
+            // otherwise a late result could replace the base and reset home to a default building.
             while loadingMap { try? await Task.sleep(for: .milliseconds(200)) }
             await loadMap(home: (d.object(forKey: "homeBuilding") as? NSNumber)?.int64Value, animated: true)
             scene.resetCamera()
         }
     }
 
-    /// 由楼层页返上一步：底座已经收窄咗，要换返选楼用嘅大底座、亮返住宅楼（A80）。
+    /// A80: stepping back from floor selection restores the larger selection base and residential highlights.
     func backToPickHome() {
         phase = .onboarding(.pickHome)
         guard let full = fullMap else { return }
         let id = pendingHome
         let v = full.pickView(near: id.flatMap { full.building(id: $0)?.centroid })
         install(v, home: nil, animated: false)
-        // 同 loadMap 选楼一步一样嘅全屏镜头（按 300 m 调，再按边长缩放）
+        // Use loadMap's full-screen selection camera, scaled from a 300 m base.
         let k = v.size / 300
         scene.setCamera(target: Vec2(x: -65 * k, y: 65 * k), distance: Float(2.85 * k), animated: false)
         highlightResidential(true)

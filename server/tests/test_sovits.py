@@ -1,4 +1,4 @@
-"""成员 A：本机粤语播报（SpeechService）测试。用假引擎，唔使 torch / 模型。"""
+"""SpeechService tests use a fake engine without torch or model files."""
 import asyncio
 from pathlib import Path
 import struct
@@ -32,7 +32,7 @@ class FakeEngine:
             raise RuntimeError("boom")
         for i in range(3):
             time.sleep(self.delay)
-            yield bytes([i + 1, 0]) * 160   # 160 个 PCM16 样本
+            yield bytes([i + 1, 0]) * 160   # 160 PCM16 samples.
 
 
 def collect(service, text, **kw):
@@ -61,15 +61,15 @@ class SpeechServiceTests(unittest.TestCase):
         hit, first = collect(s, "阿芳出咗門。")
         self.assertFalse(hit)
         self.assertEqual(first[:4], b"RIFF")
-        self.assertEqual(struct.unpack("<I", first[40:44])[0], 0xFFFFFFFF)   # 流式：长度未知
+        self.assertEqual(struct.unpack("<I", first[40:44])[0], 0xFFFFFFFF)   # Streaming lengths are unknown.
         self.assertEqual(len(first), 44 + 3 * 320)
         time.sleep(0.05)
         hit, second = collect(s, "阿芳出咗門。")
         self.assertTrue(hit)
-        self.assertEqual(struct.unpack("<I", second[40:44])[0], 3 * 320)   # 缓存档案：正确长度
+        self.assertEqual(struct.unpack("<I", second[40:44])[0], 3 * 320)   # Cached files have correct lengths.
         self.assertEqual(second[44:], first[44:])
         self.assertEqual(engine.calls, ["你好。", "阿芳出咗門。"])
-        # 重开服务：由磁盘缓存读，唔再合成
+        # After restart, read disk cache without synthesizing again.
         engine2 = FakeEngine()
         s2 = self.service(engine2)
         self.assertTrue(collect(s2, "阿芳出咗門。")[0])
@@ -104,7 +104,7 @@ class SpeechServiceTests(unittest.TestCase):
         engine = FakeEngine(gate=gate)
         s = self.service(engine)
         s.enqueue("預熱一", priority=1)
-        time.sleep(0.05)          # 工作线程揸住第一句（等 gate）
+        time.sleep(0.05)          # Hold the first worker utterance behind a gate.
         s.enqueue("預熱二", priority=1)
         s.enqueue("而家要講", priority=0)
         gate.set()

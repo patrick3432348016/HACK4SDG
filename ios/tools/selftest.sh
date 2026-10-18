@@ -1,6 +1,6 @@
 #!/bin/sh
-# 在 Mac 上编译运行核心逻辑自测（地图解析、地标、太阳位置、遮荫），不需要模拟器。
-# 可选：STREETWALK_TILES=<放 v1/、v2/ 实时格子缓存的目录> ./tools/selftest.sh，再用实时格子检查选楼、地名、地标。
+# Compile/run map, landmark, solar and shade core checks on Mac without a simulator.
+# Optionally set STREETWALK_TILES to a directory containing v1/v2 tile caches for real-tile home/name/landmark checks.
 set -e
 cd "$(dirname "$0")/.."
 OUT=$(mktemp -d)/selftest

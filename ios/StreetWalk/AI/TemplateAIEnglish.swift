@@ -1,9 +1,9 @@
 import Foundation
 
-// 英文界面嘅手机后备理解（连唔到 Mac 语音服务器 / 演示模式时）：认英文句子，出同中文一样嘅 VoiceIntent。
-// 按「句子係唔係英文」判断（唔睇界面语言），所以单元测试（固定粤语界面）都测得到。纯逻辑。
+// Local English fallback when the Mac voice server is unavailable or in demo mode; produces the same VoiceIntent as Chinese parsing.
+// Detect whether the utterance is English independently of UI language, so tests with a fixed Cantonese UI can cover it. Pure logic.
 enum EnglishText {
-    /// 主要係拉丁字母（容许夹中文人名）。
+    /// Predominantly Latin letters, allowing embedded Chinese names.
     static func isEnglish(_ s: String) -> Bool {
         var latin = 0, cjk = 0
         for u in s.unicodeScalars where u.properties.isAlphabetic {
@@ -12,7 +12,7 @@ enum EnglishText {
         return latin >= 2 && latin > cjk * 2
     }
 
-    /// 细楷、标点变空格、头尾加空格（方便用 " word " 认整个字）。保留 ' : /。
+    /// Lowercase, replace punctuation with spaces, and pad both ends for whole-word matching. Preserve apostrophe, colon, and slash.
     static func norm(_ raw: String) -> String {
         var s = raw.lowercased().replacingOccurrences(of: "’", with: "'")
         s = s.replacingOccurrences(of: "a.m.", with: "am").replacingOccurrences(of: "p.m.", with: "pm")
@@ -20,7 +20,7 @@ enum EnglishText {
             c.isLetter || c.isNumber || c == "'" || c == ":" || c == "/" ? c : " "
         }
         var out = " " + String(kept).split(separator: " ").joined(separator: " ") + " "
-        // 「3pm」「3:15pm」拆开
+        // Separate the am/pm suffix in compact clock expressions.
         out = out.replacingOccurrences(of: "([0-9])(am|pm) ", with: "$1 $2 ", options: .regularExpression)
         out = out.replacingOccurrences(of: " a m ", with: " am ").replacingOccurrences(of: " p m ", with: " pm ")
         return out
@@ -30,7 +30,7 @@ enum EnglishText {
 
     static func has(_ t: String, _ phrases: [String]) -> Bool { phrases.contains { t.contains(" \($0) ") } }
 
-    // MARK: 数字
+    // MARK: Numbers
 
     static let small: [String: Int] = [
         "zero": 0, "oh": 0, "one": 1, "a": 1, "an": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
@@ -39,7 +39,7 @@ enum EnglishText {
     ]
     static let tens: [String: Int] = ["twenty": 20, "thirty": 30, "forty": 40, "fifty": 50]
 
-    /// 由 w[i] 开始读一个数字（「45」「forty five」「twelve」）；返回 (数值, 用咗几多个字)。
+    /// Read a number starting at w[i], such as 45, forty five, or twelve. Return its value and the number of consumed words.
     static func number(_ w: [String], _ i: Int, allowA: Bool = false) -> (Int, Int)? {
         guard i < w.count else { return nil }
         if let n = Int(w[i]) { return (n, 1) }
@@ -52,7 +52,7 @@ enum EnglishText {
         return nil
     }
 
-    // MARK: 日子、钟点、行几耐
+    // MARK: Dates, times, and walk duration
 
     /// today 0、tomorrow 1、the day after tomorrow 2。
     static func parseDay(_ raw: String) -> Int? {
@@ -66,8 +66,8 @@ enum EnglishText {
     static let amWords = ["am", "morning"]
     static let pmWords = ["pm", "afternoon", "evening", "tonight", "night"]
 
-    /// 讲咗几点几分（24 小时制）：「3:15 pm」「3 pm」「three fifteen」「half past two」「quarter to five」「20 past 3」「at 4」。
-    /// 冇讲上下午：1–4 点当下午。唔喺 5–21 点返回 nil。
+    /// Parse explicit 24-hour times from numeric and spoken forms, including quarter-to, half-past, and minutes-past expressions.
+    /// Without am/pm, hours 1–4 mean afternoon. Return nil outside 05:00–21:00.
     static func parseClock(_ raw: String) -> (hour: Int, minute: Int)? {
         let t = norm(raw)
         let w = t.split(separator: " ").map(String.init)
@@ -105,7 +105,7 @@ enum EnglishText {
                     // 「at 4」「at three fifteen」「at 2 30」
                     if !["o'clock", "oclock"].contains(next), let (m, _) = number(w, i + used), (0...59).contains(m),
                        !["minutes", "minute", "mins", "hours", "hour", "days", "day"].contains(i + used + 1 < w.count ? w[i + used + 1] : "") {
-                        // 「at 3 for 40 minutes」唔当分钟：for 唔係数字，冇事；「at three thirty」先当
+                        // In at 3 for 40 minutes, for is not numeric; only actual time expressions such as at three thirty contribute minutes.
                         minute = m
                     }
                     hour = h
@@ -123,7 +123,7 @@ enum EnglishText {
         return (5...21).contains(h) ? (h, total % 60) : nil
     }
 
-    /// 钟点；冇讲钟点就睇「morning」8、「noon」12、「afternoon」16、「evening / tonight」19。
+    /// Use an explicit hour; otherwise morning = 8, noon = 12, afternoon = 16, evening/tonight = 19.
     static func parseHour(_ raw: String) -> Int? {
         if let c = parseClock(raw) { return c.hour }
         let t = norm(raw)
@@ -135,8 +135,8 @@ enum EnglishText {
         return nil
     }
 
-    /// 一齐行几耐（分钟）：「for 40 minutes」「half an hour」「an hour and a half」「2 hours」。5–240 先算。
-    /// 「at most 15 minutes」「in 10 minutes」「10 minutes later」唔当。
+    /// Walking duration in minutes, including fractional hours. Accept only 5–240 minutes.
+    /// Exclude upper bounds and relative departure times such as at most 15 minutes, in 10 minutes, or 10 minutes later.
     static func parseDuration(_ raw: String) -> Int? {
         let t = norm(raw)
         let w = t.split(separator: " ").map(String.init)
@@ -173,7 +173,7 @@ enum EnglishText {
         return nil
     }
 
-    // MARK: 意图
+    // MARK: Intents
 
     static let inviteWords = ["invite", "walk with", "go for a walk", "go walking", "take a walk", "a walk", "for a walk", "stroll",
                               "walk together", "meet up", "meet", "come with me", "walk", "go out with"]
@@ -217,7 +217,7 @@ enum EnglishText {
         return t.range(of: " (take|taking|want|need) .{0,20}(days?|weeks?) (off|of rest|break) ", options: .regularExpression) != nil
     }
 
-    /// 英文请假句 → 中文写法（LeaveRequest.parse 认得）：「day off tomorrow」→「聽日請假」、「take three days off」→「請3日假」。
+    /// Convert English leave requests into the Chinese forms understood by LeaveRequest.parse, preserving the date and duration.
     static func leaveText(_ raw: String) -> String {
         let t = norm(raw)
         let w = t.split(separator: " ").map(String.init)
@@ -249,7 +249,7 @@ enum EnglishText {
         if has(t, ["i fell", "i've fallen", "i have fallen", "fell down", "i fall", "can't get up", "cannot get up", "can't breathe", "cannot breathe",
                    "hard to breathe", "chest pain", "chest hurts", "pain in my chest", "bleeding", "ambulance", "call 999", "call the police",
                    "heart attack", "i fainted", "passed out", "emergency", "kill myself", "want to die", "end my life"]) { return .emergency }
-        // 问医疗
+        // Medical question.
         if has(t, ["what medicine", "which medicine", "what pills", "which pills", "what drug", "which drug", "what tablets", "which doctor",
                    "see a doctor", "see the doctor", "need a doctor", "go to the doctor", "what should i take"]) { return .medical }
         var d = t
@@ -267,7 +267,7 @@ enum EnglishText {
         return nil
     }
 
-    // MARK: 认人（名、拼音化嘅中文名、楼层）
+    // MARK: Person matching: names, romanized Chinese names, and floors
 
     static let surnames: [Character: String] = [
         "陳": "chan", "陈": "chan", "黃": "wong", "黄": "wong", "王": "wong", "李": "lee", "梁": "leung", "何": "ho", "張": "cheung", "张": "cheung",
@@ -284,17 +284,17 @@ enum EnglishText {
         "欣": "yan", "儀": "yee", "仪": "yee", "婷": "ting", "敏": "man", "輝": "fai", "辉": "fai", "國": "kwok", "国": "kwok", "東": "tung",
         "东": "tung", "成": "shing", "雯": "man", "麗": "lai", "丽": "lai", "清": "ching", "芬": "fun", "霞": "ha", "鳳": "fung", "凤": "fung",
     ]
-    /// 称呼 → 英文讲法（前置）同粤拼（后置，例如「Chan Tai」）。
+    /// Map titles to English prefixes and Cantonese romanized suffixes, such as Chan Tai.
     static let titles: [(String, [String], String)] = [
         ("先生", ["mr", "mister"], "sin sang"), ("小姐", ["miss", "ms"], "siu je"), ("師奶", ["mrs"], "si nai"), ("师奶", ["mrs"], "si nai"),
         ("伯伯", ["uncle", "grandpa"], "pak pak"), ("婆婆", ["granny", "grandma", "auntie"], "por por"), ("姨姨", ["auntie", "aunty", "aunt"], "yi yi"),
         ("公公", ["grandpa"], "kung kung"), ("太", ["mrs", "madam", "missus"], "tai"), ("生", ["mr", "mister"], "sang"), ("伯", ["uncle", "mr", "grandpa"], "pak"),
         ("婆", ["granny", "grandma"], "por"), ("姨", ["auntie", "aunty", "aunt"], "yi"), ("叔", ["uncle"], "suk"), ("姐", ["miss", "sister"], "je"),
     ]
-    /// 单独讲就同普通英文字撞（「so」「to」「man」）：要有称呼先认。
+    /// Require a title for names that collide with common English words, such as so, to, or man.
     static let ambiguous: Set<String> = ["so", "to", "man", "ma", "law", "lo", "yu", "au", "fu", "kan", "hung", "ng", "ho", "tai", "ko", "tong", "mak", "lam", "tang", "wu", "kong", "fong"]
 
-    /// 一个中文名嘅英文讲法（「陳太」→ mrs chan、chan tai、madam chan…）。
+    /// Generate English variants of a Chinese name, such as Mrs Chan, Chan Tai, or Madam Chan.
     static func aliases(of name: String) -> [String] {
         let n = name.trimmingCharacters(in: .whitespaces)
         guard let first = n.first else { return [] }
@@ -316,7 +316,7 @@ enum EnglishText {
         return out
     }
 
-    /// 呢句有冇讲到呢个人（英文名、中文名、拼音化、楼层「8/F」「8th floor」「floor 8」）。
+    /// Match references by English/Chinese name, romanization, or floor expressions such as 8/F, 8th floor, or floor 8.
     static func mentions(_ r: Resident, in raw: String) -> Bool {
         let t = norm(raw)
         if !r.name.isEmpty, raw.contains(r.name) { return true }
@@ -334,7 +334,7 @@ enum EnglishText {
         return false
     }
 
-    // MARK: 成句
+    // MARK: Complete utterances
 
     static func parseVoice(_ raw: String, context: AIContext) -> VoiceIntent {
         let t = norm(raw)
@@ -344,12 +344,12 @@ enum EnglishText {
         let others = context.residents.filter { !$0.isMe }
         let partnerHit = others.first { mentions($0, in: raw) }
 
-        // 取消约
+        // Cancel a meetup.
         if has(t, ["cancel", "call off", "called off"]) && (has(t, planWords) || partnerHit != nil)
             || has(t, ["don't want to meet", "not meeting", "can't make it", "cannot make it"]) {
             return .cancelMeetup(partnerID: partnerHit?.id)
         }
-        // 改约：要讲到时间 / 日子 / 地标
+        // Rescheduling must mention a time, date, or landmark.
         if !has(t, ["rename", "name it", "call it"]),
            let r = [" change ", " move ", " switch ", " reschedule ", " postpone ", " push ", " make it ", " change it to "].compactMap({ t.range(of: $0) }).min(by: { $0.lowerBound < $1.lowerBound }) {
             let before = String(t[..<r.lowerBound]), after = " " + String(t[r.upperBound...])
@@ -360,7 +360,7 @@ enum EnglishText {
                 return .changeMeetup(partnerID: partnerHit?.id, day: day, hour: hour, landmarkID: lm?.id)
             }
         }
-        // 地标改名：「rename the pavilion to Chess Corner」
+        // Landmark renaming, such as rename the pavilion to Chess Corner.
         if let r = t.range(of: " rename ") ?? t.range(of: " change the name of "), let to = t.range(of: " to ", range: r.upperBound..<t.endIndex) {
             let target = String(t[r.upperBound..<to.lowerBound])
             let newName = raw.components(separatedBy: " to ").last?.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)) ?? ""
@@ -387,9 +387,9 @@ enum EnglishText {
         return .unknown
     }
 
-    // MARK: 确认卡：yes / no
+    // MARK: Confirmation card: yes/no
 
-    /// 短句先算；否定优先（「no」「don't」「cancel」「not now」）。
+    /// Accept only short responses; negative expressions take precedence.
     static func yesNo(_ raw: String) -> AppStore.YesNo? {
         let t = norm(raw)
         let w = t.split(separator: " ")

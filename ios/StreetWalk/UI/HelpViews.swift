@@ -1,9 +1,9 @@
 import SwiftUI
 import UIKit
 
-/// 设定页「幫助同意見」「私隱政策」（测试反馈：设定要有隐私协议同帮助反馈）。
-/// 两页都系纯文字，一页到底；内容跟返 App 实际做法写（同 PrivacyRows / 清除纪录嘅说明一致）。
-/// 「提意見」：喺 App 入面写，撳「發送」送去后端 feedback 表（supabase/migrations/002_feedback.sql）。
+/// Settings help, feedback and privacy pages requested in testing.
+/// Both are continuous text pages matching actual behavior, PrivacyRows and deletion explanations.
+/// In-App feedback submits to the feedback table defined in supabase/migrations/002_feedback.sql.
 
 struct HelpView: View {
     @Environment(AppStore.self) private var store
@@ -25,7 +25,7 @@ struct HelpView: View {
 
     var body: some View {
         Form {
-            // 测试反馈 K-3b：以前要「話畀幫你裝 App 嘅人知」，而家喺 App 入面直接写、直接发；放最上面一眼见到
+            // K-3b: replace asking the installer with direct in-App feedback, prominently placed first.
             Section {
                 NavigationLink { FeedbackView() } label: {
                     Label(L.t("寫意見畀我哋", "给我们提意见", "Send us feedback"), systemImage: "square.and.pencil").ds(.bodyBold).frame(minHeight: 56)
@@ -55,9 +55,9 @@ struct HelpView: View {
     }
 }
 
-// MARK: - 提意见（写字 → 发去后端）
+// MARK: - Write and submit feedback
 
-/// 写意见：草稿存喺手机（@AppStorage，退出返嚟都喺度），发送成功先清；发唔到讲原因、草稿保留。
+/// Persist drafts with AppStorage across exits; clear only on success and retain them with an explanation on failure.
 struct FeedbackView: View {
     @Environment(AppStore.self) private var store
     @AppStorage("feedback.draft") private var draft = UIPreview.is("feedback") || UIPreview.is("feedbackFailed") ? L.t("地圖上嘅字有啲細，希望可以再大啲。", "地图上的字有点小，希望可以再大一点。", "The words on the map are a bit small. Could they be bigger?") : ""
@@ -90,7 +90,7 @@ struct FeedbackView: View {
                         .accessibilityLabel(L.t("意見內容", "意见内容", "Your feedback"))
                         .onChange(of: draft) { _, d in
                             if d.count > Self.limit { draft = String(d.prefix(Self.limit)) }
-                            // 发送成功后再写新嘢：收起「收到」（发送成功清草稿嗰下唔算）
+                            // Hide the success state when new text is entered, excluding the automatic post-send clear.
                             if state == .sent, !d.isEmpty { state = .idle }
                         }
                 }
@@ -146,7 +146,7 @@ struct FeedbackView: View {
         Task { @MainActor in
             do {
                 try await FeedbackSender.send(body, demo: store.demoMode)
-                // 发送途中再改咗就留住新草稿
+                // Preserve a draft edited during submission.
                 if draft.trimmingCharacters(in: .whitespacesAndNewlines) == body { draft = "" }
                 state = .sent
                 Haptics.success()
@@ -159,7 +159,7 @@ struct FeedbackView: View {
     }
 }
 
-/// 意见送去 Supabase 嘅 feedback 表（只准插入自己嘅，唔准读）。未登录就先匿名登录（演示模式都得）。
+/// Insert only the user's own feedback; reads are forbidden. Sign in anonymously if needed, including demo mode.
 @MainActor
 enum FeedbackSender {
     struct Row: Encodable {
@@ -181,13 +181,13 @@ enum FeedbackSender {
         _ = try await api.request("POST", "/rest/v1/feedback", body: try BackendCoding.encoder.encode(row), prefer: "return=minimal")
     }
 
-    /// 失败原因（一句，放喺「未發送到」前面）。
+    /// One-sentence failure reason preceding the not-sent status.
     static func reason(_ error: Error) -> String {
         if let e = error as? BackendError, e.isRetryable { return L.t("連唔到網絡。", "没连上网络。", "No network.") }
         return L.t("伺服器暫時收唔到。", "服务器暂时收不到。", "The server can't take it right now.")
     }
 
-    /// 手机型号代码（例如 iPhone15,4）；模拟器用佢模拟紧嘅型号。
+    /// Device model identifier, such as iPhone15,4; simulator reports its simulated model.
     private static var deviceModel: String {
         if let sim = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] { return "\(sim) (sim)" }
         var u = utsname()
@@ -196,7 +196,7 @@ enum FeedbackSender {
     }
 }
 
-// MARK: - 私隐政策
+// MARK: - Privacy policy
 
 struct PrivacyPolicyView: View {
     @Environment(AppStore.self) private var store
@@ -239,7 +239,7 @@ struct PrivacyPolicyView: View {
                 }
             }
             .onAppear {
-                // 截图自检：捲到中间，睇小标题捲上去时会唔会同导航栏标题叠埋
+                // Screenshot check: scroll midway and inspect section-heading overlap with the navigation title.
                 guard UIPreview.is("privacyScrolled") else { return }
                 Task { @MainActor in
                     try? await Task.sleep(for: .seconds(0.8))
@@ -252,8 +252,8 @@ struct PrivacyPolicyView: View {
 }
 
 extension View {
-    /// 设定入面推入去嘅页：标题用设计规范字号，导航栏实色。
-    /// iOS 26 导航栏默认透明，向上捲时「邊個見到乜」呢类小标题会喺「私隱政策」后面隐约叠埋（测试反馈 K-3）；同设定首页一样用实色底。
+    /// Settings detail pages use design-system title sizing and an opaque navigation bar.
+    /// K-3: iOS 26 transparency let section headings overlap behind the privacy title; use the Settings page's opaque background.
     func settingsSubpage(_ title: String) -> some View {
         navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)

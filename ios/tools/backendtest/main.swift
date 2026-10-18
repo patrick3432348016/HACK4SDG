@@ -1,8 +1,8 @@
 import Foundation
 
-// 后端客户端集成测试（打正式 Supabase；会留低两个匿名测试用户，最后一行印出 id，测完喺 SQL Editor 删）。
-// 用法：ios/tools/backendtest.sh   （编译 StreetWalk/Backend 入面只用 Foundation 嘅文件 + 呢个文件）
-// 测：匿名登录、续期、profiles upsert、community_board、link_neighbor、Realtime postgres_changes、私有 pair 频道、outbox。
+// Live Supabase integration creates two anonymous test users; retain printed IDs for authorized cleanup.
+// Usage: ios/tools/backendtest.sh compiles Foundation-only Backend files plus this test file.
+// Tests anonymous login/refresh, profiles, community_board, link_neighbor, postgres_changes, private pair channels and outbox.
 
 let base = URL(string: "https://oajsqhpqsgqnvkgsdjtv.supabase.co")!
 let key = "sb_publishable_BgcZ-r4jFWml1kILSiEgWg_HVoL4g3c"
@@ -26,7 +26,7 @@ func waitFor(_ seconds: Double, _ cond: () -> Bool) async -> Bool {
 @MainActor
 func run() async {
     let storeA = MemorySessionStore(), storeB = MemorySessionStore()
-    // 每次用一个远离真人嘅随机格子：排行榜只会有呢两个测试用户
+    // Use a random remote grid so the board contains only these two test accounts.
     let tile = Int.random(in: 10_000...1_000_000)
     let a = SupabaseAPI(baseURL: base, apiKey: key, store: storeA, log: verbose)
     let b = SupabaseAPI(baseURL: base, apiKey: key, store: storeB, log: verbose)
@@ -42,7 +42,7 @@ func run() async {
                                   streak_day: "2099-01-01")
             try await api.upsert("profiles", p, onConflict: "id")
         }
-        // 再 upsert 一次（改楼层、清座数）：可选栏写 null 要真系清走
+        // Upsert again to change floor and clear building; optional nulls must actually clear values.
         try await a.upsert("profiles", ProfileUpsert(id: sa.userID, nickname: "測試客甲", avatar: AvatarJSON(mobility: "cane", color: 2, skin: 3, age: "elder"),
                                                      tile_x: tile, tile_y: tile, community_name: "測試邨", block: nil, floor: 10, streak: 5,
                                                      streak_day: "2099-01-01"), onConflict: "id")
@@ -53,7 +53,7 @@ func run() async {
         check("排行榜有两人、有网名同小人", board.count == 2 && board.contains { $0.nickname == "測試客乙" && $0.avatar?.mobility == "cane" }, "\(board)")
         check("排行榜标记自己", board.first { $0.id == sa.userID }?.is_me == true)
 
-        // Realtime：甲订阅 outings / signals；乙出门 → 甲要收到
+        // A subscribes to outings/signals; B's outing must arrive at A.
         let rtA = RealtimeClient(baseURL: base, apiKey: key, log: verbose) { try? await a.accessToken() }
         var changes: [PostgresChange] = []
         var joined = false
@@ -65,7 +65,7 @@ func run() async {
         ch.onPostgresChange = { changes.append($0) }
         rtA.connect()
         check("Realtime 加入频道", await waitFor(10) { joined })
-        try? await Task.sleep(for: .seconds(1.5))   // postgres_changes 订阅生效要一阵
+        try? await Task.sleep(for: .seconds(1.5))   // Allow time for the postgres_changes subscription to become active.
 
         let code = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
         let l1: [LinkRow] = try await a.rpc("link_neighbor", ["p_code": .string(code)])
@@ -92,7 +92,7 @@ func run() async {
         let sigs: [SignalRow] = try await a.select("signals", query: "select=*&to_user=eq.\(sa.userID)&order=id.asc")
         check("signals 查得返、payload 解得返", sigs.last?.payload["landmark"]?.string == "測試涼亭" && sigs.last?.created_at != nil, "\(sigs)")
 
-        // 私有 pair 频道：甲乙互相 broadcast
+        // A and B broadcast over the private pair channel.
         let (lo, hi) = sa.userID < sb.userID ? (sa.userID, sb.userID) : (sb.userID, sa.userID)
         let rtB = RealtimeClient(baseURL: base, apiKey: key, log: verbose) { try? await b.accessToken() }
         var pjA = false, pjB = false
@@ -107,14 +107,14 @@ func run() async {
         pb.broadcast("loc", .object(["x": .number(1.5)]))
         check("pair 频道收到 broadcast", await waitFor(6) { got.contains { $0["x"]?.int == 1 } }, "\(got)")
 
-        // 续期：用过期嘅 session 开一个新客户端，第一个请求自动续期
+        // A client initialized with an expired session refreshes on its first request.
         let s = storeA.load()!
         let expired = MemorySessionStore(BackendSession(accessToken: s.accessToken, refreshToken: s.refreshToken, expiresAt: Date().addingTimeInterval(-10), userID: s.userID))
         let a2 = SupabaseAPI(baseURL: base, apiKey: key, store: expired, log: verbose)
         let me2: [ProfileUpsert] = try await a2.select("profiles", query: "select=id,nickname,avatar,tile_x,tile_y,community_name,block,floor,streak,streak_day,lang")
         check("过期 token 自动续期", me2.first?.id == sa.userID && expired.load()?.isFresh() == true && expired.load()?.refreshToken != s.refreshToken)
 
-        // outbox：__ME__ 换成用户 id；同 key 只留最新
+        // Outbox substitutes __ME__ with user ID and retains only the latest payload per key.
         var box = Outbox()
         box.add(OutboxOp(key: "remind:x", method: "PATCH", path: "/rest/v1/neighbors", query: "owner=eq.__ME__", body: Data("{\"a\":1}".utf8)))
         box.add(OutboxOp(key: "remind:x", method: "PATCH", path: "/rest/v1/neighbors", query: "owner=eq.__ME__", body: Data("{\"a\":2}".utf8)))
@@ -122,7 +122,7 @@ func run() async {
         check("outbox 同 key 合并、资料优先", box.ops.count == 2 && box.next()?.key == "profile")
         check("outbox __ME__ 替换", box.ops[0].resolved(me: "abc").query == "owner=eq.abc")
 
-        // 清理：解除街坊（DELETE 自己那行）
+        // Cleanup removes my own neighbor row.
         _ = try await a.request("DELETE", "/rest/v1/neighbors", query: "owner=eq.\(sa.userID)&other=eq.\(sb.userID)")
         let nb3: [NeighborRow] = try await b.rpc("my_neighbors")
         check("解除后乙名单冇甲", nb3.isEmpty)

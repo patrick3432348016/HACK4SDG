@@ -1,18 +1,18 @@
 import Foundation
 
-// 灵动岛：而家进行紧嘅事（散步、找人、约会快到）→ App 入面岛两侧（IslandLayer）同真·灵动岛 / 锁屏（LiveIsland）。
+// Current activity (walking, finding, upcoming meeting) drives IslandLayer and LiveIsland on Dynamic Island / Lock Screen.
 extension AppStore {
-    /// 按优先次序：找人 > 约会快到 > 散步。冇嘢进行紧 = 空。
+    /// Priority: finding > upcoming meeting > walking. Empty when inactive.
     var islandStatuses: [IslandStatus] {
         var out: [IslandStatus] = []
-        // 找人：出发咗先有距离（问紧对方嗰阵唔显示）
+        // Finding distance appears after departure, not while awaiting consent.
         if let f = find, f.stage == .going || f.stage == .near, let p = resident(f.partnerID) {
             out.append(IslandStatus(kind: .find, minutes: f.etaMinutes, meters: IslandStatus.roundMeters(f.distance),
                                     bearing: f.bearing, name: p.name, place: landmark(f.landmarkID)?.name, demo: p.isDemo))
         }
         if let (a, m) = meetSoon {
             let p = resident(a.partnerID)
-            // 演示拨咗时间（demoHour）就唔俾实时活动自己倒数（真实时钟同演示时间唔同）
+            // Disable real-time countdown when demoHour overrides the clock.
             out.append(IslandStatus(kind: .meet, minutes: m, name: p?.name, place: landmark(a.landmarkID)?.name,
                                     target: demoHour == nil ? a.date : nil, demo: p?.isDemo ?? false))
         }
@@ -22,7 +22,7 @@ extension AppStore {
         return IslandStatus.ordered(out)
     }
 
-    /// 约好咗、30 分钟内（到过咗 10 分钟）嘅约会：最早嗰个同剩低几多分钟。已经出发去搵嗰个唔算（由找人接手）。
+    /// Earliest confirmed meeting from 30 minutes before to 10 minutes after; exclude a meeting already handled by finding.
     var meetSoon: (Appointment, Int)? {
         let t = now
         return appointments
@@ -33,7 +33,7 @@ extension AppStore {
             .first
     }
 
-    /// 撳岛两侧嘅状态：找人 = 返去找人全屏；约会 = 展开提醒（有「出發」）；散步 = 展开讲吓行咗几耐。
+    /// Tapping status opens finding, the departure reminder, or elapsed walking details.
     func islandTapped() {
         guard let s = islandStatuses.first else { return }
         switch s.kind {
@@ -48,7 +48,7 @@ extension AppStore {
         Haptics.light()
     }
 
-    /// 只俾 App 用紧嘅 store 开（单元测试自己 new 嘅唔好开实时活动）。
+    /// Only the active App store may start Live Activities, not stores created by unit tests.
     func startLiveIsland() {
         guard isMainStore else { return }
         LiveIsland.shared.attach { [weak self] in self?.islandStatuses.first }

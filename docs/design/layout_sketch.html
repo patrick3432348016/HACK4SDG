@@ -1,17 +1,17 @@
 <!doctype html>
-<html lang="zh-HK">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>街坊行 · 排版草图</title>
+<title>StreetWalk · Layout Sketch</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 :root{--surface-1:#F4F3EF;--surface-2:#FFFFFF;--border:rgba(0,0,0,.10);--border-strong:rgba(0,0,0,.20);--text-primary:#1F1E1C;--text-secondary:#6B6A66;--bg-warning:#FAEEDA;--border-warning:#EF9F27}
 @media (prefers-color-scheme:dark){:root{--surface-1:#26262A;--surface-2:#1C1C1E;--border:rgba(255,255,255,.12);--border-strong:rgba(255,255,255,.24);--text-primary:#F2F1ED;--text-secondary:#A3A29C;--bg-warning:#4A3410;--border-warning:#BA7517}}
 body{margin:0;padding:24px 16px 48px;background:var(--surface-1);color:var(--text-primary);font-family:-apple-system,"PingFang HK","Noto Sans TC",sans-serif}
 h1{font-size:22px;font-weight:600;margin:0 0 4px}h2{font-size:17px;font-weight:600;margin:32px 0 4px}p.lead{color:var(--text-secondary);margin:0 0 16px;font-size:14px;line-height:1.6}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px;max-width:1100px}
-.ph{background:var(--surface-2);border:.5px solid var(--border-strong);border-radius:22px;height:430px;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px;max-width:1100px}
+.ph{background:var(--surface-2);border:.5px solid var(--border-strong);border-radius:22px;height:500px;display:flex;flex-direction:column;overflow:hidden;position:relative}
 .cap{font-size:12px;color:var(--text-secondary);text-align:center;margin:6px 0 0}
 .sc{position:relative;height:178px;background:var(--surface-1);border-bottom:.5px solid var(--border)}
 .ct{flex:1;padding:8px 10px;display:flex;flex-direction:column;gap:6px;font-size:12px}
@@ -32,53 +32,53 @@ h1{font-size:22px;font-weight:600;margin:0 0 4px}h2{font-size:17px;font-weight:6
 </style>
 </head>
 <body>
-<h1>街坊行 · 排版草图（第一版优化）</h1>
-<p class="lead">用户选定的视觉基准：完整正方形底座的微缩模型、浅色楼宇和灰色阴影、橙色地标；上场景、下卡片、底部三个大标签；咪在场景与内容交界右侧。字号在草图里按比例缩小，实际正文 24pt、辅助 20pt。</p>
+<h1>StreetWalk · Layout Sketch (First Revision)</h1>
+<p class="lead">Historical visual study: a square diorama base, pale buildings, gray shadows and orange landmarks; scene above cards, three bottom tabs and a microphone at the scene/content boundary. Text is scaled down here; the original design used 24 pt body and 20 pt secondary text. This sketch is archival, not the current UI or privacy specification.</p>
 
-<h2>主要屏幕</h2>
+<h2>Main Screens</h2>
 <div class="grid">
-<div><div class="ph"><div class="sc"><svg class="dio" viewBox="0 0 200 178" width="100%" height="178" data-mode="today"></svg><span class="chip" style="left:8px;top:8px"><i class="ti ti-home"></i> 回到我屋企</span><span class="chip" style="right:8px;top:8px">演示</span></div><div class="mic"><i class="ti ti-microphone"></i></div>
-<div class="ct"><div class="hd">今日</div>
-<div class="cd" style="display:flex;align-items:center;gap:6px"><svg class="av" data-c="#1D9E75" viewBox="0 0 22 22"></svg><span style="flex:1">而家喺外面<br><span class="sub">8 樓陳太 · 公園附近</span></span><span class="bt ok">約佢</span></div>
-<div class="cd" style="display:flex;align-items:center;gap:6px"><span style="flex:1">行咗 24 分鐘 · 連續 9 日<br><span class="sub">AI · 12 樓今日行到公園櫈仔</span></span><span class="bt">請假</span></div>
-<div class="cd" style="display:flex;align-items:center;gap:6px"><span style="flex:1">下晝 3 點約咗陳太<br><span class="sub">涼亭 · 嗰陣有樹蔭</span></span><span class="bt">出發</span></div></div>
-<div class="tb"><div class="on"><i class="ti ti-sun"></i>今日</div><div><i class="ti ti-trophy"></i>排行榜</div><div><i class="ti ti-users"></i>街坊</div></div></div><p class="cap">今日（在家）：先看谁在外面，再看自己</p></div>
+<div><div class="ph"><div class="sc"><svg class="dio" viewBox="0 0 200 178" width="100%" height="178" data-mode="today"></svg><span class="chip" style="left:8px;top:8px"><i class="ti ti-home"></i> My home</span><span class="chip" style="right:8px;top:8px">Demo</span></div><div class="mic"><i class="ti ti-microphone"></i></div>
+<div class="ct"><div class="hd">Today</div>
+<div class="cd" style="display:flex;align-items:center;gap:6px"><svg class="av" data-c="#1D9E75" viewBox="0 0 22 22"></svg><span style="flex:1">Outside now<br><span class="sub">Mrs Chan, 8F · Near the park</span></span><span class="bt ok">Invite</span></div>
+<div class="cd" style="display:flex;align-items:center;gap:6px"><span style="flex:1">24 min walked · 9-day streak<br><span class="sub">AI · 12F walked to the park bench</span></span><span class="bt">Stay home</span></div>
+<div class="cd" style="display:flex;align-items:center;gap:6px"><span style="flex:1">Mrs Chan · 3 pm<br><span class="sub">Pavilion · Sample shade</span></span><span class="bt">Depart</span></div></div>
+<div class="tb"><div class="on"><i class="ti ti-sun"></i>Today</div><div><i class="ti ti-trophy"></i>Ranks</div><div><i class="ti ti-users"></i>Neighbors</div></div></div><p class="cap">Today at home: neighbors outside, then my activity</p></div>
 
-<div><div class="ph"><div class="sc"><svg class="dio" viewBox="0 0 200 178" width="100%" height="178" data-mode="walk"></svg><span class="chip" style="left:8px;top:8px"><i class="ti ti-walk"></i> 行緊 12 分鐘</span></div><div class="mic"><i class="ti ti-microphone"></i></div>
-<div class="ct"><div class="hd">今日 · 行緊</div>
-<div class="cd" style="display:flex;align-items:center;gap:6px"><svg class="av" data-c="#1D9E75" viewBox="0 0 22 22"></svg><span style="flex:1">8 樓陳太都喺外面<br><span class="sub">公園附近 · 離你約 200 米</span></span><span class="bt ok">過去搵佢</span></div>
-<div class="cd">經過 2 個地方<br><span class="sub">前面公園櫈仔有櫈，可以唞陣</span></div>
-<div style="display:flex;gap:6px"><span class="bt" style="flex:1">好曬</span><span class="bt" style="flex:1">冇櫈</span><span class="bt" style="flex:1">難行</span></div></div>
-<div class="tb"><div class="on"><i class="ti ti-sun"></i>今日</div><div><i class="ti ti-trophy"></i>排行榜</div><div><i class="ti ti-users"></i>街坊</div></div></div><p class="cap">今日（散步中）：镜头跟着你，反映按钮出现</p></div>
+<div><div class="ph"><div class="sc"><svg class="dio" viewBox="0 0 200 178" width="100%" height="178" data-mode="walk"></svg><span class="chip" style="left:8px;top:8px"><i class="ti ti-walk"></i> Walking · 12 min</span></div><div class="mic"><i class="ti ti-microphone"></i></div>
+<div class="ct"><div class="hd">Today · Walking</div>
+<div class="cd" style="display:flex;align-items:center;gap:6px"><svg class="av" data-c="#1D9E75" viewBox="0 0 22 22"></svg><span style="flex:1">Mrs Chan, 8F, is also outside<br><span class="sub">Near the park · About 200 m</span></span><span class="bt ok">Find her</span></div>
+<div class="cd">Passed 2 places<br><span class="sub">A bench ahead offers a rest</span></div>
+<div style="display:flex;gap:6px"><span class="bt" style="flex:1">Too sunny</span><span class="bt" style="flex:1">No seats</span><span class="bt" style="flex:1">Hard to walk</span></div></div>
+<div class="tb"><div class="on"><i class="ti ti-sun"></i>Today</div><div><i class="ti ti-trophy"></i>Ranks</div><div><i class="ti ti-users"></i>Neighbors</div></div></div><p class="cap">Today walking: following camera and report actions</p></div>
 
-<div><div class="ph"><div class="sc"><svg class="dio" viewBox="0 0 200 178" width="100%" height="178" data-mode="plain"></svg><span class="chip" style="right:8px;top:8px">演示</span></div><div class="mic"><i class="ti ti-microphone"></i></div>
-<div class="ct" style="gap:4px"><div class="hd">排行榜</div>
-<div class="cd" style="font-size:11px;display:flex;flex-direction:column;gap:4px"><span>本月 皇后山圈 領先對面圈</span><span style="display:flex;height:5px;border-radius:3px;overflow:hidden"><span style="flex:41;background:#D85A30"></span><span style="flex:38;background:var(--border-strong)"></span></span></div>
-<div class="row"><span class="rk">1</span><svg class="av" data-c="#7F77DD" viewBox="0 0 22 22"></svg><span>3 樓<span class="sub"> · 行咗一個大圈</span></span></div>
-<div class="row"><span class="rk">2</span><svg class="av" data-c="#1D9E75" viewBox="0 0 22 22"></svg><span>8 樓 陳太<span class="sub"> · 去咗街市</span></span></div>
-<div class="row"><span class="rk">3</span><svg class="av" data-c="#378ADD" viewBox="0 0 22 22"></svg><span>15 樓<span class="sub"> · 坐咗陣</span></span></div>
-<div class="row" style="background:var(--bg-warning);border-radius:8px;border:.5px solid var(--border-warning);margin-top:auto"><span class="rk">5</span><svg class="av" data-c="#D85A30" viewBox="0 0 22 22"></svg><span>12 樓 你<span class="sub"> · 行到公園</span></span></div></div>
-<div class="tb"><div><i class="ti ti-sun"></i>今日</div><div class="on"><i class="ti ti-trophy"></i>排行榜</div><div><i class="ti ti-users"></i>街坊</div></div></div><p class="cap">排行榜：不显示步数，你那行固定在底；非街坊不显示名字</p></div>
+<div><div class="ph"><div class="sc"><svg class="dio" viewBox="0 0 200 178" width="100%" height="178" data-mode="plain"></svg><span class="chip" style="right:8px;top:8px">Demo</span></div><div class="mic"><i class="ti ti-microphone"></i></div>
+<div class="ct" style="gap:4px"><div class="hd">Ranks</div>
+<div class="cd" style="font-size:11px;display:flex;flex-direction:column;gap:4px"><span>Sample: Queen's Hill leads this month</span><span style="display:flex;height:5px;border-radius:3px;overflow:hidden"><span style="flex:41;background:#D85A30"></span><span style="flex:38;background:var(--border-strong)"></span></span></div>
+<div class="row"><span class="rk">1</span><svg class="av" data-c="#7F77DD" viewBox="0 0 22 22"></svg><span>3 F<span class="sub"> · Walked a loop</span></span></div>
+<div class="row"><span class="rk">2</span><svg class="av" data-c="#1D9E75" viewBox="0 0 22 22"></svg><span>8 F Mrs Chan<span class="sub"> · Visited market</span></span></div>
+<div class="row"><span class="rk">3</span><svg class="av" data-c="#378ADD" viewBox="0 0 22 22"></svg><span>15 F<span class="sub"> · Rested briefly</span></span></div>
+<div class="row" style="background:var(--bg-warning);border-radius:8px;border:.5px solid var(--border-warning);margin-top:auto"><span class="rk">5</span><svg class="av" data-c="#D85A30" viewBox="0 0 22 22"></svg><span>12 F You<span class="sub"> · Walked to park</span></span></div></div>
+<div class="tb"><div><i class="ti ti-sun"></i>Today</div><div class="on"><i class="ti ti-trophy"></i>Ranks</div><div><i class="ti ti-users"></i>Neighbors</div></div></div><p class="cap">Historical leaderboard: my row pinned below; old identity rules are superseded</p></div>
 
-<div><div class="ph"><div class="sc"><svg class="dio" viewBox="0 0 200 178" width="100%" height="178" data-mode="friend"></svg><span class="chip" style="right:8px;top:8px">演示</span></div><div class="mic"><i class="ti ti-microphone"></i></div>
-<div class="ct"><div class="hd">街坊</div><div class="bt ok" style="padding:7px"><i class="ti ti-device-mobile"></i> 碰一碰加街坊</div>
-<div class="cd">陳太約你聽日朝早 8 點 · 涼亭<div style="display:flex;gap:6px;margin-top:5px"><span class="bt ok" style="flex:1">好</span><span class="bt" style="flex:1">換個時間</span></div></div>
-<div class="row"><svg class="av" data-c="#1D9E75" viewBox="0 0 22 22"></svg><span style="flex:1">8 樓陳太<br><span class="sub">出咗門 · 提醒開</span></span><span class="bt">約佢行</span></div></div>
-<div class="tb"><div><i class="ti ti-sun"></i>今日</div><div><i class="ti ti-trophy"></i>排行榜</div><div class="on"><i class="ti ti-users"></i>街坊</div></div></div><p class="cap">街坊：加街坊、被约、约人都在这</p></div>
+<div><div class="ph"><div class="sc"><svg class="dio" viewBox="0 0 200 178" width="100%" height="178" data-mode="friend"></svg><span class="chip" style="right:8px;top:8px">Demo</span></div><div class="mic"><i class="ti ti-microphone"></i></div>
+<div class="ct"><div class="hd">Neighbors</div><div class="bt ok" style="padding:7px"><i class="ti ti-device-mobile"></i> Pair as neighbors</div>
+<div class="cd">Mrs Chan invites you · Tomorrow 8 am · Pavilion<div style="display:flex;gap:6px;margin-top:5px"><span class="bt ok" style="flex:1">Yes</span><span class="bt" style="flex:1">Change time</span></div></div>
+<div class="row"><svg class="av" data-c="#1D9E75" viewBox="0 0 22 22"></svg><span style="flex:1">8 F Mrs Chan<br><span class="sub">Outside · Alerts on</span></span><span class="bt">Invite</span></div></div>
+<div class="tb"><div><i class="ti ti-sun"></i>Today</div><div><i class="ti ti-trophy"></i>Ranks</div><div class="on"><i class="ti ti-users"></i>Neighbors</div></div></div><p class="cap">Neighbors: pairing, invitations and replies</p></div>
 
-<div><div class="ph"><div class="sc"><svg class="dio" viewBox="0 0 200 178" width="100%" height="178" data-mode="spot"></svg></div><div class="ct" style="opacity:.35"><div class="hd">今日</div><div class="cd">行咗 24 分鐘 · 連續 9 日</div></div>
-<div class="sheet"><div class="grab"></div><div class="sub">我聽到</div><div style="font-size:14px;font-weight:600;margin:2px 0 8px">約陳太聽日下晝三點一齊行</div><div class="cd" style="margin-bottom:10px">地點：涼亭<br><span class="sub">嗰陣有樹蔭、有櫈，兩個都行 3 分鐘</span></div><div style="display:flex;gap:6px"><span class="bt ok" style="flex:2;padding:8px">好</span><span class="bt" style="flex:1;padding:8px">唔係</span></div></div></div><p class="cap">语音复述卡：影响别人要按「好」，场景同步高亮地点</p></div>
+<div><div class="ph"><div class="sc"><svg class="dio" viewBox="0 0 200 178" width="100%" height="178" data-mode="spot"></svg></div><div class="ct" style="opacity:.35"><div class="hd">Today</div><div class="cd">24 min walked · 9-day streak</div></div>
+<div class="sheet"><div class="grab"></div><div class="sub">I heard</div><div style="font-size:14px;font-weight:600;margin:2px 0 8px">Walk with Mrs Chan tomorrow at 3 pm</div><div class="cd" style="margin-bottom:10px">Place: Pavilion<br><span class="sub">Sample shade and seating; 3 min each</span></div><div style="display:flex;gap:6px"><span class="bt ok" style="flex:2;padding:8px">Yes</span><span class="bt" style="flex:1;padding:8px">No</span></div></div></div><p class="cap">Voice recap: confirm actions affecting others; highlight the place</p></div>
 
 <div><div class="ph"><div class="sc" style="height:200px"><svg class="dio" viewBox="0 0 200 178" width="100%" height="200" data-mode="bump"></svg></div>
-<div class="ct" style="align-items:center;justify-content:center;gap:8px;text-align:center"><div style="font-size:14px;font-weight:600">你同 8 樓陳太而家係街坊</div><div class="sub">開唔開出門提醒？</div><div style="display:flex;gap:6px;width:100%"><span class="bt ok" style="flex:1;padding:7px">開</span><span class="bt" style="flex:1;padding:7px">遲啲先</span></div></div></div><p class="cap">碰一碰：碰到后两个小人在场景里走近挥手</p></div>
+<div class="ct" style="align-items:center;justify-content:center;gap:8px;text-align:center"><div style="font-size:14px;font-weight:600">You and Mrs Chan are now neighbors</div><div class="sub">Enable outing alerts?</div><div style="display:flex;gap:6px;width:100%"><span class="bt ok" style="flex:1;padding:7px">On</span><span class="bt" style="flex:1;padding:7px">Later</span></div></div></div><p class="cap">Pairing: the two scene figures approach and wave</p></div>
 </div>
 
-<h2>散步中临时去找人</h2>
+<h2>Finding a Neighbor During a Walk</h2>
 <div class="grid">
-<div><div class="ph"><div class="sc" style="height:178px"><svg class="dio" viewBox="0 0 200 178" width="100%" height="178" data-mode="ask"></svg></div><div class="ct" style="opacity:.35"><div class="hd">今日 · 行緊</div></div>
-<div class="sheet"><div class="grab"></div><div style="font-size:14px;font-weight:600">問緊陳太</div><div class="sub" style="margin-bottom:8px">「12 樓想過嚟搵你，喺公園等陣？」</div><div class="cd" style="margin-bottom:10px">✓ 陳太話好：喺公園櫈仔等你</div><div style="display:flex;gap:6px"><span class="bt ok" style="flex:2;padding:8px">去</span><span class="bt" style="flex:1;padding:8px">取消</span></div></div></div><p class="cap">① 按「過去搵佢」→ 等对方同意，场景先画路线</p></div>
-<div><div class="ph"><div class="sc" style="height:300px"><svg class="dio" viewBox="0 0 200 178" width="100%" height="300" data-mode="find"></svg><div class="cd" style="position:absolute;left:8px;right:8px;top:8px">陳太喺公園櫈仔等你 · 大約 3 分鐘</div><div class="cd" style="position:absolute;left:50%;transform:translateX(-50%);bottom:10px;font-size:14px;font-weight:600"><i class="ti ti-arrow-up" style="color:#D85A30;display:inline-block;transform:rotate(40deg)"></i> 45 米</div></div>
-<div class="ct" style="justify-content:center"><span class="bt ok" style="padding:9px;font-size:13px">我就到</span><span class="bt" style="padding:7px">結束</span></div></div><p class="cap">② 找人：场景全屏、双方路线，50 米内出箭头和震动</p></div>
+<div><div class="ph"><div class="sc" style="height:178px"><svg class="dio" viewBox="0 0 200 178" width="100%" height="178" data-mode="ask"></svg></div><div class="ct" style="opacity:.35"><div class="hd">Today · Walking</div></div>
+<div class="sheet"><div class="grab"></div><div style="font-size:14px;font-weight:600">Asking Mrs Chan</div><div class="sub" style="margin-bottom:8px">“Your neighbor would like to meet. Wait at the park?”</div><div class="cd" style="margin-bottom:10px">✓ Mrs Chan agreed: waiting at the park bench</div><div style="display:flex;gap:6px"><span class="bt ok" style="flex:2;padding:8px">Go</span><span class="bt" style="flex:1;padding:8px">Cancel</span></div></div></div><p class="cap">1. Find her → wait for consent, then display the route</p></div>
+<div><div class="ph"><div class="sc" style="height:300px"><svg class="dio" viewBox="0 0 200 178" width="100%" height="300" data-mode="find"></svg><div class="cd" style="position:absolute;left:8px;right:8px;top:8px">Mrs Chan waits at the park bench · About 3 min</div><div class="cd" style="position:absolute;left:50%;transform:translateX(-50%);bottom:10px;font-size:14px;font-weight:600"><i class="ti ti-arrow-up" style="color:#D85A30;display:inline-block;transform:rotate(40deg)"></i> 45 m</div></div>
+<div class="ct" style="justify-content:center"><span class="bt ok" style="padding:9px;font-size:13px">Almost there</span><span class="bt" style="padding:7px">End</span></div></div><p class="cap">2. Historical finding: full-screen routes; arrow and vibration within 50 m</p></div>
 </div>
 
 <script>
@@ -89,20 +89,20 @@ for(let k=6;k<h-2;k+=5){s+=`<line x1="${l[0]+2}" y1="${l[1]+k}" x2="${b[0]-2}" y
 return s+`<polygon points="${t} ${r} ${b} ${l}" fill="${G}" stroke="${E}" stroke-width=".4"/></g>`}
 const man=(x,y,c)=>`<ellipse cx="${x}" cy="${y+1}" rx="3.4" ry="1.3" fill="rgba(0,0,0,.18)"/><rect x="${x-2.4}" y="${y-7}" width="4.8" height="7.5" rx="2.4" fill="${c}"/><circle cx="${x}" cy="${y-9.4}" r="2.5" fill="#F5C4B3"/>`;
 const pin=(x,y,hl)=>`<circle cx="${x}" cy="${y}" r="4.5" fill="${AC}"/><circle cx="${x}" cy="${y}" r="1.8" fill="#fff"/>`+(hl?`<circle cx="${x}" cy="${y}" r="11" fill="none" stroke="${AC}" stroke-width="1.1" stroke-dasharray="3 2"/>`:'');
-const lab=(x,y,t,hl)=>{const w=t.length*7+10;return `<rect x="${x-w/2}" y="${y-9}" width="${w}" height="13" rx="6.5" fill="#fff" stroke="${hl?AC:E}" stroke-width="${hl?.9:.5}"/><text x="${x}" y="${y+0.5}" style="font-size:8px;fill:#2C2C2A" text-anchor="middle">${t}</text>`};
+const lab=(x,y,t,hl)=>{const w=t.length*4.3+10;const cx=Math.max(w/2+2,Math.min(198-w/2,x));return `<rect x="${cx-w/2}" y="${y-9}" width="${w}" height="13" rx="6.5" fill="#fff" stroke="${hl?AC:E}" stroke-width="${hl?.9:.5}"/><text x="${cx}" y="${y+0.5}" style="font-size:8px;fill:#2C2C2A" text-anchor="middle">${t}</text>`};
 document.querySelectorAll('svg.dio').forEach(v=>{const m=v.dataset.mode;
 let s=`<polygon points="100,64 192,110 100,156 8,110" fill="${G}" stroke="${S2}" stroke-width=".6"/><polygon points="8,110 100,156 100,166 8,120" fill="#C7A67D"/><polygon points="100,156 192,110 192,120 100,166" fill="#A9855C"/><line x1="40" y1="94" x2="132" y2="140" stroke="${S1}" stroke-width="5"/><line x1="140" y1="84" x2="60" y2="124" stroke="${S1}" stroke-width="4"/><polygon points="126,106 156,121 140,129 110,114" fill="#C0DD97"/>`;
 [[132,116],[146,120],[138,123]].forEach(t=>s+=`<circle cx="${t[0]}" cy="${t[1]}" r="3.2" fill="#639922"/>`);
 const op=(m==='find'||m==='spot')?0.35:1;
 s+=box(70,98,14,10,56,op)+box(96,88,14,10,62)+box(52,112,14,10,48)+box(120,132,12,9,20)+pin(146,106,m==='spot'||m==='ask'||m==='find')+pin(44,122);
 const trail=`<path d="M30 118 Q46 126 62 130" fill="none" stroke="${AC}" stroke-width="1.6" stroke-linecap="round" opacity=".55"/>`;
-if(m==='today'){s+=man(152,112,GN)+lab(152,96,'陳太',true)+lab(44,138,'今朝 12 人經過')}
-if(m==='friend'){s+=man(152,112,GN)+lab(152,96,'陳太 · 涼亭',true)}
-if(m==='spot'){s+=lab(146,90,'涼亭 · 有樹蔭',true)}
-if(m==='bump'){s+=man(138,114,AC)+man(152,112,GN)+`<path d="M140 100 l3 -4 M154 98 l3 -4" stroke="#5F5E5A" stroke-width="1" stroke-linecap="round"/>`+lab(146,90,'8 樓 陳太',true)}
-if(m==='walk'){s+=trail+man(64,131,AC)+lab(64,149,'你',true)+man(152,112,GN)+lab(152,96,'陳太')}
-if(m==='ask'){s+=trail+`<path d="M66 131 Q104 132 142 110" fill="none" stroke="${AC}" stroke-width="1.4" stroke-dasharray="3 2"/>`+man(64,131,AC)+man(152,112,GN)+lab(152,96,'陳太 · 等緊',true)}
-if(m==='find'){s+=`<path d="M64 131 Q104 132 142 110" fill="none" stroke="${AC}" stroke-width="1.6" stroke-dasharray="3 2"/>`+man(124,120,AC)+lab(124,138,'你')+man(152,112,GN)+lab(152,96,'陳太',true)+`<circle cx="152" cy="110" r="18" fill="none" stroke="${GN}" stroke-width=".8" opacity=".6"/>`}
+if(m==='today'){s+=man(152,112,GN)+lab(152,96,'Mrs Chan',true)+lab(44,138,'12 passers today')}
+if(m==='friend'){s+=man(152,112,GN)+lab(152,96,'Mrs Chan · Pavilion',true)}
+if(m==='spot'){s+=lab(146,90,'Pavilion · Sample shade',true)}
+if(m==='bump'){s+=man(138,114,AC)+man(152,112,GN)+`<path d="M140 100 l3 -4 M154 98 l3 -4" stroke="#5F5E5A" stroke-width="1" stroke-linecap="round"/>`+lab(146,90,'8 F Mrs Chan',true)}
+if(m==='walk'){s+=trail+man(64,131,AC)+lab(64,149,'You',true)+man(152,112,GN)+lab(152,96,'Mrs Chan')}
+if(m==='ask'){s+=trail+`<path d="M66 131 Q104 132 142 110" fill="none" stroke="${AC}" stroke-width="1.4" stroke-dasharray="3 2"/>`+man(64,131,AC)+man(152,112,GN)+lab(152,96,'Mrs Chan · Waiting',true)}
+if(m==='find'){s+=`<path d="M64 131 Q104 132 142 110" fill="none" stroke="${AC}" stroke-width="1.6" stroke-dasharray="3 2"/>`+man(124,120,AC)+lab(124,138,'You')+man(152,112,GN)+lab(152,96,'Mrs Chan',true)+`<circle cx="152" cy="110" r="18" fill="none" stroke="${GN}" stroke-width=".8" opacity=".6"/>`}
 v.innerHTML=s});
 document.querySelectorAll('svg.av').forEach(v=>{v.innerHTML=`<circle cx="11" cy="11" r="10.5" fill="var(--surface-1)" stroke="var(--border-strong)" stroke-width=".5"/><rect x="7.6" y="11" width="6.8" height="9" rx="3.4" fill="${v.dataset.c}"/><circle cx="11" cy="7.6" r="3.2" fill="#F5C4B3"/>`});
 </script>

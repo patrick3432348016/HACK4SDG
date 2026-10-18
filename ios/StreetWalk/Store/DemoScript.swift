@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// 自动演示：启动参数 `-script` 时按顺序跑一遍主要流程，用于检查和录演示视频。
-/// 每一步打印 "[script] t=秒 步骤"，方便对照截图。
+/// -script runs the main flows in sequence for checking and recording.
+/// Log [script] timestamps and steps for screenshot alignment.
 extension AppStore {
     private static var scriptStarted = false
 
@@ -21,15 +21,15 @@ extension AppStore {
         Task { @MainActor in
             while map == nil || residents.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
             let t0 = Date()
-            // 必须 @MainActor：否则 sleep 之后在后台线程恢复，脚本动作会在后台改 store 和场景（界面不刷新、数据竞争）。
+            // Require @MainActor so execution after sleep cannot mutate store / scene on a background thread and cause races or missing UI updates.
             @MainActor func step(_ at: Double, _ name: String, _ action: () -> Void) async {
                 let wait = at - Date().timeIntervalSince(t0)
                 if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
                 print("[script] t=\(Int(at)) \(name)")
                 action()
             }
-            // 字幕（-captions）：中文一句 + 英文一句，配合录屏。
-            @MainActor func cap(_ zh: String, _ en: String) { if LaunchArgs.has("-captions") { caption = L.isEn ? (en, "") : (zh, en) } }   // 唔包 withAnimation（见 showBanner）
+            // -captions shows Chinese and English recording subtitles.
+            @MainActor func cap(_ zh: String, _ en: String) { if LaunchArgs.has("-captions") { caption = L.isEn ? (en, "") : (zh, en) } }   // Avoid withAnimation; see showBanner.
             await step(1, "開場") { cap(L.t("北都新屋邨：每日行嘅路，就係認識街坊嘅地方", "北部都会区新屋苑：每天走的路，就是认识邻居的地方", "New estates in the Northern Metropolis: your daily walk is where neighbours meet"), "New estates in the Northern Metropolis: your daily walk is where neighbours meet") }
             await step(4, "排行榜") { tab = .board; cap(L.t("排行榜：同區常行嘅人；未係街坊只見網名同小人", "排行榜：同区常走的人；还不是邻居只看到网名和小人", "Leaderboard: regular walkers nearby. Non-neighbours show only a nickname and avatar"), "Circle board: regular walkers nearby — strangers show only a nickname and avatar") }
             await step(9, "街坊 · 碰一碰") { tab = .neighbors; startBump(); cap(L.t("碰一碰：兩部手機貼近，就成為街坊", "碰一碰：两部手机靠近，就成为邻居", "Tap phones to become neighbours"), "Bump phones to become neighbours — the only way to connect") }
@@ -50,7 +50,7 @@ extension AppStore {
 }
 
 extension AppStore {
-    /// 开发用（-autoWalk）：自动行一次演示散步（唔搵人），打印落脚点同记低嘅纪录，检查 F1 落脚点。
+    /// -autoWalk runs a demo walk without finding and logs stopping places / records to check F1.
     func runAutoWalk() {
         Task { @MainActor in
             while map == nil || residents.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
@@ -69,8 +69,8 @@ extension AppStore {
 }
 
 extension AppStore {
-    /// 开发用（-scriptWalk）：请假几日、提醒时段、关演示模式、改楼途中返上一步同「唔改」，逐步截图检查。
-    /// 跑完会还原提醒时段同演示模式（佢哋存喺 UserDefaults）。
+    /// -scriptWalk checks leave intervals, alert windows, disabling demo and cancelling / stepping back through home changes.
+    /// Restore the alert window and demo mode afterward because they persist in UserDefaults.
     func runScriptWalk() {
         Task { @MainActor in
             while map == nil || residents.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
@@ -94,7 +94,7 @@ extension AppStore {
             await step(30, "確認") { confirmHome() }
             await step(34, "返上一步") { backToPickHome() }
             await step(38, "唔改") { cancelChangeHome() }
-            // 定位一步就按「唔改」（人喺外面时嗰格要上网拉，旧嘅 loadMap 会迟啲先返）：最后要係屋企格、已存嘅楼
+            // Cancel during location loading; a late remote map result must not replace the saved home tile and building.
             await step(44, "再改樓") { beginChangeHome() }
             await step(44.3, "定位中按唔改") { print("[scriptWalk] phase=\(phase) loadingMap=\(loadingMap)"); cancelChangeHome() }
             await step(56, "檢查底座") {
@@ -108,7 +108,7 @@ extension AppStore {
 }
 
 extension AppStore {
-    /// 第二段：街坊页、地标信息卡、揀一句、语音复述卡、时间滑杆、碰一碰等待画面。
+    /// Second script: Neighbors, landmark card, examples, voice recap, time slider and bump waiting.
     func runScript2() {
         Task { @MainActor in
             while map == nil || residents.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
@@ -136,8 +136,8 @@ extension AppStore {
     }
 }
 
-/// 自动走一遍首次使用（启动参数 `-resetOnboarding -scriptOnboarding`），用于检查每一步的画面。
-/// 5 步：欢迎 → 私隐「同意」→ 屋企（未问过定位就当撳「好」；估中就「係」，估唔到就揀第一座）→ 樓層同網名 → 試一次（撳「或者撳呢句」）→ 做完。
+/// -resetOnboarding -scriptOnboarding walks through onboarding for screen inspection.
+/// Five steps: welcome, privacy consent, locate/select home, floor/nickname, example microphone trial, then completion.
 extension AppStore {
     func runOnboardingScriptIfNeeded() {
         guard LaunchArgs.has("-scriptOnboarding") else { return }
@@ -159,7 +159,7 @@ extension AppStore {
             print("[script] 係"); onbHush(); confirmHome()
             try? await Task.sleep(for: .seconds(3))
             print("[script] 樓層 + 網名"); floorChoice = min(12, max(1, homeLevels))
-            setNickname(nickname.isEmpty ? (LaunchArgs.value("-nickname") ?? "行路友") : nickname)   // -debugNickname 已经喺启动时填咗
+            setNickname(nickname.isEmpty ? (LaunchArgs.value("-nickname") ?? "行路友") : nickname)   // -debugNickname was already applied at startup.
             try? await Task.sleep(for: .seconds(3))
             print("[script] 試一次"); onbHush(); phase = .onboarding(.tryMic)
             try? await Task.sleep(for: .seconds(4))
@@ -171,9 +171,9 @@ extension AppStore {
 }
 
 extension AppStore {
-    // MARK: - 演示
+    // MARK: - Demo
 
-    /// 演示菜单「重新載入地圖」：清缓存再拉一次（有存过屋企就係屋企嗰格），住嘅楼照用已存嘅（A35）。
+    /// A35: Reload Map clears cache and refetches the home tile while retaining the saved building.
     func regenerateHere() {
         walk = nil; if find != nil { endFind() }; findFullScreen = false; track = WalkTrack()
         TileCache.clear()
@@ -195,8 +195,8 @@ extension AppStore {
 }
 
 extension AppStore {
-    /// 第三段（-script3）：约会生命周期、语音改约、反映回覆、出发前提醒、过期、解除街坊。
-    /// 跑完数据会存盘；之后不带脚本再开一次，可以检查重启后有没有保留。
+    /// -script3 covers meeting lifecycle, voice reschedule, report replies, departure reminders, expiry and unlinking.
+    /// Results persist; launch again without a script to check restoration.
     func runScript3() {
         Task { @MainActor in
             while map == nil || residents.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }

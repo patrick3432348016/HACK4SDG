@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// 「今日」页最上面嘅「第一日」任务卡（UX 报告第五节）：今日三件事，做完一件打一个勾；三件做齐讲一声，留住等用户撳「收起」。
-/// 自己判断要唔要出（AppStore.showsFirstDay）：放喺「今日」页 VStack 最上面一行 `FirstDayCard()` 就得。
-/// 未做嘅撳得：出去行 → 即刻开始记录（A-3，散步中写「记录紧」）；碰一碰 → 开碰一碰画面；约佢 → 出约人卡（聽日）。
-/// 个勾自己撳得（J-2）：打咗勾嘅撳一下取消，再撳又打返勾；未做嘅撳左边个圈都打得勾。
+/// UX section 5: first-day tasks sit atop Today; announce completion and retain the card until manually dismissed.
+/// FirstDayCard checks AppStore.showsFirstDay itself; place it first in Today's VStack.
+/// Incomplete actions start recording, open pairing, or propose tomorrow's invitation; show recording state during a walk.
+/// J-2: users can toggle completed checks and manually check incomplete tasks via the circle.
 struct FirstDayCard: View {
     @Environment(AppStore.self) private var store
 
@@ -34,7 +34,7 @@ struct FirstDayCard: View {
                 row(.walk, done: store.firstDayDone(.walk),
                     title: L.t("出去行 \(FirstDayProgress.walkGoal) 分鐘", "出去走 \(FirstDayProgress.walkGoal) 分钟", "Go out for \(FirstDayProgress.walkGoal) minutes"),
                     note: walkNote(f), cta: L.t("開始", "开始", "Start"),
-                    action: store.walk == nil ? { store.startManualWalk() } : {})   // 散步中撳字唔使做嘢
+                    action: store.walk == nil ? { store.startManualWalk() } : {})   // Tapping the task text while already walking does nothing.
                 Divider().padding(.leading, 64)
                 row(.bump, done: store.firstDayDone(.bump),
                     title: L.t("見到街坊碰一碰", "见到邻居碰一碰", "Meet a neighbour, tap phones"),
@@ -44,7 +44,7 @@ struct FirstDayCard: View {
                     title: store.firstDayInviteTitle,
                     note: inviteNote, cta: L.t("去約", "去约", "Invite"), action: { store.firstDayInvite() })
             }
-            // 测试反馈：做齐即刻自己收埋，好似「全部消失」→ 做齐后留住，由用户自己撳「收起」
+            // Feedback: keep the completed card until explicit dismissal instead of making everything disappear.
             if done {
                 Button {
                     withAnimation(DS.motion(DS.spring)) { store.closeFirstDay() }
@@ -62,8 +62,8 @@ struct FirstDayCard: View {
         .onChange(of: store.neighbors.count) { _, _ in store.firstDayCheck() }
     }
 
-    /// J-3b：约咗之后（今日、聽日、之后几日都算）喺任务下面写返约咗乜：
-    /// 「约好了：明天早上 8 点 · 陈太 · 凉亭」「约了：…（等陈太确认）」「陈太约你：…（去回复）」。
+    /// J-3b: display meeting details below the task for any scheduled date.
+    /// Distinguish confirmed meetings, my pending invitations and incoming invitations awaiting response.
     private var inviteNote: String? {
         guard let a = store.appointments.filter({ $0.isOpen && $0.date > store.now }).sorted(by: { $0.date < $1.date }).first else { return nil }
         let name = store.resident(a.partnerID)?.name ?? L.t("街坊", "邻居", "Neighbour")
@@ -76,17 +76,17 @@ struct FirstDayCard: View {
         }
     }
 
-    /// 散步中：「記錄緊，行咗 3 分鐘」；未够：「行咗 4 / 10 分鐘」；未行過：冇（右边有「開始」掣）。
+    /// Show active recording minutes or progress toward 10 minutes; before any walk, rely on the Start button.
     private func walkNote(_ f: FirstDayProgress) -> String? {
         if let w = store.walk { return L.t("記錄緊，行咗 \(w.minutes) 分鐘", "正在记录，已走 \(w.minutes) 分钟", "Recording, \(w.minutes) min so far") }
         guard !store.firstDayDone(.walk) else { return nil }
         let m = f.walkMinutes ?? 0
-        // 右边已经有「开始」掣（10-18），唔使再讲「撳呢度開始記錄」
+        // 10-18: the right-side Start button makes another start instruction redundant.
         return m > 0 ? L.t("行咗 \(m) / \(FirstDayProgress.walkGoal) 分鐘", "走了 \(m) / \(FirstDayProgress.walkGoal) 分钟", "\(m) / \(FirstDayProgress.walkGoal) min") : nil
     }
 
-    /// 一行：左边个勾自己撳得（打勾 / 取消）；打咗勾嘅成行撳都係取消；未做嘅撳字就做嗰件事（冇事做就打勾）。
-    /// cta：未做嘅事右边一粒橙底白字小掣（10-18 测试：要一眼睇到边度撳得）。
+    /// The check toggles completion; completed rows uncheck on tap, while incomplete text performs its action or checks it when no action exists.
+    /// 10-18: cta is an orange button with white text to make incomplete actions visibly tappable.
     @ViewBuilder private func row(_ item: FirstDayProgress.Item, done: Bool, title: String, note: String?, cta: String, action: (() -> Void)?) -> some View {
         let toggle = { store.firstDayToggle(item) }
         let text = HStack(spacing: 12) {

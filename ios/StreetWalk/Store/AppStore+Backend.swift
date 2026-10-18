@@ -3,22 +3,22 @@ import UIKit
 import BackgroundTasks
 @preconcurrency import UserNotifications
 
-// 真后端接线（关咗演示模式时）：换 CommunityService、网名、碰一碰配上后加街坊、收街坊事件、后台刷新、本地通知。
-// 演示模式照用 LocalCommunityService（示範街坊），演示脚本、演示视频唔受影响。
+// Normal-mode backend wiring: service selection, nickname, paired neighbors, events, background refresh, and local notifications.
+// Demo mode keeps LocalCommunityService and its existing scripts/recordings.
 extension AppStore {
-    /// 真后端（演示模式时 nil）。
+    /// Real backend, nil in demo mode.
     var supabase: SupabaseCommunityService? { community as? SupabaseCommunityService }
-    /// 界面「未連線」：用紧真后端，而上一次请求因为冇网络 / 服务器暂时唔得而失败。
+    /// Disconnected UI state for transient real-backend network/server failure.
     var backendOffline: Bool { supabase?.isOffline ?? false }
 
     private static var launchArgsApplied = false
 
-    /// 按演示模式揀 CommunityService：演示 → 示範街坊；真 → Supabase。启动时、设置里开关演示模式时调。
+    /// Choose LocalCommunityService for demo and Supabase otherwise, at startup and when toggling demo mode.
     func installCommunity() {
         if !Self.launchArgsApplied {
             Self.launchArgsApplied = true
             if LaunchArgs.has("-resetOnboarding") { nickname = "" }
-            // 开发用：自动脚本 / 两部模拟器测试时直接填网名
+            // Development: prefill nickname for automated/two-simulator tests.
             if let n = LaunchArgs.value("-debugNickname").flatMap(CommunityProfile.cleanNickname) { nickname = n }
         }
         if demoMode {
@@ -36,18 +36,18 @@ extension AppStore {
             s.profileProvider = { [weak self] in self?.communityProfile() }
             s.onEvent = { [weak self] e in self?.receive(e) }
             s.activate()
-            // 上次闪退 / 散步途中被收咗：服务器可能仲当我出咗门
+            // A previous crash/termination during walking may have left a stale server outing.
             if walk == nil { s.publishOuting(landmarkID: nil) }
         }
         startDebugCommandsIfNeeded()
     }
 
-    // MARK: - 网名
+    // MARK: - Nickname
 
-    /// 真后端要有网名先上得排行榜（旧用户升级后补填）。
+    /// A nickname is required for the real board; prompt older users upgrading without one.
     var needsNickname: Bool { !demoMode && phase == .main && CommunityProfile.cleanNickname(nickname) == nil }
 
-    /// 网名建议（一撳就用）：唔使打字，亦唔使用真名。
+    /// One-tap nickname suggestions avoid typing and do not require a real name.
     var nicknameSuggestions: [String] {
         let c = Palette.name(colorChoice).replacingOccurrences(of: "色", with: "")
         var s = L.isEn ? ["Walking Buddy", "Morning Neighbour", "Slow Walker", "Happy Walker"]
@@ -56,7 +56,7 @@ extension AppStore {
         return s.filter { CommunityProfile.cleanNickname($0) != nil }
     }
 
-    /// 改网名（首次使用、设置页）。唔啱规则（空、超过 20 字）返回 false。
+    /// Set nickname from onboarding/Settings; reject empty or over-20-character values.
     @discardableResult
     func setNickname(_ s: String) -> Bool {
         guard let n = CommunityProfile.cleanNickname(s) else { return false }
@@ -66,9 +66,9 @@ extension AppStore {
         return true
     }
 
-    /// 上传嘅个人资料。未完成首次使用、冇网名、未知屋企格子 → nil（唔上传、唔登录）。
+    /// Return nil and do not upload/login until onboarding, nickname, and home grid are known.
     func communityProfile() -> CommunityProfile? {
-        // 地图未装好：未知座数（唔好用空值盖过服务器上嘅）
+        // Before map installation, do not overwrite a known server block with an unknown empty value.
         guard phase == .main, map != nil, let nick = CommunityProfile.cleanNickname(nickname) else { return nil }
         let d = UserDefaults.standard
         guard d.bool(forKey: "onboarded") || LaunchArgs.has("-skipOnboarding") else { return nil }
@@ -88,9 +88,9 @@ extension AppStore {
                                 floor: shareHome ? floorChoice : nil, streak: streak, streakDay: day)
     }
 
-    // MARK: - 前台 / 后台
+    // MARK: - Foreground/background
 
-    /// AppStore.appActive 调：真后端前台开 Realtime、补拉；退后台断线、排后台刷新。
+    /// AppStore.appActive starts Realtime/refresh in foreground and disconnects/schedules refresh in background.
     func backendAppActive(_ active: Bool) {
         guard let s = supabase else { return }
         s.setForeground(active)
@@ -102,9 +102,9 @@ extension AppStore {
         }
     }
 
-    /// 后台刷新：BGAppRefreshTask（StreetWalkApp 的 .backgroundTask）同定位模块喺后台被叫醒时调。
-    /// 送出排队嘅写入、拉一次街坊出门 / 约会 / 找人询问；有新嘢就出本地通知（尊重「出門提醒」开关同接收时段）。
-    /// 60 秒内重复叫只做一次；演示模式唔做嘢。
+    /// Background refresh is called by BGAppRefreshTask and location wake-ups.
+    /// Flush writes and fetch outings/meetups/finding requests; notify for new events while respecting reminder toggles/time windows.
+    /// Deduplicate calls within 60 seconds; do nothing in demo mode.
     func backgroundRefresh() async {
         guard let s = supabase else { return }
         Self.debugEvent("backgroundRefresh start (background=\(isInBackground))")
@@ -114,9 +114,9 @@ extension AppStore {
         Self.debugEvent("backgroundRefresh done")
     }
 
-    // MARK: - 碰一碰配上（碰一碰模块 / 二维码 / -debugLinkCode 调）
+    // MARK: - Pairing completion from bump, QR, or -debugLinkCode
 
-    /// 服务器已经配上（NeighborLinker.link 返回对方）：加入圈、标做街坊，然后照碰一碰流程讲「你同〈網名〉而家係街坊」、问开唔开出门提醒。
+    /// After NeighborLinker returns a peer, add them to the circle, mark as neighbor, announce pairing, and ask about outing reminders.
     func addLinkedNeighbor(_ peer: LinkedPeer) {
         var r = BackendMapping.resident(peer)
         if let i = residents.firstIndex(where: { $0.id == peer.id }) {
@@ -144,14 +144,14 @@ extension AppStore {
 
     private static var debugLinkStarted = false
 
-    /// 开发用：两部模拟器用同一个 `-debugLinkCode <码>` 启动，就当碰咗一碰（唔使超宽带）。每 2 秒试一次，试 60 秒。
+    /// Development: launch two simulators with the same -debugLinkCode to emulate proximity pairing; poll every two seconds for 60 seconds.
     func runDebugLinkIfNeeded() {
         guard let code = LaunchArgs.value("-debugLinkCode"), !Self.debugLinkStarted else { return }
         Self.debugLinkStarted = true
         debugLink(code: code)
     }
 
-    /// 用一次性码配对（同碰一碰模块交俾 NeighborLinker 嘅码一样），配上就 addLinkedNeighbor。
+    /// Submit the same one-time code contract as real pairing, then call addLinkedNeighbor on success.
     func debugLink(code: String) {
         guard let s = supabase else { print("[debugLink] 演示模式冇真后端"); return }
         Task { @MainActor in
@@ -172,9 +172,9 @@ extension AppStore {
         }
     }
 
-    // MARK: - 街坊事件（真后端追加嘅）
+    // MARK: - Additional real-backend neighbor events
 
-    /// 有人约我：已经有同一个约会（例如重连后再收到）就当改约，唔会出两张。
+    /// An already-known incoming meetup is an update, such as after reconnect; do not create duplicate cards.
     func receiveInvite(_ a: Appointment) {
         if appointments.contains(where: { $0.id == a.id }) { meetupChangedByPartner(a); return }
         let before = appointments.count
@@ -186,7 +186,7 @@ extension AppStore {
     func receiveBackend(_ e: CommunityEvent) {
         switch e {
         case .membersChanged:
-            // 首次使用途中唔郁（选楼画面嘅地图唔系屋企底座）
+            // Do not modify scene state during onboarding; the home-selection map is not the final home base.
             if phase == .main, map != nil { populate() }
         case .meetupChanged(let a): meetupChangedByPartner(a)
         case .meetupCancelled(let id): meetupCancelledByPartner(id)
@@ -212,7 +212,7 @@ extension AppStore {
         }
     }
 
-    /// 对方改咗时间地点：变返「等我確認」（約你嘅），横幅讲清楚改咗乜。
+    /// A changed time/place returns the meetup to awaiting my confirmation; the banner explains what changed.
     func meetupChangedByPartner(_ a: Appointment) {
         guard let p = resident(a.partnerID), p.isNeighbor else { return }
         guard let i = appointments.firstIndex(where: { $0.id == a.id }) else {
@@ -247,7 +247,7 @@ extension AppStore {
         notifyIfBackground(id: "meetup-\(id.uuidString)", body: text)
     }
 
-    /// 约会当日对方出咗门 / 到咗（我未撳「出發」）：横幅话我知，可以即刻出发。
+    /// If the peer departs/arrives before I press Depart, show a banner with an immediate departure action.
     private func partnerTripWithoutFind(_ id: UUID, partnerID: String, trip: PartnerTrip, ended: Bool) {
         guard let a = appointments.first(where: { $0.id == id }), let p = resident(partnerID), p.isNeighbor else { return }
         let place = placeName(a.landmarkID) ?? L.t("約好嘅地方", "约好的地方", "the meeting place")
@@ -263,7 +263,7 @@ extension AppStore {
         notifyIfBackground(id: "trip-\(id.uuidString)", body: text)
     }
 
-    // MARK: - F8 收到「想過嚟搵你，方唔方便？」
+    // MARK: - F8 Incoming request to come and find me
 
     func incomingFindAsk(_ ask: IncomingFindAsk) {
         guard let p = resident(ask.fromID), p.isNeighbor else { return }
@@ -272,14 +272,14 @@ extension AppStore {
         say(q, prompt: true)
         Haptics.warning()
         notifyIfBackground(id: "find-\(ask.askID)", body: L.t("\(q)打開 App 答佢。", "\(q)打开 App 回复他。", "\(q) Open the app to reply."))
-        // 對方等 2 分鐘就當冇回覆：張卡都收埋
+        // Dismiss the card when the peer's two-minute response wait expires.
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(SupabaseCommunityService.askTimeout))
             if self.incomingFind?.askID == ask.askID { self.incomingFind = nil }
         }
     }
 
-    /// 撳「好」/「唔方便」。
+    /// Accept or decline availability.
     func answerIncomingFind(_ accepted: Bool) {
         guard let ask = incomingFind else { return }
         incomingFind = nil
@@ -298,12 +298,12 @@ extension AppStore {
         }
     }
 
-    // MARK: - 地标名（真后端：对方喺我底座外面嘅地标只有名，冇位置）
+    // MARK: - Landmark names: off-base peer landmarks have a name but no local position
 
-    /// 地标名：本机地标，或者只有名嘅（对方喺我地图外面）。
+    /// Resolve a local landmark name or retain a name-only off-map landmark.
     func placeName(_ id: String?) -> String? { landmark(id)?.name ?? LandmarkIndex.syntheticName(id) }
 
-    // MARK: - 本地通知（App 喺后台时；前台用横幅）
+    // MARK: - Local notifications in background; banners in foreground
 
     func notifyNeighborOut(_ id: String) {
         guard isInBackground, let r = resident(id), r.isNeighbor, r.isOut, r.receiveRemind, remindAll, inRemindWindow else { return }
@@ -320,9 +320,9 @@ extension AppStore {
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: c, trigger: nil))
     }
 
-    // MARK: - 清除纪录
+    // MARK: - Clearing records
 
-    /// 设置「清除我嘅紀錄」：真后端时连服务器上嘅资料一齐删（冇网络就话俾用户知）。之后用新身份重新上传资料。
+    /// Settings deletion also requests supported server-data cleanup in normal mode, reporting network failure. Later uploads use a new identity; this is not complete account deletion.
     func clearServerData() {
         guard let s = supabase else { return }
         Task { @MainActor in
@@ -333,11 +333,11 @@ extension AppStore {
     }
 }
 
-/// BGAppRefreshTask（Info.plist 已声明 hk.hack4sdg.streetwalk.refresh；StreetWalkApp 用 .backgroundTask 登记处理）。
+/// BGAppRefreshTask identifier hk.hack4sdg.streetwalk.refresh is declared in Info.plist and handled by StreetWalkApp.backgroundTask.
 enum BackgroundRefresh {
     static let taskID = "hk.hack4sdg.streetwalk.refresh"
 
-    /// 退后台时排下一次（系统决定几时叫，最早 15 分钟后）。
+    /// Schedule on background entry, no earlier than fifteen minutes; the system chooses actual execution time.
     static func schedule() {
         let r = BGAppRefreshTaskRequest(identifier: taskID)
         r.earliestBeginDate = Date().addingTimeInterval(15 * 60)

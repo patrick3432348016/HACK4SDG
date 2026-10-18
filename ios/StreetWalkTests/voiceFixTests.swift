@@ -2,9 +2,9 @@ import Foundation
 import Testing
 @testable import StreetWalk
 
-// 2026-10-17 组员真机测试（语音组）：
-// A-4 认唔到整点、半点以外嘅时间，讲唔到行几耐；H-1 对住复述卡讲「好 / 不要」冇反应；
-// H-2 识别字叠埋（「帮我约我的帮我帮我约」）；I-1 / I-2 试听状态同语速（见 voicePickerTests）。
+// 2026-10-17 team device voice checks:
+// A-4 explicit minutes/duration, and H-1 spoken confirmation/cancellation on recap cards.
+// H-2 repeated transcripts and I-1/I-2 preview state/speed; see voicePickerTests.
 
 struct SpokenTimeTests {
     func clock(_ s: String) -> [Int]? { TemplateAI.parseClock(s).map { [$0.hour, $0.minute] } }
@@ -36,7 +36,7 @@ struct SpokenTimeTests {
     }
 
     @Test func 行几耐唔当分钟() {
-        // 10-18 真机：「约邻居明天下午 3 点散步 40 分钟」确认卡变「3 点 2 分」
+        // 10-18: a 3 pm, 40-minute invitation incorrectly became 3:02 on the recap.
         for (text, walk) in [("约邻居明天下午3点散步40分钟", 40), ("约邻居明天下午三点散步四十分钟", 40), ("约邻居明天下午3点走半个钟", 30),
                              ("约邻居明天下午3点40分钟", 40), ("約街坊聽日下晝三點行半個鐘", 30), ("约邻居明天下午 3 点散步 40 分钟", 40)] {
             #expect(clock(text) == [15, 0], "\(text)")
@@ -66,12 +66,12 @@ struct TranscriptJoinTests {
         #expect(Listener.collapseRepeats("帮我帮我约") == "帮我约")
         #expect(Listener.collapseRepeats("好的好的") == "好的")
         #expect(Listener.collapseRepeats("慢慢行") == "慢慢行", "一个字嘅叠字唔郁")
-        // 用户由头再讲：唔好叠埋旧嗰段
+        // When users restart, do not append the prior segment.
         #expect(Listener.joined(committed: "帮我约我的", latest: "帮我帮我约") == "帮我约")
         #expect(Listener.joined(committed: "约陈太", latest: "约陈太明天三点") == "约陈太明天三点")
-        // 停顿后由头再认（新一段唔包含旧段）：接埋
+        // When recognition restarts after a pause without prior text, concatenate segments.
         #expect(Listener.joined(committed: "约陈太明天", latest: "下午三点") == "约陈太明天下午三点")
-        // 头尾重叠只留一次
+        // Keep overlapping suffix/prefix text once.
         #expect(Listener.joined(committed: "约陈太明天", latest: "明天下午三点") == "约陈太明天下午三点")
     }
 
@@ -127,7 +127,7 @@ struct VoiceAnswerFlowTests {
         #expect(s.voiceCard?.needsConfirm == true, "听唔清：张卡留住")
         s.handle("唔好")
         #expect(s.voiceCard == nil && s.proposal == nil && s.appointments.isEmpty)
-        // 长句当新请求：旧嘅提议撤回
+        // A long new request withdraws the old proposal.
         s.handle("約陳太聽日下晝三點一齊行")
         s.handle("今日天氣點")
         #expect(s.proposal == nil)
@@ -160,7 +160,7 @@ struct PreviewStateTests {
     }
 }
 
-// 2026-10-18 组员真机测试（语音组）：天气句语言夹杂、普通话读「街坊行」、散步例句得两句、反映提示写死人数。
+// 2026-10-18 voice checks: mixed weather language, Mandarin App-name pronunciation, insufficient examples and hard-coded report counts.
 @MainActor
 struct VoiceFix18Tests {
     @Test func 天气句跟而家嘅语言() {
@@ -169,7 +169,7 @@ struct VoiceFix18Tests {
         #expect(AppStore.inLanguage(.cmn) { r.line } == "天文台说九龙城现在 27 度。")
         #expect(AppStore.inLanguage(.en) { r.line } == "Observatory: 27°C in Kowloon City now")
         #expect(HKOReport.psrEnglish("中低") == "medium-low")
-        // 警告名存繁体，普通话显示简体
+        // Stored traditional warning names display simplified in Mandarin.
         var hot = r
         hot.warnings = [.init(code: "WL", name: HKOReport.displayName(code: "WL", type: nil, name: nil))]
         #expect(AppStore.inLanguage(.cmn) { hot.walkWarnings } == ["山泥倾泻警告"])

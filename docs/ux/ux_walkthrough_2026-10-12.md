@@ -1,207 +1,111 @@
-# 街坊行 · 用户推演报告（2026-10-12）
+# StreetWalk UX Walkthrough — 2026-10-12
 
-- 怎么测的：iPhone 15 模拟器（iOS 26.5），定位放在皇后山邨。先用「第一次打开」走完引导，再用演示数据走日常（约人、回覆、改约、出门提醒、找人、碰一碰、设定），最后用「真服务器、非演示」再看一次新用户的主画面。
-- 当两个人用：① 70 岁、第一次用智能手机 App 的长者「李伯」；② 刚搬来的 40 岁新居民「陈生」。
-- 截图都在 `docs/ux/shots/`，表里直接点链接看。
-- 只评审，没有改 App 代码。
+> Historical reviewer walkthrough, not interviews with recruited residents or a current acceptance result. Many findings were addressed later; check current code and device evidence before treating them as open. Screenshots remain original visual evidence. English wording below describes the original Cantonese UI rather than altering those screenshots.
 
----
+Method: iPhone 15 simulator, iOS 26.5, location set to Queen's Hill Estate. The reviewer completed first-use onboarding, then demo invitations, replies, edits, outings, finding, pairing and Settings, followed by a normal-mode view against the real backend. Two hypothetical perspectives were used: a 70-year-old first-time App user, Uncle Lee, and a 40-year-old new resident, Mr Chan. These were personas, not two observed research participants. Screenshots are under `docs/ux/shots/`. This review itself did not modify App code.
 
-## 一、总结：最影响体验的 5 件事
+## 1. Five principal findings at the time
 
-1. **声音不跟画面走（P0）。** 现在的播报只会「排队」，从来不打断。换页、按「取消」、按「好」、换标签、关设定都不会停。结果有两种：旧画面那句一直讲；新画面那句排了 6 秒还没轮到，就被悄悄丢掉。
-   - 实测一：引导第一页的私隐说明要读大约 40 秒。按「同意」进到「揀樓」页后，它还在读。「撳一下你住嗰座樓」这句一直没有读出来。
-   - 实测二：按「約佢行」后马上按「好」。那句 12 秒长的「…撳『好』就約」继续讲完。真正的结果「幫你約咗陳太…」「陳太應承咗…」两句都没有读。
-2. **第一次用，不知道这个 App 是做什么的、下一步做什么（P0）。** 引导 6 步全是填资料：私隐、定位、选楼、楼层、小人、网名。没有一句讲「这个 App 帮你做什么、怎么用」。做完直接掉进主画面，没有「第一件事做什么」。
-3. **画面没有重心（P1，但最影响观感）。**
-   - 三个标签上方都是同一个 3D 小模型，占屏幕 42%，大部分时间只是装饰。
-   - 真正的内容区只看得到 1 到 1.5 张卡。「今日」第一张常常是「而家冇街坊喺外面」，这张卡没有任何按钮。
-   - 最急的事（有人约你）不在「今日」页。它在「街坊」页，而且排在「碰一碰」大按钮下面，要往下拉才看到。
-4. **字体大小在 App 里改不了（P1）。** App 只跟 iOS 的「文字大小」走，长者不会去那里找。往小调没有反应（下限锁死在默认值）。往大调时 3D 场景不会缩，一屏只剩一张卡。
-5. **用词偏技术、按钮主次乱（P1）。**
-   - 看不懂的词：「已隱身」「快取」「語音伺服器 172.27.127.50」「AI」「圈」「請假」「0% 有樓遮」。
-   - 约会卡：「出發」和「改時間地點」「取消約會」一样大、一样颜色。
-   - 回覆邀请时按「換個時間」，出来的还是原来的时间，要再按一次。
-   - 横幅 8 秒就收走，长者来不及按。
+1. **P0: speech did not follow the screen.** Navigation, cancellation, confirmation, tab changes and closing Settings left old speech running. New informational messages expired after six seconds in the queue. A roughly 40-second privacy narration continued over home selection, suppressing its instruction. After rapid invitation confirmation, a 12-second confirmation prompt continued while the actual sent/accepted results were never spoken.
+2. **P0: onboarding did not explain purpose or next action.** Six profile-oriented steps led directly to the main screen without teaching invitations, outings, finding or microphone use.
+3. **P1: poor visual priority.** The same scene occupied 42% of all three tabs, leaving only one to one-and-a-half cards visible. An unactionable no-neighbors-outside card often came first, while incoming invitations were hidden lower on Neighbors.
+4. **P1: no in-App text-size control.** System scaling was capped, smaller sizes had no effect, and larger text did not reduce the scene footprint.
+5. **P1: technical wording and unclear actions.** Hidden/cache/server-address/AI/circle/leave/percentage jargon confused the persona walkthrough. Departure, editing and cancellation looked equally important; rescheduling initially kept the same time; eight-second banners disappeared quickly.
 
----
+## 2. Findings and proposed changes
 
-## 二、问题清单（按严重程度排）
+Original priority scale: P0 blocks use, P1 causes substantial confusion, P2 polish. Effort: S under half a day, M one–two days, L over three days. These are historical estimates, not new delivery promises. Code line numbers refer to that snapshot and may have moved.
 
-严重程度：**P0** 会挡住使用；**P1** 用户会很困惑；**P2** 打磨。工作量：小（半天内）、中（1–2 天）、大（3 天以上）。
-
-### P0
-
-| 编号 | 场景 | 看到什么 | 为什么是问题（用户角度） | 程度 | 建议改法 | 工作量 |
-|---|---|---|---|---|---|---|
-| 1 | 引导：声音 | 第一页读大约 40 秒的私隐说明。按「同意」后到「揀樓」页（[截图](shots/ux_03_onb_pickhome.png)）还在读上一页。「撳一下你住嗰座樓」这句一直没有读出来（日志里没有这句）。 | 李伯听到的是上一页的内容，眼前却是一个 3D 模型，不知道要做什么。画面和声音对不上，他会以为 App 坏了。 | P0 | 每次换引导步骤就先停掉正在讲的话，再讲新一页的一句，而且这句要在 6 秒以内。第一页的私隐说明缩到 3 句，大约 10 秒。代码：`Store/Announcer.swift:48-64`（只排队不打断）、`:29`（排了 6 秒就丢）；`UI/Onboarding.swift:56` `forward()` 换步时没有停；各步在 `:264 / :424 / :623 / :722` 的 `onAppear` 里讲话。 | 小 |
-| 2 | 约人 / 复述卡：按「好」「取消」「唔係」 | 按「約佢行」后 1 秒内按「好」。「約陳太今日下晝 5 點…撳『好』就約」继续讲 12 秒。结果句「幫你約咗陳太…」和「陳太應承咗…」都没有读（[截图](shots/ux_23_quick_ok.png)）。按「取消」也一样会讲完（[截图](shots/ux_16_after_cancel.png)）。 | 已经按了「好」，手机还在叫你按「好」。真正要知道的「约好了吗」反而没听到。这正是负责人说的「上一个画面的声音一直播」。 | P0 | 按「好 / 就咁改 / 去」时：先停，再讲结果。按「取消 / 唔係 / 唔改喇 / X」或者往下拉走卡时：只停，不讲。代码：`Store/AppStore+Voice.swift:233 confirmVoice`、`:252 rejectVoice`；`Store/AppStore+Meetup.swift:79 confirmProposal`、`:116 cancelProposal`，这几处都没有停声音。 | 小 |
-| 3 | 换标签、关设定、退到后台 | 整个 App 只有三个地方会停声音：按咪、按「再聽一次」、设定页试听（`Store/Announcer.swift:72` 是唯一调用 `speaker.stop()` 的地方）。 | 在「今日」触发的话，切到「排行榜」继续讲。在设定页按了试听再按「完成」，也继续讲。 | P0 | 加一个「打断」功能：停掉正在讲的话，清空排队的句子。在这些地方调用它：<br>- 换标签：`UI/MainView.swift:516`<br>- 开关设定：`AppStore.showSettings`（`Store/AppStore.swift:76`）<br>- 换引导步骤：`phase`（`:49`）<br>- 卡片消失：`voiceCard` / `proposal` 变成空（`:59/:63`）<br>- 全屏找人开关、碰一碰画面开关<br>- 退到后台：`Store/AppStore+Services.swift:6 appActive(false)`<br>详细规则见第三节。 | 小 |
-| 4 | 第一次打开（引导 6 步） | 第一页是 5 段私隐说明，要往下拉（[截图](shots/ux_01_onb_consent.png)）。之后是定位、选楼、楼层、小人、网名（[05](shots/ux_05_onb_floor.png) [06](shots/ux_06_onb_avatar.png) [07](shots/ux_07_onb_nickname.png)）。做完直接进主画面（[截图](shots/ux_08_first_main.png)），只说了一句「你行街嘅時候我會自動記錄」。 | 李伯从头到尾都不知道这个 App 有什么用：约街坊、出门提醒、找人。进了主画面也不知道下一步做什么、橙色咪要讲什么。陈生会觉得「填了一堆东西，然后呢？」 | P0 | 按第五节重做：第一页先讲用途（3 张图），私隐缩成 3 句，楼层和网名放在同一页，小人先用默认值，最后一步「试一次撳咪」。进主画面后显示一张「第一日」任务卡。 | 中 |
-| 5 | 有人约你 | 横幅「陳太約你聽日朝早 8 點…」8 秒后自动收走。我去按「睇吓」时它已经不见了（[截图](shots/ux_41_invite_banner.png)）。「今日」页完全没有这件事。「街坊」页里，它排在「碰一碰加街坊」大按钮和演示说明下面，「好 / 換個時間 / 唔去」要往下拉才看到（[42](shots/ux_42_invite_card.png) [43](shots/ux_43_invite_buttons.png)）。标签上也没有红点。 | 这是整个产品最重要的一步：别人约你，你答应。长者错过横幅后，基本不会知道有人约过他。约会就这样落空。 | P0 | ① 别人约你、街坊想过来找你这类要回应的横幅，不要自动收走（至少 30 秒），或者收走后在「今日」页最上面出一张卡。<br>② 「街坊」标签加红点和数字。<br>③ 「街坊」页把「約你嘅」放在最上面，在「碰一碰」前面。<br>代码：`Store/AppStore.swift:207`（8 秒）；`UI/Tabs.swift:632-660`（排列次序）。 | 小 |
-
-### P1
-
-| 编号 | 场景 | 看到什么 | 为什么是问题（用户角度） | 程度 | 建议改法 | 工作量 |
-|---|---|---|---|---|---|---|
-| 6 | 主画面（三个标签） | 三个标签上方都是同一个 3D 模型，占 42%（`Design/Design.swift:11 sceneFraction`）。下面先是一行大标题「今日」，再往下只看得到 1 到 1.5 张卡（[今日](shots/ux_08_first_main.png) [排行榜](shots/ux_29_board_scrolled.png)）。 | 三个页面看起来几乎一样，不知道「这一页是干什么的」。重要的内容都要往下拉。 | P1 | 只在「今日」页显示场景，缩到大约 25%。「排行榜」「街坊」把场景收起来，或者只留一条细带。见第四节线框。 | 中 |
-| 7 | 字体大小 | 字号写死为 34 / 24 / 20，但用 `@ScaledMetric` 跟 iOS 文字大小一起变（`Design/Design.swift:35-66`）。范围锁在「默认」到「无障碍第 2 档」（`UI/RootView.swift:30`），标签栏最大只到 xxLarge（`UI/MainView.swift:505`）。iOS 设到最小时 App 不变（[截图](shots/ux_38_type_xsmall.png)）。设到最大时一屏只剩一张卡（[截图](shots/ux_39_type_axl.png)）。App 设定里没有字体选项。 | 负责人说「字体大小不能改」：在 App 里找不到地方改；想改小也改不了；改大了反而更难用。产品规格 §4 要求字号「可调」。 | P1 | ① 设定页最上面加「字體大小：標準 / 大 / 特大」三个大按钮，App 内部用 `.dynamicTypeSize` 覆盖系统设定，并且允许比现在的默认小一档（正文 20）。<br>② 字号是「大」或「特大」时，场景缩到 20% 或者收起。 | 中 |
-| 8 | 主画面的橙色咪 | 一个没有字的橙色圆形，是画面里最显眼的东西（[截图](shots/ux_08_first_main.png)）。按下去才出现「講啦，例如…」。 | 李伯不知道这是什么，也不知道可以讲什么，可能一直不敢按。陈生会以为是录音。 | P1 | 咪下方加两个字「講嘢」。第一次进主画面时，在咪旁边出一个提示气泡：「撳我，講『約陳太聽日行』」，按过一次就不再出。代码：`UI/MainView.swift:429 MicButton`。 | 小 |
-| 9 | 「今日」页卡片次序 | 次序写死为：定位提示 → 谁在外面 → 今日约会 → 我的步数 → 天气 → 附近地标（`UI/Tabs.swift:16-31`）。今天 5 点的约会和「出發」排在第二张，看不到（[截图](shots/ux_24_today_appts.png)）。 | 打开 App 第一眼应该看到「现在要做的事」，现在看到的却是「而家冇街坊喺外面」。 | P1 | 改成「主角卡」：一次只有一张，按紧急程度挑。次序是：别人约你 / 想过来找你 > 今日约会（出發）> 街坊在外面（約佢）> 天气建议出门 > 还没有街坊（出去走走、碰一碰）。其余内容缩成一行一行的。 | 中 |
-| 10 | 播报太多、太长、慢半拍 | 代码里有 88 处会讲话，每一个提示框（toast）都会读出来（`Store/AppStore.swift:225-227`）。复述句长 12–13 秒。Mac 真人声第一个字要等 0.5–3 秒（日志）。 | 长者一边看字一边听，声音比画面慢，又一句接一句。他会觉得手机一直在讲话，开始烦，最后关掉声音。 | P1 | ① 只读两类话：要你做决定的话、别人找你的话。一般提示框不读。<br>② 每句不超过 6 秒，复述只讲「約陳太聽日 3 點，公園櫈仔。啱就撳好。」<br>③ 引导和按钮这类固定的句子，用手机预先存好的录音，不等 Mac。 | 中 |
-| 11 | 横幅（灵动岛） | 所有横幅 8 秒就收走（[出门提醒](shots/ux_31_out_banner.png)）。 | 长者读一行字加上反应，通常要 10 秒以上。收走后不知道去哪里再找。 | P1 | 只是告诉你的横幅（出门、天气）可以 8 秒收。要你回应的横幅不要自动收，或者收走后在「今日」页顶部留一张卡。同第 5 条。 | 小 |
-| 12 | 回覆邀请：「換個時間」 | 按「換個時間」后出来「改約陳太」卡，时间还是原来的「聽日朝早 8 點」。卡上有 5 个按钮：就咁改 / 換個時間 / 換個地方 / 取消約會 / 唔改喇（[截图](shots/ux_44_invite_reschedule.png)）。 | 按了「换时间」却没有换，要再按一次「換個時間」。「就咁改」和「取消約會」也不知道是什么意思。 | P1 | 按「換個時間」直接显示下一个时间。更好的做法是给 3 个时间小按钮：今日下晝 / 聽日朝早 / 聽日下晝，选了就发出去。卡上只留「發俾陳太」和「唔改喇」两个按钮。代码：`Store/AppStore+Meetup.swift:248 rescheduleInvitation`、`:125 startEditing`（第一个选项就是原来的时间）。 | 中 |
-| 13 | 今日约会卡 | 「出發」用了次按钮样式（`UI/Tabs.swift:235`），和「改時間地點」「取消約會」一样大小、一样的白底灰框（[截图](shots/ux_25_today_appt_card.png)）。 | 快到时间时最该按的是「出發」，现在三个按钮分不出主次。「取消約會」也没有用警示颜色，容易按错。 | P1 | 约会前 30 分钟内，「出發」改成橙色主按钮。「改時間地點」「取消約會」收进一个「改 / 取消」按钮里。 | 小 |
-| 14 | 3D 场景能不能操作 | 拖不动，也不能放大（[截图](shots/ux_40_scene_drag.png)）。但是点地标会弹出卡（`UI/MainView.swift:284 handleSceneTap`），点楼没有反应。平时地标没有名字标签。 | 用户会试着去拖、去放大，没反应就以为卡住了。地标藏着能点，却没有任何提示。决定里写的是「只看不操作」，现在是一半能点。 | P1 | 二选一：<br>① 真的只看：关掉点击，地标改在列表里点；<br>② 可以点：平时就显示地标小标签，点一下等于在列表里点它。<br>两种都不要让人以为可以拖。 | 小 |
-| 15 | 地标卡 | 点「皇后山總站」，唯一的大橙色按钮是「改名」（[截图](shots/ux_11_landmark_card.png)）。 | 长者点一个地方，想知道的是「约人在这里」或者「这里有没有遮阴」。改名是很少用的功能，却占了主按钮。 | P1 | 主按钮改成「約街坊喺度」（没有街坊时改成「出去行吓」）。「改名」改成小字链接。代码：`UI/Cards.swift:193`。 | 小 |
-| 16 | 用词 | 「你屋企 · 已隱身」（[截图](shots/ux_08_first_main.png)，`Store/AppStore+Map.swift:275`）；「快取 · 皇后山邨」（[截图](shots/ux_03_onb_pickhome.png)，`Map/MapService.swift:14`）；「AI」小标签；「本月皇后山邨圈領先對面圈」；「請假」；「而家大約 0% 有樓遮」（[截图](shots/ux_10_today_landmarks.png)）。 | 「已隱身」让人以为自己开了什么，或者被人屏蔽了。「快取」「圈」「對面圈」看不懂。「請假」像在上班。百分比对长者没有意义。 | P1 | 换成日常话：<br>- 「已隱身」→「喺屋企（街坊睇唔到你）」，或者干脆不显示<br>- 「快取」：不显示<br>- 「AI」标签：去掉<br>- 「圈」→「我哋呢頭」<br>- 「請假」→「今日唔行（日數照計）」<br>- 「0% 有樓遮」→「而家曬 / 而家有陰」 | 小 |
-| 17 | 设定页里的开发功能 | 「真人聲（Mac）· 語音伺服器 已連線 172.27.127.50 · 自動搵（或者填地址）」（[截图](shots/ux_35_settings_voice_top.png)）；7 步「下载 iPhone 声音」教学（[截图](shots/ux_36_settings_guide.png)）；「演示模式」；「定位紀錄」。整个设定页大约有 8 屏长。 | 长者看到 IP 地址会害怕，以为自己弄坏了东西。7 步教学他做不完。 | P1 | 设定只留：字体大小、声音（开关 + 语速 + 试听）、语言、我的资料、出门提醒。其余放进最底下的「進階（畀幫手設定嘅人用）」，平时收起来。代码：`Voice/VoiceSettingsSection.swift:303-346`、`UI/Settings.swift:73-84`。 | 小 |
-| 18 | 引导：选楼 | 模型只占屏幕中间大约四分之一，楼很小，我点了 3 次才点中。提示说「住宅樓已經亮咗橙色」，但颜色很淡，接近肉色（[截图](shots/ux_03_onb_pickhome.png)）。选中后上面的提示没有变（[截图](shots/ux_04_onb_picked.png)）。 | 手指不准的长者会一直点不中。看到提示「亮橙色」，却找不到哪座是橙色。 | P1 | 自动替他选最近的住宅楼，问一句「你係咪住皇順樓？」，下面两个按钮 [係] [唔係，我揀]。住宅楼改用实心橙色。 | 中 |
-| 19 | 找人画面 | 按约会的「出發」后，画面上看不到「你」在哪里（在画面外，只露出边上一个小箭头）。主按钮写「我喺公園櫈仔」，可是人刚出门（[截图](shots/ux_26_find_full.png)）。靠近后才出现小箭头和「17 米」（[截图](shots/ux_49_find_near.png)）。 | 长者不知道自己在哪里、该往哪边走。按了「我喺公園櫈仔」就会对陈太讲假话。 | P1 | 镜头同时包住你和对方。远距离时也显示大箭头（「查找」那种），箭头占屏幕三分之一。主按钮按阶段变：出发时「出發喇」、路上「我就到」、到了「見到喇」。代码：`UI/FullScreen.swift:559`。 | 中 |
-
-### P2
-
-| 编号 | 场景 | 看到什么 | 为什么是问题（用户角度） | 程度 | 建议改法 | 工作量 |
-|---|---|---|---|---|---|---|
-| 20 | 引导：小人 | 行动方式、年纪、肤色、衫色四组选择，要往下拉，最后一行被「下一步」挡住（[截图](shots/ux_06_onb_avatar.png)）。 | 第一次用就要做 4 个不重要的决定。 | P2 | 引导里只问「行動方式」（行路 / 拐杖 / 輪椅 / BB 車），其余先用默认值，之后在设定里改。 | 小 |
-| 21 | 引导：楼层 | 用转轮选楼层，住 35 楼要拨很久。左边的楼仔图像一个滑杆，但拉不动（[截图](shots/ux_05_onb_floor.png)，`UI/Onboarding.swift:596/635`）。 | 转轮对手指不灵活的人很难用。 | P2 | 改成大的 − / + 按钮加数字键盘，或者让楼仔图可以拖。 | 小 |
-| 22 | 两条找人流程 | 「約會出發」的底部是「我喺…」大按钮加「結束」；「過去搵佢」的底部是「結束 · 我就到 · 咪」一行（[26](shots/ux_26_find_full.png) [48](shots/ux_48_find_live.png)）。 | 同一件事两种排法，用户要学两次。 | P2 | 两条流程统一用同一条底栏。 | 小 |
-| 23 | 找到人之后 | 返回主画面后留下一张地标卡「公園櫈仔 · 改名」（[截图](shots/ux_27_after_end.png)）。「今日」页仍然写着「陳太…過去搵佢」（[截图](shots/ux_50_find_met.png)）。 | 刚刚见到面，App 还叫你去找她。 | P2 | 找完人后清掉选中的地标。卡片改成「同陳太一齊行緊」。 | 小 |
-| 24 | 权限一个接一个弹出 | 引导一完成就问通知权限（`Services/Notifier.swift:15`），还有「始終允許」说明页和系统框。第一次按咪又连续弹出两个系统框（[17](shots/ux_17_mic_perm.png) [18](shots/ux_18_mic_perm2.png)）。系统框里还有「改进语音识别技术」「讀粵語嘅 Mac」这样的字眼。 | 连续弹框会吓到长者，容易全部按「不允许」。 | P2 | 等到真的要用时才问：第一次有街坊时才问通知；第一次散步回来才问「始终允许」。权限说明不要提到 Mac。 | 中 |
-| 25 | 非演示模式的第一张卡 | 「出門自動記錄未開齊 · 定位只係『用緊 App 時』先開：鎖咗機出門唔會即時記錄，要等你打開 App 先補返分鐘同步數（冇地標）」（[截图](shots/ux_51_real_today.png)，`UI/LocationViews.swift:267`）。 | 太技术了，看不懂。 | P2 | 改成「想鎖咗機都記到？撳呢度開」一句加一个按钮。 | 小 |
-| 26 | 文字层级 | 栏目标题（「我嘅街坊」「約你嘅」）用灰色小字（`UI/Tabs.swift:904`）。很多重要信息也是灰色小字，例如约会理由、状态（[截图](shots/ux_22_neighbors_scrolled.png)）。 | 分不出这一段讲的是什么，灰字对长者也偏淡。 | P2 | 栏目标题改成黑色粗体 24。灰字只用在真正次要的信息上。 | 小 |
-| 27 | 邀请按钮 | 「換個時間」折成两行（[截图](shots/ux_43_invite_buttons.png)，`UI/Tabs.swift:739`）。 | 看起来像两个按钮。 | P2 | 改成上下排，或者把文字缩成「改時間」。 | 小 |
-| 28 | 小开关 | 「佢出門話我知」的系统开关大约 51×31（[截图](shots/ux_22_neighbors_scrolled.png)），设定页楼层的 − / + 大约 94×32（[截图](shots/ux_32_settings_top.png)）。 | 低于 44pt，更低于长者适合的 56pt。点文字不会切换开关。 | P2 | 整行都可以点；改用大按钮「開 / 閂」。 | 小 |
-| 29 | 设定页标题 | 往下拉时，内容和「設定」标题叠在一起（[截图](shots/ux_36_settings_guide.png)）。 | 看起来很乱。 | P2 | 导航栏改用实色底。 | 小 |
-| 30 | 排行榜 | 可见区只有大约两行，「我」那一行把列表遮住一部分（[截图](shots/ux_29_board_scrolled.png)）。 | 看不到全貌。 | P2 | 收起场景后自然会解决（第 6 条）。 | 小 |
-| 31 | 真服务器排行榜 | 看到「測試甲」「測試乙」（[截图](shots/ux_52_real_board.png)）。我这次测试也新建了一个匿名用户「行路友」（id `d0a56c37-1c9f-443c-949f-088b6573fddd`）。 | 比赛演示时会穿帮。 | P2 | 交件前在 SQL Editor 清掉测试用户，包括这一个。 | 小 |
-| 32 | 语音复述卡 | 「我聽到『約陳太聽日下晝三點一齊行』」下面又重复一次几乎一样的标题（[截图](shots/ux_20_voice_confirm.png)）。 | 同一句看两次，重点反而被冲淡。 | P2 | 「我聽到」改成一行小字。大字只写结果：「聽日下晝 3 點 · 公園櫈仔 · 同陳太」。 | 小 |
-| 33 | 「揀一句」建议 | 三个建议里有「皇后山總站改名做大樹底」（[截图](shots/ux_19_listening.png)，`Store/AppStore+Voice.swift:118`）。 | 普通用户用不上，还会以为会改掉地名。 | P2 | 换成「今日天氣點」「陳太喺邊」这类常用句。 | 小 |
-| 34 | 约人建议时间 | 按「換個時間」会出现「今日夜晚 6 點…嗰陣已經日落」（[截图](shots/ux_15_propose_changed.png)）。 | 长者晚上散步不安全，不应该主动推荐。 | P2 | 换时间的选项避开日落后的时段，除非用户自己讲。 | 小 |
-| 35 | 咪压住卡片 | 底部卡出现时，咪浮在卡片的右上角（[截图](shots/ux_14_propose_card.png)）。 | 容易误按。 | P2 | 有卡片时隐藏咪，或者把咪移进卡片里。 | 小 |
-
----
-
-## 三、声音：哪些动作应该停
-
-**原因（代码层面）**
-- `Store/Announcer.swift` 的设计是「讲完一句先讲下一句，唔再互相截断」。所以新的一句只会排在后面，不会打断正在讲的。
-- 排了超过 6 秒还没轮到的资讯句，会被直接丢掉（`staleAfter = 6`）。
-- 要回应的句子（prompt）只会清掉排在后面的资讯句，也不会打断正在讲的。
-- 全 App 只有 `Announcer.hold()`（按咪时）会调用 `speaker.stop()`。另外「再聽一次」和设定页试听也间接用到它。
-- 换页、换标签、关卡、关设定、退到后台，都没有停。
-- 每个提示框（toast）都会读（`Store/AppStore.swift:227`），所以排队的句子很多。
-
-**应该的规则：画面换了，旧的话就停；新画面的话马上讲；结果句一定要讲到。**
-
-| 用户动作 | 现在 | 应该 |
-|---|---|---|
-| 引导页按「同意 / 下一步 / 返回」 | 继续讲上一页，新一页的提示排 6 秒后被丢 | 立刻停，讲新一页的一句（6 秒以内） |
-| 按「好」「就咁改」「去」「開」 | 旧的提示讲完才停（最长 13 秒），结果句被丢 | 立刻停，讲结果（例如「約咗陳太聽日 3 點」） |
-| 按「取消」「唔係」「唔改喇」「X」，或者往下拉走卡 | 继续讲「撳好就約」 | 立刻停，什么都不讲 |
-| 切换标签 | 继续 | 停。只有「别人找你」这一类紧急的话例外 |
-| 打开或关上设定、按「完成」 | 试听继续 | 停 |
-| 进入或离开全屏找人、碰一碰画面 | 继续 | 停旧的，讲新画面的一句 |
-| App 退到后台、锁机 | 没有处理 | 停（散步中的提醒交给系统通知） |
-| 按咪 | 会停 ✓ | 保持 |
-| 「再聽一次」 | 会停再重讲 ✓ | 保持 |
-
-**改法提要（给开发看）**
-1. `Announcer` 加 `interrupt()`：清空排队、取消 pump、调用 `speaker.stop()`。
-2. 在这些地方调用它：
-   - `AppStore.tab`、`phase`、`showSettings`、`findFullScreen`、`bumpStage` 改变时（用 `didSet`）；
-   - `voiceCard`、`proposal`、`selection` 变成空时；
-   - `appActive(false)` 时。
-3. prompt 改成「取代」：打断正在讲的资讯句，而不是排在后面。用户按键后的结果句，也用「取代」去讲。
-4. `toast()` 默认不读，加一个参数，只对少数重要提示打开。
-
-⚠️ 这几处正好是另一位同事在改的语音部分（`Announcer.swift`、`AppStore+Voice.swift`、`Speech.swift`），改之前要先跟他对一下。
-
----
-
-## 四、「重心」建议：每个画面只突出一件事
-
-**原则**
-- 每屏只有一个橙色主按钮。
-- 场景只在「今日」页出现，并且缩小。
-- 要回应的事永远放在最上面。
-- 咪要带字。
-
-### 今日（在家时）
-最重要的一件事：**现在要我做的事**（回覆邀请、出发、约人）。
-
-```
-┌───────────────────────────────┐
-│ ⚙                      [小场景]│ ← 场景约 25%：只显示我家和出了门的街坊
-├───────────────────────────────┤
-│ ┌───────────────────────────┐ │
-│ │ 陳太約你聽日朝早 8 點      │ │ ← 主角卡：一次只有一张
-│ │ 皇后山總站                 │ │   按次序挑：约你 > 今日约会 > 街坊在外面
-│ │ [   好   ] [改時間] [唔去] │ │   > 天气建议出门 > 去碰一碰
-│ └───────────────────────────┘ │
-│ 今日行咗 24 分鐘 · 連續 9 日    │ ← 次要信息都缩成一行
-│ ☀ 3 點後公園櫈仔有陰，最好行    │
-│ [ 🎤 講嘢：例如「約陳太聽日行」 ] │ ← 咪带字（或者圆咪下面加「講嘢」）
-├───────────────────────────────┤
-│   今日      排行榜      街坊 ●2  │ ← 有待回覆的事就显示红点
-└───────────────────────────────┘
-```
-
-### 今日（散步中）
-最重要的一件事：**正在走 + 可以去找谁**。顶部写「行緊 12 分鐘」，主角卡是「陳太喺公園附近 → 過去搵佢」，下面一行三个反映按钮：好曬 / 冇櫈 / 難行。
-
-### 街坊
-最重要的一件事：**我的街坊，以及约他们**。
-
-```
-│ 約你嘅 (1)                     │ ← 放最上面，按钮直接在卡上
-│ 陳太 · 聽日 8 點 [好][改][唔去] │
-│ 我嘅街坊                       │
-│ 陳太 · 出咗門 · 公園附近 [約佢行]│ ← 每人一行，一个按钮；提醒开关收进「更多」
-│ 黃太 · 喺屋企          [約佢行]│
-│ [ 碰一碰加街坊 ]（次按钮）       │ ← 没有街坊时才用橙色主按钮、放最上面
-```
-
-### 排行榜
-最重要的一件事：**我排第几、怎样追上**。顶部大字写「你第 5 · 連續 9 日 · 再行 2 日追到李伯」，下面是名单。这一页不显示场景。
-
-### 找人（全屏）
-最重要的一件事：**往哪边走**。中间一个大箭头（屏幕的三分之一），写着「陳太 · 45 米 · 公園櫈仔」。镜头同时包住两个人。底部只有一个主按钮，按阶段变：「出發喇」→「我就到」→「見到喇」。「結束」放在角落。
-
----
-
-## 五、第一次使用流程重设计
-
-现在是 6 步，加上 3–5 个系统权限框，第一页语音长约 40 秒。建议改成 **5 步**：每步只做一件事，屏幕上最多两句话，语音 8 秒以内，换步时立刻停掉上一句。
-
-| 步 | 画面讲什么 | 语音（≤ 8 秒） | 按钮 |
+| # | Priority / effort | Observation and user impact | Proposed change / evidence |
 |---|---|---|---|
-| 1 欢迎 | 三张大图：① 出门自动记录散步 ② 见面碰一碰，做街坊 ③ 撳咪约街坊一齐行 | 「街坊行幫你記錄每日散步，約隔籬街坊一齊行。」 | [開始]（另有小字「我識用，跳過介紹」，给陈生这类年轻用户） |
-| 2 私隐 | 三句话：路线只留在手机；不认识的人只看到网名；碰过的街坊才知道你住哪座（「詳細」可以展开现在的 5 段） | 「你行過嘅路只留喺手機。碰過一碰嘅街坊先知你住邊座。」 | [同意] [唔同意] |
-| 3 屋企 | 先解释一句，然后弹出系统定位框（使用 App 期间）。定位后自动选最近的住宅楼：「你係咪住皇順樓？」 | 「你係咪住皇順樓？」 | [係] [唔係，我揀] |
-| 4 楼层和网名（同一页） | 楼层用大的 − / +；网名用现成选项（行路友、早晨街坊…）；小人先用默认的「长者 · 行路」 | 「你住幾樓？大家點叫你？」 | [好] |
-| 5 试一次 | 「撳下面個咪，講『今日天氣點』」，旁边有一个「或者撳呢句」的按钮 | 「試吓撳咪講嘢。」 | 讲完或按完会听到回答 →「做完」 |
+| 1 | P0 / S | Long privacy speech continued into home selection; its new instruction never played. | Stop speech on every onboarding transition; speak one short instruction and shorten privacy summary. `Announcer.swift:29,48–64`, `Onboarding.swift:56,264,424,623,722`. [Screen](shots/ux_03_onb_pickhome.png) |
+| 2 | P0 / S | Confirming within a second left the 12-second prompt playing, while sent/accepted results expired. Cancellation also left it speaking. | Confirm: stop then speak result. Cancel/dismiss: stop without replacement. `AppStore+Voice.swift:233,252`, `AppStore+Meetup.swift:79,116`. [Confirm](shots/ux_23_quick_ok.png), [cancel](shots/ux_16_after_cancel.png) |
+| 3 | P0 / S | Only microphone, replay and preview stopped speech; tabs, Settings and backgrounding did not. | Add interrupt/queue-clear hooks to tab, phase, Settings, card dismissal, finding, pairing and `appActive(false)`. `Announcer.swift:72`, `MainView.swift:516`, `AppStore.swift:49,59,63,76`, `AppStore+Services.swift:6`. |
+| 4 | P0 / M | Six setup steps collected data without explaining product purpose or the first useful action. | Introduce purpose, concise privacy, combined floor/nickname, microphone trial and a first-day checklist. [Consent](shots/ux_01_onb_consent.png), [floor](shots/ux_05_onb_floor.png), [avatar](shots/ux_06_onb_avatar.png), [nickname](shots/ux_07_onb_nickname.png), [main](shots/ux_08_first_main.png) |
+| 5 | P0 / S | An invitation banner vanished after eight seconds; Today had no persistent invitation, Neighbors buried it, and tabs had no badge. | Keep response banners longer, at least 30 seconds, retain a top Today card and show a Neighbors badge. Prioritize incoming replies. `AppStore.swift:207`, `Tabs.swift:632–660`. [Banner](shots/ux_41_invite_banner.png), [card](shots/ux_42_invite_card.png), [buttons](shots/ux_43_invite_buttons.png) |
+| 6 | P1 / M | A 42% scene repeated across tabs, hiding content and making pages look alike. | Show a smaller scene only on Today; give other tabs the full content area. `Design.swift:11`. [Today](shots/ux_08_first_main.png), [board](shots/ux_29_board_scrolled.png) |
+| 7 | P1 / M | Fixed 34/24/20 typography scaled only within a system range; no in-App choice. Larger text left one card visible. | Add prominent size controls, including a smaller 20 pt body option, and reduce the scene at larger sizes. `Design.swift:35–66`, `RootView.swift:30`, `MainView.swift:505`. [Small](shots/ux_38_type_xsmall.png), [large](shots/ux_39_type_axl.png) |
+| 8 | P1 / S | Unlabeled orange microphone did not explain its purpose or accepted input. | Add a Speak label and a one-time actionable example. `MainView.swift:429`. [Screen](shots/ux_08_first_main.png) |
+| 9 | P1 / M | Fixed Today ordering put non-actionable outside status before an imminent meeting. | One urgency-selected hero: incoming request, today's departure, outside neighbor, weather invitation, first pairing. `Tabs.swift:16–31`. [Screen](shots/ux_24_today_appts.png) |
+| 10 | P1 / M | 88 speech call sites, spoken toasts and 12–13-second recaps produced excessive delayed output; first server audio took 0.5–3 seconds in logs. | Prioritize decisions and incoming social requests, shorten recaps, and cache fixed prompts. `AppStore.swift:225–227`. |
+| 11 | P1 / S | All banners vanished after eight seconds. The review assumed older users might need longer; this was not a measured resident timing study. | Keep informational banners brief but preserve response-required cards, as in finding 5. [Screen](shots/ux_31_out_banner.png) |
+| 12 | P1 / M | Change Time opened the original time and five confusing actions. | Preselect a different time, offer direct choices and retain only Send / Cancel Edit. `AppStore+Meetup.swift:125,248`. [Screen](shots/ux_44_invite_reschedule.png) |
+| 13 | P1 / S | Departure had the same secondary styling as edit/cancel. | Within 30 minutes, make Departure primary and group edit/cancel. `Tabs.swift:235`. [Screen](shots/ux_25_today_appt_card.png) |
+| 14 | P1 / S | Scene could not pan/zoom but some unlabeled landmarks were tappable, creating inconsistent expectations. | Choose either truly view-only with an accessible list, or clearly labeled tappable landmarks. Later interaction decisions supersede this old proposal. `MainView.swift:284`. [Screen](shots/ux_40_scene_drag.png) |
+| 15 | P1 / S | A landmark's primary action was rare renaming rather than meeting there. | Make Invite Here primary, or Walk Outside without neighbors; reduce rename prominence. `Cards.swift:193`. [Screen](shots/ux_11_landmark_card.png) |
+| 16 | P1 / S | Hidden/cache/AI/circle/leave and shade percentages were unclear. | Use ordinary language, remove technical labels and show sunny/shady instead of percentages. Never assert someone is home without evidence. `AppStore+Map.swift:275`, `MapService.swift:14`. [Main](shots/ux_08_first_main.png), [map](shots/ux_03_onb_pickhome.png), [landmarks](shots/ux_10_today_landmarks.png) |
+| 17 | P1 / S | Server address, seven-step voice download guide, demo and location diagnostics made Settings roughly eight screens long. | Keep size/sound/language/profile/alerts prominent; collapse setup diagnostics under Advanced. `VoiceSettingsSection.swift:303–346`, `Settings.swift:73–84`. [Server](shots/ux_35_settings_voice_top.png), [guide](shots/ux_36_settings_guide.png) |
+| 18 | P1 / M | Small, pale building targets took three taps; guidance did not change after selection. | Suggest the nearest residence for confirmation, provide clearer orange selection and retain manual choice. [Before](shots/ux_03_onb_pickhome.png), [after](shots/ux_04_onb_picked.png) |
+| 19 | P1 / M | My avatar was offscreen after departure; the action falsely said I was already at the bench. Arrow appeared only nearby. | Frame both people, show a large arrow at distance and use stage-correct departure/approaching/met actions. `FullScreen.swift:559`. [Far](shots/ux_26_find_full.png), [near](shots/ux_49_find_near.png) |
+| 20 | P2 / S | Four avatar choices overloaded first use and the final row was covered. | Initially ask only mobility and defer optional appearance choices. This was a proposal, not a restriction on inclusive current design. [Screen](shots/ux_06_onb_avatar.png) |
+| 21 | P2 / S | Floor wheel was slow for high floors; the building illustration looked draggable but was not. | Use large minus/plus and numeric input, or make the illustration genuinely adjustable. `Onboarding.swift:596,635`. [Screen](shots/ux_05_onb_floor.png) |
+| 22 | P2 / S | Meeting finding and ad-hoc finding had different bottom controls. | Reuse one bottom bar. [Meeting](shots/ux_26_find_full.png), [ad-hoc](shots/ux_48_find_live.png) |
+| 23 | P2 / S | After meeting, a rename card remained and Today still prompted finding the same person. | Clear selected landmarks and show walking together. [After](shots/ux_27_after_end.png), [met](shots/ux_50_find_met.png) |
+| 24 | P2 / M | Notification/location prompts followed onboarding, then two microphone dialogs; wording mentioned implementation details. | Ask permissions when needed and use plain purpose explanations. The old proposal delayed Always until after a first walk; later feedback changed its timing. `Notifier.swift:15`. [Prompt 1](shots/ux_17_mic_perm.png), [prompt 2](shots/ux_18_mic_perm2.png) |
+| 25 | P2 / S | The first normal-mode card explained permission/backfill mechanics at excessive length. | One plain sentence and an enable action. `LocationViews.swift:267`. [Screen](shots/ux_51_real_today.png) |
+| 26 | P2 / S | Small gray headings obscured section hierarchy and important status. | Bold black 24 pt section headings; reserve gray for secondary text. `Tabs.swift:904`. [Screen](shots/ux_22_neighbors_scrolled.png) |
+| 27 | P2 / S | Change Time wrapped into two lines resembling two buttons. | Stack actions or shorten the label. `Tabs.swift:739`. [Screen](shots/ux_43_invite_buttons.png) |
+| 28 | P2 / S | Roughly 51 x 31 switches and 94 x 32 floor controls had short targets; labels were not tappable. | Whole-row interaction and large explicit on/off controls. [Neighbors](shots/ux_22_neighbors_scrolled.png), [Settings](shots/ux_32_settings_top.png) |
+| 29 | P2 / S | Scrolled content overlapped the Settings title. | Opaque navigation background. [Screen](shots/ux_36_settings_guide.png) |
+| 30 | P2 / S | Only about two leaderboard rows were visible, partly covered by my fixed row. | Reclaim scene space as in finding 6. [Screen](shots/ux_29_board_scrolled.png) |
+| 31 | P2 / S | The real board contained test accounts; this walkthrough created anonymous account `d0a56c37-1c9f-443c-949f-088b6573fddd`. | Arrange authorized cleanup of identified test accounts before a real-data demo. This translation performs no deletion. [Screen](shots/ux_52_real_board.png) |
+| 32 | P2 / S | Heard-input text repeated nearly the same large recap. | Small transcript label, one large structured result. [Screen](shots/ux_20_voice_confirm.png) |
+| 33 | P2 / S | Suggested landmark renaming was rare and looked like changing official place names. | Prefer weather and finding examples. `AppStore+Voice.swift:118`. [Screen](shots/ux_19_listening.png) |
+| 34 | P2 / S | Time alternatives proactively suggested after-sunset walks. | Avoid after-sunset suggestions unless explicitly requested; this is a design precaution, not a verified safety guarantee. [Screen](shots/ux_15_propose_changed.png) |
+| 35 | P2 / S | Floating microphone overlapped the bottom card and risked accidental taps. | Hide or integrate it while the card is shown. [Screen](shots/ux_14_propose_card.png) |
 
-进入主画面后，「今日」页顶部出一张「第一日」任务卡：
+## 3. Speech interruption rules proposed then
 
-> 今日三件事：☐ 出去行 10 分鐘 ☐ 見到街坊碰一碰 ☐ 約佢聽日一齊行
+`Announcer` queued rather than interrupted. Informational messages older than `staleAfter=6` expired; prompts cleared queued information but not currently playing audio. `hold()` was the only direct stop path, also reached indirectly by replay/preview. Navigation, dismissal and backgrounding did not stop output, and every toast spoke.
 
-做完一件打一个勾。三件都做完，卡就消失。
+Desired rule: **when the screen changes, stop obsolete speech; speak the new relevant instruction or confirmed result promptly.**
 
-**权限等到要用时再问**
-- 第一次散步回到家：问「想鎖咗機都記錄？」→「始终允许」。
-- 第一次有街坊：问「佢出門要唔要話你知？」→ 通知权限。
-- 第一次按咪：问麦克风和语音识别。
+| User action | Historical behavior | Desired behavior |
+|---|---|---|
+| Onboarding next/back/consent | Old page kept speaking; new prompt could expire | Stop, then one short new instruction |
+| Confirm/send/go/enable | Old prompt could continue 13 seconds and hide the result | Stop, then result |
+| Cancel/reject/dismiss/swipe card away | Confirmation instruction continued | Stop without replacement |
+| Switch tabs | Continued | Stop obsolete output; consider urgent incoming requests separately |
+| Open/close Settings or Done | Preview continued | Stop |
+| Enter/leave finding or pairing | Continued | Replace with relevant new-screen guidance |
+| Background/lock | No handling | Stop App speech; use authorized system notifications for walks |
+| Microphone | Stopped correctly | Retain |
+| Replay | Stopped and restarted | Retain |
 
-**两种用户的走法**
-- 李伯（70 岁）：每步只看大字、听一句，5 步大约 2 分钟。第 5 步学会用咪，进主画面后照任务卡去做。
-- 陈生（新居民）：第 1 步按「跳過介紹」，第 2–4 步大约 40 秒做完，直接进主画面。
+Implementation proposal: add `interrupt()` to clear queue, cancel pump and stop the speaker. Trigger it from tab/phase/Settings/finding/pairing changes, dismissed voice/proposal/selection cards and `appActive(false)`. Prompts and user-action results should replace obsolete information. Make toast speech opt-in for important cases. Coordinate changes to `Announcer.swift`, `AppStore+Voice.swift` and `Speech.swift` with the voice owner; the old note reported concurrent work there.
 
----
+## 4. Proposed screen priorities
 
-## 附：这次测试的限制
-- 碰一碰在演示模式下是模拟的，没有测真的超宽带。找人的箭头也是演示数据。
-- 这次模拟器按咪没有闪退：弹出两个权限框后可以进入「聽緊」，用「揀一句」完成了约人。
-- 测试时局域网里的 Mac 语音服务器是开着的（`172.27.127.50`），播报走真人声，第一个字要等 0.5–3 秒。
-- 第一次运行时模拟器的定位没有设好，场景变成了旧金山（「Pacific Building」「CitizenM Union Square」）。重新设定位后才回到皇后山邨。这件事和 App 无关，但说明一点：定位不对时，App 不会提示「你好似唔喺香港」。
-- 测试用的「非演示模式」在真服务器上建了一个匿名用户「行路友」（见第 31 条），需要清理。
+One orange primary action per screen; scene mainly on Today; response-required requests first; microphone labeled.
+
+- **Today at home:** compact scene, one hero invitation/departure/social action, then walking summary and weather. The wireframe proposed Mrs Chan's invitation with accept/change/decline, a 24-minute/9-day summary, a weather suggestion and labeled microphone, with a two-request tab badge.
+- **Today while walking:** elapsed time and an available neighbor to find; quick heat, seating and difficult-path reports below.
+- **Neighbors:** incoming invitations, compact neighbor rows and invitation actions, with pairing prominent when no neighbors exist. The old wireframe's at-home assertion must be interpreted through the later privacy correction: absent outing data does not prove home presence.
+- **Leaderboard:** prioritize my rank/streak and the list, with no scene. Any suggested catch-up figure must derive from actual records rather than be invented.
+- **Finding:** a large directional arrow, peer/distance/place, both people framed, stage-specific departure/approaching/met action and End in a corner.
+
+## 5. Proposed five-step onboarding
+
+The old six-step flow plus 3–5 system dialogs and a 40-second opening narration should become five steps, each with one purpose, at most two visible sentences and one spoken sentence under eight seconds. Stop the previous step before speaking.
+
+| Step | Screen content | Short spoken purpose | Actions |
+|---|---|---|---|
+| Welcome | Explain recording walks, pairing in person and voice invitations | Record walks and invite neighbors | Start; optional skip introduction |
+| Privacy | Three summaries with detailed audience/data handling available | Explain local tracks and neighbor visibility | Agree / decline |
+| Home | Explain location, request permission, suggest a nearby residence | Ask whether this is the user's building | Yes / choose another |
+| Floor and nickname | Large controls and suggested nicknames | Ask floor and preferred name | Continue |
+| Trial | Ask about today's weather by speech or a tappable example | Try speaking | Hear answer, then finish |
+
+The original proposal used a default older walking avatar; this is not a current requirement to classify all residents as older. Current scope includes all ages. Its privacy summary is also not a complete policy: current voice processing and mutually consented precise live finding must be disclosed.
+
+After setup, a first-day card proposed three tasks: walk ten minutes, pair with a neighbor and invite them tomorrow. The original proposal dismissed after completion; later feedback retained it until manual dismissal.
+
+Permission timing was proposed around the first relevant use: notifications after a first neighbor, microphone/recognition on first tap, and Always after the first walk. Later code/feedback may supersede this timing. Estimated persona completion times of about two minutes for guided use and forty seconds for skipping were design estimates, not measured resident outcomes.
+
+## Test limitations
+
+- Pairing and finding used demo data; no real UWB or live direction reliability was tested here.
+- Microphone did not crash in this simulator run: after two dialogs it entered listening, and a tappable example completed the invitation.
+- A LAN Mac voice server was running; logs showed roughly 0.5–3 seconds to first audio. This is not a broad latency benchmark.
+- Initial simulator location was misconfigured to San Francisco, producing Pacific Building / CitizenM Union Square; resetting location restored Queen's Hill. This was setup error, while also showing the App did not warn that the location was outside Hong Kong.
+- The normal-mode test created the anonymous account identified in finding 31; cleanup remained a separately controlled task.

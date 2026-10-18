@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// 录宣传片（-videoShot <镜头>，配 -demo -videoClean）：每个镜头一段短流程，逐段录屏再剪。
-/// 镜头对应 docs/pitch/demo_video_script.md：scene / walk / board / bump / alert / voice / invited / find / report / care。
-/// 每一步打印 "[video] t=秒 步骤"，方便对照录屏。
+/// -videoShot <shot> with -demo -videoClean records a short flow per shot for later editing.
+/// Shot names from the historical demo_video_script: scene / walk / board / bump / alert / voice / invited / find / report / care.
+/// Log each step with a [video] timestamp to align with recordings.
 extension AppStore {
     private static var videoStarted = false
 
@@ -10,7 +10,7 @@ extension AppStore {
         guard !Self.videoStarted, let shot = LaunchArgs.value("-videoShot") else { return }
         Self.videoStarted = true
         if shot == "lang" {
-            // 欢迎页顶部嘅语言切换（-resetOnboarding -lang yue）：粵語 → 普通话 → English
+            // Welcome language selector (-resetOnboarding -lang yue): Cantonese, Mandarin, English.
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(2.0)); AppLanguage.shared.set(.cmn); print("[video] 普通话")
                 try? await Task.sleep(for: .seconds(1.6)); AppLanguage.shared.set(.en); print("[video] English")
@@ -26,14 +26,14 @@ extension AppStore {
                 print("[video] t=\(at) \(name)")
                 action()
             }
-            /// 太阳慢慢扫过：由 from 点拉到 to 点，seconds 秒内分 60 步。
+            /// Sweep sunlight from from to to in 60 steps over seconds.
             @MainActor func sweep(_ from: Double, _ to: Double, seconds: Double) async {
                 for i in 0...60 {
                     setDemoHour(from + (to - from) * Double(i) / 60)
                     try? await Task.sleep(for: .seconds(seconds / 60))
                 }
             }
-            // 有凳、而家最多楼遮嘅地标（地标卡出「Seats here」「Shady now」）
+            // Choose the currently shadiest bench landmark for the Seats here / Shady now card.
             let seatSpot = landmarks.filter(\.hasSeat).max { (shadeValue($0.id, at: now) ?? 0) < (shadeValue($1.id, at: now) ?? 0) }?.id ?? landmarks.first?.id
             switch shot {
             case "scene":
@@ -50,7 +50,7 @@ extension AppStore {
             case "bump":
                 await step(0.5, "街坊頁") { tab = .neighbors }
                 await step(2, "碰一碰") { startBump() }
-                // 等模拟碰到、问开唔开出门提醒（bumpMet 2.6 秒后）
+                // Wait for simulated pairing and the outing-alert prompt 2.6 seconds after bumpMet.
                 while remindPromptFor == nil, Date().timeIntervalSince(t0) < 30 { try? await Task.sleep(for: .milliseconds(200)) }
                 print("[video] t=\(Date().timeIntervalSince(t0)) 問出門提醒")
             case "alert":
@@ -67,7 +67,7 @@ extension AppStore {
                 await step(2.2 + Double(line.count) * 0.22 + 0.8, "聽完") { listening = false; heardPartial = ""; handle(line) }
                 await step(2.2 + Double(line.count) * 0.22 + 7.5, "好") { confirmVoice() }
             case "invited":
-                // 陳太部手机：-nickname "Mrs Chan"；李伯约佢听日三点（-videoPlace 用李伯嗰边揀嘅地标）
+                // Mrs Chan's phone uses -nickname "Mrs Chan"; Uncle Lee invites her tomorrow at three, with -videoPlace matching his landmark.
                 let want = LaunchArgs.value("-videoPlace")
                 let place = landmarks.first { $0.id == want || $0.name == want }?.id ?? seatSpot ?? ""
                 await step(0.2, "做街坊") { createNeighbor("lee", remind: true); banner = nil; tab = .today }

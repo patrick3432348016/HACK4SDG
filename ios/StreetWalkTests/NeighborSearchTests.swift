@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import StreetWalk
 
-// 邻居页搜索（D-3）：唔理空格、大小写、繁简。
+// D-3 neighbor search ignores spaces, case and simplified/traditional differences.
 struct NeighborSearchTests {
     @Test func 简体打都搵到繁体名同楼层() {
         let name = AppStore.searchKey("陳太")

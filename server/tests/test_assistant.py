@@ -347,7 +347,7 @@ class LogicTests(unittest.TestCase):
         self.assertNotEqual(rank_places(context, "chan", command)[0].id, "plaza")
 
     def test_minutes_and_walk_length(self):
-        # 成员 A 加（2026-10-17 用户测试）：整点、半点以外嘅时间同行几耐
+        # A, 2026-10-17: tests for non-half-hour times and walking duration.
         cases = {"约陈伯明天下午三点十五散步": 15, "约陈伯明天下午3点20分散步": 20, "约陈伯明天下午三点一刻散步": 15,
                  "约陈伯明天下午两点三刻散步": 45, "约陈伯明天早上八点零五散步": 5, "约陈伯明天下午四点四十五散步": 45,
                  "约陈伯明天下午三点半散步": 30, "约陈伯明天下午三点一起散步": 0, "約陳伯聽日下晝三點兩個字": 10}
@@ -362,7 +362,7 @@ class LogicTests(unittest.TestCase):
         self.assertIsNone(demo_interpret("约陈伯明天下午三点散步", None, NOW).max_walk_minutes)
 
     def test_walk_length_is_not_clock_minute(self):
-        # 10-18 真机：「约邻居明天下午3点散步40分钟」确认卡变「3 点 2 分」
+        # 10-18 regression: a 3 pm / 40-minute invitation became 3:02.
         for text, walk in {"约邻居明天下午3点散步40分钟": 40, "约邻居明天下午三点散步四十分钟": 40, "约邻居明天下午3点走半个钟": 30,
                            "約街坊聽日下晝三點行四十分鐘": 40, "约邻居明天下午3点40分钟": 40}.items():
             cmd = demo_interpret(text, None, NOW)
@@ -380,7 +380,7 @@ class LogicTests(unittest.TestCase):
         self.assertEqual(tts_text("歡迎嚟到街坊行", "zh-HK"), "歡迎嚟到街坊行")
 
     def test_model_minutes_pinned_to_spoken_clock(self):
-        # 模型照抄 now 嘅分钟 / 秒：以用户讲嘅为准；钟头对唔上就唔郁
+        # Prefer explicit user minutes over model-copied now minutes/seconds; do not alter a mismatched hour.
         at = datetime(2026, 10, 19, 15, 2, 33, tzinfo=NOW.tzinfo)
         for text in ("约邻居明天下午3点散步40分钟", "约邻居明天下午三点散步四十分钟", "约邻居明天下午3点走半个钟", "Invite Mr Chan tomorrow at 3 pm for 40 minutes"):
             cmd = pin_spoken_clock(Command(intent="invite", starts_at=at), text)

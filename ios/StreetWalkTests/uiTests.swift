@@ -3,9 +3,9 @@ import Testing
 import UIKit
 @testable import StreetWalk
 
-// 界面、无障碍与形象：人物配色色弱检查、排行榜名称、外形、圈对圈结果。
+// UI/accessibility/avatar tests: color-vision distinction, leaderboard names, appearance and circle results.
 
-/// 色弱模拟（Machado 2009，严重度 1.0）+ CIEDE2000，同 ios/tools/cvd_check.py 一致。
+/// Machado 2009 severity-1 simulation plus CIEDE2000, matching ios/tools/cvd_check.py.
 enum CVD {
     static let matrices: [String: [[Double]]] = [
         "红色盲": [[0.152286, 1.052583, -0.204868], [0.114503, 0.786281, 0.099216], [-0.003882, -0.048116, 1.051998]],
@@ -71,7 +71,7 @@ struct PaletteTests {
     }
 
     @Test func 浅色深色地面都睇得到() {
-        let light = [0.969, 0.969, 0.976], dark = [0.185, 0.185, 0.200]   // SceneStyle.paving 浅 / 深
+        let light = [0.969, 0.969, 0.976], dark = [0.185, 0.185, 0.200]   // SceneStyle.paving in light and dark modes.
         for c in Palette.people.map(CVD.rgb) {
             #expect(CVD.contrast(c, light) >= 2.2)
             #expect(CVD.contrast(c, dark) >= 2.2)
@@ -95,7 +95,7 @@ struct BoardNameTests {
         return r
     }
 
-    /// 2026-10-10 定：人人显示网名；座数楼层只有街坊先见到（地址私隐）。
+    /// 2026-10-10: everyone has a nickname; only neighbors see building/floor.
     @Test func 排行榜人人网名_街坊先有座数楼层() {
         #expect(resident(neighbor: false, block: "皇滙樓 Wong Wui House").listName == "陳太", "非街坊：只有网名，唔出座数楼层")
         #expect(resident(neighbor: true, block: "皇滙樓 Wong Wui House").listName == "陳太")

@@ -1,8 +1,8 @@
 import SwiftUI
 import Observation
 
-/// 字体大小（设定页最上面「字體大小」）：App 内部用 `.dynamicTypeSize` 覆盖 iOS 文字大小（RootView），
-/// 所有 `.ds(...)` 字体（@ScaledMetric）同系统控件一齐跟住变。字大时上面 3D 场景跟住缩（DS.sceneFraction）。
+/// In-app text sizing overrides iOS dynamicTypeSize in RootView.
+/// All ds fonts (@ScaledMetric) and system controls scale together; DS.sceneFraction shrinks the scene for larger text.
 enum TextSize: String, CaseIterable, Codable, Sendable {
     case small, standard, large, xlarge
 
@@ -15,8 +15,8 @@ enum TextSize: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// 正文 / 辅助 / 标题：細 ≈21 / 17.5 / 32，標準 24 / 20 / 34，大 ≈27 / 22.5 / 36，特大 ≈32.5 / 27.5 / 40。
-    /// 特大唔用无障碍档（正文 40）：场景缩到 22% 都只见到一张半卡。
+    /// Body/secondary/title sizes: small about 21/17.5/32; standard 24/20/34; large about 27/22.5/36; extra-large about 32.5/27.5/40.
+    /// Avoid the accessibility category with 40-pt body text: even a 22% scene leaves only one-and-a-half cards visible.
     var dynamicType: DynamicTypeSize {
         switch self {
         case .small: return .small
@@ -26,7 +26,7 @@ enum TextSize: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// 设定页按钮上用嘅示范字号（固定，唔跟当前档变，个掣唔会郁来郁去）。
+    /// Use fixed sample sizes on setting buttons so the buttons do not move when the selected size changes.
     var sampleSize: CGFloat {
         switch self {
         case .small: return 20
@@ -36,7 +36,7 @@ enum TextSize: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// 「今日」页上面 3D 场景占屏幕高度（排行榜、街坊冇场景）。用户 10-12 拍板改约 25%；10-16 测试反馈「太细、太靠上、灵动岛遮住」→ 加大到约 38%（模型由灵动岛下面开始画）；字大再缩。向下拉可以再放大（MainLayout）。
+    /// Today scene only. The 10-12 decision used about 25%; 10-16 feedback increased it to about 38% below Dynamic Island. Shrink for large text; pull down to enlarge (MainLayout).
     var sceneFraction: CGFloat {
         switch self {
         case .small, .standard: return 0.38
@@ -45,7 +45,7 @@ enum TextSize: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// 未揀过（旧版本升级上嚟）：按 iOS 文字大小揀最接近嗰档。以前 App 跟 iOS 走、下限锁喺默认，所以细过默认都当標準。
+    /// On upgrade without a saved choice, select the closest iOS size. Treat sizes below default as standard to preserve the earlier lower bound.
     static func matching(_ system: DynamicTypeSize) -> TextSize {
         if system <= .large { return .standard }
         if system <= .xLarge { return .large }
@@ -58,9 +58,9 @@ final class TextSizeSetting: @unchecked Sendable {
     static let shared = TextSizeSetting()
     static let key = "app.textSize"
 
-    /// 用户揀咗嘅档；nil = 未揀过，跟 iOS 文字大小（system）。
+    /// Saved selection; nil follows the system until the user chooses.
     private(set) var saved: TextSize?
-    /// iOS 设定入面嘅文字大小（applyToWindows 读 UIApplication 更新；唔可以读 SwiftUI 环境，嗰个已经俾我哋覆盖咗）。
+    /// Read the actual iOS text category through UIApplication in applyToWindows; SwiftUI's environment already contains our override.
     var system: DynamicTypeSize = .large
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -68,29 +68,29 @@ final class TextSizeSetting: @unchecked Sendable {
     init(defaults: UserDefaults = .standard, arguments: [String] = ProcessInfo.processInfo.arguments) {
         self.defaults = defaults
         if let i = arguments.firstIndex(of: "-textSize"), i + 1 < arguments.count, let t = TextSize(rawValue: arguments[i + 1]) {
-            saved = t   // 截图用：-textSize xlarge（唔存）
+            saved = t   // Screenshots: -textSize xlarge applies without persistence.
         } else {
             saved = defaults.string(forKey: Self.key).flatMap(TextSize.init(rawValue:))
         }
     }
 
-    /// 而家用紧嘅档。
+    /// Currently effective size.
     var current: TextSize { saved ?? TextSize.matching(system) }
 
-    /// 设定页揀：即时生效兼存低。
+    /// Settings selection takes effect immediately and is saved.
     func set(_ t: TextSize) {
         saved = t
         defaults.set(t.rawValue, forKey: Self.key)
     }
 
-    /// 将而家嘅档写入每个 UIWindowScene 嘅 traitOverrides：半屏 / 全屏弹出页（设定、改网名、时间滑杆）同 UIKit 控件
-    /// 唔跟 RootView 嘅 `.dynamicTypeSize`，要喺 UIKit 层一齐覆盖。RootView 出现、换档、iOS 文字大小改咗时叫。
+    /// Apply traitOverrides to every UIWindowScene so sheets/full-screen presentations and UIKit controls also use the selected category.
+    /// They do not inherit RootView.dynamicTypeSize. Apply on RootView appearance, app-size changes, and system-size changes.
     @MainActor func applyToWindows() {
         let s = DynamicTypeSize(UIApplication.shared.preferredContentSizeCategory) ?? .large
         if system != s { system = s }
         let c = UIContentSizeCategory(current.dynamicType)
         for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
-            // 未覆盖过就读 preferredContentSizeCategory 会断言失败，要先问 contains
+            // Check contains before reading preferredContentSizeCategory; reading an unset override asserts.
             let o = scene.traitOverrides
             if !o.contains(UITraitPreferredContentSizeCategory.self) || o.preferredContentSizeCategory != c {
                 scene.traitOverrides.preferredContentSizeCategory = c
@@ -99,7 +99,7 @@ final class TextSizeSetting: @unchecked Sendable {
     }
 }
 
-/// 设定页「字體大小」：四粒大掣（細 / 標準 / 大 / 特大），每粒用嗰档嘅示范字号写；揀中 = 橙底白字。
+/// Four large text-size buttons: small, standard, large, extra-large. Each previews its size; selected uses orange with white text.
 struct TextSizePicker: View {
     var body: some View {
         let setting = TextSizeSetting.shared

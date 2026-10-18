@@ -1,13 +1,13 @@
 #!/bin/zsh
-# 录宣传片单个镜头：./tools/record_shot.sh <镜头> <秒数> [额外参数…]
-# 要定钟点就加 -hour 16 之类。输出 ../video/footage2/<镜头>.mp4。要先用 run.sh 编译装好（SIM 同 run.sh 一样）。
+# Record one shot: ./tools/record_shot.sh <shot> <seconds> [extra arguments].
+# Use -hour for fixed time; output ../video/footage2/<shot>.mp4. Build/install with run.sh first using the same SIM.
 set -e
 cd "$(dirname "$0")/.."
 SHOT=$1; SECS=$2; shift 2
 SIM=${SIM:-iPhone 17 Pro}
 OUT=${OUT:-../video/footage2/$SHOT.mp4}
 UDID=$(xcrun simctl list devices available | grep -A20 -- "-- iOS 26.5 --" | grep "    $SIM (" | head -1 | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
-# 状态栏：电量、信号固定；时间用真时间（Live Activity 一出现系统就会重设覆盖嘅时间，前后会跳）
+# Fix battery/signal but retain actual time because Live Activity appearance resets time overrides.
 xcrun simctl status_bar "$UDID" clear
 xcrun simctl status_bar "$UDID" override --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4
 xcrun simctl terminate "$UDID" hk.hack4sdg.streetwalk >/dev/null 2>&1 || true

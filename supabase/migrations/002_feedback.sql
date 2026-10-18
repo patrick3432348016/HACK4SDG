@@ -1,10 +1,10 @@
--- 街坊行：App 内「提意见」（设定 → 帮助与反馈 → 给我们提意见）。
--- 喺 Supabase 网页 SQL Editor 执行一次（001_init.sql 之后）。未执行之前 App 发送会失败，草稿会保留喺手机。
+-- StreetWalk in-App feedback from Settings > Help and Feedback.
+-- Deploy once after 001_init.sql through an authorized migration process; before deployment, sending fails and the local draft remains.
 --
--- 权限：登录（匿名）用户只可以插入自己嘅意见；冇 select / update / delete 规则 = 任何 App 用户都读唔到、改唔到（包括自己嘅）。
--- 开发团队喺 Supabase 网页 Table Editor 或者 SQL Editor 睇：
+-- Authenticated anonymous users may insert their own feedback only; no App user can select, update or delete it under these policies.
+-- Developers can inspect feedback through authorized Supabase Table Editor or SQL Editor access.
 --   select created_at, lang, app_version, device, os, demo, body from public.feedback order by created_at desc;
--- 唔存位置；user_id 只系匿名帐户 id（冇电话、冇电邮）。用户删匿名帐户时一齐删（on delete cascade）。
+-- No location is stored; user_id is an anonymous account without phone/email. Deleting that auth account cascades to feedback.
 
 create table public.feedback (
   id uuid primary key default gen_random_uuid(),
@@ -22,6 +22,6 @@ create index feedback_created on public.feedback (created_at desc);
 alter table public.feedback enable row level security;
 revoke all on public.feedback from anon;
 
--- 同 001 一样靠 RLS：只有呢一条插入规则，读 / 改 / 删冇规则 = 全部拒绝。
+-- As in 001, RLS allows only this insert policy and denies reads/updates/deletes without policies.
 create policy "insert own feedback" on public.feedback for insert to authenticated
   with check (user_id = auth.uid());

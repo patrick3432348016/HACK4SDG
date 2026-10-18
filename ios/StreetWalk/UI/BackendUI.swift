@@ -1,10 +1,10 @@
 import SwiftUI
 
-// 真后端用到嘅界面：网名（首次使用「樓層同網名」一页、设置、旧用户补填）、「想過嚟搵你，方唔方便？」卡、「未連線」。
+// Backend UI: nickname onboarding / Settings / legacy-user prompt, finding consent and connection status.
 
-// MARK: - 网名
+// MARK: - Nickname
 
-/// 大字输入框 + 一撳就用嘅建议 + 字数。1–20 字。
+/// Large input, tappable suggestions and character count; 1–20 characters.
 struct NicknameEditor: View {
     @Environment(AppStore.self) private var store
     @Binding var text: String
@@ -73,7 +73,7 @@ struct NicknameEditor: View {
     }
 }
 
-/// 设置页改网名；旧用户关咗演示模式但未有网名时都用呢张（主界面弹出）。
+/// Nickname editor for Settings and legacy users leaving demo mode without a nickname.
 struct NicknameSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -119,9 +119,9 @@ struct NicknameSheet: View {
     }
 }
 
-// MARK: - F8 收到「想過嚟搵你，方唔方便？」
+// MARK: - F8 incoming finding request
 
-/// 底部卡（要答，唔可以扫走）：大「好」同「唔方便」。
+/// Response-required bottom card cannot swipe away; offer prominent accept / unavailable buttons.
 struct IncomingFindCard: View {
     @Environment(AppStore.self) private var store
     @State private var taps = 0
@@ -166,10 +166,10 @@ struct IncomingFindCard: View {
     }
 }
 
-// MARK: - 未連線
+// MARK: - Connection status
 
-/// 真后端连唔到（冇网络 / 服务器暂时唔得）：主画面左上细细一粒。写入已经排队，连返就自动送出。
-/// 系统唔俾街坊行用流动数据（测试员 D-1 / D-5：开流量都显示「未联网」）：改讲「未允許用流量」，撳一下去设定开。
+/// Small main-screen indicator for unavailable network / backend; queued writes resume on reconnection.
+/// D-1 / D-5: distinguish denied cellular access from generic offline status and link to Settings.
 struct OfflineChip: View {
     @Environment(AppStore.self) private var store
 

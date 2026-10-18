@@ -1,11 +1,11 @@
 #if DEBUG
 import Foundation
 
-/// 开发用（-scriptIsland）：喺模拟器检查灵动岛。用真实时钟（唔好加 -hour），等实时活动自己倒数。
-/// - `-scriptIsland walk`：即刻出门散步（岛两侧「🚶 N 分」；撳 Home 键后真·灵动岛同锁屏）。
-/// - `-scriptIsland meet`：同陳太约咗 20 分钟后（出发提醒横幅由岛长出嚟、收埋后两侧「20 分鐘後」）。
-/// - `-scriptIsland find`：散步中过去搵陳太（两侧「35 米」+ 箭咀；搵人全屏时收埋，返主画面再出）。
-/// - `-scriptIsland banner`：每 4 秒出一个横幅（逐帧睇展开、收埋、换句）。
+/// -scriptIsland checks Dynamic Island in the simulator; omit -hour so Live Activities use the actual clock.
+/// -scriptIsland walk starts walking immediately; inspect island side labels, then the real island and Lock Screen after Home.
+/// -scriptIsland meet schedules Mrs Chan in 20 minutes and exercises reminder expansion and countdown side labels.
+/// -scriptIsland find approaches Mrs Chan during a walk; distance / arrow hide in full-screen finding and return on the main screen.
+/// -scriptIsland banner emits a banner every 4 seconds for frame-by-frame animation inspection.
 extension AppStore {
     func runScriptIsland() {
         let mode = LaunchArgs.value("-scriptIsland") ?? "walk"

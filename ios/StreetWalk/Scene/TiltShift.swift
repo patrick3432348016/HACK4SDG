@@ -1,8 +1,8 @@
 import Metal
 import SceneKit
 
-/// 移轴模糊：画面中间一条清晰带，往上下两边逐渐变糊，做出"微缩模型照片"的感觉。
-/// 着色器在运行时编译（不需要 Metal 工具链），分横、竖两遍高斯模糊。
+/// Tilt-shift blur keeps a central sharp band and gradually blurs above/below for a miniature-photograph effect.
+/// Compile shaders at runtime without the Metal toolchain; use horizontal/vertical Gaussian passes.
 enum TiltShift {
     static let source = """
     #include <metal_stdlib>

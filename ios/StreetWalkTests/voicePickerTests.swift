@@ -3,23 +3,23 @@ import Foundation
 import Testing
 @testable import StreetWalk
 
-// 揀系统声音：档次、语言、推荐名、用户揀过、装咗新声音自动转用、设定存盘。
+// Voice selection tests: quality, locale, preferred names, user choice, upgrades and persistence.
 
 struct VoicePickerTests {
-    // 粤语
+    // Cantonese.
     let sinjiStd = VoiceInfo(id: "com.apple.voice.super-compact.zh-HK.Sinji", name: "Sinji", language: "yue-HK", tier: .standard, gender: .female)
     let sinjiEnh = VoiceInfo(id: "com.apple.voice.enhanced.zh-HK.Sinji", name: "Sinji", language: "yue-HK", tier: .enhanced, gender: .female)
     let sinjiPre = VoiceInfo(id: "com.apple.voice.premium.zh-HK.Sinji", name: "Sinji", language: "yue-HK", tier: .premium, gender: .female)
     let wing = VoiceInfo(id: "com.apple.voice.premium.yue-HK.Wing", name: "Wing", language: "yue-HK", tier: .premium, gender: .female)
     let fung = VoiceInfo(id: "com.apple.voice.premium.yue-HK.Fung", name: "Fung", language: "yue-HK", tier: .premium, gender: .male)
     let aasingOld = VoiceInfo(id: "com.apple.voice.enhanced.zh-HK.Aasing", name: "Aasing", language: "zh-HK", tier: .enhanced, gender: .male)
-    // 普通话
+    // Mandarin.
     let tingting = VoiceInfo(id: "com.apple.voice.super-compact.zh-CN.Tingting", name: "Tingting", language: "zh-CN", tier: .standard, gender: .female)
     let yue = VoiceInfo(id: "com.apple.voice.premium.zh-CN.Yue", name: "Yue", language: "zh-CN", tier: .premium, gender: .female)
     let lilian = VoiceInfo(id: "com.apple.voice.premium.zh-CN.Lilian", name: "Lilian", language: "zh-CN", tier: .premium, gender: .female)
     let meijia = VoiceInfo(id: "com.apple.voice.super-compact.zh-TW.Meijia", name: "Meijia", language: "zh-TW", tier: .standard, gender: .female)
     let grandma = VoiceInfo(id: "com.apple.eloquence.zh-CN.Grandma", name: "Grandma", language: "zh-CN", tier: .standard, unsuitable: true)
-    // 英语
+    // English.
     let samantha = VoiceInfo(id: "com.apple.voice.super-compact.en-US.Samantha", name: "Samantha", language: "en-US", tier: .standard, gender: .female)
     let ava = VoiceInfo(id: "com.apple.voice.premium.en-US.Ava", name: "Ava", language: "en-US", tier: .premium, gender: .female)
     let serena = VoiceInfo(id: "com.apple.voice.premium.en-GB.Serena", name: "Serena", language: "en-GB", tier: .premium, gender: .female)
@@ -47,12 +47,12 @@ struct VoicePickerTests {
     }
 
     @Test func 普通话永远唔揀粤语声() {
-        // 只得粤语高品质同普通话标准：普通话都唔可以用粤语声（避开「普通话读成粤语」）
+        // Premium Cantonese must never replace a standard Mandarin voice for Mandarin output.
         #expect(VoicePicker.pick(for: .mandarin, in: [sinjiPre, wing, tingting], chosen: nil) == tingting)
         #expect(VoicePicker.pick(for: .mandarin, in: [sinjiPre, wing], chosen: nil) == nil)
-        // 用户之前喺粤语揀咗 Wing，转普通话都唔会用佢
+        // A saved Cantonese Wing choice must not carry into Mandarin.
         #expect(VoicePicker.pick(for: .mandarin, in: [wing, tingting], chosen: wing.id) == tingting)
-        // 大陆先过台湾（同档次）
+        // Prefer mainland over Taiwan locale within a tier.
         #expect(VoicePicker.pick(for: .mandarin, in: [meijia, tingting], chosen: nil) == tingting)
     }
 
@@ -87,19 +87,19 @@ struct VoicePickerTests {
 
     @Test func 装咗更好嘅声就转() {
         let before: Set = [sinjiStd.id, tingting.id]
-        // 第一次睇（新装 App）：唔当「新装咗」
+        // The initial installation scan is not a newly added voice event.
         #expect(VoicePicker.upgrade(previous: [], now: [sinjiStd, wing], language: .cantonese, chosen: nil) == nil)
-        // 由设定返嚟多咗 Wing：转
+        // Select newly added Wing after returning from Settings.
         #expect(VoicePicker.upgrade(previous: before, now: [sinjiStd, tingting, wing], language: .cantonese, chosen: nil) == wing)
-        // 一次装两把：揀最好嗰把
+        // With two additions, choose the better voice.
         #expect(VoicePicker.upgrade(previous: before, now: [sinjiStd, tingting, sinjiEnh, wing], language: .cantonese, chosen: nil) == wing)
-        // 用户亲手揀咗标准声，再去下载：都转
+        // Upgrade even after an explicit standard-voice selection.
         #expect(VoicePicker.upgrade(previous: before, now: [sinjiStd, tingting, wing], language: .cantonese, chosen: sinjiStd.id) == wing)
-        // 已经有高品质，再装一把同档次：唔转
+        // Do not switch for another voice at the existing premium tier.
         #expect(VoicePicker.upgrade(previous: before.union([wing.id]), now: [sinjiStd, tingting, wing, fung], language: .cantonese, chosen: nil) == nil)
-        // 装咗普通话声，但而家讲粤语：唔关事
+        // A new Mandarin voice does not affect active Cantonese.
         #expect(VoicePicker.upgrade(previous: before, now: [sinjiStd, tingting, yue], language: .cantonese, chosen: nil) == nil)
-        // 冇新嘢
+        // No new voices.
         #expect(VoicePicker.upgrade(previous: before, now: [sinjiStd, tingting], language: .cantonese, chosen: nil) == nil)
     }
 
@@ -113,12 +113,12 @@ struct VoicePickerTests {
     }
 
     @Test func 正常用系统语速_慢快拉开() {
-        // 「正常」= 系统默认（10-11）；10-17 用户测试：慢同正常差唔多 → 慢明显慢、句之间停耐啲，快明显快
+        // Normal uses system default; 10-17 feedback requires clearly slower speech/longer pauses and clearly faster Fast.
         #expect(SpeechPace.normal.rate == AVSpeechUtteranceDefaultSpeechRate)
         #expect(SpeechPace.normal.rate - SpeechPace.slow.rate >= 0.08)
         #expect(SpeechPace.fast.rate - SpeechPace.normal.rate >= 0.05)
         #expect(SpeechPace.slow.pauseAfterSentence >= 0.6 && SpeechPace.fast.pauseAfterSentence < SpeechPace.normal.pauseAfterSentence)
-        // 豆包声（服务器收 0.7–1.3）：慢 / 快同正常差 25%
+        // Doubao slow/fast differ by 25% from Normal within the server's 0.7–1.3 range.
         #expect(TTSRoute.speed(.slow) <= 0.8 && TTSRoute.speed(.fast) >= 1.2 && TTSRoute.speed(.slow) >= 0.7 && TTSRoute.speed(.fast) <= 1.3)
     }
 
@@ -182,7 +182,7 @@ struct VoiceSettingsTests {
         v.apply([sinji, tingting])
         #expect(told.isEmpty, "第一次睇唔通知")
         #expect(!v.hasNaturalVoice)
-        v.choose(sinji)                 // 用户亲手揀咗标准声
+        v.choose(sinji)                 // User explicitly selected a standard voice.
         v.apply([sinji, tingting, wing])
         #expect(told == [wing])
         #expect(v.active == wing)

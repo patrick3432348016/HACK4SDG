@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import StreetWalk
 
-/// 10-18：约会理由喺本机按界面语言重算，对方传嚟嘅句子只用嚟认「一齊行几耐」。
+/// 10-18: rebuild meeting reasons locally in the UI language; remote text supplies only shared duration.
 struct MeetupReasonTests {
     @Test func 认得三种语言嘅一齊行几耐() {
         #expect(AppStore.walkMinutes(in: "嗰陣有樓遮住、有櫈，一齊行 45 分鐘") == 45)

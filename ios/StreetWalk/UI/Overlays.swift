@@ -1,19 +1,19 @@
 import SwiftUI
 
-// 覆盖层：场景标签、灵动岛式横幅、提示、语音卡。
+// Overlays: scene labels, island banners, toasts and voice cards.
 
-// MARK: - 场景标签
+// MARK: - Scene labels
 
-/// 跟随 3D 投影的标签。坐标 = 场景视图的本地坐标（OverlayItem.point，每秒 30 次）。
-/// 位置不做动画，只在出现时弹一下；重叠时只留优先级高的。
+/// Labels follow 3D projections in scene-local OverlayItem.point coordinates at 30 updates per second.
+/// Do not animate positions; bounce only on appearance and retain higher-priority labels on overlap.
 struct SceneLabelsLayer: View {
     @Environment(AppStore.self) private var store
-    /// 不放标签的区域（状态栏、左右上胶囊、咪）。
+    /// Label exclusion areas: status bar, top capsules and microphone.
     var reserved: [CGRect] = []
     @ScaledMetric(relativeTo: .callout) private var fontSize: CGFloat = 20
 
     var body: some View {
-        // 在 GeometryReader 闭包外读取状态，保证 Observation 能追踪到。
+        // Read state outside GeometryReader's closure for Observation tracking.
         let focus = focusIDs
         let items = store.scene.overlay.items
         let onlyFocus = store.findFullScreen
@@ -41,7 +41,7 @@ struct SceneLabelsLayer: View {
         }
     }
 
-    /// 当前要露出名字的地标：选中的、约人提议的、找人目的地。
+    /// Landmarks requiring labels: selected, proposed meeting place and finding destination.
     private var focusIDs: Set<String> {
         var s: Set<String> = []
         if case .landmark(let id) = store.selection { s.insert("l:\(id)") }
@@ -50,15 +50,15 @@ struct SceneLabelsLayer: View {
         return s
     }
 
-    /// 地标平时都出名牌（用户 10-12：场景「可以点，平时显示地标名牌」），一睇就知撳得；叠埋嘅按重要程度让位。
-    /// 找人全屏只出目的地。
+    /// 10-12 user request: show ordinary landmark nameplates for discoverability, resolving overlaps by priority.
+    /// Full-screen finding labels only the destination.
     private func placed(_ items: [OverlayItem], in bounds: CGRect, focus: Set<String>, onlyFocus: Bool) -> [OverlayItem] {
         let candidates = items
             .filter { $0.kind != .landmark || !onlyFocus || $0.highlighted || focus.contains($0.id) }
             .sorted { a, b in
-                // 「你」最重要（只靠橙色不够认，色弱也要找到自己）；其次高亮的人（约的对象、找的人）、焦点地标。
+                // Prioritize my explicit label for color-vision accessibility, then highlighted peers and focused landmarks.
                 func rank(_ x: OverlayItem) -> Int {
-                    if x.kind == .here { return -1 }   // 最后先摆：撞到其他名牌就将字摆去圆点下面
+                    if x.kind == .here { return -1 }   // Place this last; move text below the marker if it overlaps other labels.
                     if x.id == "p:me" { return 6 }
                     return x.kind == .person && x.highlighted ? 5 : (focus.contains(x.id) ? 4 : x.priority)
                 }
@@ -70,7 +70,7 @@ struct SceneLabelsLayer: View {
         for item in candidates {
             let r = rect(for: item)
             if item.kind == .here {
-                // 「你喺呢度」一定出、唔霸位（画喺最底，「你屋企」名牌照撳得）；字撞到就摆去圆点下面
+                // Always show the local GPS marker behind other labels without reserving space; move overlapping text below its dot.
                 guard r.intersects(bounds) else { continue }
                 var h = item
                 h.highlighted = taken.contains { $0.intersects(r) }
@@ -84,13 +84,13 @@ struct SceneLabelsLayer: View {
         return out
     }
 
-    /// 估算标签大小（只用来判断重叠）。
+    /// Estimate label size only for overlap detection.
     private func rect(for item: OverlayItem) -> CGRect {
         let p = item.point
         if item.kind == .report { return CGRect(x: p.x - 16, y: p.y - 16, width: 32, height: 32) }
         if item.kind == .here, item.text.isEmpty { return CGRect(x: p.x - 15, y: p.y - 15, width: 30, height: 30) }
         if item.kind == .here {
-            // 圆点 + 上面嘅小标签（HereMarkerView：圆点中心对住 p）
+            // HereMarkerView dot is centered at p, with a small label above.
             let textW = item.text.reduce(CGFloat(0)) { $0 + ($1.isASCII ? fontSize * 0.58 : fontSize) } + 20
             return CGRect(x: p.x - max(textW, 30) / 2, y: p.y - 15 - 34, width: max(textW, 30), height: 34 + 30)
         }
@@ -115,7 +115,7 @@ struct SceneLabelsLayer: View {
             guard id != "me" else { return nil }
             return { [store] in if store.uiSceneTapsEnabled { store.select(.person(id)) } }
         case .home:
-            // 撳「你屋企」名牌：出「你屋企」卡（住边座、几楼、改我住嘅楼）
+            // Tapping the home nameplate opens building, floor and home-change details.
             return { [store] in if store.uiSceneTapsEnabled { store.select(.home) } }
         case .report, .here:
             return nil
@@ -134,7 +134,7 @@ private struct SceneLabel: View {
         Group {
             if let action {
                 Button(action: action) {
-                    // 可点范围至少 44×44（长者手指、HIG）；画面不变。
+                    // Minimum 44 x 44 hit target without changing visual size.
                     face.frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -182,7 +182,7 @@ private struct SceneLabel: View {
         case .landmark:
             Image(systemName: "mappin.circle.fill").foregroundStyle(DS.accent)
         case .home:
-            Image(systemName: "house.fill").foregroundStyle(DS.accent)   // 以前系「隱身」眼，长者以为被人封咗（UX 评审 16）
+            Image(systemName: "house.fill").foregroundStyle(DS.accent)   // UX 16: the old hidden-eye icon confused older testers about being blocked.
         case .report, .here:
             EmptyView()
         }
@@ -193,7 +193,7 @@ private struct SceneLabel: View {
         case .person: return item.id == "p:me" ? L.t("你", "你", "You") : L.t("街坊：\(item.text)", "邻居：\(item.text)", "Neighbour: \(item.text)")
         case .landmark: return L.t("地標：\(item.text)", "地标：\(item.text)", "Landmark: \(item.text)")
         case .home, .here: return item.text
-        case .report: return L.t("你嘅反映：\(item.text)", "你的反映：\(item.text)", "Your report: \(item.text)")   // 场景上的反映标记都是自己的
+        case .report: return L.t("你嘅反映：\(item.text)", "你的反映：\(item.text)", "Your report: \(item.text)")   // Scene report markers represent only my reports.
         }
     }
 
@@ -206,14 +206,14 @@ private struct SceneLabel: View {
     }
 }
 
-// 灵动岛式横幅：见 Island.swift（IslandBanner）。
+// Island-style banners are implemented in Island.swift / IslandBanner.
 
-// MARK: - 提示
+// MARK: - Toasts
 
-/// 一句话的轻提示（位置由外层决定：主界面在标签栏之上）。
+/// One-sentence toast positioned by its parent, above the main tab bar.
 struct ToastView: View {
     @Environment(AppStore.self) private var store
-    /// 淡出途中仍然显示上一句。常驻视图、只改透明度和位移：插入 / 移除转场偶尔会卡住（同横幅、底部卡片）。
+    /// Keep the previous sentence during fade-out; animate a persistent view's opacity / position to avoid stalled transitions.
     @State private var last: String?
 
     var body: some View {
@@ -244,18 +244,18 @@ struct ToastView: View {
     }
 }
 
-// MARK: - 语音卡（放在底部卡片槽里）
+// MARK: - Voice card in the bottom-card slot
 
-/// 三种状态：聽緊（实时字幕）→ 我聽到（复述 + 确认/撤回）；听不明白或没权限时「揀一句」。
+/// States: listening transcript, heard-text recap with confirm / withdraw, or example choices after misunderstanding / denied permission.
 struct VoiceOverlay: View {
     @Environment(AppStore.self) private var store
 
     private enum Mode: Equatable { case listening, picker, heard(UUID), none }
 
     private var mode: Mode {
-        // 连续对话：有卡（答案 / 复述卡）又未开口就睇卡，一开口就睇字幕
+        // In continuous conversation, show the current answer / recap until new speech begins, then show transcript.
         if store.conversing, let c = store.voiceCard, store.heardPartial.isEmpty { return .heard(c.id) }
-        // 卡出咗之后自动开咪听答案（复述卡等「好 / 不要」、帮助卡等再讲一次）：张卡照显示，卡上有「正在听」一行
+        // Keep the card visible with a listening line while automatically awaiting confirmation or retry speech.
         if store.listening, store.listener.answering != nil, let c = store.voiceCard { return .heard(c.id) }
         if store.listening { return .listening }
         if store.phrasePicker { return .picker }
@@ -288,7 +288,7 @@ struct VoiceOverlay: View {
 }
 
 fileprivate extension AppStore {
-    /// 按常用说法 = 讲了那句。如果正在听，先停咪。
+    /// Tapping an example acts as speaking it and first stops any active microphone capture.
     func pickPhrase(_ phrase: String) {
         if listening && !conversing { listener.stop() }
         handle(phrase)
@@ -298,7 +298,7 @@ fileprivate extension AppStore {
 private struct ListeningCard: View {
     @Environment(AppStore.self) private var store
     @ObservedObject var listener: Listener
-    /// 字停咗一阵冇变（多数系讲完）：即刻出「稍等，帮你看看」，唔使等识别收尾 / 服务器答（10-18 真机：讲完 3、4 秒都冇反应）。
+    /// 10-18: show a processing hint as soon as the transcript settles, before recognition finalization or server response.
     @State private var settled = false
 
     var body: some View {
@@ -326,7 +326,7 @@ private struct ListeningCard: View {
                 VoiceThinkingRow()
             }
             if store.conversing {
-                // 连续对话：「说完了」即刻交呢句（答案讲完先再听）；「结束对话」收咪（10-18 真机要求）
+                // Continuous conversation offers explicit submit-now and end-conversation actions; listen again after the answer finishes.
                 HStack(spacing: 12) {
                     Button { store.stopListening() } label: {
                         Text(L.t("傾完", "结束对话", "End chat")).frame(maxWidth: .infinity)
@@ -367,10 +367,10 @@ private struct ListeningCard: View {
 }
 
 extension ListeningCard {
-    /// 改名中只要讲新名；其他时候举一句做例子。
+    /// During rename ask only for the new name; otherwise show an example request.
     fileprivate func hint(_ phrases: [String]) -> String {
         if store.renamingNow != nil { return L.t("講新名，例如「\(phrases.first ?? "大樹底")」", "说新名字，例如「\(phrases.first ?? "大树下")」", "Say the new name, e.g. “\(phrases.first ?? "Big Tree")”") }
-        // 第一次用都知道个咪做乜：一句讲用途，再举一句例子（下面仲有撳得嘅例句）
+        // Explain microphone purpose and give one example for first-time users, alongside tappable examples below.
         let purpose = L.t("講一句，我幫你做：約街坊散步、問天氣、搵街坊、散步時反映冇櫈。", "说一句话，我帮你做：约邻居散步、问天气、找邻居、散步时反映没凳子。", "Just say it and I'll help: invite a neighbour for a walk, check the weather, find a neighbour, or report no seats on a walk. ")
         let example = phrases.first ?? L.t("今日天氣點", "今天天气怎么样", "What's the weather today?")
         if store.conversing { return purpose + L.t("講完停一停我就答你，或者撳「講完」。例如「\(example)」", "说完停一下我就回答，也可以按「说完了」。比如「\(example)」", "Pause when you finish and I'll answer, or tap “Done”. e.g. “\(example)”") }
@@ -378,7 +378,7 @@ extension ListeningCard {
     }
 }
 
-/// 聆听时跳动的声波条。
+/// Animated waveform bars while listening.
 private struct VoiceBars: View {
     private let count = 5
 
@@ -450,7 +450,7 @@ private struct HeardCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // 「我聽到」只係一行细字；大字只写结果（以前同一句睇两次，UX 评审 32）
+            // UX 32: keep the heard-input label small and show the result once in large text.
             if !card.heard.isEmpty {
                 Text(L.t("我聽到：「\(card.heard)」", "我听到：「\(card.heard)」", "I heard: “\(card.heard)”"))
                     .ds(.caption)
@@ -470,7 +470,7 @@ private struct HeardCard: View {
             if let d = card.detail, !d.isEmpty {
                 Text(d).ds(.caption).foregroundStyle(.secondary)
             }
-            // 截图自检：-uiPreview answerRow（模拟器冇语音识别权限，自动开唔到咪）
+            // Screenshot check: -uiPreview answerRow bypasses unavailable simulator recognition permissions.
             if store.listening && !store.conversing && store.listener.answering != nil || UIPreview.is("answerRow") {
                 AnswerListeningRow(listener: store.listener, confirm: card.needsConfirm)
             }
@@ -504,7 +504,7 @@ private struct HeardCard: View {
         }
         .task(id: card.id) {
             appeared = true
-            // 读屏开着就不自动收（要时间找「撤回」）；平时 8 秒，长者也来得及按。语音助手要用户揀 / 补嘢嘅卡唔自动收。
+            // Do not auto-dismiss with VoiceOver; otherwise allow 8 seconds. Assistant cards requiring choices or missing fields remain open.
             guard !card.needsConfirm, !card.sticky, !voiceOver, card.assistant?.waitsForUser != true, card.assistant?.kind != .notUnderstood else { return }
             try? await Task.sleep(for: .seconds(8))
             if !Task.isCancelled, store.voiceCard?.id == card.id { store.voiceCard = nil }
@@ -512,7 +512,7 @@ private struct HeardCard: View {
     }
 }
 
-/// 讲完等答案嗰阵（所有问题都一样）：「稍等，帮你看看 · 正在思考」，答案到咗就换走。
+/// Show the same waiting / thinking state for every question until the answer arrives.
 private struct VoiceThinkingRow: View {
     var body: some View {
         HStack(spacing: 12) {
@@ -527,7 +527,7 @@ private struct VoiceThinkingRow: View {
     }
 }
 
-/// 卡出咗之后自动开咪（手机识别）：讲明可以直接讲，同埋实时显示听到嘅字。讲完停一停就自动处理。
+/// Automatic device listening keeps the card, explains direct speech, shows the transcript and processes after a pause.
 private struct AnswerListeningRow: View {
     @ObservedObject var listener: Listener
     let confirm: Bool
@@ -557,7 +557,7 @@ private struct AnswerListeningRow: View {
     }
 }
 
-/// 组员 B 语音助手嘅一步（Mac 语音服务器）：揀街坊 / 揀地点（大掣）、补资料嘅建议说法、查结果、收起。
+/// B's assistant step offers large contact/place choices, missing-field examples, result reconciliation and dismissal.
 private struct AssistantStepView: View {
     @Environment(AppStore.self) private var store
     let card: AssistantCard
@@ -630,7 +630,7 @@ private struct AssistantStepView: View {
     }
 }
 
-/// 自动换行的胶囊排列。
+/// Wrapping capsule layout.
 private struct ChipFlow: Layout {
     var spacing: CGFloat = 8
 

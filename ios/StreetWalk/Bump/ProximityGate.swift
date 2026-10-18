@@ -1,49 +1,49 @@
 import Foundation
 
-// 移植自组员 B 嘅 UWB 原型（ios/UWBMeetDemo/Core/ProximityGate.swift，原檔唔郁）。
-// 改动：门限、持续时间由 BumpTuning 统一定义；加 progress / hint 俾画面用。
+// Adapted from B's ios/UWBMeetDemo/Core/ProximityGate.swift; the original file remains unchanged.
+// Centralize thresholds/durations in BumpTuning and add UI progress/hints.
 
-/// 碰一碰嘅参数。全部【待真机实测】，改呢度就得。
+/// Pairing tuning values; validate on physical devices and adjust here.
 enum BumpTuning {
-    /// 几近先算「碰」（米）。规格 F5 写 ≤ 10 厘米【待定】；组员 B 原型用 0.30 米（未实测）。
-    /// 超宽带喺 10 厘米左右误差大（几厘米到十几厘米，仲受手机方向、手掌遮挡影响）。
-    /// 2026-10-17 真机测试（D-2 / D-4）：20 厘米要贴死先得，贴死又会弹「隔空投送」→ 放宽到 30 厘米（隔一拳就得）。
+    /// Proximity threshold in metres. Original F5 proposed <= 10 cm as TBD; B's prototype used 0.30 m without device validation.
+    /// Very close UWB measurements are affected by centimetre-scale error, phone orientation, and hand occlusion.
+    /// 2026-10-17 device feedback D-2/D-4: 20 cm required near-contact that triggered AirDrop; widen to 30 cm, roughly a fist apart.
     static let nearDistance: Float = 0.30
-    /// 门限对上呢段（米）当抖动：唔计时、唔清零；再远先重新计时。
+    /// Treat this band above the threshold as jitter: neither accumulate nor reset; reset beyond it.
     static let slack: Float = 0.10
-    /// 要连续够近几耐（秒）：防止擦身而过就加咗街坊。门限放宽咗，时间加返少少（B 原型 0.5 秒）。
+    /// Required sustained proximity prevents pairing while merely passing. Increase dwell slightly with the wider threshold; B used 0.5 s.
     static let dwell: TimeInterval = 0.8
-    /// 够近嘅读数断咗超过呢个（秒）先重新计时（B 原型 0.35 秒太严：贴近时超宽带成日漏读数）。
+    /// Reset only after this gap in close readings; B's 0.35 s was too strict when close-range readings dropped.
     static let maxGap: TimeInterval = 1.0
-    /// 画面：远过呢个讲「靠近啲」，近过就讲「再近啲」。
+    /// UI threshold separating approach guidance from the final move-closer prompt.
     static let closerHint: Float = 0.6
-    /// 进度环由几远开始填（米）。
+    /// Distance in metres at which the progress ring begins filling.
     static let ringFrom: Float = 1.2
-    /// 搵手机 + 靠近嘅总时限（秒）。D-6：60 秒太耐，对方走咗都要等成分钟先知。
+    /// Overall discovery/approach timeout. D-6: 60 seconds was too long after the peer left.
     static let searchTimeout: TimeInterval = 30
-    /// 连上咗对方之后，最少再俾几耐慢慢靠近（秒）。
+    /// Minimum approach time after connecting, in seconds.
     static let rangingGrace: TimeInterval = 15
-    /// 量到过距离之后，几耐完全冇读数就当对方走咗、静静重新搵（秒）。
+    /// Silence duration after a valid reading before treating the peer as gone and rediscovering.
     static let peerSilence: TimeInterval = 10
-    /// 中途断线 / 出错：时限内最多静静重新搵几多次、每次停几耐（秒）。
+    /// Maximum silent restarts within the deadline and pause between attempts.
     static let maxRestarts = 3
     static let restartPause: TimeInterval = 1
-    /// 搵咗几耐都未搵到对方部手机，就将「用二維碼」放大、讲点样检查 Wi-Fi 同蓝牙（秒）。D-6。
+    /// After this discovery delay, emphasize QR fallback and explain Wi-Fi/Bluetooth checks (D-6).
     static let slowSearch: TimeInterval = 12
-    /// 向后端配对：每 1.5 秒问一次，最多 20 秒（NeighborLinking.swift 嘅约定：每 1–2 秒）。
+    /// Backend pairing polls every 1.5 seconds for up to 20 seconds, within NeighborLinking.swift's 1–2-second contract.
     static let linkInterval: TimeInterval = 1.5
     static let linkTimeout: TimeInterval = 20
-    /// 二维码：后端嘅码 2 分钟内有效，出示方每 100 秒换一个新码。
+    /// QR codes expire after two minutes; the displaying phone refreshes them every 100 seconds.
     static let qrRotate: TimeInterval = 100
 
-    /// 进度环 0–1：ringFrom 米 = 0，nearDistance 或者更近 = 1。
+    /// Ring progress: 0 at ringFrom metres, 1 at nearDistance or closer.
     static func progress(_ distance: Float?) -> Double {
         guard let d = distance, d.isFinite else { return 0 }
         let p = (ringFrom - d) / (ringFrom - nearDistance)
         return Double(min(max(p, 0), 1))
     }
 
-    /// 大字提示。
+    /// Large-text guidance.
     static func hint(_ distance: Float?) -> String {
         guard let d = distance, d.isFinite else { return L.t("量緊距離…", "正在测距离…", "Measuring…") }
         if d <= nearDistance { return L.t("好！拎穩唔好郁", "好！拿稳别动", "Good! Hold still") }
@@ -52,9 +52,9 @@ enum BumpTuning {
     }
 }
 
-/// 只有真实的超宽带读数会喂进来：连续 dwell 秒都 ≤ threshold 先触发，触发一次之后唔再触发。
-/// 2026-10-17（D-2）：一两下冇读数（nil、NaN、负数）唔即刻清零——够近嘅读数断咗超过 maxGap 先重新计时；
-/// 远过 threshold + slack 即刻重新计时；门限边缘（threshold ~ threshold + slack）当抖动，唔计时亦唔清零。
+/// Feed actual UWB readings only. Trigger once after distance remains <= threshold for dwell seconds.
+/// 2026-10-17 D-2: tolerate brief nil/NaN/negative readings; reset only when the gap between close readings exceeds maxGap.
+/// Reset immediately above threshold + slack. Within the jitter band, neither accumulate nor reset.
 struct ProximityGate {
     var threshold: Float
     var dwell: TimeInterval
@@ -74,7 +74,7 @@ struct ProximityGate {
 
     mutating func update(distance: Float?, at now: TimeInterval) -> Bool {
         guard !triggered else { return false }
-        // 时间倒退，或者够近嘅读数断咗太耐：重新计时
+        // Reset if time moves backwards or the gap between close readings is too long.
         if let previous, now < previous || now - previous > maxGap { began = nil; self.previous = nil }
         guard let distance, distance.isFinite, distance >= 0 else { return false }
         if distance > threshold + slack { began = nil; previous = nil; return false }
@@ -91,8 +91,8 @@ struct ProximityGate {
     mutating func reset() { self = ProximityGate(threshold: threshold, dwell: dwell, maxGap: maxGap, slack: slack) }
 }
 
-/// 两边都够近先可以交一次性码（改编自组员 B 嘅 ExchangeState：对方话够近唔可以代替本机自己量到）。
-/// 产品定咗：撳「碰一碰」+ 贴埋就係同意，冇确认卡、冇交换联络方式，所以只留「两边够近」同「取消」。
+/// Both sides must confirm proximity before exchanging the code; a peer claim cannot replace local ranging (adapted from B's ExchangeState).
+/// Product decision: starting pairing and approaching expresses consent; no separate confirmation card/contact exchange, only mutual proximity and cancellation.
 struct BumpAgreement {
     private(set) var localNear = false
     private(set) var peerNear = false
@@ -102,7 +102,7 @@ struct BumpAgreement {
     var bothNear: Bool { localNear && peerNear && !cancelled }
     mutating func markLocalNear() { if !cancelled { localNear = true } }
     mutating func markPeerNear() { if !cancelled { peerNear = true } }
-    /// 收 / 定一次性码：两边都够近、未有码先得。
+    /// Generate/accept the code only when both sides are close and no code is already set.
     mutating func accept(code: String) -> Bool {
         guard bothNear, self.code == nil, PairCode.isValid(code) else { return false }
         self.code = code

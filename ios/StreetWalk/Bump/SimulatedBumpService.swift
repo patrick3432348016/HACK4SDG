@@ -1,15 +1,15 @@
 import Foundation
 
-/// 成员 B：碰一碰的模拟实现（演示模式）。2.2 秒后"碰到"第一个还不是街坊的人；
-/// 中间报几次模拟距离，等演示画面同真机一样由「靠近啲」行到「成功」（画面标明「示範」）。
-/// 真机版本：NearbyBumpService（超宽带 + Bonjour）。
+/// Member B's demo implementation pairs with the first non-neighbor after 2.2 seconds.
+/// Emit simulated distances so the labeled demo follows the real-device approach-to-success UI.
+/// Physical-device implementation: NearbyBumpService with UWB and Bonjour.
 @MainActor
 final class SimulatedBumpService: BumpService {
     private var work: [DispatchWorkItem] = []
 
     func startSearching(candidates: [Resident], onUpdate: @escaping (BumpUpdate) -> Void, onFound: @escaping (BumpMatch) -> Void) {
         cancel()
-        // 录宣传片（-videoBumpWith <id>）：指定碰边个，距离由 1.1 米慢慢收到 0.16 米（两部手机同步录，剪成两部一齐靠近）
+        // -videoBumpWith <id> selects the peer for recording, reducing distance from 1.1 m to 0.16 m for synchronized two-phone footage.
         let want = LaunchArgs.value("-videoBumpWith")
         guard let target = candidates.first(where: { !$0.isMe && !$0.isNeighbor && (want == nil || $0.id == want) }) else { return }
         onUpdate(.searching)

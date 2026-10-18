@@ -1,9 +1,9 @@
 import Foundation
 @preconcurrency import UserNotifications
 
-/// A58 本地通知：约会出发前 30 分钟提醒、过咗期。App 锁屏 / 喺背景都收到。
-/// App 喺前台时唔弹系统通知，照用 App 自己嘅横幅（checkAppointments）。
-/// 街坊出门提醒要等后端推送（APNs），单机演示做唔到。
+/// A58 local notifications: thirty-minute departure reminder and meetup expiry, including while locked/backgrounded.
+/// Suppress system banners in foreground and use checkAppointments in-app banners.
+/// Reliable remote neighbor-departure push needs backend/APNs; a local demo cannot establish it.
 @MainActor
 final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     override init() {
@@ -11,7 +11,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().delegate = self
     }
 
-    /// 要用时先问（有街坊开咗出门提醒、或者有约会，见 AppStore.requestNotificationsIfReady）；只问一次，之后由系统设定管。
+    /// Request notifications only when needed for enabled neighbor reminders or a meetup; ask once, then defer to system settings.
     func requestIfNeeded() {
         let c = UNUserNotificationCenter.current()
         c.getNotificationSettings { s in
@@ -20,19 +20,19 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    /// 上次排咗乜（一样就唔再郁系统通知）。
+    /// Previously scheduled content; do not reschedule identical notifications.
     private var lastPlan: [NotificationPlan.Item]?
-    /// 串行队列：两次 sync 嘅「清走、再排」唔会交错（唔会留低已取消约会嘅提醒）。
+    /// Serialize clear-and-reschedule operations so concurrent syncs cannot retain cancelled-meetup reminders.
     private let queue = DispatchQueue(label: "streetwalk.notifier", qos: .utility)
 
-    /// 按而家嘅约会重排全部通知（本 App 只有约会通知，所以先全部清走）。
-    /// 系统调用放去背景串行队列做，唔好阻住界面。
+    /// Rebuild pending notifications from current meetups, clearing this app's previous meetup schedule first.
+    /// Run system notification calls on a background serial queue to avoid blocking the UI.
     func sync(_ items: [NotificationPlan.Item]) {
         let plan = items.filter { $0.at.timeIntervalSinceNow > 1 }
         guard plan != lastPlan else { return }
         lastPlan = plan
         if LaunchArgs.has("-logNotifications") { plan.forEach { print("[notify] \($0.id) \($0.at) \($0.body)") } }
-        let title = L.t("街坊行", "街坊行", "StreetWalk")   // 喺主线程揀好语言
+        let title = L.t("街坊行", "街坊行", "StreetWalk")   // Choose the language on the main thread.
         queue.async {
             let c = UNUserNotificationCenter.current()
             c.removeAllPendingNotificationRequests()
@@ -41,7 +41,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
                 content.title = title
                 content.body = it.body
                 content.sound = .default
-                // 用倒数（唔受手机时区影响）；每次约会有改动都会重排
+                // Use relative countdowns independent of device timezone; reschedule after every meetup change.
                 let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, it.at.timeIntervalSinceNow), repeats: false)
                 c.add(UNNotificationRequest(identifier: it.id, content: content, trigger: trigger))
             }
@@ -54,7 +54,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     }
 }
 
-/// 要排边几个通知（纯逻辑，可单测）。
+/// Pure, unit-testable notification selection.
 enum NotificationPlan {
     struct Item: Equatable {
         var id: String
@@ -63,7 +63,7 @@ enum NotificationPlan {
     }
 
     static let remindBefore: TimeInterval = 30 * 60
-    /// 同 checkAppointments 一样：过咗约定时间一个钟当过期。
+    /// Match checkAppointments: expire one hour after the scheduled time.
     static let expireAfter: TimeInterval = 60 * 60
 
     static func items(_ appointments: [Appointment], now: Date,
@@ -77,7 +77,7 @@ enum NotificationPlan {
             }
             let expireAt = a.date.addingTimeInterval(expireAfter)
             if expireAt > now {
-                let hour = AppStore.clockLabel(a.date)   // 有分钟就讲埋（16:45）
+                let hour = AppStore.clockLabel(a.date)   // Include explicit minutes, such as 16:45.
                 out.append(Item(id: "appt-\(a.id.uuidString)-expire", at: expireAt, body: L.t("同\(who)\(hour)喺\(spot)嘅約過咗時間，收埋咗。", "和\(who)\(hour)在\(spot)的约已过时间，已收起。", "The \(hour) walk plan with \(who) at \(spot) has passed. Cleared.")))
             }
         }

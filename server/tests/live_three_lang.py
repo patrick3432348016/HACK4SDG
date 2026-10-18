@@ -1,17 +1,17 @@
-"""10-17 加：三语（粤语 / 普通话 / 英文）真机级实测——真系调用豆包，唔系假供应商。唔会俾 unittest discover 执到（档名唔系 test*）。
+"""Live three-language provider checks call real Doubao; the non-test filename excludes them from unittest discovery.
 
-先开一个服务器（密钥只喺服务器读，脚本唔掂密钥；用 demo 模式，业务资料系虚构联系人「陈伯」等，路由 / 豆包 / 天文台同正式一样）：
+Start a demo server with fictional business contacts; credentials are read only server-side while routing, Doubao and HKO remain real.
     cd server && ASSISTANT_MODE=demo DOUBAO_CONFIG=~/Desktop/HACK/voice-runtime/doubao.json TTS_PROVIDER=doubao \\
         ASSISTANT_DATABASE=/tmp/live3.sqlite3 SPEECH_CACHE_DIR=/tmp/live3-tts \\
         ~/Desktop/HACK/voice-runtime/venv/bin/python -m assistant.serve assistant.app:create_app --factory --port 8799
-再跑：
+Then run:
     ~/Desktop/HACK/voice-runtime/venv/bin/python server/tests/live_three_lang.py --server http://127.0.0.1:8799
 
-做三样：
-1. 识别：macOS say（Sinji 粤 / Tingting 普 / Samantha 英）讲 3 句（约人带分钟时长 / 问天气 / 求救），ffmpeg 转 16 kHz 单声道 PCM16，
-   按 App 协议推去 /v1/voice/ear，睇认出嘅字。
-2. 理解：每种语言 6 句去 /v1/assistant/turn（约人、天气、请假、求救、问药、确认「好」），睇意图 / policy 同回复语言。
-3. 播报：每种语言一句经 /v1/speech/synthesize（小何），存 docs/voice_samples/three_lang/{yue,cmn,en}.mp3，再经识别回认。
+Three checks:
+1. macOS say generates Cantonese/Mandarin/English invitation, weather and emergency samples; ffmpeg converts to 16 kHz mono PCM16.
+   Stream them to /v1/voice/ear using the App protocol and inspect recognized text.
+2. Send six requests per language for invitation, weather, leave, safety and confirmation; inspect intent/policy and reply language.
+3. Synthesize one Xiaohe sample per language, save under docs/voice_samples/three_lang, then transcribe it again.
 """
 import argparse
 import asyncio
@@ -24,7 +24,7 @@ import tempfile
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import assistant.compat  # noqa: E402,F401  Python 3.10 冇 asyncio.timeout（要喺 websockets 之前）
+import assistant.compat  # noqa: E402,F401  Load Python 3.10 asyncio.timeout compatibility before websockets.
 import httpx  # noqa: E402
 from websockets.asyncio.client import connect  # noqa: E402
 
@@ -33,7 +33,7 @@ SAMPLES = ROOT / "docs" / "voice_samples" / "three_lang"
 VOICES = {"zh-HK": "Sinji", "zh-CN": "Tingting", "en-US": "Samantha"}
 NAMES = {"zh-HK": "yue", "zh-CN": "cmn", "en-US": "en"}
 
-# (讲乜, 认出嘅字应该有嘅关键字（任何一个）)
+# Input text and acceptable recognized keywords, matching any one.
 EAR = {
     "zh-HK": [("約陳伯聽日下晝三點十五分散步，行四十分鐘。", ["陈伯", "陳伯"]), ("聽日天氣點呀？", ["天气", "天氣"]),
               ("救命呀，我跌親起唔到身。", ["救命"])],
@@ -42,13 +42,13 @@ EAR = {
     "en-US": [("Invite Mr Chan for a walk tomorrow at 3:15 pm, for 40 minutes.", ["walk"]),
               ("What's the weather like tomorrow?", ["weather"]), ("Help! I fell down and I can't get up.", ["help", "fell"])],
 }
-# (讲乜, 期望：intent 或 policy)
+# Input text and expected intent or policy.
 TURN = {
     "zh-HK": [("約陳伯聽日下晝三點十五分散步，行四十分鐘", "invite"), ("聽日天氣點呀", "weather"), ("聽日請假", "leave"),
               ("救命，有人暈倒", "emergency"), ("呢隻藥食幾多粒", "deny"), ("好", "help")],
     "zh-CN": [("约陈伯明天下午三点十五分散步，走四十分钟", "invite"), ("明天天气怎么样", "weather"), ("明天请假", "leave"),
               ("救命，有人晕倒了", "emergency"), ("这个药吃几粒", "deny"), ("好", "help"),
-              # 10-18 真机：时长唔可以变分钟（以前出「3 点 2 分」），时间要系 15:00
+              # 10-18: duration must not become clock minutes; the requested time is 15:00.
               ("约陈伯明天下午3点散步40分钟", "invite"), ("约陈伯明天下午三点散步四十分钟", "invite"), ("约陈伯明天下午3点走半个钟", "invite")],
     "en-US": [("Invite Mr Chan for a walk tomorrow at 3:15 pm for 40 minutes", "invite"), ("What's the weather like tomorrow?", "weather"),
               ("I want a day off tomorrow", "leave"), ("Help! Someone has collapsed", "emergency"),
@@ -69,16 +69,16 @@ def say(text, voice, out):
 
 
 def lang_of(text):
-    """回复语言：en / yue（有粤语字）/ zh（中文，分唔到粤普）。"""
+    """Reply language classification: en, yue with Cantonese markers, or zh when Chinese variants are indistinguishable."""
     if not re.search(r"[一-鿿]", text):
         return "en"
     return "yue" if re.search(r"[嘅唔咗喺嚟攞乜冇嗰啲咁]", text) else "zh"
 
 
 async def ear(server, locale, pcm):
-    """按 App 协议推音频（200 ms 一段，约 2 倍实时），返回第一句 final 同用时（推完最后一段到出 final）。"""
+    """Send 200 ms audio chunks at roughly twice real time; return the first final transcript and delay after the last chunk."""
     url = server.replace("http", "ws", 1) + "/v1/voice/ear"
-    pcm += b"\0" * 16000 * 2 * 2   # 尾段两秒静音，等豆包判停
+    pcm += b"\0" * 16000 * 2 * 2   # Append two seconds of silence for utterance finalization.
     async with connect(url, open_timeout=10, proxy=None) as ws:
         await ws.send(json.dumps({"locale": locale}))
         hello = json.loads(await asyncio.wait_for(ws.recv(), 10))

@@ -1,4 +1,4 @@
-"""成员 A：Supabase 业务适配（mode=supabase）测试。Supabase 用 httpx.MockTransport 模拟，唔连真服务器。"""
+"""Supabase adapter tests use httpx.MockTransport and never contact the real service."""
 import asyncio
 from datetime import datetime, timedelta
 import json
@@ -22,7 +22,7 @@ TOKENS = {"alice-token": ALICE}
 
 
 class FakeSupabase:
-    """最少嘅 Supabase：auth/v1/user、my_neighbors、meetups（含 RLS 只准约街坊）、leaves、profiles。"""
+    """Minimal fake auth, neighbors, RLS-constrained meetups, leave and profiles."""
 
     def __init__(self):
         self.neighbours = {ALICE: [{"id": FANG, "nickname": "阿芳"}]}
@@ -30,8 +30,8 @@ class FakeSupabase:
         self.leaves = set()
         self.nicknames = {ALICE: "阿明"}
         self.calls = []
-        self.fail_insert = None   # 例如 500：模拟「写咗但係冇答」
-        self.rls_only = None      # 模拟 RLS 只认呢啲人系互为街坊（my_neighbors 同 RLS 唔一致时）
+        self.fail_insert = None   # Simulate a write whose response is lost, such as an HTTP 500.
+        self.rls_only = None      # Simulate RLS accepting fewer mutual neighbors than the cached my_neighbors result.
 
     def handler(self, request: httpx.Request):
         assert request.headers["apikey"] == "anon-key"
@@ -123,7 +123,7 @@ class SupabaseAdapterTests(unittest.TestCase):
         self.upload()
         reply = self.turn("約阿芳聽日下晝四點行下")
         self.assertEqual(reply["status"], "needs_input", reply)
-        self.assertIsNone(reply["command"]["max_walk_minutes"])   # 唔猜步行上限：要问
+        self.assertIsNone(reply["command"]["max_walk_minutes"])   # Ask for walking limit rather than guessing.
         reply = self.turn("最多行十五分鐘", reply["conversation_id"])
         self.assertEqual(reply["status"], "choose_place", reply)
         self.assertEqual([c["id"] for c in reply["choices"]], ["lm-1", "lm-2"])
@@ -153,7 +153,7 @@ class SupabaseAdapterTests(unittest.TestCase):
         self.assertEqual(self.client.get("/assistant/session", headers=self.auth).json(), {"user_id": ALICE})
         r = self.post("/v1/assistant/turn", {"text": "改名为小明", "user_id": FANG})
         self.assertEqual(r.status_code, 422)
-        # 核实结果缓存：多次请求只问 Supabase 一次
+        # Repeated requests reuse cached identity verification and call Supabase only once.
         before = sum(1 for c in self.fake.calls if c[1] == "/auth/v1/user")
         for _ in range(3):
             self.client.get("/v1/capabilities", headers=self.auth)
@@ -178,11 +178,11 @@ class SupabaseAdapterTests(unittest.TestCase):
         self.assertEqual(pavilion["shade_valid_from"], "2026-10-11T16:00:00+08:00")
         self.assertNotIn(STRANGER, pavilion["contact_walk_minutes"])
         late = self.client.get("/assistant/context", params={"at": "2026-10-20T16:10:00+08:00"}, headers=self.auth).json()
-        self.assertIsNone(late["places"][0]["shade_fraction"])   # 冇数据就系未知，唔当 0
+        self.assertIsNone(late["places"][0]["shade_fraction"])   # Missing data is unknown, not zero.
 
     def test_rls_rejection_is_reported_not_success(self):
         reply = self.draft()
-        self.fake.rls_only = set()   # 服务器 RLS 话唔系互为街坊
+        self.fake.rls_only = set()   # Server RLS rejects the mutual-neighbor assumption.
         result = self.post(f"/v1/drafts/{reply['draft_id']}/confirm").json()
         self.assertEqual(result["status"], "info")
         self.assertEqual(result["data"]["operation_status"], "failed")
@@ -190,7 +190,7 @@ class SupabaseAdapterTests(unittest.TestCase):
 
     def test_unlinked_before_confirm_is_rejected_by_version(self):
         reply = self.draft()
-        # 对方喺确认之前解除咗街坊：版本变咗 → 拒绝，冇写入
+        # Unlinking before confirmation changes the context version, rejecting without a write.
         self.fake.neighbours[ALICE] = []
         result = self.post(f"/v1/drafts/{reply['draft_id']}/confirm").json()
         self.assertEqual(result["status"], "info")
@@ -205,7 +205,7 @@ class SupabaseAdapterTests(unittest.TestCase):
         self.fake.fail_insert = None
         result = self.post(f"/v1/drafts/{reply['draft_id']}/reconcile").json()
         self.assertEqual(result["status"], "completed")
-        self.assertEqual(len(self.fake.inserted()), 1)   # 查结果唔会再写
+        self.assertEqual(len(self.fake.inserted()), 1)   # Reconciliation never writes again.
 
     def test_business_api_idempotency_key(self):
         version = self.upload()
@@ -225,7 +225,7 @@ class SupabaseAdapterTests(unittest.TestCase):
         self.assertEqual(len(self.fake.inserted()), 1)
         self.assertEqual(self.client.get("/assistant/actions/op-1", headers=self.auth).json()["status"], "succeeded")
         self.assertEqual(self.client.get("/assistant/actions/op-404", headers=self.auth).json()["status"], "not_found")
-        self.assertEqual(self.fake.meetups[meetup_id(ALICE, "op-1")]["landmark_name"], "公園櫈仔")   # 用原名，对方对得上
+        self.assertEqual(self.fake.meetups[meetup_id(ALICE, "op-1")]["landmark_name"], "公園櫈仔")   # Use canonical names for peer matching.
 
     def test_leave_and_rename_need_confirmation_then_write(self):
         self.upload()
@@ -234,7 +234,7 @@ class SupabaseAdapterTests(unittest.TestCase):
         self.assertEqual(self.fake.leaves, set())
         self.assertEqual(self.post(f"/v1/drafts/{reply['draft_id']}/confirm").json()["status"], "completed")
         self.assertEqual(self.fake.leaves, {(ALICE, "2026-10-11")})
-        reply = self.turn("改名做小明")   # 粤语讲法
+        reply = self.turn("改名做小明")   # Cantonese phrasing.
         self.assertEqual(self.post(f"/v1/drafts/{reply['draft_id']}/confirm").json()["status"], "completed")
         self.assertEqual(self.fake.nicknames[ALICE], "小明")
 

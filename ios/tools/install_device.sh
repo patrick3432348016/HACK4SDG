@@ -1,11 +1,11 @@
 #!/bin/zsh
-# 编译真机版并装到所有用数据线插着的 iPhone，然后打开 App。
-# 用法：cd ios && zsh tools/install_device.sh
-# 签名用 Xcode 里登录的 Apple ID（免费账号也可以）；有几个账号时可指定：TEAM=XXXXXXXXXX zsh tools/install_device.sh
-# 免费账号装的 App 7 天后打不开，到时插线重跑一次即可。
+# Build, install and launch the device App on all cable-connected iPhones.
+# Usage: cd ios && zsh tools/install_device.sh.
+# Use an Xcode-signed-in Apple ID, including free accounts; select among teams with TEAM=XXXXXXXXXX.
+# Free-account installations expire after 7 days; reconnect and rerun to renew.
 set -e
 cd "$(dirname "$0")/.."
-OWNER_TEAM=57KPZRQR4A   # 本项目原作者的团队，用原本的 App 编号
+OWNER_TEAM=57KPZRQR4A   # Original author's team uses the original bundle identifier.
 APP=build/DDdevice/Build/Products/Debug-iphoneos/StreetWalk.app
 mkdir -p build
 
@@ -14,7 +14,7 @@ if [[ "$(xcode-select -p 2>/dev/null)" != *Xcode*.app* ]]; then
   echo "（装好后仍报这句，在终端运行：sudo xcode-select -s /Applications/Xcode.app）"; exit 1
 fi
 
-# 签名团队：没指定就用 Xcode 里登录的第一个（有付费团队优先用付费的）
+# Without an explicit team, choose the first Xcode account, preferring a paid team.
 if [[ -z "$TEAM" ]]; then
   TEAM=$(defaults export com.apple.dt.Xcode - 2>/dev/null | python3 -c "
 import sys, plistlib
@@ -28,12 +28,12 @@ fi
 if [[ -z "$TEAM" ]]; then
   echo "Xcode 还没登录 Apple ID：打开 Xcode → 设置（Settings）→ Apple 账户（Apple Accounts）→ 左下角 + → 登录你的 Apple ID，再重跑。"; exit 1
 fi
-# 免费账号的 App 编号全世界不能重复，别人的账号就在后面加上团队号
+# For other free-account teams, append the team identifier to obtain a globally unique bundle ID.
 if [[ "$TEAM" == "$OWNER_TEAM" ]]; then PREFIX=hk.hack4sdg; else PREFIX=hk.hack4sdg.t${TEAM:l}; fi
 BUNDLE=$PREFIX.streetwalk
 echo "签名团队 $TEAM，App 编号 $BUNDLE"
 
-# 找插着线的 iPhone
+# Find cable-connected iPhones.
 devices() {
   local J=$(mktemp)
   xcrun devicectl list devices --json-output "$J" >/dev/null 2>&1
@@ -47,7 +47,7 @@ for x in json.load(open('$J'))['result']['devices']:
   rm -f "$J"
 }
 LIST=$(devices)
-# 第一次插的手机要先配对（手机上会弹「要信任这台电脑吗？」）
+# First-time devices require pairing and the phone's Trust This Computer prompt.
 for id in $(echo "$LIST" | awk '$2 != "paired" {print $1}'); do
   echo "请在手机上按「信任」并输入锁屏密码……"
   xcrun devicectl manage pair --device "$id" >/dev/null 2>&1 || true

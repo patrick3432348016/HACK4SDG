@@ -1,7 +1,7 @@
 #!/bin/zsh
-# 录演示视频：编译安装 → 状态栏固定 9:41 → 录屏跑 -script -captions（约 105 秒）→ 用 ffmpeg 压成 1280 高的 H.264。
-# 用法：./tools/record_demo.sh [输出.mp4]   默认 ../docs/demo/streetwalk_demo.mp4
-# 注意：录之前关掉其他开着的模拟器（几台一齐渲染 3D 场景时，录屏会令界面更新跟唔上，横幅、卡片会卡住）。
+# Build/install, fix status time to 9:41, record -script -captions for about 105 seconds, then encode 1280-high H.264 with ffmpeg.
+# Usage: ./tools/record_demo.sh [output.mp4], default ../docs/demo/streetwalk_demo.mp4.
+# Close other simulators before recording; concurrent 3D rendering can stall UI, banners and cards.
 set -e
 cd "$(dirname "$0")/.."
 OUT=${1:-../docs/demo/streetwalk_demo.mp4}

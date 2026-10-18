@@ -1,21 +1,21 @@
 import SwiftUI
 import UserNotifications
 
-// 后台出门检测、屋企学习嘅接线（LocationMonitor ↔ 散步流程 ↔ 界面）。
-// 原有文件只加咗几个 hook：beginWalk / finishWalk（walkBegan / walkEnded）、recordWalk（noteWalkRecorded）、
-// populate（syncHomeLocation）、finishOnboarding（locationOnboarded）、appActive（locationAppActive、背景唔停）。
+// Connect LocationMonitor, walking flow and UI for background departure detection and home learning.
+// Hooks: beginWalk / finishWalk call walkBegan / walkEnded; recordWalk calls noteWalkRecorded.
+// populate calls syncHomeLocation; finishOnboarding calls locationOnboarded; appActive calls locationAppActive without stopping background monitoring.
 //
-// 流程（真机、「始终允许」、关咗演示模式）：
-// 1. 喺屋企：App 可以俾系统暂停，冇开定位。
-// 2. 出咗屋企 100 m（或者系统「到访」话离开咗屋企）→ iOS 喺背景叫醒 App → watchForWalk：
-//    补记之前未记嘅行路、开 Core Motion、粗略定位保持醒住；Core Motion 话行紧路就开准确定位，
-//    LiveWalkGate 两个好点就开始记录（同前台一样记路线、地标、落脚点，发出门状态）。5–15 分钟都冇开始就熄返。
-// 3. 记录中锁机放袋：一直用准确定位（状态栏有蓝色标记）。
-// 4. 返到屋企（40 m 内、或者系统报入咗屋企范围）→ 收尾、存盘、熄定位、App 再俾系统暂停。
-//    喺外面停低 10 分钟 → 今次收尾，粗略定位等多 2 个钟，再行路就再记一次。
-// 5. App 被扫走、冇「始终允许」：同以前一样，返前台时用 Core Motion 补记分钟同步数（冇地标）。
+// Real-device flow with Always permission and demo mode disabled:
+// 1. At home: location is off and iOS may suspend the App.
+// 2. Leaving the 100 m home region or a visit-departure event wakes the App and starts watchForWalk.
+//    Backfill unrecorded walking, enable Core Motion and coarse location; switch to accurate fixes when motion reports walking.
+//    Two valid LiveWalkGate fixes start recording routes, landmarks, stops and outing status; stop waiting after 5–15 minutes.
+// 3. During recording, keep accurate location while locked; iOS shows its blue location indicator.
+// 4. Returning within 40 m or receiving a home-region entry ends and saves the walk, disables location and permits suspension.
+//    After 10 minutes stopped outside, finish this walk and wait up to 2 hours on coarse location for another walk.
+// 5. After force-quit or without Always permission, backfill minutes and steps from Core Motion on foreground return, without landmarks.
 extension AppStore {
-    /// 唯一嘅 AppStore：App 同 AppDelegate 都用佢（系统喺背景开 App 时要即刻有人接定位事件）。
+    /// Shared AppStore for App and AppDelegate, ready to receive system background location events immediately.
     private static var instance: AppStore?
     private static var bgTasks: [String: UIBackgroundTaskIdentifier] = [:]
     static let homeFromSampleKey = "homeFromSample"
@@ -26,13 +26,13 @@ extension AppStore {
         let s = AppStore()
         instance = s
         s.attachLocation()
-        s.attachVoice()     // 装咗更好嘅系统声音就讲一声（Voice/VoiceSettingsSection）
-        s.startLiveIsland()     // 灵动岛 / 锁屏实时活动（AppStore+Island）：背景开 App 都要接手
+        s.attachVoice()     // Announce newly installed enhanced system voices (Voice/VoiceSettingsSection).
+        s.startLiveIsland()     // Dynamic Island / Lock Screen activities must reconnect on background launch too.
         return s
     }
 
     var isInBackground: Bool { UIApplication.shared.applicationState == .background }
-    /// App 用紧嘅嗰个 store（单元测试自己 new 嘅唔好改 LocationMonitor 嘅屋企同纪录）。
+    /// Only the App's active store may change LocationMonitor home or records; exclude unit-test stores.
     var isMainStore: Bool { Self.instance === self }
 
     func attachLocation() {
@@ -43,7 +43,7 @@ extension AppStore {
         lm.activate()
         if let s = LaunchArgs.value("-simNights"), let g = Self.parseGeo(s) { lm.simulateNights(at: g) }
         if UIPreview.is("alwaysAsk") { lm.showAlwaysAsk = true }
-        previewFirstDayIfNeeded()       // 截图自检：-uiPreview firstDay（AppStore+FirstDay）
+        previewFirstDayIfNeeded()       // Screenshot self-check: -uiPreview firstDay (AppStore+FirstDay).
     }
 
     nonisolated static func parseGeo(_ s: String) -> GeoPoint? {
@@ -51,31 +51,31 @@ extension AppStore {
         return p.count == 2 ? GeoPoint(lat: p[0], lon: p[1]) : nil
     }
 
-    // MARK: - 生命周期 hook
+    // MARK: - Lifecycle hooks
 
-    /// 返到前台（appActive）。
+    /// Returning to foreground (appActive).
     func locationAppActive() {
         guard isMainStore else { return }
-        // 改楼途中（phase 係首次使用）唔好停监察
+        // Keep monitoring while changing home during the onboarding phase.
         if phase == .main { LocationMonitor.shared.enabled = true }
         LocationMonitor.shared.appBecameActive()
         offerAlwaysIfNeeded()
     }
 
-    /// 完成首次使用 / 改完楼（finishOnboarding）。
+    /// After initial setup or changing home (finishOnboarding).
     func locationOnboarded() {
         guard isMainStore else { return }
         UserDefaults.standard.set(mapSource == .fallback, forKey: Self.homeFromSampleKey)
         LocationMonitor.shared.enabled = true
         syncHomeLocation()
-        // 首次设定完就问「始终允许」（C-1：唔好等到行出街先弹框）；等「搞掂！…」讲完先出解释页
+        // C-1: request Always permission after initial setup, following the completion announcement, rather than outside on the first walk.
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(3))
             self?.offerAlwaysIfNeeded()
         }
     }
 
-    /// 装好地图（populate）：屋企位置交俾 LocationMonitor 登记屋企范围。
+    /// After populate, register the home region with LocationMonitor.
     func syncHomeLocation() {
         guard isMainStore, phase == .main, let m = map, let id = scene.homeBuildingID, let b = m.building(id: id) else { return }
         let d = UserDefaults.standard
@@ -83,9 +83,9 @@ extension AppStore {
         LocationMonitor.shared.setHome(m.geoPoint(b.centroid), picked: picked)
     }
 
-    /// 「始终允许」解释页（测试反馈 C-1）：完成首次设定就弹一次，喺屋企一次问清楚（以前等第一次散步之后先问，
-    /// 结果行出街先弹系统框）。之后只喺今日页卡同设定提；但定位变返「未问」（例如以前揀咗「允许一次」），
-    /// 每次打开 App 都再问一次，唔好留到喺街上先问。散步中、演示、自动脚本唔弹。
+    /// C-1: show the Always-permission explanation once after initial setup, while at home, instead of after the first walk.
+    /// Later reminders appear on Today and Settings. If authorization resets to undetermined, such as after Allow Once,
+    /// ask again on launch instead of waiting until outside. Suppress during walks, demos and automatic scripts.
     func offerAlwaysIfNeeded() {
         let lm = LocationMonitor.shared
         guard phase == .main, !demoMode, !skipsPermissionPrompt, !changingHome, lm.auth != .authorizedAlways, walk == nil, !lm.showAlwaysAsk else { return }
@@ -94,7 +94,7 @@ extension AppStore {
         lm.showAlwaysAsk = true
     }
 
-    // MARK: - 系统叫醒
+    // MARK: - System wake events
 
     func locationTriggered(_ t: LocationTrigger) {
         let lm = LocationMonitor.shared
@@ -121,14 +121,14 @@ extension AppStore {
         }
     }
 
-    /// 离开屋企：开动作感应同定位，等开始行路（开始由 handleWalkEvent 嘅 LiveWalkGate 决定）。
+    /// Leaving home enables motion and location while waiting for LiveWalkGate in handleWalkEvent to start a walk.
     func watchForWalk(fromHome: Bool) {
         let d = walkDetector
         holdBackgroundTime("watch")
         if fromHome { d.leftHomeAt = Date() }
         let since = Date()
-        d.keepAlive = true                 // 背景醒住：等 Core Motion 话行紧路先开准确定位
-        startWalkDetection()               // 补记之前未记嘅行路、开动作感应（同返前台一样）
+        d.keepAlive = true                 // Stay awake in background; enable accurate location only after Core Motion detects walking.
+        startWalkDetection()               // Backfill unrecorded walking and start motion sensing, as on foreground return.
         if !d.catchingUp, d.running { d.setLocating(d.moving || d.recording) }
         LocationMonitor.shared.record(.watch, L.t("開定位等你開始行路（最多 15 分鐘）", "开定位等你开始走路（最多 15 分钟）", "Location on, waiting for you to walk (up to 15 min)"))
         d.watchTask?.cancel()
@@ -146,11 +146,11 @@ extension AppStore {
     private func endWatch(since: Date) {
         let d = walkDetector
         d.watchTask = nil
-        guard !d.recording else { return }      // 已经交咗俾散步
+        guard !d.recording else { return }      // Walking has already taken over.
         d.keepAlive = false
         LocationMonitor.shared.record(.watch, L.t("冇開始行路，熄返定位", "没开始走路，关掉定位", "No walk started, location off"))
-        guard isInBackground else { return }    // 前台照旧（行路先开定位）
-        // 背景：停晒，等系统再叫醒。由 since 起（未接手嘅行路由佢开始）返前台时补记
+        guard isInBackground else { return }    // Foreground behavior: enable location only while walking.
+        // In background stop everything until the next system wake; backfill unhandled walking from since on foreground return.
         UserDefaults.standard.set(min(since, d.pendingWalk?.start ?? since), forKey: Self.backgroundKey)
         d.pendingWalk = nil
         d.leftHomeAt = nil
@@ -158,8 +158,8 @@ extension AppStore {
         d.stop()
     }
 
-    /// 记录中返到屋企范围：收尾（walkEnded 负责存盘、熄定位）。
-    /// 仲行紧路又未入 40 m（例如绕圈经过屋企附近）就唔收，交返 LiveWalkGate（40 m）同「停低 5 分钟喺屋企附近」判断。
+    /// Home-region entry during recording finishes the walk; walkEnded saves and disables location.
+    /// If still walking outside 40 m, defer to LiveWalkGate and the five-minute stop near home, allowing routes that pass nearby.
     func arriveHomeWhileRecording() {
         let d = walkDetector
         guard d.recording, walk != nil else { return }
@@ -172,20 +172,20 @@ extension AppStore {
         finishLiveWalk(endAt: Date(), reason: .home)
     }
 
-    /// 冇记录紧但返到屋企：背景就用 Core Motion 补记之前行过嘅路（例如喺外面停低后行返屋企嗰段），再停。
+    /// Returning home without recording: in background backfill the final walking segment with Core Motion, then stop.
     func catchUpAtHome() {
         let d = walkDetector
         d.watchTask?.cancel()
         d.watchTask = nil
         d.keepAlive = false
         d.leftHomeAt = nil
-        guard isInBackground else { return }    // 前台：散步检测本身开住
+        guard isInBackground else { return }    // Foreground walk detection is already active.
         holdBackgroundTime("catchUp")
         startWalkDetection()
         Task { [weak self] in
             for _ in 0..<40 where d.catchingUp { try? await Task.sleep(for: .milliseconds(250)) }
             guard let self, !d.recording, self.isInBackground else { return }
-            // 最后一段（啱啱行返嚟）即刻按而家补记
+            // Backfill the just-completed return segment immediately.
             self.settlePendingWalk(stoppedAt: Date())
             try? await Task.sleep(for: .seconds(2))
             guard !d.recording, self.isInBackground else { return }
@@ -195,24 +195,24 @@ extension AppStore {
         }
     }
 
-    // MARK: - 散步 hook
+    // MARK: - Walking hooks
 
-    /// beginWalk 之后。
+    /// After beginWalk.
     func walkBegan(live: Bool) {
         guard live, isMainStore, let w = walk else { return }
         let d = walkDetector
         d.watchTask?.cancel()
         d.watchTask = nil
-        d.keepAlive = false      // 记录中一直用准确定位（停低都唔熄），唔使粗略档
+        d.keepAlive = false      // Keep accurate location throughout recording, including stops; coarse mode is unnecessary.
         let bg = isInBackground
         LocationMonitor.shared.record(.walkStart, L.t("\(bg ? "鎖咗機 / 背景" : "App 開住")，由 \(Self.clock(w.start)) 計", "\(bg ? "锁屏 / 后台" : "App 开着")，从 \(Self.clock(w.start)) 算起", "\(bg ? "Locked / background" : "App open"), counting from \(Self.clock(w.start))"))
         guard bg else { return }
-        // 记录中俾系统收咗：下次开 App 由今次开始补记
+        // If terminated while recording, backfill from this walk's start on next launch.
         UserDefaults.standard.set(w.start, forKey: Self.backgroundKey)
         notifyWalk(L.t("偵測到你出咗門，開始記錄散步。", "检测到你出门了，开始记录散步。", "You’ve gone out. Recording your walk."))
     }
 
-    /// finishWalk 之后。
+    /// After finishWalk.
     func walkEnded(live: Bool, minutes: Int, places: Int, reason: WalkEnd, recorded: Bool) {
         guard live, isMainStore else { return }
         let why: String
@@ -224,7 +224,7 @@ extension AppStore {
         }
         LocationMonitor.shared.record(.walkEnd, recorded ? L.t("\(why)：行咗 \(minutes) 分鐘，經過 \(places) 個地方", "\(why)：走了 \(minutes) 分钟，经过 \(places) 个地方", "\(why): walked \(minutes) min, passed \(places) places") : L.t("\(why)：太短，唔記錄", "\(why)：太短，不记录", "\(why): too short, not saved"))
         if recorded, !isInBackground {
-            // 第一次散步记好：等「返到屋企喇…」讲完先问「始终允许」（只问一次）
+            // After the first recorded walk, request Always permission once, following the return-home announcement.
             Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .seconds(5))
                 self?.offerAlwaysIfNeeded()
@@ -236,13 +236,13 @@ extension AppStore {
         if recorded { notifyWalk(reason == .home ? L.t("返到屋企喇，今次行咗 \(minutes) 分鐘。", "到家了，这次走了 \(minutes) 分钟。", "Home now. You walked \(minutes) min.") : L.t("今次散步記好咗：行咗 \(minutes) 分鐘。", "这次散步记好了：走了 \(minutes) 分钟。", "Walk saved: \(minutes) min.")) }
         holdBackgroundTime("walkEnd")
         Task { [weak self] in
-            // 等 finishLiveWalk 做埋（佢之后会按行唔行路开关定位）
+            // Wait for finishLiveWalk to finish adjusting location according to motion.
             await Task.yield()
             guard let self, !d.recording else { return }
             self.saveNow()
             guard self.isInBackground else { return }
             if reason == .stopped {
-                // 喺外面停低：粗略定位醒住最多 2 个钟，再行路就再记一次
+                // Stopped outside: keep coarse location for up to 2 hours and record again when walking resumes.
                 d.keepAlive = true
                 d.watchTask?.cancel()
                 d.watchTask = Task { [weak self] in
@@ -262,14 +262,14 @@ extension AppStore {
         }
     }
 
-    /// recordWalk 之后：补记嘅（背景期间行嘅）写入定位纪录；实时散步由 walkEnded 写。
+    /// After recordWalk, save background backfills to location records; walkEnded saves live walks.
     func noteWalkRecorded(minutes: Int, simulated: Bool, backfilled: Bool, steps: Int?) {
         guard !simulated, backfilled, isMainStore else { return }
         LocationMonitor.shared.record(.backfill, L.t("用手機步行紀錄補記：\(minutes) 分鐘\(steps.map { "、\($0) 步" } ?? "")（冇地標）", "用手机步行记录补记：\(minutes) 分钟\(steps.map { "、\($0) 步" } ?? "")（没有地标）", "Added from phone step log: \(minutes) min\(steps.map { ", \($0) steps" } ?? "") (no landmarks)"))
-        if !isInBackground { offerAlwaysIfNeeded() }    // 补记咗第一次散步（返前台）：问「始终允许」
+        if !isInBackground { offerAlwaysIfNeeded() }    // Request Always permission after backfilling the first walk on foreground return.
     }
 
-    /// 背景开始 / 记好散步：静音通知（App 打开时唔弹）。
+    /// Silent notifications for background walk start / completion; suppress while the App is open.
     func notifyWalk(_ body: String) {
         let c = UNMutableNotificationContent()
         c.title = L.t("街坊行", "街坊行", "StreetWalk")
@@ -277,9 +277,9 @@ extension AppStore {
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "walk-\(UUID().uuidString)", content: c, trigger: nil))
     }
 
-    // MARK: - 搬屋
+    // MARK: - Moving home
 
-    /// 「係，搬過嚟」：用过夜嘅地方重新揀楼（同设定「改我住嘅樓」一样嘅流程，地图按新位置重新生成）。
+    /// Confirming a move restarts building selection around the overnight location, as in Settings.
     func acceptHomePrompt() {
         let lm = LocationMonitor.shared
         guard let p = lm.homePrompt else { return }
@@ -290,16 +290,16 @@ extension AppStore {
         beginChangeHome()
     }
 
-    /// 「唔係」：7 日内唔再问。
+    /// Declining suppresses the question for 7 days.
     func declineHomePrompt() {
         let lm = LocationMonitor.shared
         lm.snooze(days: 7)
         lm.record(.home, L.t("你揀咗「唔係」：7 日內唔再問", "你选了「不是」：7 天内不再问", "You picked “No”: won’t ask again for 7 days"))
     }
 
-    // MARK: - 小工具
+    // MARK: - Utilities
 
-    /// 背景多攞少少时间（系统叫醒后大约得 10 秒）；seconds 之后自动交还。
+    /// Request extra background time beyond the roughly 10-second wake window; release automatically after seconds.
     func holdBackgroundTime(_ name: String, seconds: Double = 25) {
         Self.releaseBackgroundTime(name)
         let id = UIApplication.shared.beginBackgroundTask(withName: name) { AppStore.releaseBackgroundTime(name) }
@@ -315,7 +315,7 @@ extension AppStore {
         UIApplication.shared.endBackgroundTask(id)
     }
 
-    /// 「08:05」（香港时间）。
+    /// Format HH:mm in Hong Kong time.
     static func clock(_ d: Date) -> String {
         let c = hk.dateComponents([.hour, .minute], from: d)
         return String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0)
@@ -323,7 +323,7 @@ extension AppStore {
 }
 
 extension MapModel {
-    /// 场景坐标 → 经纬度（scenePoint 嘅反向）。
+    /// Convert scene coordinates to latitude/longitude, the inverse of scenePoint.
     func geoPoint(_ p: Vec2) -> GeoPoint {
         let cs = cos(rotation), sn = sin(rotation)
         let v = Vec2(x: p.x * cs + p.y * sn, y: -p.x * sn + p.y * cs)

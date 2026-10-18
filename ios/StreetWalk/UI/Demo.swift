@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - 演示菜单（右上胶囊，一层）
+// MARK: - Single-level demo menu in the top-right capsule
 
 struct DemoMenu: View {
     @Environment(AppStore.self) private var store
@@ -47,7 +47,7 @@ struct DemoMenu: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "sparkles")
-                // 大字号时只留图标，让位给左边「行緊 N 分鐘」。
+                // At large text sizes, keep only the icon to leave room for elapsed walking time.
                 if !typeSize.isAccessibilitySize { Text(L.t("演示", "演示", "Demo")) }
             }
             .ds(.caption)
@@ -59,18 +59,18 @@ struct DemoMenu: View {
             .contentShape(Capsule())
         }
         .menuOrder(.fixed)
-        // Menu 的 label 不跟 foregroundStyle，会变系统蓝；用中性色，和左边齿轮一致。
+        // Menu labels ignore foregroundStyle; use neutral color matching the Settings gear instead of system blue.
         .tint(.primary)
         .accessibilityLabel(L.t("演示選單", "演示菜单", "Demo menu"))
     }
 }
 
-// MARK: - 时间滑杆（.medium 半屏，拖动时场景里的太阳和影子跟住郁）
+// MARK: - Medium-height time slider updates scene sun and shadows
 
 struct TimeSliderSheet: View {
     @Environment(AppStore.self) private var store
     @State private var hour: Double = 15
-    /// 程序改 hour 时不回推给 store。
+    /// Do not send programmatic hour changes back to the store.
     @State private var syncing = false
 
     var body: some View {
@@ -144,7 +144,7 @@ struct TimeSliderSheet: View {
         .padding(.top, 24)
         .animation(DS.motion(DS.spring), value: store.demoHour == nil)
         .sensoryFeedback(.selection, trigger: hour)
-        // 半屏高度、底色由 MainView 的 .sheet 统一设定（以前两处设定不一致）。
+        // MainView.sheet owns consistent height and background settings.
         .onAppear { setLocal(Self.clamp(store.demoHour ?? Self.realHour())) }
         .onChange(of: hour) { _, new in
             if syncing { syncing = false } else { store.setDemoHour(new) }
@@ -221,18 +221,18 @@ struct TimeSliderSheet: View {
 
     static func clamp(_ h: Double) -> Double { min(19, max(6, (h * 4).rounded() / 4)) }
 
-    /// 例如"下晝 3:15"。
+    /// Localized time label, including minutes.
     static func label(_ h: Double) -> String {
         let total = Int((h * 60).rounded())
         let hh = (total / 60) % 24, mm = total % 60
         let period = hh < 5 ? L.t("凌晨", "凌晨", "am") : hh < 12 ? L.t("朝早", "早上", "am") : hh < 13 ? L.t("中午", "中午", "pm") : hh < 18 ? L.t("下晝", "下午", "pm") : L.t("夜晚", "晚上", "pm")
         let h12 = hh % 12 == 0 ? 12 : hh % 12
-        if L.isEn { return "\(h12):\(mm < 10 ? "0" : "")\(mm) \(hh < 12 ? "am" : "pm")" }   // 英文：3:15 pm
+        if L.isEn { return "\(h12):\(mm < 10 ? "0" : "")\(mm) \(hh < 12 ? "am" : "pm")" }   // English example: 3:15 pm.
         return "\(period) \(h12):\(mm < 10 ? "0" : "")\(mm)"
     }
 }
 
-// MARK: - 月尾报告（社工 / 规划方视角）
+// MARK: - Monthly report for community workers and planners
 
 struct ReportView: View {
     @Environment(AppStore.self) private var store
@@ -350,8 +350,8 @@ struct ReportView: View {
     }
 }
 
-/// 截图自检：启动参数 `-uiPreview <名>` 直接摆出要检查的界面（模拟器点不到时用）。
-/// declined = 同意页按了「唔同意」；buildingList = 选楼清单；todayBottom = 今日页滚到底。
+/// -uiPreview <name> renders a target state directly for simulator screenshot checks.
+/// declined shows refused consent; buildingList shows the picker list; todayBottom scrolls Today to the bottom.
 enum UIPreview {
     static func `is`(_ name: String) -> Bool { LaunchArgs.value("-uiPreview") == name }
 }

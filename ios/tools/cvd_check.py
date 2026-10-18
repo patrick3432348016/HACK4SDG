@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""人物配色的色弱检查：Machado 2009（严重度 1.0）模拟红 / 绿 / 蓝色盲，算两两 CIEDE2000 色差，
-再算每个颜色对浅色、深色地面的对比度。改 Palette.people 时跑一次：python3 ios/tools/cvd_check.py
-颜色要和 ios/StreetWalk/Domain/Models.swift 的 Palette.people 一致。"""
+"""Simulate protanopia, deuteranopia and tritanopia with Machado 2009 at severity 1.0, then compute pairwise CIEDE2000.
+Also measure contrast against light/dark ground; run python3 ios/tools/cvd_check.py after Palette.people changes.
+Colors must match Palette.people in ios/StreetWalk/Domain/Models.swift."""
 import math, itertools, sys
 
-PEOPLE = [  # 名字, 十六进制（顺序同 Palette.people）
+PEOPLE = [  # Name and hex value, ordered as in Palette.people.
     ("青綠", "#52ADA3"), ("淺紫", "#9F84F9"), ("藍", "#3E77AD"), ("紫紅", "#B22C7E"),
     ("黃", "#E49800"), ("灰", "#857A73"), ("橙（我）", "#D85A30"),
 ]
@@ -68,5 +68,5 @@ def report(people):
 
 if __name__ == "__main__":
     w = report(PEOPLE)
-    # 门槛：色弱模拟下两两 ΔE ≥ 10（明显可分）
+    # Threshold: pairwise simulated-color ΔE at least 10.
     sys.exit(0 if all(v[0] >= 10 for v in w.values()) else 1)

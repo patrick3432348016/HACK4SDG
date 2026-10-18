@@ -1,8 +1,8 @@
 import Foundation
 
-// 后端用的小工具：任意 JSON、时间格式。只用 Foundation（tools/backendtest 命令行测试都编译呢个文件）。
+// Backend JSON/time helpers using Foundation only; also compiled by tools/backendtest.
 
-/// 任意 JSON 值（Realtime 消息、signals.payload 用）。
+/// Arbitrary JSON values for Realtime messages and signals.payload.
 enum JSONValue: Codable, Equatable, Sendable {
     case null
     case bool(Bool)
@@ -27,7 +27,7 @@ enum JSONValue: Codable, Equatable, Sendable {
         case .null: try c.encodeNil()
         case .bool(let b): try c.encode(b)
         case .number(let n):
-            // 整数唔好写成 1.0（Postgres int 栏会拒绝）
+            // Do not encode integers as 1.0; Postgres integer columns reject them.
             if n.rounded() == n, abs(n) < 1e15 { try c.encode(Int64(n)) } else { try c.encode(n) }
         case .string(let s): try c.encode(s)
         case .array(let a): try c.encode(a)
@@ -45,7 +45,7 @@ enum JSONValue: Codable, Equatable, Sendable {
     var double: Double? { if case .number(let n) = self { return n }; if case .string(let s) = self { return Double(s) }; return nil }
     var isNull: Bool { self == .null }
 
-    /// 将 JSON 值解成某个 Decodable（Realtime 的 record → 行）。
+    /// Decode JSON into a Decodable type, such as a Realtime record row.
     func decode<T: Decodable>(_ type: T.Type) throws -> T {
         try BackendCoding.decoder.decode(T.self, from: BackendCoding.encoder.encode(self))
     }
@@ -55,7 +55,7 @@ enum JSONValue: Codable, Equatable, Sendable {
     }
 }
 
-/// Postgres 时间："2026-10-10T07:30:45.749549+00:00"、"2026-10-10T07:30:45.757Z"、"2026-10-10"（date 栏）。
+/// Postgres timestamps support fractional seconds, timezone offsets/Z, and date-only values.
 enum BackendTime {
     nonisolated(unsafe) private static let internet: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -69,11 +69,11 @@ enum BackendTime {
     }()
     private static let lock = NSLock()
 
-    /// 小数位几多都得（ISO8601DateFormatter 只认 3 位，所以先拆出小数再加返）。
+    /// Support any fractional precision by parsing the fraction separately; ISO8601DateFormatter accepts only three digits.
     static func parse(_ s: String) -> Date? {
         lock.lock(); defer { lock.unlock() }
         var str = s.trimmingCharacters(in: .whitespaces)
-        if str.count == 10, str.dropFirst(4).first == "-" {      // 纯日期：当 UTC 零点
+        if str.count == 10, str.dropFirst(4).first == "-" {      // Treat a date-only value as midnight UTC.
             return internet.date(from: str + "T00:00:00Z")
         }
         str = str.replacingOccurrences(of: " ", with: "T")

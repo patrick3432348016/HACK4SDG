@@ -1,13 +1,13 @@
 import Foundation
 
-/// 太阳位置（NOAA 简化公式）。同一个结果既驱动场景里的太阳光，也用来算遮荫，所以画面上的影子和遮荫百分比一致。
+/// Simplified NOAA sun position drives both scene lighting and shade calculations so rendered shadows agree with percentages.
 struct SolarPosition {
-    /// 高度角（度），地平线以上为正。
+    /// Elevation in degrees, positive above the horizon.
     var elevation: Double
-    /// 方位角（度），从正北顺时针。
+    /// Bearing in degrees clockwise from north.
     var azimuth: Double
 
-    /// 指向太阳的单位向量（东、北、上）。
+    /// Unit vector toward the sun in east/north/up coordinates.
     var direction: (east: Double, north: Double, up: Double) {
         let el = elevation * .pi / 180, az = azimuth * .pi / 180
         return (cos(el) * sin(az), cos(el) * cos(az), sin(el))

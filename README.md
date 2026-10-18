@@ -59,6 +59,7 @@ The promotional-video project was removed from this repository in `f8d63c9`; it 
 - [Member A's historical progress and manual checklist](docs/PROGRESS_member_A.md).
 - [Backend schema, access rules, and tests](supabase/README.md).
 - [Voice server setup and integration](server/README.md).
+- [English translation scope and verification](docs/reviews/2026-10-19-english-translation.md) — preserves app languages and original evidence; records the existing Windows test failures.
 
 Historical documents retain their dates, findings, and unresolved items. For implementation, use current source and record the branch and commit.
 

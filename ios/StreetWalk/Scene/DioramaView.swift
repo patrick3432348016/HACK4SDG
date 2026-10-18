@@ -1,12 +1,12 @@
 import SceneKit
 import SwiftUI
 
-/// SwiftUI 里的 3D 微缩模型。镜头由流程自动移动；单指撳（选楼、撳地标），双指捏合放大缩细、双指拖动睇其他位置、
-/// 双指扭转地图，双击复位。单指拖动平移只喺 controller.oneFingerPan（选楼、放大咗嘅地图）或者手指放大过之后先生效。
+/// SwiftUI diorama with flow-controlled camera, single-finger selection, and two-finger zoom/pan.
+/// Two-finger rotation and double-tap reset. One-finger pan requires controller.oneFingerPan or prior gesture zoom.
 struct DioramaView: UIViewRepresentable {
     let controller: DioramaController
     var onTap: ((DioramaController.Hit?) -> Void)?
-    /// 跟随系统深浅色，切换时场景重建材质。
+    /// Follow system light/dark appearance and rebuild scene materials when it changes.
     @Environment(\.colorScheme) private var colorScheme
 
     func makeUIView(context: Context) -> SCNView {
@@ -17,9 +17,9 @@ struct DioramaView: UIViewRepresentable {
         v.backgroundColor = SceneStyle.background
         v.antialiasingMode = .multisampling4X
         v.preferredFramesPerSecond = 60
-        // 只在有变化时才渲染：人在走、镜头在飞、楼在升起时 60 fps；静止时一帧都不画（省电、不发热）。
-        // isPlaying = true 会令 SCNView 每帧重画（实测静止时 60 fps、约 6% CPU），SCNAction 和过渡动画不需要它。
-        // 静止时标签内容变了由 DioramaController.labelsChanged 补推。
+        // Render at 60 fps only while people/camera/buildings animate; draw no frames when idle to reduce power and heat.
+        // isPlaying=true forces continuous redraw (observed idle 60 fps/~6% CPU); SCNAction and transitions do not require it.
+        // DioramaController.labelsChanged publishes changed labels while the scene is idle.
         v.isPlaying = false
         v.rendersContinuously = false
         v.allowsCameraControl = false
@@ -28,8 +28,8 @@ struct DioramaView: UIViewRepresentable {
         if LaunchArgs.has("-tilt") { v.technique = TiltShift.technique() }
         controller.view = v
 
-        // 单指：撳（选楼、地标）；单指拖动平移（今日页细地图时留俾 SwiftUI「向下拉放大」，见 Coordinator.gestureRecognizerShouldBegin）。
-        // 双指：捏合缩放、拖动平移、扭转（有上下限、唔拖得出底座，见 DioramaController.userZoom / userPan / userRotate）；双击复位。
+        // Single finger selects buildings/landmarks or pans where allowed; the small Today map reserves downward drag for SwiftUI enlargement.
+        // Two-finger zoom/pan/rotation obey limits and stay within the base; double-tap resets (userZoom/userPan/userRotate).
         let c = context.coordinator
         let single = UITapGestureRecognizer(target: c, action: #selector(Coordinator.tap(_:)))
         single.delegate = c
@@ -72,7 +72,7 @@ struct DioramaView: UIViewRepresentable {
 
         weak var double: UITapGestureRecognizer?
         weak var pan1: UIPanGestureRecognizer?
-        /// 最近一次双指手势（捏合、双指拖、扭转）：期间单指拖动唔郁，免得移两次。
+        /// Suppress one-finger pan during a recent two-finger gesture to avoid applying movement twice.
         private var lastMulti: CFTimeInterval = 0
 
         @objc func tap(_ g: UITapGestureRecognizer) {
@@ -105,7 +105,7 @@ struct DioramaView: UIViewRepresentable {
             g.rotation = 0
         }
 
-        /// 单指拖动：手指下面嗰点地面跟住手指走。双指手势进行紧就唔郁（第二只手指落咗）。
+        /// Single-finger pan anchors the ground under the finger; stop when a second finger begins a multi-touch gesture.
         @objc func pan1(_ g: UIPanGestureRecognizer) {
             guard let v = g.view else { return }
             switch g.state {
@@ -119,19 +119,19 @@ struct DioramaView: UIViewRepresentable {
             parent.controller.userPan(from: CGPoint(x: p.x - t.x, y: p.y - t.y), to: p)
         }
 
-        /// 捏合、双指拖动、扭转、单指拖动一齐认（一边放大一边移一边转；单指拖到一半落第二只手指都接得住）。
+        /// Recognize pinch, pan, and rotation together, including a second finger joining an ongoing one-finger drag.
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
             func map(_ r: UIGestureRecognizer) -> Bool { r is UIPinchGestureRecognizer || r is UIPanGestureRecognizer || r is UIRotationGestureRecognizer }
             return map(g) && map(other) && g.view === other.view
         }
 
-        /// 双击复位：只喺双指郁过镜头之后先要单击等双击落空（平时撳地标唔会慢咗）。
+        /// Require single taps to await double-tap failure only after the camera has moved, avoiding ordinary landmark-tap latency.
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldRequireFailureOf other: UIGestureRecognizer) -> Bool {
             g is UITapGestureRecognizer && g !== double && other === double && parent.controller.userAdjusted
         }
 
-        /// 未郁过镜头时双击唔使认（免得同两下单击撞）。
-        /// 单指拖动：只喺 oneFingerPan（选楼、放大咗）或者手指放大过之后；今日页细地图单指向下拉留俾「睇大啲」。
+        /// Disable double-tap recognition before camera changes to avoid conflicting with two single taps.
+        /// One-finger pan requires oneFingerPan or previous zoom; the small Today map reserves downward drag for enlargement.
         func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
             if g === pan1 { return parent.controller.oneFingerPan || parent.controller.userAdjusted }
             return g !== double || parent.controller.userAdjusted

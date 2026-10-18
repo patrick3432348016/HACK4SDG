@@ -1,40 +1,40 @@
 import Foundation
 
-// 喺手机上估计屋企喺边（纯逻辑，唔掂传感器，可单测）。
-// 只用夜晚（香港时间 22:00–06:00）嘅位置：系统「到访」、返到 / 离开屋企范围、大范围移动、夜晚开 App 时嘅一个定位。
-// 坐标四舍五入到小数点后 4 位（约 11 m），只留 14 日，只喺呢部手机，唔上传。
+// Local home inference: pure logic without sensor access, suitable for unit tests.
+// Use only Hong Kong nighttime locations (22:00–06:00) from visits, home-region events, significant changes, and nighttime app launches.
+// Round coordinates to four decimal places (~11 m), retain 14 days, and keep them on this phone without upload.
 
-/// 一个夜晚位置样本：一段时间（到访、喺屋企范围内）或者一个点（大范围移动、一个定位）。
+/// A nighttime sample is either a visit/home-region interval or a single significant-change/location point.
 struct NightSample: Codable, Equatable {
     enum Source: String, Codable {
-        case visit          // 系统「到访」（CLVisit）
-        case region         // 喺屋企 100 m 范围内（区域监察）
-        case significant    // 大范围移动
-        case fix            // 夜晚打开 App 时嘅一个定位
-        case simulated      // 模拟器测试（-simNights）
+        case visit          // System CLVisit event.
+        case region         // Within the 100-m monitored home region.
+        case significant    // Significant location change.
+        case fix            // One location when opening the app at night.
+        case simulated      // Simulator testing via -simNights.
     }
 
     var lat: Double
     var lon: Double
     var start: Date
-    /// nil：仲喺度（到访未离开、仲喺屋企范围内）。计算时最多计到 start 之后 openCap、或者而家。
+    /// A nil end means ongoing; cap its contribution at start+openCap or now.
     var end: Date?
     var source: Source
 
     var point: GeoPoint { GeoPoint(lat: lat, lon: lon) }
 }
 
-/// 估计结果。
+/// Inference result.
 enum HomeVerdict: Equatable {
-    /// 未够两晚（nights：已经记录咗几多晚）。
+    /// Fewer than two recorded nights; nights contains the count.
     case learning(nights: Int)
-    /// 最常过夜嘅地方喺揀咗嘅屋企 150 m 内。
+    /// The most frequent overnight location is within 150 m of the selected home.
     case confirmed(nights: Int, distance: Double)
-    /// 过夜嘅地方同揀咗嘅屋企有啲距离，但未够理由问（150–300 m，或者 300 m 外但唔係连续两晚）。
+    /// Different overnight location without enough evidence to ask: 150–300 m away, or beyond 300 m without two consecutive nights.
     case unsure(nights: Int, distance: Double)
-    /// 最近连续两晚或以上都喺揀咗嘅屋企 300 m 外过夜：问「係咪搬咗屋」。
+    /// At least two recent consecutive nights beyond 300 m from home: ask whether the user moved.
     case moved(to: GeoPoint, nights: Int, distance: Double)
-    /// 未揀屋企（或者用示例屋邨揀）：建议用过夜嘅地方。distance：同而家模型屋企嘅距离（冇就 nil）。
+    /// No selected home, or example-estate home: suggest the overnight location. distance is from the current model home when available.
     case suggest(at: GeoPoint, nights: Int, distance: Double?)
 }
 
@@ -44,9 +44,9 @@ struct HomeLearner: Codable, Equatable {
     static let confirmRadius = 150.0
     static let movedDistance = 300.0
     static let minNights = 2
-    /// 单独一个定位当喺度停咗 15 分钟。
+    /// Treat a standalone location sample as a fifteen-minute stay.
     static let pointDwell: TimeInterval = 15 * 60
-    /// 未完嘅到访最多计 12 小时；屋企范围最多 16 小时（App 被系统收咗、收唔到离开时唔会一直计落去）。
+    /// Cap unfinished visits at 12 hours and home-region intervals at 16 hours to limit missing-exit effects after termination.
     static let openCap: TimeInterval = 12 * 3600
     static let openRegionCap: TimeInterval = 16 * 3600
     static let nightStart = 22
@@ -54,12 +54,12 @@ struct HomeLearner: Codable, Equatable {
 
     var samples: [NightSample] = []
 
-    // MARK: - 加样本
+    // MARK: - Adding samples
 
     static func round(_ v: Double) -> Double { (v * 10_000).rounded() / 10_000 }
 
-    /// 加一个样本：坐标四舍五入；同一段（同来源、开始时间差唔过 1 分钟、50 m 内）就更新结束时间；清走 14 日前嘅。
-    /// 已经完咗又完全唔掂夜晚嘅样本唔留（日头去过边唔记）。
+    /// Round coordinates; merge same-source intervals starting within one minute and 50 m by updating the end; remove samples older than 14 days.
+    /// Discard completed samples with no nighttime overlap; do not retain daytime visit history here.
     mutating func add(_ s: NightSample, now: Date, calendar: Calendar) {
         var s = s
         s.lat = Self.round(s.lat)
@@ -75,7 +75,7 @@ struct HomeLearner: Codable, Equatable {
         samples.sort { $0.start < $1.start }
     }
 
-    /// 某来源未完嘅一段喺 at 完咗（例如离开屋企范围）。返回有冇改到。
+    /// Close an ongoing interval of the selected source at at, such as on home-region exit; return whether anything changed.
     @discardableResult
     mutating func close(_ source: NightSample.Source, at: Date) -> Bool {
         var changed = false
@@ -94,9 +94,9 @@ struct HomeLearner: Codable, Equatable {
         samples.removeAll { ($0.end ?? $0.start.addingTimeInterval(Self.openRegionCap)) < cutoff }
     }
 
-    // MARK: - 夜晚
+    // MARK: - Nights
 
-    /// 某个时间属于边一晚：22:00–23:59 係当日，00:00–05:59 係前一日（例如 10-11 03:00 → "2026-10-10"）。
+    /// Night key: 22:00–23:59 belongs to that date, 00:00–05:59 to the previous date; 10-11 03:00 maps to 2026-10-10.
     static func nightKey(_ t: Date, calendar: Calendar) -> String {
         dayKey(t.addingTimeInterval(-Double(nightEnd) * 3600), calendar: calendar)
     }
@@ -111,7 +111,7 @@ struct HomeLearner: Codable, Equatable {
         return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
 
-    /// 前一晚嘅 key。
+    /// Previous night's key.
     static func previousKey(_ key: String, calendar: Calendar) -> String? {
         let p = key.split(separator: "-").compactMap { Int($0) }
         guard p.count == 3, let d = calendar.date(from: DateComponents(year: p[0], month: p[1], day: p[2], hour: 12)),
@@ -124,7 +124,7 @@ struct HomeLearner: Codable, Equatable {
         var seconds: Double
     }
 
-    /// 一个样本喺边几晚、每晚喺度几耐（秒）。单点：喺夜晚就当 15 分钟。
+    /// Distribute a sample's duration across nights in seconds; a nighttime point contributes fifteen minutes.
     static func pieces(_ s: NightSample, now: Date, calendar: Calendar) -> [Piece] {
         let cap = s.source == .region ? openRegionCap : openCap
         let end = s.end ?? max(s.start, min(now, s.start.addingTimeInterval(cap)))
@@ -144,17 +144,17 @@ struct HomeLearner: Codable, Equatable {
         return out
     }
 
-    // MARK: - 归类
+    // MARK: - Clustering
 
     struct Cluster: Equatable {
         var center: GeoPoint
         var seconds: Double
-        /// 每晚喺度几耐（秒）。
+        /// Seconds spent at a location each night.
         var perNight: [String: Double]
         var nights: Set<String> { Set(perNight.keys) }
     }
 
-    /// 80 m 内嘅样本归做同一个地方（停得耐嘅先定中心，中心按停留时间加权）。按总停留时间由多到少。
+    /// Cluster samples within 80 m, seeding with longer stays and weighting the centre by duration; sort by total stay descending.
     func clusters(now: Date, calendar: Calendar) -> [Cluster] {
         var items: [(p: GeoPoint, piece: Piece, start: Date)] = []
         for s in samples {
@@ -175,7 +175,7 @@ struct HomeLearner: Codable, Equatable {
         return out.sorted { $0.seconds > $1.seconds }
     }
 
-    /// 每晚主要喺边（嗰晚停得最耐嘅地方）。最近嘅排先。
+    /// Main location per night is the longest stay; newest nights first.
     struct NightSummary: Equatable {
         var night: String
         var center: GeoPoint
@@ -191,13 +191,13 @@ struct HomeLearner: Codable, Equatable {
         }
     }
 
-    // MARK: - 结论
+    // MARK: - Inference
 
-    /// home：而家模型用紧嘅屋企（揀咗嘅楼嘅中心）；picked：係用户自己揀嘅（唔係示例屋邨、唔係开发用嘅默认楼）。
+    /// home is the current selected-building centre; picked distinguishes a user choice from example/developer defaults.
     func verdict(home: GeoPoint?, picked: Bool, now: Date, calendar: Calendar) -> HomeVerdict {
         let cs = clusters(now: now, calendar: calendar)
         let all = Set(cs.flatMap(\.nights))
-        // 最近一晚主要喺边，连续几多晚都係嗰度
+        // Most recent night's main location and the consecutive-night count there.
         var recent: (cluster: Cluster, run: Int)?
         if let latest = all.max(), let top = cs.max(by: { ($0.perNight[latest] ?? 0) < ($1.perNight[latest] ?? 0) }) {
             var run = 1

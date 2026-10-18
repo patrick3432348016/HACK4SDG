@@ -2,7 +2,7 @@ from datetime import datetime, date
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-Locale = Literal["zh-HK", "zh-CN", "en-US"]  # 10-17 加英文（en-US）
+Locale = Literal["zh-HK", "zh-CN", "en-US"]  # English en-US added 10-17.
 Intent = Literal["invite", "leave", "rename", "advice", "daily", "landmark", "monthly", "help", "cancel"]
 
 
@@ -119,7 +119,7 @@ class ChoiceRequest(Model):
 class SpeakRequest(Model):
     text: str = Field(min_length=1, max_length=1000)
     locale: Locale = "zh-HK"
-    # 成员 A 加：语速（对应 App 设定「語速」）同预热（只排队合成、唔等声音）。
+    # A additions: App speech speed and nonblocking queued warmup.
     speed: float | None = Field(default=None, ge=0.7, le=1.3)
     prefetch: bool = False
 

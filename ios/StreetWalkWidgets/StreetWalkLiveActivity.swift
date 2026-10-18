@@ -2,7 +2,7 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-/// 小组件扩展：只有一个实时活动（真·灵动岛 + 锁屏），内容由 App 本地更新（IslandStatus，见 ios/Shared/）。
+/// Widget extension provides one Live Activity for Dynamic Island / Lock Screen, locally updated from shared IslandStatus.
 @main
 struct StreetWalkWidgetsBundle: WidgetBundle {
     var body: some Widget {
@@ -10,7 +10,7 @@ struct StreetWalkWidgetsBundle: WidgetBundle {
     }
 }
 
-/// 散步「行緊 12 分」、找人「35 米」+ 箭咀、约会「15 分鐘後」。字大、句子短、粤语。
+/// Short, large localized walking, finding and meeting status.
 struct StreetWalkLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: StreetWalkActivityAttributes.self) { context in
@@ -55,9 +55,9 @@ struct StreetWalkLiveActivity: Widget {
     }
 }
 
-// MARK: - 文字
+// MARK: - Text
 
-/// 第二行：散步讲经过几多地方（太耐冇更新就叫佢打开 App）；找人讲喺边、几耐到；约会讲喺边见。
+/// Second line: passed places or stale-update guidance for walking, location/ETA for finding, meeting place for appointments.
 private func secondLine(_ s: IslandStatus, stale: Bool) -> String {
     switch s.kind {
     case .walk: return stale && !s.finished ? s.t("打開 App 睇最新", "打开 App 看最新", "Open the app to update") : s.detail
@@ -66,7 +66,7 @@ private func secondLine(_ s: IslandStatus, stale: Bool) -> String {
     }
 }
 
-/// 第一行（大字）：「行緊 12 分鐘」「搵緊陳太」「15 分鐘後約咗陳太」（约会自己倒数）。
+/// Large first line describes walking, finding a peer or an automatically counted-down meeting.
 private struct Headline: View {
     let s: IslandStatus
     let stale: Bool
@@ -99,7 +99,7 @@ private struct Headline: View {
     }
 }
 
-/// 右边大字：散步「12 分」、找人「35 米」、约会倒数。
+/// Large right-side value: walking minutes, finding meters or meeting countdown.
 private struct BigValue: View {
     let s: IslandStatus
     let stale: Bool
@@ -125,7 +125,7 @@ private struct BigValue: View {
     }
 }
 
-/// 真·灵动岛右边（好窄）：「12 分」「35 米」「15 分」。约会自己倒数（App 喺背景都唔会停）。
+/// Compact island value fits the narrow space; meeting countdown continues while the App is backgrounded.
 private struct CompactValue: View {
     let s: IslandStatus
     let stale: Bool
@@ -151,9 +151,9 @@ private struct CompactValue: View {
     }
 }
 
-// MARK: - 图标
+// MARK: - Icons
 
-/// 散步小人、找人箭咀（按方向转）、约会时钟；橙色。
+/// Orange walker, direction-rotated finding arrow or meeting clock.
 private struct StatusIcon: View {
     let s: IslandStatus
     let size: CGFloat
@@ -166,7 +166,7 @@ private struct StatusIcon: View {
     }
 }
 
-/// 橙色圆形底 + 白色图标（锁屏、展开嘅岛）。
+/// Orange circular background and white icon for Lock Screen / expanded island.
 private struct IconBadge: View {
     let s: IslandStatus
     let size: CGFloat
@@ -181,9 +181,9 @@ private struct IconBadge: View {
     }
 }
 
-// MARK: - 锁屏
+// MARK: - Lock Screen
 
-/// 锁屏 / 通知中心：一行「街坊行」，然后图标 + 两行大字；找人右边再出距离。
+/// Lock Screen / Notification Center shows the App name, icon and two large lines, plus finding distance at right.
 private struct LockScreenView: View {
     let s: IslandStatus
     let stale: Bool

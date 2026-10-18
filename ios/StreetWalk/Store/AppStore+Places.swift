@@ -1,8 +1,8 @@
 import SwiftUI
 
-// F3 地标改名、F10 反映、F9 天气遮荫
+// F3 landmark renaming, F10 resident reports, F9 weather and shade.
 extension AppStore {
-    // MARK: - F3 地标改名
+    // MARK: - F3 landmark renaming
 
     func select(_ s: Selection?) {
         selection = s
@@ -26,20 +26,20 @@ extension AppStore {
         landmarkNames[id] = name
         community.renameLandmark(id, to: name)
         scene.renameLandmark(id, to: name)
-        // 每日一句都用新名（F3 全产品统一，A83）；只换完整嘅地标名，「車站涼亭」唔会因为改「涼亭」而变。
+        // F3 / A83: update daily greetings consistently; replace whole landmark names without changing longer names containing them.
         for j in residents.indices where residents[j].todayLine.contains(old) {
             residents[j].todayLine = Self.renamed(residents[j].todayLine, names: names, old: old, new: name)
         }
-        if me.todayLine.contains(name) { uploadDay(now) }   // 今日一句跟住新名，再传一次
+        if me.todayLine.contains(name) { uploadDay(now) }   // Upload the daily greeting again after renaming.
         renaming = nil
         say(community.sharesLandmarkNames ? L.t("改咗。\(old)而家叫\(name)，同圈嘅街坊都會見到。", "改好了。\(old)现在叫\(name)，同圈的邻居都会看到。", "Changed. \(old) is now called \(name). Neighbours in your circle will see it.") : L.t("改咗。\(old)而家叫\(name)。暫時只喺你部手機。", "改好了。\(old)现在叫\(name)。暂时只在你的手机上。", "Changed. \(old) is now called \(name). Only on your phone for now."))
         Haptics.success()
     }
 
-    /// 句子入面嘅地标名由长到短先换做记号，再将旧名换新名、其余换返原名：短名唔会误中长名嘅一部分。
+    /// Protect names longest-first with placeholders, replace the target, then restore other names to avoid partial matches.
     static func renamed(_ line: String, names: [String], old: String, new: String) -> String {
         let sorted = Array(Set(names + [old])).filter { !$0.isEmpty }.sorted { $0.count > $1.count }
-        // 记号用私用区字符（一个名一个），唔会撞到地标名。
+        // Use distinct private-use characters as placeholders to avoid landmark-name collisions.
         func mark(_ k: Int) -> String { String(Character(UnicodeScalar(0xF0000 + k)!)) }
         var s = line
         for (k, n) in sorted.enumerated() { s = s.replacingOccurrences(of: n, with: mark(k)) }
@@ -47,9 +47,9 @@ extension AppStore {
         return s
     }
 
-    // MARK: - F10 反映
+    // MARK: - F10 resident reports
 
-    /// rawText：语音反映的原话（规格 §7），撳掣反映没有。返回记低嗰条的 id（撤回用）。
+    /// rawText preserves original voice input (section 7), absent for button reports. Return the ID for withdrawal.
     @discardableResult
     func report(_ kind: ReportKind, rawText: String? = nil) -> UUID {
         let pos = myPosition()
@@ -66,7 +66,7 @@ extension AppStore {
         return r.id
     }
 
-    /// 撤回一条反映：按 id 撤，唔会撤错；同时撤回已经交出去嘅（A18）。
+    /// A18: withdraw by ID, including reports already submitted, to avoid removing the wrong report.
     func retractReport(_ id: UUID) {
         guard let i = reports.firstIndex(where: { $0.id == id }) else { return }
         reports.remove(at: i)
@@ -74,9 +74,9 @@ extension AppStore {
         syncScene()
     }
 
-    /// 月报：我的反映 + 全邨其他居民的匿名反映 + 匿名汇总（单机演示时是示範数据）。
+    /// Monthly report combines my reports, other residents' anonymous reports and aggregates; local demo uses labeled sample data.
     var monthly: MonthlyReport {
-        // 我只算一个人：本月、同一地标同一类问题只计一次（一个人撳十次都唔会变成十个人）。
+        // Count me once per landmark and issue type each month, regardless of repeated submissions.
         var seen = Set<String>()
         let mine = reports.filter { r in
             Self.hk.isDate(r.date, equalTo: now, toGranularity: .month) && seen.insert("\(r.landmarkID ?? "-")|\(r.kind.rawValue)").inserted
@@ -91,7 +91,7 @@ extension AppStore {
         return community.monthlyStats(myWalks: myMonthWalks, myMeetups: meetups, estateHomes: homes)
     }
 
-    /// F10：反映落实后告诉居民。
+    /// F10: notify residents when their report is addressed.
     func reportFollowedUp(_ id: UUID, text: String, isDemo: Bool) {
         guard let i = reports.firstIndex(where: { $0.id == id }) else { return }
         reports[i].followUp = text
@@ -103,18 +103,18 @@ extension AppStore {
         say(line)
     }
 
-    /// 演示：屋邨管理回覆最早一条未回覆的反映。
+    /// Demo management replies to the oldest unanswered report.
     func simulateFollowUp() {
         guard let r = reports.first(where: { $0.followUp == nil }) else { toast(L.t("你仲未反映過嘢。散步時撳「好曬」「冇櫈」就得。", "你还没反映过问题。散步时按「好晒」「没凳子」就行。", "You haven't reported anything yet. On a walk, tap \"Too sunny\" or \"No seats\".")); return }
         localCommunity?.simulateFollowUp(r, place: landmark(r.landmarkID)?.name ?? L.t("呢度", "这里", "here"))
     }
 
-    /// 有回覆的反映（今日页显示）。
+    /// Answered reports shown on Today.
     var answeredReports: [Report] { reports.filter { $0.followUp != nil && (demoMode || $0.followUpDemo != true) } }
 
-    // MARK: - F9 天气遮荫（香港天文台实时数据；演示菜单手动选的优先）
+    // MARK: - F9 live HKO weather and shade; manual demo overrides take priority
 
-    /// 演示菜单 / 脚本手动选天气：覆盖实时数据，直到重置演示。
+    /// A demo-menu or scripted weather choice overrides live data until Reset Demo.
     func setWeather(_ w: Weather) {
         hko.demoOverride = true
         weather = w
@@ -125,10 +125,10 @@ extension AppStore {
         }
     }
 
-    /// 启动和回到前台时调用。拉不到就不显示天气（不编）。
+    /// Fetch at launch and foreground return; omit unavailable weather rather than inventing it.
     func refreshLiveWeather(force: Bool = false) {
         Task {
-            // 等地图装好再挑最近测站（最多 10 秒），否则用皇后山邨附近。
+            // Wait up to 10 seconds for the map to select the nearest station; otherwise use the Queen's Hill area.
             for _ in 0..<50 where map == nil { try? await Task.sleep(for: .milliseconds(200)) }
             _ = await hko.refresh(near: map?.center ?? TileKey.gridOrigin, force: force)
             applyLiveWeather()
@@ -142,7 +142,7 @@ extension AppStore {
         announceWeatherIfNeeded()
     }
 
-    /// 实时天气转咗热 / 落雨：每日每档只讲一次（F9 唔回应唔重复）；画面喺今日卡。
+    /// Announce heat / rain once per category per day; show the Today card without repeating unanswered prompts.
     func announceWeatherIfNeeded() {
         guard phase == .main, weather != .normal, let tip = weatherTip else { return }
         let key = "\(LocalStore.dayKey(now))|\(weather)"
@@ -151,7 +151,7 @@ extension AppStore {
         say(tip)
     }
 
-    /// 重置演示：回到实时天气。
+    /// Reset Demo restores live weather.
     func useLiveWeather() {
         hko.demoOverride = false
         applyLiveWeather()
@@ -166,7 +166,7 @@ extension AppStore {
             advice = ai.walkAdvice(weather: weather, now: now, shadeTip: tip)
         }
         guard !hko.demoOverride, let r = hko.report else {
-            // "天文台話"只留给真实数据；演示选的天气唔好冒认天文台
+            // Attribute only real HKO readings to HKO, never simulated weather.
             if hko.demoOverride, let a = advice, (a.hasPrefix("天文台話") || a.hasPrefix("天文台说")) { advice = String(a.dropFirst(4)) }
             if hko.demoOverride, let a = advice {
                 for p in ["The Observatory says ", "Observatory says "] where a.hasPrefix(p) { advice = String(a.dropFirst(p.count)) }
@@ -174,29 +174,29 @@ extension AppStore {
             weatherTip = advice.map { Self.oneSentence([$0]) }
             return
         }
-        // 实时：句首讲明来源和读数；落雨时模板那句"下晝會落大雨"不一定对，改用这边的说法。
-        // 真係落紧雨先讲「等雨停」；只係降雨概率高就讲「可能會落雨」（A81）。
+        // For live weather state the source and reading; replace the template's potentially inaccurate afternoon-heavy-rain prediction.
+        // A81: suggest waiting for rain to stop only when it is raining; high probability means possible rain.
         let rainingNow = r.warnings.contains { $0.code.hasPrefix("WRAIN") || $0.code == "WTS" }
             || (r.rainMM ?? 0) >= 0.5 || (63...65).contains(r.icon ?? 0)
         var rest = r.isDanger ? L.t("今日唔好出門，留喺屋企安全啲", "今天别出门，待在家里安全些", "Stay home today, it's safer")
             : weather != .rain ? advice ?? ""
             : !rainingNow ? L.t("可能會落雨，出門記得帶遮，或者聽日先行", "可能会下雨，出门记得带伞，或者明天再走", "It may rain. Take an umbrella, or walk tomorrow")
             : ["低", "中低"].contains(r.tomorrowPSR ?? "") ? L.t("唔好勉強出門，聽日天氣好啲先行", "别勉强出门，明天天气好些再走", "Don't push yourself. Walk tomorrow when the weather is better") : L.t("唔好勉強出門，等雨停先", "别勉强出门，等雨停了再说", "Don't push yourself. Wait for the rain to stop")
-        // 天文台已经讲咗酷熱警告，就唔再讲一次「今日好熱」。
+        // Do not repeat a heat statement after announcing HKO's Very Hot Weather Warning.
         if r.hasHeatWarning {
             rest = rest.replacingOccurrences(of: "今日好熱。", with: "").replacingOccurrences(of: "今日好熱，", with: "")
                 .replacingOccurrences(of: "今天很热。", with: "").replacingOccurrences(of: "今天很热，", with: "")
         }
-        // 香港以外：模板句讲「天文台話」唔啱，改讲天气预报。
+        // Outside Hong Kong, refer to the forecast instead of attributing it to HKO.
         if r.source != .hko { rest = rest.replacingOccurrences(of: "天文台話", with: "天氣預報話").replacingOccurrences(of: "天文台说", with: "天气预报说")
             .replacingOccurrences(of: "The Observatory says", with: "The forecast says") }
         let line = Self.oneSentence([r.line, rest])
         weatherTip = line.isEmpty ? nil : line
     }
 
-    /// 转咗界面语言（设定页、首次使用欢迎页都得）：天气句即刻用新语言重出。
-    /// 10-18 真机：普通话问天气答「天文台話九龍城而家 27 度，天文台说明天…」、英文今日卡写「天文台说九龍城现在 27 度」——
-    /// 天气句喺攞数据嗰阵用当时嘅语言定死咗。
+    /// Regenerate weather text immediately when the interface language changes in Settings or onboarding.
+    /// 10-18 device feedback found mixed-language weather responses and Today cards after switching languages.
+    /// The weather sentence had been fixed to the language active during data retrieval.
     private func watchLanguageForWeather() {
         guard !Self.weatherWatchesLanguage else { return }
         Self.weatherWatchesLanguage = true
@@ -210,9 +210,9 @@ extension AppStore {
 
     private static var weatherWatchesLanguage = false
 
-    /// F9：每次提示唔超过一句——几段用逗号接埋，只留最尾一个句号。
+    /// F9: keep each prompt to one sentence by joining clauses with commas and retaining one final period.
     static func oneSentence(_ parts: [String]) -> String {
-        // 英文：逗号 + 空格接埋，句中句号改逗号（唔郁小数点），最尾一个句号
+        // English: join with comma-space, replace internal periods except decimal points, and retain one final period.
         if L.isEn {
             let body = parts.map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ".,。， ")) }.filter { !$0.isEmpty }
                 .joined(separator: ", ")

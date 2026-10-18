@@ -1,9 +1,9 @@
-"""成员 A 加（2026-10-12）：App 全部播报改用 B 嘅豆包粤语声（小何）。
+"""A, 2026-10-12: connect App synthesis to B's Doubao Xiaohe voice.
 
-请求同 B 嘅 Doubao.synthesize（doubao.py）一样：TTS 2.0 单向流式、PCM 24 kHz、explicit_dialect=yue、B 揀嘅语速；
-只系改成同步版本，交俾 SpeechService（sovits.py）嘅工作线程用，缓存、边合成边传、预热全部共用。
-普通话（zh-CN）唔加方言参数。英文（en-US，10-17 加）：explicit_language=en；音色默认照用小何（doubao.json 可另设 speaker_en）。语速：App「語速」0.75 / 1.0 / 1.25 → 喺 B 嘅基准（speech_rate，默认 -15）上下 25（10-17 拉开）。
-密钥只喺 Mac 服务器（voice-runtime/doubao.json），唔会去到手机；日志唔印密钥同厂商原始错误。
+Match B's Doubao.synthesize: TTS 2.0 unidirectional streaming, 24 kHz PCM, Cantonese dialect and selected speed.
+Use a synchronous adapter in SpeechService workers, sharing caching, streaming and warmup.
+Mandarin omits dialect; English uses explicit_language=en and optional speaker_en. App speeds 0.75/1/1.25 offset baseline speech_rate by +/-25.
+Credentials stay on the server; logs omit keys and raw provider errors.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from .doubao import MAX_PACKET, TTS_URL, DoubaoConfig
 
 
 class DoubaoSpeechFailed(Exception):
-    """豆包合成失败（鉴权 / 网络 / 音色唔支持）。SpeechService 会当呢句失败，App 转系统声音。"""
+    """Authentication, network or unsupported-voice errors fail the utterance and trigger App system-voice fallback."""
 
 
 class DoubaoEngine:
@@ -44,7 +44,7 @@ class DoubaoEngine:
             "additions": json.dumps(additions)}}
 
     def stream(self, text: str, speed: float = 1.0, locale: str = "zh-HK"):
-        """逐段返回 PCM16 小端（长度一定系双数，唔会切开一个样本）。"""
+        """Yield even-length little-endian PCM16 chunks without splitting samples."""
         received, done, carry = 0, False, b""
         try:
             with self.client.stream("POST", TTS_URL, headers=self.config.headers(self.config.tts_resource),
@@ -83,6 +83,6 @@ class DoubaoEngine:
 
 
 def doubao_voice_id(config: DoubaoConfig) -> str:
-    """换音色 / 基准语速就换 id，App 同服务器嘅缓存自动作废。"""
+    """Changing speaker or baseline speed changes voice ID and invalidates both caches."""
     en = f"-en.{config.speaker_en}" if config.speaker_en else ""
     return f"doubao-{config.speaker}{en}-{config.tts_resource}-r{config.speech_rate}-1"

@@ -1,11 +1,11 @@
 import Foundation
 
-/// 4 m 网格寻路：楼宇和水面不可走（有车路经过的水面当桥），道路和行人路便宜，空地贵一点。用于"我"的散步路线和找人路线。
+/// Four-metre routing grid: buildings/water blocked, roads across water treated as bridges, roads/footpaths cheaper than open ground. Used for walking/finding routes.
 struct PathGrid {
     let cell = 4.0
     let n: Int
     let half: Double
-    private var cost: [Float]   // 0 表示不可走
+    private var cost: [Float]   // Zero means impassable.
 
     init(map: MapModel) {
         half = map.half
@@ -33,7 +33,7 @@ struct PathGrid {
                 }
             }
         }
-        // 水面（场景里画成浅蓝色块）不可走；路经过的格子已经比 2.5 便宜，留着当桥。
+        // Water patches are blocked except cells already assigned a road cost below 2.5, retained as bridges.
         for a in map.areas where a.kind == .water {
             let xs = a.outline.map(\.x), ys = a.outline.map(\.y)
             for i in range(xs.min()!, xs.max()!) {
@@ -61,7 +61,7 @@ struct PathGrid {
         Vec2(x: -half + (Double(i) + 0.5) * cell, y: -half + (Double(j) + 0.5) * cell)
     }
 
-    /// 离 p 最近的可走格子中心。
+    /// Centre of the nearest walkable cell to p.
     func nearestWalkable(_ p: Vec2) -> Vec2 {
         let (i0, j0) = index(p)
         if cost[j0 * n + i0] > 0 { return p }
@@ -74,7 +74,7 @@ struct PathGrid {
         return p
     }
 
-    /// A*（8 邻接）。返回平滑过的米坐标路线，首尾是原始起点终点。
+    /// Eight-neighbor A*: return a smoothed route in metres with the original endpoints.
     func path(from start: Vec2, to goal: Vec2) -> [Vec2] {
         let s = index(nearestWalkable(start)), g = index(nearestWalkable(goal))
         let sid = s.1 * n + s.0, gid = g.1 * n + g.0
@@ -115,7 +115,7 @@ struct PathGrid {
         while c != sid, came[c] >= 0 { c = Int(came[c]); cells.append(c) }
         cells.reverse()
 
-        // 去掉同方向的中间点，再做一次 Chaikin 平滑。
+        // Remove collinear intermediate points, then apply Chaikin smoothing.
         var pts: [Vec2] = [start]
         for k in 1..<max(cells.count - 1, 1) {
             let a = cells[k - 1], b = cells[k], cc = cells[k + 1]
@@ -143,7 +143,7 @@ struct PathGrid {
     }
 }
 
-/// 简单二叉最小堆。
+/// Simple binary min-heap.
 private struct MinHeap {
     private var a: [(Float, Int)] = []
     mutating func push(_ e: (Float, Int)) {

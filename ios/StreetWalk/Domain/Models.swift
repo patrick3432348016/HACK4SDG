@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// 圈里的一个居民。非街坊只在排行榜出现（只显示网名、小人、连续日数），永远不进场景。
+/// A resident in the circle. Non-neighbors appear only on the board with nickname/avatar/streak, never in the scene.
 struct Resident: Identifiable, Equatable {
     let id: String
-    var name: String            // 网名，例如"陳太"（真后端：profiles.nickname；示範街坊：示範名）
+    var name: String            // Nickname: profiles.nickname from the real backend or a clearly simulated demo name.
     var floor: Int
     var blockName: String?
     var colorIndex: Int
@@ -14,47 +14,47 @@ struct Resident: Identifiable, Equatable {
     var isNeighbor = false
     var isOut = false
     var atLandmarkID: String?
-    var homeLandmarkID: String?   // 常去的地方
+    var homeLandmarkID: String?   // Frequently visited places.
     var sendRemind = true
     var receiveRemind = true
     var onLeave = false
     var neighborSince: Date?
-    /// 示範街坊：单机演示时由 LocalCommunityService 模拟的居民（界面要标明）。
+    /// A resident simulated by LocalCommunityService in demo mode; label it in the UI.
     var isDemo = false
-    /// 另一个叫法（示範街坊英文界面时系中文名），语音认人用。
+    /// Alternative spoken name; demo neighbors retain their Chinese name as an alias in the English UI.
     var altName: String?
-    /// 外形（规格 §4：不同肤色、年龄）。由 AppStore.applyLooks 填：示範街坊各一套，我用自己选的。
+    /// Appearance covers skin tone and age (specification §4). AppStore.applyLooks assigns demo appearances and the user's selected appearance.
     var skinTone = 1
     var ageGroup: AgeGroup = .adult
-    /// 上个月圈对圈赢了：头像加小奖牌（F4）。
+    /// Previous month's winning circle receives an avatar medal (F4).
     var hasMedal = false
-    /// 我的网名（只用喺「我」嗰行；其他人嘅网名就系 name）。
+    /// Current user's nickname for the self row; other residents use name.
     var nickname: String? = nil
 
-    /// 楼层：0 = 唔知（非街坊睇唔到楼层）。
+    /// Floor 0 means unknown; non-neighbors cannot see the floor.
     var floorLabel: String { floor > 0 ? L.t("\(floor) 樓", "\(floor) 楼", "\(floor)/F") : "" }
-    /// 座名只留中文部分（"皇滙樓 Wong Wui House" → "皇滙樓"）；没有名就不显示。
+    /// Retain only the Chinese portion of a bilingual block name; omit an absent name.
     var blockShort: String? {
         guard let b = blockName?.split(separator: " ").first.map(String.init), !b.isEmpty else { return nil }
         return b
     }
-    /// 座数 + 楼层（例如「皇滙樓 8 樓」）；冇就空。
+    /// Block and floor label, or empty when unavailable.
     var placeLabel: String { [blockShort, floor > 0 ? floorLabel : nil].compactMap { $0 }.joined(separator: " ") }
-    /// 排行榜（2026-10-10 定）：人人都系网名；街坊先加座数楼层（地址私隐：非街坊永远唔出座数楼层）。
+    /// Board decision (2026-10-10): show nicknames for everyone; add block/floor only for neighbors.
     var listName: String {
         if isMe {
             let nick = nickname.flatMap { $0.isEmpty ? nil : $0 }
             let you = L.t("你", "你", "You")
             return nick.map { "\($0) · \(you)" } ?? you
         }
-        // 10-18 测试：唔想人知住边座、边层 → 一律只出网名
+        // 10-18 feedback: if home details are hidden, show only the nickname.
         return name
     }
     var color: Color { Palette.person(colorIndex) }
     var uiColor: UIColor { Palette.personUI(colorIndex) }
 }
 
-/// 年龄段（卡通形象用）：長者白头发，後生身形小一点。
+/// Avatar age group: white hair for older residents, smaller body for younger residents.
 enum AgeGroup: String, Codable, CaseIterable {
     case elder, adult, young
     var label: String {
@@ -66,27 +66,27 @@ enum AgeGroup: String, Codable, CaseIterable {
     }
 }
 
-/// 人物配色：色弱（红 / 绿 / 蓝色盲模拟）下两两色差 ΔE2000 ≥ 12，
-/// 对浅色、深色地面对比度都 ≥ 2.2（ios/tools/cvd_check.py 计算）。「我」固定橙色。
+/// Avatar palette: pairwise Delta E 2000 >= 12 under simulated red/green/blue color-vision deficiencies.
+/// Contrast >= 2.2 against light/dark ground, checked by ios/tools/cvd_check.py. Self always uses orange.
 enum Palette {
     static let people: [UIColor] = [
-        UIColor(red: 0.322, green: 0.678, blue: 0.639, alpha: 1),  // 青绿 #52ADA3
-        UIColor(red: 0.624, green: 0.518, blue: 0.976, alpha: 1),  // 浅紫 #9F84F9
-        UIColor(red: 0.243, green: 0.467, blue: 0.678, alpha: 1),  // 蓝 #3E77AD
-        UIColor(red: 0.698, green: 0.173, blue: 0.494, alpha: 1),  // 紫红 #B22C7E
-        UIColor(red: 0.894, green: 0.596, blue: 0.000, alpha: 1),  // 黄 #E49800
-        UIColor(red: 0.522, green: 0.478, blue: 0.451, alpha: 1),  // 灰 #857A73
-        UIColor(red: 0.847, green: 0.353, blue: 0.188, alpha: 1),  // 橙（我）#D85A30
+        UIColor(red: 0.322, green: 0.678, blue: 0.639, alpha: 1),  // Teal #52ADA3.
+        UIColor(red: 0.624, green: 0.518, blue: 0.976, alpha: 1),  // Light purple #9F84F9.
+        UIColor(red: 0.243, green: 0.467, blue: 0.678, alpha: 1),  // Blue #3E77AD.
+        UIColor(red: 0.698, green: 0.173, blue: 0.494, alpha: 1),  // Magenta #B22C7E.
+        UIColor(red: 0.894, green: 0.596, blue: 0.000, alpha: 1),  // Yellow #E49800.
+        UIColor(red: 0.522, green: 0.478, blue: 0.451, alpha: 1),  // Gray #857A73.
+        UIColor(red: 0.847, green: 0.353, blue: 0.188, alpha: 1),  // Orange for self #D85A30.
     ]
     static let meIndex = 6
     private static var names: [String] { L.isEn ? ["Teal", "Lilac", "Blue", "Magenta", "Yellow", "Grey", "Orange"] : L.isCmn ? ["青绿色", "浅紫色", "蓝色", "紫红色", "黄色", "灰色", "橙色"] : ["青綠色", "淺紫色", "藍色", "紫紅色", "黃色", "灰色", "橙色"] }
     static func personUI(_ i: Int) -> UIColor { people[wrap(i)] }
     static func person(_ i: Int) -> Color { Color(personUI(i)) }
-    /// 读屏用的颜色名（设置页、首次使用同一套）。
+    /// Accessible color names shared by Settings and onboarding.
     static func name(_ i: Int) -> String { names[wrap(i)] }
     private static func wrap(_ i: Int) -> Int { ((i % people.count) + people.count) % people.count }
 
-    /// 肤色四档（浅 → 深），卡通化、低饱和，配纸雕画风。
+    /// Four muted, stylized skin tones from light to dark, matching the paper-art style.
     static let skins: [UIColor] = [
         UIColor(red: 0.980, green: 0.851, blue: 0.788, alpha: 1),  // #FAD9C9
         UIColor(red: 0.929, green: 0.741, blue: 0.620, alpha: 1),  // #EDBD9E
@@ -97,14 +97,14 @@ enum Palette {
     static func skinName(_ i: Int) -> String { skinNames[min(max(i, 0), skinNames.count - 1)] }
     static func skinUI(_ i: Int) -> UIColor { skins[min(max(i, 0), skins.count - 1)] }
     static func skin(_ i: Int) -> Color { Color(skinUI(i)) }
-    /// 头发：長者白、其他深啡。
+    /// White hair for older residents; dark brown otherwise.
     static func hairUI(_ age: AgeGroup) -> UIColor {
         age == .elder ? UIColor(white: 0.93, alpha: 1) : UIColor(red: 0.20, green: 0.15, blue: 0.13, alpha: 1)
     }
 }
 
 struct Appointment: Identifiable, Equatable, Codable {
-    /// 规格 §7：待确认 / 已接受 / 已完成 / 已取消；另加「過咗期」（约定时间过了一个钟都冇碰头）。
+    /// Specification §7 states plus expired: no meeting within one hour of the agreed time.
     enum Status: String, Equatable, Codable { case waiting, accepted, done, cancelled, expired }
     var id = UUID()
     var partnerID: String
@@ -113,16 +113,16 @@ struct Appointment: Identifiable, Equatable, Codable {
     var reason: String
     var status: Status
     var fromPartner = false
-    /// 已经提醒过"半個鐘後出發"。
+    /// Whether the thirty-minute departure reminder has already been sent.
     var reminded = false
-    /// F8：已经问过"過咗 10 分鐘，要唔要打電話"（可选值：旧存档没有这个字段也读得回）。
+    /// F8: whether the ten-minute-late phone-call prompt was shown. Optional for compatibility with older saves.
     var lateAsked: Bool?
 
-    /// 仲有效（未完成、未取消、未過期）。
+    /// Still active: neither completed, cancelled, nor expired.
     var isOpen: Bool { status == .waiting || status == .accepted }
 }
 
-/// 约人卡：几个候选（时间 + 地点 + 理由），editing 有值时是在改已有的约会。
+/// Invitation choices contain time/place/reason; non-nil editing means modifying an existing meetup.
 struct Proposal: Equatable {
     var partnerID: String
     var options: [MeetProposal]
@@ -130,14 +130,14 @@ struct Proposal: Equatable {
     var editing: UUID? = nil
 }
 
-/// 约会提议（AI 给的时间 + 地点 + 理由）。
+/// Meetup proposal: suggested time, place, and reason.
 struct MeetProposal: Equatable {
     var date: Date
     var landmarkID: String
     var reason: String
 }
 
-/// 找人：约好的当天，或散步中临时"過去搵佢"。
+/// Finding for a scheduled meetup or an impromptu request during a walk.
 struct FindSession: Equatable {
     enum Stage: Equatable { case asking, going, near, met, declined }
     var partnerID: String
@@ -146,32 +146,32 @@ struct FindSession: Equatable {
     var stage: Stage
     var distance: Double = 0
     var etaMinutes: Int = 0
-    var bearing: Double = 0          // 相对屏幕上方的角度（度）
+    var bearing: Double = 0          // Angle in degrees relative to the top of the screen.
     var latePrompt = false
     var broadcast: String?
-    /// 每次找人一个记号：延时回覆认返係边一次，旧回覆唔会落到新一次（A22）。
+    /// Unique finding-session marker prevents delayed replies from affecting a newer session (A22).
     var token = UUID()
-    /// 约会找人：对方出咗门未（收到 CommunityService 通知先算）。临时找人对方已经喺地标等。
+    /// For scheduled finding, departure must come from CommunityService. For an impromptu request, the peer is already waiting at a landmark.
     var partnerOut = true
-    /// 底栏主按钮讲到边一步：0 未讲、1 讲咗「出發喇」（被搵嗰边：「我喺度等你」）、2 讲咗「我就到」。见 AppStore.findStep。
+    /// Primary-action stage: 0 not announced; 1 departed/waiting; 2 nearly there. See AppStore.findStep.
     var told = 0
 
-    // 「查找」式找人（真街坊，2026-10-11）：两部手机经私有频道临时共享即时位置，见 AppStore+LiveFind。
-    /// 真街坊：用即时位置（唔係模拟路线）。
+    // Real-neighbor finding (2026-10-11): phones temporarily share live location through a private channel; see AppStore+LiveFind.
+    /// Real neighbors use live location rather than a simulated route.
     var live = false
-    /// 我係被搵嗰个（对方问「過嚟搵你」我答咗好）。
+    /// Whether I am the person who accepted an incoming finding request.
     var incoming = false
-    /// 远（GPS + 指南针）/ 近（超宽带）/ 等紧对方位置。
+    /// Far GPS/compass, near UWB, or waiting for peer location.
     var liveMode: LiveFindMath.Mode = .waiting
-    /// 箭咀用紧超宽带方向（精确）。
+    /// Arrow currently uses precise UWB direction.
     var precise = false
-    /// 指南针唔准：叫用户将手机放平。
+    /// Unreliable compass: ask the user to hold the phone flat.
     var headingPoor = false
-    /// 箭咀差唔多向前（转绿）。
+    /// Arrow approximately straight ahead; show green.
     var facing = false
-    /// 镜头辅助未收敛：叫用户慢慢左右移动手机。
+    /// Camera-assisted convergence incomplete: ask for gentle side-to-side phone movement.
     var sweep = false
-    /// 对方位置暂时收唔到（旧过 30 秒）。
+    /// Peer location temporarily unavailable or older than 30 seconds.
     var partnerStale = false
 }
 
@@ -186,7 +186,7 @@ struct WalkSession: Equatable {
 enum ReportKind: String, CaseIterable, Identifiable, Codable {
     case sunny = "好曬", noSeat = "冇櫈", rough = "難行"
     var id: String { rawValue }
-    /// 显示用（rawValue 係存档 / 后端用，唔好改）。
+    /// Display labels only; do not change rawValue used by persistence/backend.
     var label: String {
         switch self {
         case .sunny: return L.t("好曬", "太晒", "Too sunny")
@@ -209,11 +209,11 @@ struct Report: Identifiable, Equatable, Codable {
     var pos: Vec2
     var landmarkID: String?
     var date: Date
-    /// F10：屋邨管理 / 社工落实后的回覆，会告诉反映的居民。
+    /// F10: estate-management/social-worker follow-up relayed to the reporting resident.
     var followUp: String?
-    /// 回覆是演示模拟的（可选值：旧存档没有这个字段也读得回）。
+    /// Whether the reply is simulated; optional for compatibility with older saves.
     var followUpDemo: Bool?
-    /// 规格 §7：语音反映的原话（只在汇总前给 AI 分类，不对外）；撳掣反映没有。
+    /// Specification §7: original spoken report text, used for classification before aggregation and not public. Absent for button reports.
     var rawText: String?
 }
 
@@ -226,7 +226,7 @@ struct BannerItem: Identifiable, Equatable {
     var actionTitle: String?
 }
 
-/// 听完一句话后的复述卡。
+/// Read-back card after an utterance.
 struct VoiceCard: Identifiable, Equatable {
     let id = UUID()
     var heard: String
@@ -234,13 +234,13 @@ struct VoiceCard: Identifiable, Equatable {
     var detail: String?
     var needsConfirm: Bool
     var intent: VoiceIntent
-    /// 改约 / 取消约时复述的是边一个约会（按「好」就改呢个，唔再重新揀）。
+    /// Remember the exact meetup selected for rescheduling/cancellation; do not choose again on confirmation.
     var appointmentID: UUID? = nil
-    /// 语音反映记低咗边一条（「撤回」就撤呢条，唔会撤错）。
+    /// Remember the report ID so Undo retracts the correct report.
     var reportID: UUID? = nil
-    /// 组员 B 语音助手（Mac 服务器）嘅一步：揀人 / 揀地点 / 补资料 / 复述确认 / 结果。nil = 手机模板嘅卡。见 Store/AppStore+Assistant.swift。
+    /// B's server-assistant step: person/place choice, clarification, confirmation, or result. nil means a local-template card; see AppStore+Assistant.swift.
     var assistant: AssistantCard? = nil
-    /// 求救卡：唔自动收（要用户自己关），读屏或者慌张时都来得及睇。
+    /// Emergency card requires manual dismissal so it remains readable under stress or VoiceOver.
     var sticky = false
 }
 
@@ -263,10 +263,10 @@ struct MonthlyReport: Equatable {
     var meetups: Int
 }
 
-/// 月报用的匿名汇总（后端按全邨数据算；单机演示时由示範数据推算）。
+/// Anonymous monthly aggregates: backend estate-wide data, or explicitly simulated data in demo mode.
 struct MonthlyStats: Equatable {
-    var walks: Int          // 散步人次
-    var walkers: Int        // 有散步嘅人数
-    var meetups: Int        // 街坊一齊行嘅次数
+    var walks: Int          // Number of walks.
+    var walkers: Int        // Number of people who walked.
+    var meetups: Int        // Number of shared neighbor walks.
     var isDemo: Bool
 }

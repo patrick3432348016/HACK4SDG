@@ -82,7 +82,7 @@ class Providers:
         }, json={"model": self.settings.qwen_model, "messages": [
             {"role": "system", "content": system}, {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
         ], "response_format": {"type": "json_object"}, "temperature": 0, "max_tokens": 800,
-            # 成员 A 加：豆包方舟模型关思考（同 B 嘅 doubao.py），唔系就慢好多
+            # Disable Ark thinking as in B's doubao.py to reduce latency.
             **({"thinking": {"type": "disabled"}} if "volces.com" in self.settings.qwen_base_url else {})})
         try:
             result = response.json()
@@ -98,7 +98,7 @@ class Providers:
 
     async def interpret(self, text, previous, now, locale):
         if not self.settings.model_ready:
-            # 成员 A 改：supabase 模式（真业务数据）未有 Qwen key 时都用有限规则；production 照旧拒绝。
+            # Supabase mode permits limited rules without a Qwen key; production mode still rejects missing configuration.
             if self.settings.mode == "production":
                 raise AssistantError("MODEL_NOT_CONFIGURED", "AI 服务尚未配置。", 503)
             return demo_interpret(text, previous, now)
@@ -108,7 +108,7 @@ class Providers:
             "仅提取用户明确表达的内容。明确修改上一请求时可沿用未修改字段，换任务时清空无关字段。"
             "不确定意图用help，不确定字段用null，不猜测下午、不猜测步行上限。"
             "starts_at转换为带+08:00时区的ISO8601，未说日期或无法唯一确定时用null。"
-            # 成员 A 加（2026-10-17 用户测试：认唔到整点、半点以外嘅时间、讲唔到行几耐）
+            # A, 2026-10-17: support explicit minutes and walking duration after device feedback.
             "starts_at要保留分钟：三点十五、3点20分、三点一刻(15分)、两点三刻(45分)、三点半(30分)、八点零五(5分)、粤语三点三(15分)。"
             "用户讲散步/走多久（走四十分钟、散步一个小时、走半个钟）时把分钟数填入max_walk_minutes（最多120）。"
             "starts_at的分钟只取钟点后面讲的分钟，没讲就是00，秒一律00，不得沿用now的分钟；散步40分钟的40是时长不是分钟。"
@@ -141,7 +141,7 @@ class Providers:
 
 
 def _cn_number(s: str):
-    """一至九十九嘅中文数字 → int（「十五」→15、「二十」→20）；唔识就 None。"""
+    """Parse Chinese integers one through ninety-nine, returning None for unsupported forms."""
     digits = {"一": 1, "二": 2, "两": 2, "兩": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
     if s in digits:
         return digits[s]
@@ -159,7 +159,7 @@ _SIMPLE = str.maketrans({"約": "约", "陳": "陈", "時": "时", "點": "点",
 
 def _normalize(text: str) -> str:
     normalized = text.strip().translate(_SIMPLE)
-    # 成员 A 加：粤语识别常出中文数字（「最多十五分鐘」），换成阿拉伯数字先比下面嘅规则用。
+    # Normalize Chinese numeral ASR output to digits before applying the following rules.
     return re.sub(r"([一二两兩三四五六七八九十]{1,3})(?=\s*分钟)", lambda m: str(_cn_number(m[1]) or m[1]), normalized)
 
 
@@ -169,9 +169,9 @@ _COLON = re.compile(r"(?<!\d)([01]?\d|2[0-3])[:：]([0-5]\d)(?!\d)")
 
 
 def spoken_clock(text: str):
-    """成员 A 加（2026-10-18 真机：「约邻居明天下午3点散步40分钟」确认卡变「3 点 2 分」——模型照抄咗 now 嘅分钟）。
-    用户讲咗嘅最后一个钟点 → (钟头 0–23 未分上下午, 分钟)；分钟唔肯定（粤语「三点三」「差五分」之类）就系 None。
-    冇讲钟点返回 None。「散步40分钟」「走半个钟」系行几耐，唔当分钟。"""
+    """10-18: an invitation for 3 pm and 40 minutes incorrectly inherited now's minute value from the model.
+    Parse the last explicit clock time into hour/minute; ambiguous Cantonese minute expressions yield None.
+    Return None without a clock time; walking durations are not clock minutes."""
     normalized = _normalize(text)
     colon = list(_COLON.finditer(normalized))
     english = list(_EN_CLOCK.finditer(text))
@@ -191,7 +191,7 @@ def spoken_clock(text: str):
 
 
 def pin_spoken_clock(cmd: Command, text: str) -> Command:
-    """模型出嘅 starts_at：秒清零；用户讲咗钟点、钟头对得上，分钟就以用户讲嘅为准（唔信模型抄 now 嘅分钟）。"""
+    """Zero model starts_at seconds and prefer confidently spoken minutes when the hour matches."""
     if not cmd.starts_at:
         return cmd
     at = cmd.starts_at.replace(second=0, microsecond=0)
@@ -220,7 +220,7 @@ def demo_interpret(text: str, previous: Command | None, now: datetime) -> Comman
         match = re.search(r"(?:给|給)(.+?)(?:起名|命名)", normalized)
         return Command(intent="landmark", landmark_query=match[1] if match else None)
     if any(word in normalized for word in ["改名", "改昵称", "改暱称"]):
-        match = re.search(r"(?:改名|改昵称|改暱称)(?:为|為|叫|成|做)?\s*(.+)", normalized)  # 成员 A 加「做」（粤语「改名做」）
+        match = re.search(r"(?:改名|改昵称|改暱称)(?:为|為|叫|成|做)?\s*(.+)", normalized)  # Add the Cantonese rename connector.
         return Command(intent="rename", new_name=match[1] if match and len(match[1]) <= 40 else None)
     if "请假" in normalized:
         cmd = Command(intent="leave")
@@ -279,7 +279,7 @@ def demo_interpret(text: str, previous: Command | None, now: datetime) -> Comman
     walk = re.search(r"(?:散步|步行|走路|行路|最多|行|走|点)\s*(\d{1,3})\s*分钟", normalized)
     if walk and 1 <= int(walk[1]) <= 120:
         cmd.max_walk_minutes = int(walk[1])
-    # 成员 A 加：「散步一个钟」「走半个钟」「行一个半小时」（以钟头计，最多 120 分钟）
+    # Support hour-based walking durations, including half and one-and-a-half hours, capped at 120 minutes.
     hours = re.search(r"(?:散步|步行|走路|行路|最多|行|走)\s*(一个半|个半|半个|半|一个|1个|两个|兩个|2个)\s*(?:钟头|钟|小时)", normalized)
     if hours and cmd.max_walk_minutes is None:
         cmd.max_walk_minutes = {"一个半": 90, "个半": 90, "半个": 30, "半": 30}.get(hours[1], 60 if hours[1] in ("一个", "1个") else 120)
@@ -287,9 +287,9 @@ def demo_interpret(text: str, previous: Command | None, now: datetime) -> Comman
 
 
 def _minute_after(rest: str, sure: bool = False):
-    """成员 A 加（2026-10-17）：「点」后面嘅分钟：半 / 一刻 / 三刻 / 十五 / 20分 / 零五 / 两个字（粤语 = 10 分钟）。
-    得一个中文数字（「三点一起」嘅「一」）唔当分钟。「3点40分钟」「三点散步四十分钟」嘅 40 系行几耐，唔当分钟（10-18）。
-    sure=True：唔肯定嘅讲法（一个中文数字、「差五分」「踏九」「一个骨」）返回 None，其余同下面一样。"""
+    """10-17: parse half/quarter/three-quarter hours, numeric minutes and Cantonese five-minute units.
+    A lone Chinese numeral after the hour may belong to the next phrase; explicit walking duration must not become clock minutes.
+    With sure=True, reject ambiguous single digits, relative-minute and colloquial forms; otherwise retain the rules below."""
     rest = rest.lstrip()
     for word, minute in (("半", 30), ("一刻", 15), ("三刻", 45)):
         if rest.startswith(word) and not rest.startswith(("半个钟", "半个小时", "半小时")):

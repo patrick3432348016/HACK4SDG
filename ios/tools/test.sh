@@ -1,6 +1,6 @@
 #!/bin/bash
-# Xcode 单元测试（StreetWalkTests）：地图解析与风格化、地标、太阳与遮荫、寻路、语音意图、连续天数、持久化、示範数据、散步逻辑。
-# 编译或测试失败时返回非零（pipefail：取 xcodebuild 的退出码，grep 冇输出都唔会当失败）。
+# Xcode tests cover maps, landmarks, solar/shade, routing, intents, streaks, persistence, demo data and walking logic.
+# Return nonzero on build/test failure; pipefail preserves xcodebuild status without treating empty grep output as failure.
 set -eo pipefail
 cd "$(dirname "$0")/.."
 SIM=${SIM:-iPhone 17}

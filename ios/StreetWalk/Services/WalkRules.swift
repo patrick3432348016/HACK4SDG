@@ -1,9 +1,9 @@
 import Foundation
 
-// 散步嘅纯逻辑（唔掂界面、唔掂传感器），方便单测：落脚点、真机开始 / 收尾、背景补记、步频下降、请假日子。
+// Pure walking logic without UI/sensors: stopping points, start/end gates, backfill, cadence drops, and leave dates.
 
-/// F1 落脚点：同一位置附近停留 ≥ 2 分钟、半径 ≤ 30 m。每段停留只报一次。
-/// 演示散步每秒只行 9 m（= 每分钟 9 m，比真人慢好多），所以演示用细啲嘅半径。
+/// F1 stop: stay at least two minutes within a 30-m radius; emit once per stay.
+/// Demo movement is only 9 m per simulated minute, so use a smaller stop radius.
 struct StopDetector {
     var minDwell: TimeInterval
     var radius: Double
@@ -18,7 +18,7 @@ struct StopDetector {
         self.radius = radius
     }
 
-    /// 新位置。啱啱停够 minDwell 时返回落脚点中心（每段一次）。
+    /// For a new fix, return the stop centre when minDwell is first reached, once per stay.
     mutating func add(_ p: Vec2, at t: Date) -> Vec2? {
         if let c = center, c.distance(to: p) <= radius {
             sum = sum + p
@@ -30,7 +30,7 @@ struct StopDetector {
         return nil
     }
 
-    /// 冇新定位点，但知道仲喺原地（Core Motion 话停低咗；企定唔郁时定位唔会再出新点）。
+    /// No new fix, but Core Motion confirms the user remains stationary; GPS may stop emitting points while still.
     mutating func hold(at t: Date) -> Vec2? { center == nil ? nil : check(t) }
 
     private mutating func check(_ t: Date) -> Vec2? {
@@ -40,52 +40,52 @@ struct StopDetector {
     }
 }
 
-/// F1 真机：按定位点判断几时开始、几时收尾。
-/// 测试反馈 C-1：以前要精度 ≤30 m、扣埋误差离家 55 m 先开始，香港楼密精度成日 30–45 m，行到 100 m 都唔开始。
+/// F1 device start/end decisions from location fixes.
+/// C-1 feedback: the old <=30-m accuracy and error-adjusted 55-m departure rules missed departures in dense buildings with 30–45-m accuracy.
 struct LiveWalkGate {
-    static let homeRadius = 40.0     // 我屋企 40 m 内算返到屋企
-    static let leaveRadius = 50.0    // 扣埋误差都离开 50 m 先算出门（大过返屋企阈值 10 m，唔会一开一收）
-    static let maxStart = 400.0      // 400 m 外先开始唔算（喺别区落车行路唔係「出門」）
-    static let goodAcc = 45.0        // 开始要精度 ≤45 m（以前 30 m：楼密嘅地方成日开唔到）
-    static let trailAcc = 40.0       // 画轨迹要精度 ≤40 m（再差就只计时间）
-    static let homeAcc = 50.0        // 放宽嘅返屋企判断只接受精度 ≤50 m
-    static let confirmGap: TimeInterval = 5   // 要两个相隔 ≥5 秒嘅好点先开始（防定位跳一下）
-    /// 收尾之后 90 秒内唔自动再开始（喺门口附近定位跳嚟跳去时唔会一开一收、讲过不停）。
+    static let homeRadius = 40.0     // Within 40 m of home counts as returned.
+    static let leaveRadius = 50.0    // Require at least 50 m after accounting for error, giving 10-m hysteresis above the return threshold.
+    static let maxStart = 400.0      // Do not start beyond 400 m under the ordinary gate; walking after a distant vehicle trip is not home departure.
+    static let goodAcc = 45.0        // Start requires <=45-m accuracy; the former 30-m limit was too strict around dense buildings.
+    static let trailAcc = 40.0       // Draw routes only with <=40-m accuracy; otherwise count time only.
+    static let homeAcc = 50.0        // Relaxed return-home detection requires <=50-m accuracy.
+    static let confirmGap: TimeInterval = 5   // Require two valid fixes at least five seconds apart to reject a single GPS jump.
+    /// Suppress automatic restart for 90 seconds after ending, avoiding repeated start/end announcements near home.
     static let restartGap: TimeInterval = 90
-    /// 自己撳「结束散步」而仲喺外面：返到屋企之前唔自动再开始（最多 3 个钟）。
+    /// After manual end while outside, suppress restart until home, capped at three hours.
     static let userEndQuiet: TimeInterval = 3 * 3600
 
-    /// 10-18：啱啱开始记录 2 分钟内，只认真系入咗 40 m 先收尾（门口定位跳一跳唔会一开就收、讲「太短唔记录」）。
+    /// 10-18: during the first two recording minutes, require actual entry within 40 m to finish, avoiding immediate GPS-jitter cancellation.
     static let settleTime: TimeInterval = 2 * 60
 
     enum Action: Equatable { case none, start, step, minutesOnly, finish }
 
     private(set) var pendingSince: Date?
-    /// 今次记录第一个定位嘅时间（用嚟判断啱啱开始）。
+    /// Time of the first recorded location fix, used by the new-walk grace period.
     private(set) var recordingSince: Date?
-    /// 自己撳「现在出去走走」时仲喺屋企：未行出屋企之前唔会因为「喺屋企」收尾。
+    /// A manual start at home must not end for being at home until the user has first left.
     var awaitingLeave = false
-    /// 呢个时间之前唔自动开始（untilHome：返到屋企就提早解除）。
+    /// Suppress automatic start until this time; untilHome allows earlier release on return.
     private(set) var quietUntil: Date?
     private(set) var quietUntilHome = false
 
-    /// 精度差（屋企楼里）时放宽：扣掉误差仍在 40 m 内、精度唔差过 50 m、唔超过 100 m。
+    /// Relax return detection for poor indoor fixes: error-adjusted distance within 40 m, accuracy <=50 m, and raw distance <=100 m.
     static func isHome(fromHome d: Double, acc: Double) -> Bool {
         d < homeRadius || (acc <= homeAcc && d - acc < homeRadius && d < 100)
     }
 
-    /// 扣埋误差都离开屋企 50 m（出门）。
+    /// Error-adjusted distance from home is at least 50 m.
     static func isAway(fromHome d: Double, acc: Double) -> Bool { d - acc > leaveRadius }
 
-    /// 一段时间内唔自动开始。
+    /// Suppress automatic start for an interval.
     mutating func quiet(until t: Date, untilHome: Bool = false) {
         quietUntil = t
         quietUntilHome = untilHome
         pendingSince = nil
     }
 
-    /// moving：而家行紧路（Core Motion，或者定位速度似行路；轮椅：唔係停低）。
-    /// maxStart：几远以内开始都算出门（由屋企行出去、区域监察迟报时放宽，见 TriggerRules.maxStart）。
+    /// moving comes from motion/speed; wheelchair mode treats non-stationary activity as movement.
+    /// maxStart expands after delayed home-region departure; see TriggerRules.maxStart.
     mutating func decide(fromHome d: Double, acc: Double, at t: Date, recording: Bool, moving: Bool,
                          maxStart: Double = LiveWalkGate.maxStart) -> Action {
         if recording {
@@ -119,30 +119,30 @@ struct LiveWalkGate {
     }
 }
 
-/// 10-18 真机测试：散步分钟同「停低咗」按真系郁过嘅时间计。
-/// 以前自动开始嘅按最后一个定位计（坐低时 GPS 漂移照出新点，分钟一路加）、手动开始嘅按墙钟计；
-/// 停低又靠 Core Motion 连续报「静止」2/5/10 分钟（坐低时佢成日夹住报「唔知」，计时一直被打断，坐 10 分钟都唔收尾）。
-/// 郁过 = Core Motion 话行紧路、计步器步数加咗、或者定位离开上一个锚点超过 40 m（GPS 漂移唔算）。
+/// 10-18 device feedback: derive walk minutes and stillness from actual movement evidence.
+/// Previously automatic walks used the latest GPS timestamp, including stationary drift, while manual walks used wall-clock time.
+/// Stillness required uninterrupted stationary motion; intermittent unknown classifications reset the timer and prevented ending after sitting.
+/// Movement evidence: walking motion, a meaningful step increase, or displacement over 40 m from the GPS anchor rather than small drift.
 struct WalkMotionClock {
     static let driftRadius = 40.0
-    /// 90 秒内郁过：当仲行紧，分钟跟住钟走。
+    /// Movement within 90 seconds keeps elapsed minutes advancing.
     static let activeGrace: TimeInterval = 90
-    /// 停低几耐收尾：喺屋企附近 5 分钟、喺外面 10 分钟。
+    /// Finish after five stationary minutes near home or ten outside.
     static let stillNearHome: TimeInterval = 5 * 60
     static let stillAway: TimeInterval = 10 * 60
-    /// 计步器每加咁多步当郁过一次（企定摇吓手机唔算）。
+    /// Require this step increase for movement evidence, excluding small phone shakes.
     static let stepNudge = 8
-    /// 分钟下限：每 120 步当 1 分钟（长者慢行约 90–110 步 / 分钟，宁愿少计）。
+    /// Lower bound of one minute per 120 steps, conservatively below older residents' typical 90–110 steps/minute estimate.
     static let stepsPerMinute = 120
 
     let start: Date
     private(set) var lastMoveAt: Date
-    /// 收过任何传感器讯号（定位、计步、Core Motion）。手动开始又乜都收唔到（冇权限）就按钟计、唔自动收尾。
+    /// Track whether any sensor signal arrived. Manual starts without permission/data use wall-clock time and do not auto-end.
     private(set) var signal = false
     private var anchor: Vec2?
     private var stepsAtMove = 0
 
-    /// now：开始记录嗰刻（开始时间可能早过佢：锁屏时已经行紧）。开始嗰刻一定当郁紧。
+    /// now is recording activation; start may be earlier from locked-screen walking. Treat activation as initial movement.
     init(start: Date, now: Date) {
         self.start = start
         lastMoveAt = max(start, now)
@@ -153,13 +153,13 @@ struct WalkMotionClock {
         if t > lastMoveAt { lastMoveAt = t }
     }
 
-    /// 计步器：今次散步累计步数。
+    /// Cumulative steps for this walk.
     mutating func steps(_ n: Int, at t: Date) {
         signal = true
         if n - stepsAtMove >= Self.stepNudge { stepsAtMove = n; moved(at: t) }
     }
 
-    /// 新定位：精度 ≤40 m 先用；离开锚点 >40 m 先当郁过（坐低时定位喺几十米内跳嚟跳去唔算）。
+    /// Use fixes with <=40-m accuracy; count movement only beyond 40 m from the anchor to reject stationary drift.
     mutating func fix(_ p: Vec2, acc: Double, at t: Date) {
         signal = true
         guard acc <= LiveWalkGate.trailAcc else { return }
@@ -169,11 +169,11 @@ struct WalkMotionClock {
 
     func stillFor(_ now: Date) -> TimeInterval { max(0, now.timeIntervalSince(lastMoveAt)) }
     func isActive(_ now: Date) -> Bool { stillFor(now) < Self.activeGrace }
-    /// 今次散步计到几时：行紧就到而家，停低咗就到最后郁嗰刻（坐低嘅时间唔计）。
+    /// Walk end time is now while moving, otherwise the last movement time; exclude seated time.
     func endTime(_ now: Date) -> Date { isActive(now) ? now : lastMoveAt }
     func shouldFinish(_ now: Date, nearHome: Bool) -> Bool { stillFor(now) >= (nearHome ? Self.stillNearHome : Self.stillAway) }
 
-    /// 分钟：开始到 end；步数多过呢个时间嘅就用步数做下限（唔超过墙钟）。
+    /// Minutes from start to end, with a step-derived lower bound capped by wall-clock duration.
     static func minutes(start: Date, end: Date, steps: Int?, now: Date) -> Int {
         var m = Int(max(0, end.timeIntervalSince(start)) / 60)
         if let s = steps, s > 0 { m = max(m, min(s / stepsPerMinute, Int(max(0, now.timeIntervalSince(start)) / 60))) }
@@ -181,16 +181,16 @@ struct WalkMotionClock {
     }
 }
 
-/// A05：App 喺背景 / 锁屏时冇定位，返前台用 Core Motion 嘅活动纪录补记行路时段（只有分钟、步数，冇地标）。
+/// A05 background backfill uses motion history for walking intervals, minutes, and steps, without inventing landmarks.
 enum WalkBackfill {
     struct Sample: Equatable {
         var start: Date
         var moving: Bool
     }
-    static let minLength: TimeInterval = 5 * 60   // 少过 5 分钟唔算（屋企入面行来行去）
-    static let mergeGap: TimeInterval = 2 * 60    // 停低少过 2 分钟（等过马路）当同一次
+    static let minLength: TimeInterval = 5 * 60   // Ignore intervals shorter than five minutes, such as movement inside home.
+    static let mergeGap: TimeInterval = 2 * 60    // Merge stops under two minutes, such as waiting at crossings.
 
-    /// 连续「行路」嘅时段。最后一段如果仲未停，就到 end 为止。
+    /// Continuous walking intervals; cap an unfinished final interval at end.
     static func segments(_ samples: [Sample], until end: Date, minLength: TimeInterval = minLength) -> [DateInterval] {
         var raw: [DateInterval] = []
         var open: Date?
@@ -210,8 +210,8 @@ enum WalkBackfill {
         return merged.filter { $0.duration >= minLength }
     }
 
-    /// 分开：已经完咗嘅段（即刻补记）同最后一段（返前台时仲行紧、或者 2 分钟内啱啱停）。
-    /// 最后一段交俾定位接手做真机散步（开始时间用佢嘅）；接唔到就等停低再补记（PendingWalk.interval）。
+    /// Separate completed intervals for immediate backfill from a final ongoing/recently stopped interval within two minutes.
+    /// Let live location take over the final interval using its original start; otherwise backfill after it stops (PendingWalk.interval).
     static func split(_ samples: [Sample], until end: Date) -> (done: [DateInterval], tail: PendingWalk?) {
         var segs = segments(samples, until: end, minLength: 0)
         let open = samples.max { $0.start < $1.start }?.moving == true
@@ -223,25 +223,25 @@ enum WalkBackfill {
         return (segs.filter { $0.duration >= minLength }, tail)
     }
 
-    /// 轮椅：iPhone 认唔到推轮椅，只信中高可信度、而且明确唔係停低 / 坐车 / 踩单车 / 唔知（手机拎喺手、放袋都可能报 unknown）。
+    /// Wheelchair backfill requires medium/high confidence and excludes explicit stationary/vehicle/cycling/unknown states.
     static func isMoving(walking: Bool, running: Bool, stationary: Bool, automotive: Bool, cycling: Bool, unknown: Bool, seated: Bool) -> Bool {
         seated ? !stationary && !automotive && !cycling && !unknown : walking || running
     }
 }
 
-/// 背景补记嘅最后一段：end = nil 即係返前台时仲行紧。
+/// A pending final interval has end=nil while still walking at foreground entry.
 struct PendingWalk: Equatable {
     var start: Date
     var end: Date?
 
-    /// 冇接到真机散步，按停低嘅时间补记；少过 5 分钟唔记。
+    /// Without live takeover, backfill to the stop time; ignore intervals below five minutes.
     func interval(stoppedAt: Date) -> DateInterval? {
         let d = DateInterval(start: start, end: max(start, end ?? stoppedAt))
         return d.duration >= WalkBackfill.minLength ? d : nil
     }
 }
 
-/// F9 真机步频：行咗 10 分钟后，步频持续 2 分钟低过本次散步中位数七成，就提示休息（每次散步一次）。
+/// F9: after ten walking minutes, cadence below 70% of the walk median for two minutes triggers one rest suggestion per walk.
 struct CadenceWatch {
     static let warmUp: TimeInterval = 10 * 60
     static let sustain: TimeInterval = 2 * 60
@@ -250,7 +250,7 @@ struct CadenceWatch {
     private var lowSince: Date?
     private(set) var fired = false
 
-    /// cadence：每秒步数（CMPedometerData.currentCadence）。返回 true = 而家要提示。
+    /// cadence is steps/second from CMPedometerData.currentCadence; true means suggest a rest now.
     mutating func add(_ cadence: Double, at t: Date, walkStart: Date) -> Bool {
         guard !fired, cadence > 0 else { return false }
         guard t.timeIntervalSince(walkStart) >= Self.warmUp, samples.count >= 5 else {
@@ -261,7 +261,7 @@ struct CadenceWatch {
         let median = sorted[sorted.count / 2]
         guard cadence < median * Self.ratio else {
             lowSince = nil
-            samples.append(cadence)   // 慢落嚟嘅唔计入基线
+            samples.append(cadence)   // Exclude the slowdown from the baseline.
             return false
         }
         let since = lowSince ?? t
@@ -272,14 +272,14 @@ struct CadenceWatch {
     }
 }
 
-/// F4 请假日子：「聽日請假」「請三日假」「聽日起請一個禮拜」。冇讲就係今日一日。
+/// F4 leave parser supports tomorrow, durations, and next-week requests; default is one day today.
 struct LeaveRequest: Hashable {
-    var startOffset = 0     // 0 今日、1 聽日、2 後日、3 大後日；「下星期」= 下個禮拜一
+    var startOffset = 0     // Day offsets 0/1/2/3 mean today/tomorrow/two/three days ahead; next week starts next Monday.
     var days = 1
 
     static let maxDays = 14
 
-    /// today：按佢计「下星期」由边日开始（香港日历）。
+    /// Use today's Hong Kong calendar date to resolve next week.
     static func parse(_ raw: String, today: Date = Date()) -> LeaveRequest {
         let t = raw.replacingOccurrences(of: " ", with: "")
         var r = LeaveRequest()
@@ -287,11 +287,11 @@ struct LeaveRequest: Hashable {
         else if t.contains("後日") || t.contains("后天") { r.startOffset = 2 }
         else if t.contains("聽日") || t.contains("明日") || t.contains("明天") { r.startOffset = 1 }
         else if ["下星期", "下個星期", "下禮拜", "下個禮拜", "下周", "下週", "下个星期", "下礼拜", "下个礼拜"].contains(where: t.contains) {
-            let wd = AppStore.hk.component(.weekday, from: today)   // 1 = 星期日、2 = 星期一
+            let wd = AppStore.hk.component(.weekday, from: today)   // Calendar weekday values: Sunday=1, Monday=2.
             let k = (9 - wd) % 7
             r.startOffset = k == 0 ? 7 : k
         }
-        // 先睇明讲嘅「N 日」，再睇「一個禮拜」（「下星期」只係讲由几时开始）
+        // Prefer an explicit day count, then a week duration; next week alone specifies the start, not duration.
         if let m = t.range(of: "[0-9一二兩两三四五六七八九十]+[日天]", options: .regularExpression), let n = number(String(t[m].dropLast())) {
             r.days = n
         } else if ["兩個禮拜", "兩個星期", "兩星期", "两个礼拜", "两个星期", "两星期", "两周", "兩周", "兩週"].contains(where: t.contains) {
@@ -303,7 +303,7 @@ struct LeaveRequest: Hashable {
         return r
     }
 
-    /// 「3」「三」「十四」「兩」→ 数字。
+    /// Convert Arabic and Chinese number forms to integers.
     static func number(_ s: String) -> Int? {
         if let n = Int(s) { return n }
         let d: [Character: Int] = ["一": 1, "二": 2, "兩": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9]

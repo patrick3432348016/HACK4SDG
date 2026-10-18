@@ -1,13 +1,13 @@
 import SwiftUI
 
-// F5 碰一碰、F6 出门提醒
+// F5 bump pairing and F6 outing alerts.
 extension AppStore {
-    // MARK: - F5 碰一碰
+    // MARK: - F5 bump pairing
 
     func startBump() {
         renaming = nil
-        // 演示模式先讲清楚点解碰唔到：圈入面冇其他人，同"都係街坊"係两回事（A38）。
-        // 真机（2026-10-10）：对方唔使喺圈入面，照碰；过程同二维码后备见 AppStore+Bump。
+        // A38: explain why pairing is unavailable in demo mode; an empty circle differs from everyone already being a neighbor.
+        // Real devices (2026-10-10) can pair outside the circle; see AppStore+Bump for the flow and QR fallback.
         if community.isSimulated {
             guard residents.contains(where: { !$0.isMe }) else {
                 toast(L.t("附近暫時只有你。", "附近暂时只有你。", "Only you nearby for now."))
@@ -22,8 +22,8 @@ extension AppStore {
         beginBumpSearch()
     }
 
-    /// 碰到咗（演示：示範街坊；真机：addLinkedNeighbor 插好对方之后可以用）：
-    /// 两人喺场景并排、语音讲成为街坊、2.6 秒后问开唔开出门提醒。
+    /// After demo pairing, or after addLinkedNeighbor inserts a real peer:
+    /// stand together, announce the new relationship, then ask about outing alerts after 2.6 seconds.
     func bumpMet(_ r: Resident) {
         Haptics.success()
         bumpStage = .found(r.id)
@@ -34,7 +34,7 @@ extension AppStore {
             try? await Task.sleep(for: .seconds(2.6))
             guard self.bumpStage == .found(r.id) else { return }
             self.remindPromptFor = r.id
-            // 问题都要讲出嚟（§4），讲明係双向（F6，A15）。
+            // Speak the question and explain that alerts are bidirectional (section 4, F6, A15).
             self.say(L.t("開唔開出門提醒？開咗之後，佢出門你會知，你出門佢都會知。", "要开出门提醒吗？开了之后，他出门你会知道，你出门他也会知道。", "Turn on out-and-about alerts? You’ll know when they go out, and they’ll know when you do."), prompt: true)
         }
     }
@@ -59,10 +59,10 @@ extension AppStore {
         syncScene()
         scene.resetCamera()
         say(remind ? L.t("開咗出門提醒，你哋出門都會互相話知（只講地標）。", "出门提醒开了，你们出门都会互相通知（只说地标）。", "Out-and-about alerts on. You’ll tell each other when you go out (landmark only).") : L.t("冇問題，之後想開隨時可以。", "没问题，之后想开随时可以。", "No problem. You can turn them on any time."))
-        if remind { requestNotificationsIfReady() }   // 第一次有街坊、开咗提醒：先问通知权限（AppStore+Services）
+        if remind { requestNotificationsIfReady() }   // Request notification permission after the first neighbor enables alerts (AppStore+Services).
     }
 
-    /// F6：发送、接收可以分开开关。
+    /// F6: sending and receiving alerts have separate switches.
     func setRemind(_ id: String, send: Bool? = nil, receive: Bool? = nil) {
         guard let i = residents.firstIndex(where: { $0.id == id }) else { return }
         if let send { residents[i].sendRemind = send }
@@ -71,18 +71,18 @@ extension AppStore {
         storeLink(residents[i])
     }
 
-    /// F5：解除街坊。只删自己这边，对方不会收到通知；佢之后喺地图上唔会再出现。
+    /// F5: remove the local neighbor relationship without notifying the peer; remove them from the map.
     func unlinkNeighbor(_ id: String) {
         guard let i = residents.firstIndex(where: { $0.id == id }) else { return }
         let name = residents[i].name
         residents[i].isNeighbor = false
         residents[i].neighborSince = nil
-        // 唔再係街坊：唔好留低佢嘅出门位置，下次碰一碰唔会带出旧位置（A13）。
+        // A13: clear former neighbors' outing locations so a future pairing cannot expose stale locations.
         residents[i].isOut = false
         residents[i].atLandmarkID = nil
         community.unlinkNeighbor(id)
         storeLink(residents[i])
-        // 未完成的约会一并取消（会通知对方约会取消，但唔会讲解除街坊）。
+        // Cancel unfinished meetings too; the peer receives meeting cancellation, not relationship removal.
         var cancelled = 0
         for k in appointments.indices where appointments[k].partnerID == id && appointments[k].isOpen {
             appointments[k].status = .cancelled
@@ -91,13 +91,13 @@ extension AppStore {
         }
         if case .person(id) = selection { select(nil) }
         syncScene()
-        // 同确认框讲法一致（A70）：解除本身唔通知；有约会就讲明对方会收到「約會取消」。
+        // A70: match the confirmation text: removal itself is silent, but existing meetings generate cancellation notices.
         say(cancelled == 0 ? L.t("已經同\(name)解除街坊，佢唔會收到解除通知。", "已和\(name)解除邻居关系，他不会收到解除通知。", "\(name) is no longer your neighbour. They won’t be told.")
             : L.t("已經同\(name)解除街坊，佢唔會收到解除通知；\(cancelled) 個約會已經取消，佢會收到約會取消。", "已和\(name)解除邻居关系，他不会收到解除通知；\(cancelled) 个约会已取消，他会收到约会取消通知。", "\(name) is no longer your neighbour. They won’t be told. \(cancelled) walk plan(s) cancelled. They will get a cancel notice."))
         Haptics.light()
     }
 
-    /// 邻居页搜索（D-3）：按网名、座数、楼层过滤；唔理空格、大小写、繁简（打「陈」搵到「陳太」、打「8楼」搵到「8 樓」）。空白 = 全部。
+    /// D-3: search nicknames, buildings and floors ignoring spaces, case and simplified/traditional variants; blank matches all.
     func neighbors(matching query: String) -> [Resident] {
         let q = Self.searchKey(query)
         guard !q.isEmpty else { return neighbors }
@@ -111,19 +111,19 @@ extension AppStore {
         return simple.lowercased().filter { !$0.isWhitespace }
     }
 
-    // MARK: - F6 出门提醒
+    // MARK: - F6 outing alerts
 
-    /// 而家喺唔喺接收提醒嘅时段。
+    /// Whether the current time falls in the receiving window.
     var inRemindWindow: Bool {
         let h = Self.hk.component(.hour, from: now)
-        if remindFrom == remindTo { return true }   // 由、到一樣當全日（A66）
+        if remindFrom == remindTo { return true }   // Equal start and end mean all day (A66).
         return remindFrom <= remindTo ? (remindFrom..<remindTo).contains(h) : (h >= remindFrom || h < remindTo)
     }
 
-    /// 演示：圈里某人出门（经 CommunityService 送回来，跟真后端一样走 receive）。
+    /// Demo outing events use CommunityService and the same receive path as the real backend.
     func neighborGoesOut(_ id: String = "chan") {
         guard let r = resident(id), let lm = r.homeLandmarkID ?? landmarks.first?.id else { return }
-        // 真后端唔会将非街坊嘅出门送嚟；演示菜单撳咗就讲规则，唔讲楼层同名（A13）。
+        // The real backend excludes non-neighbor outings; demo explanations must not expose their names or floors (A13).
         guard r.isNeighbor else { toast(L.t("示範：佢仲未係你街坊，出門你唔會收到。", "示范：他还不是你的邻居，他出门你不会收到。", "Demo: not your neighbour yet, so no alert when they go out.")); return }
         localCommunity?.simulateOut(id, at: lm)
     }
@@ -131,7 +131,7 @@ extension AppStore {
     func neighborGoesHome(_ id: String = "chan") { localCommunity?.simulateHome(id) }
 
     func neighborWentOut(_ id: String, at landmarkID: String) {
-        // 非街坊：唔记状态、唔提示（永远唔进场景，也唔会知佢出咗门）。
+        // Do not store, announce or display outings by non-neighbors.
         guard let i = residents.firstIndex(where: { $0.id == id }), residents[i].isNeighbor else { return }
         residents[i].isOut = true
         residents[i].atLandmarkID = landmarkID

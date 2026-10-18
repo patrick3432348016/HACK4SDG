@@ -1,19 +1,19 @@
 import Foundation
 
-// 组员 B 嘅语音助手（Mac 语音服务器上，tools/voice_server.sh）接入原有嘅语音卡（2026-10-11）。
+// B's Mac voice assistant integrates with the existing cards (2026-10-11); start through tools/voice_server.sh.
 //
-// 流程：手机识别（粤语，免费）→ 手机模板先听一次（TemplateAI）→ 约人 / 听唔明嘅句子交俾服务器（B 嘅流程：问时间、
-// 问最多行几耐、揀地点、复述 → 撳「好」先写入 Supabase）→ 我哋原有嘅「我聽到」卡显示每一步（每步都有掣）。
-// 服务器连唔到 / 8 秒都未答 / 演示模式：照旧用手机模板（TemplateAI），行为同之前一样。
-// 冇撳「好」永远唔会写入（B 嘅确认卡 + 幂等规则）。
+// Original flow: phone recognition → TemplateAI → server for invitations/unknown requests, with time and walking-limit clarification,
+// place choice and read-back, then explicit confirmation before Supabase writing. Existing cards provide buttons for each step.
+// Use TemplateAI in demo mode or after server failure/timeout; inspect the current timeout constant rather than this historical flow description.
+// Never write before explicit confirmation; preserve B's draft and idempotency rules.
 extension AppStore {
-    /// 语音助手而家用唔用得：关咗演示模式、已登录真后端、搵到开咗 Supabase 模式嘅语音服务器。
+    /// Assistant availability requires normal mode, real-backend login, and a discovered voice server in Supabase mode.
     var assistantURL: URL? {
         guard !demoMode, supabase?.myID != nil else { return nil }
         return VoiceServer.shared.assistantURL
     }
 
-    /// 准备好 AssistantSession（服务器 / 用户变咗就重新开始）。
+    /// Prepare AssistantSession; reset when server/user identity changes.
     @discardableResult
     func configureAssistant() -> Bool {
         guard let url = assistantURL, let s = supabase, let uid = s.myID else { return false }
@@ -25,21 +25,21 @@ extension AppStore {
         return true
     }
 
-    /// handle() 用：交俾服务器就返回 true（结果之后出卡）；唔交返回 false（照旧用手机模板）。
+    /// handle() returns true when delegated to the server for an eventual card; false retains the local-template flow.
     func handleWithAssistant(_ text: String, local: VoiceIntent, fallback: @escaping () -> Void) -> Bool {
         guard AssistantFlow.shouldAsk(local), configureAssistant() else { return false }
         let gen = UUID()
         assistantGen = gen
-        // 同一个对话入面讲过嘅句子串埋显示（「約阿芳聽日四點，最多行十五分鐘」）
+        // Combine the current conversation's utterances for the read-back display.
         let heard = assistant.conversationID == nil ? text : [assistant.heard, text].filter { !$0.isEmpty }.joined(separator: Self.utteranceSeparator)
         assistant.heard = heard
         voiceCard = thinkingCard(heard: heard)
         let upload = assistantContextUpload()
         Task { @MainActor in
             do {
-                // B 嗰套：豆包理解约 3–4 秒，问天气再加天文台（最多 6 秒）
+                // Doubao understanding typically took 3–4 seconds; weather may add an Observatory request up to six seconds.
                 let reply = try await Self.withTimeout(12) { [assistant] in
-                    // 地点资料上传失败都照问：最多系揀唔到地点，B 会如实讲
+                    // Continue after context-upload failure; the server can explicitly report that no place can be selected.
                     try? await assistant.upload(upload)
                     return try await assistant.turn(text)
                 }
@@ -81,29 +81,29 @@ extension AppStore {
             dayLabel: { [weak self] d in self?.dayLabel(d) ?? "" })
     }
 
-    /// 地点按钮下面嘅一行：你行几耐、嗰陣有冇遮、有冇櫈。
+    /// Place-button subtitle: your walking time, expected shade, and seating.
     func assistantPlaceDetail(_ id: String, at: Date?) -> String? {
         guard let l = landmark(id) else { return nil }
         let mins = Self.walkMinutes(l.pos.distance(to: scene.homeTarget))
         return L.t("你行 \(Int(mins.rounded())) 分鐘，", "你走 \(Int(mins.rounded())) 分钟，", "\(Int(mins.rounded())) min walk for you, ") + reason(for: l, at: at ?? now)
     }
 
-    /// 显示服务器嘅一步（问、揀、复述、结果）。
+    /// Render the server's clarification, choice, confirmation, or result step.
     func showAssistant(_ reply: AssistantReply, heard: String) {
         var card = AssistantFlow.card(reply, lookup: assistantLookup)
         if card.kind == .info && reply.status == .info {
-            // 今日一句、天气、B 嘅固定句之类：照讲 B 嘅内容（转繁体）
+            // For daily descriptions, weather, and fixed policy responses, use B's text with appropriate script conversion.
             voiceCard = VoiceCard(heard: heard, title: card.title, detail: card.detail, needsConfirm: false, intent: .unknown, assistant: card)
             say(card.spoken)
-            // 天气：留住对话，紧接住问「咁聽日呢」B 会参考上一句（其他资讯答完就开新对话）
+            // Keep weather context for an immediate follow-up about tomorrow; other completed informational answers start a fresh conversation.
             if AssistantFlow.policy(reply) != "weather" { assistant.reset() }
             return
         }
-        // 约人讲咗行几耐（「散步一個鐘」）：B 嘅确认卡冇呢样，手机自己讲埋（完成后写入约会理由）
+        // Preserve spoken walk duration locally when B's draft lacks it; include it in confirmation and the completed meetup reason.
         if card.kind == .confirm, card.action?.kind == "invite", let walk = TemplateAI.parseDuration(heard) {
             let how = TemplateAI.walkPhrase(walk)
             if L.isEn {
-                // 英文：「Walk with Mrs Chan tomorrow 3 pm for 40 minutes」
+                // English example: Walk with Mrs Chan tomorrow 3 pm for 40 minutes.
                 card.title += " " + how
                 card.spoken += " " + how
             } else {
@@ -118,19 +118,19 @@ extension AppStore {
         case .confirm:
             if let p = card.action?.placeID, landmark(p) != nil { scene.highlightLandmark(p); focus(onLandmark: p) }
             let s = card.spoken.trimmingCharacters(in: CharacterSet(charactersIn: "。？?！! "))
-            say(Self.confirmPrompt(s), prompt: true)   // 讲「好」或者撳掣都得（普通话掣写「好的」）
+            say(Self.confirmPrompt(s), prompt: true)   // Allow spoken approval or the localized confirmation button.
             listenForAnswer(.confirm)
         case .choosePlace:
             if let p = card.options.first?.id, landmark(p) != nil { scene.highlightLandmark(p) }
             say(card.spoken, prompt: true)
         case .notUnderstood:
-            // 字已经认到：复述 + 例句，唔好话「冇聽明白」（见 showNotUnderstood）
+            // If text was recognized, read it back and offer examples rather than claiming no speech was heard (showNotUnderstood).
             assistant.reset()
             showNotUnderstood(heard)
             return
         default:
             say(card.spoken, prompt: card.waitsForUser)
-            // 问紧几时 / 行几耐：手机识别讲完就再开咪，直接答就得
+            // While clarifying time/duration, reopen the phone microphone after recognition so the user can answer directly.
             if card.kind == .ask { listenForAnswer(.retry) }
         }
         if card.endsConversation { assistant.reset() }
@@ -144,7 +144,7 @@ extension AppStore {
         say(card.spoken, prompt: true)
     }
 
-    /// 揀咗联系人 / 地点。
+    /// Contact/place choice selected.
     func assistantChoose(_ option: AssistantCard.Option) {
         guard let card = voiceCard, let a = card.assistant, a.kind == .chooseContact || a.kind == .choosePlace else { return }
         let kind = a.kind == .chooseContact ? "contact" : "place"
@@ -165,10 +165,10 @@ extension AppStore {
         }
     }
 
-    /// 建议说法（例如「最多行十五分鐘」）：等于讲咗嗰句，继续同一个对话。
+    /// A suggested phrase is submitted as an utterance in the same conversation.
     func assistantChip(_ phrase: String) { handle(phrase) }
 
-    /// 复述卡撳「好」：B 嘅确认（送出前先记低 draft id）。
+    /// Confirmation calls B's confirm flow after persisting the draft ID.
     func assistantConfirm(_ card: VoiceCard) {
         guard let a = card.assistant, let draft = a.draftID else { voiceCard = nil; return }
         let gen = UUID()
@@ -186,14 +186,14 @@ extension AppStore {
                 }
             } catch {
                 guard self.assistantGen == gen else { return }
-                // 送咗出去但冇收到答覆：唔知做咗未，唔准再撳一次「好」，只可以查结果（B 嘅规则）
+                // After sending without receiving a result, allow only reconciliation, never another blind confirmation.
                 self.pendingAssistantAction = a.action
                 self.showAssistantUncertain(heard: card.heard)
             }
         }
     }
 
-    /// 复述卡撳「唔係」：取消服务器上嘅确认卡（未提交，唔会写入）。
+    /// Rejection cancels the unsubmitted server draft without a business write.
     func assistantReject(_ card: VoiceCard) {
         assistantGen = UUID()
         scene.highlightLandmark(nil)
@@ -204,7 +204,7 @@ extension AppStore {
         }
     }
 
-    /// 「查結果」：只查，唔会再做一次。
+    /// Reconcile only; do not execute the action again.
     func assistantReconcile() {
         guard let card = voiceCard else { return }
         let action = card.assistant?.action ?? pendingAssistantAction
@@ -224,7 +224,7 @@ extension AppStore {
         }
     }
 
-    /// 服务器做好咗：手机同步（约会加入列表、请假、网名），讲俾用户知。
+    /// After server completion, synchronize the local meetup/leave/nickname and explain the outcome.
     func applyAssistantCompletion(_ action: AssistantCard.Action?, reply: AssistantReply, heard: String) {
         pendingAssistantAction = nil
         scene.highlightLandmark(nil)
@@ -279,7 +279,7 @@ extension AppStore {
         toast(L.t("連唔到語音伺服器，請再試。", "连不上语音服务器，请再试。", "Can't reach the voice server. Please try again."))
     }
 
-    /// 连上语音服务器：上次「未知」嘅操作即刻查一次（B 嘅规则：用原来嘅 id 查，唔会再做）。
+    /// On reconnection, query a previously uncertain operation using its original ID without repeating it.
     func assistantConnected() {
         guard configureAssistant(), assistant.unresolvedDraftID != nil else { return }
         Task { @MainActor in
@@ -291,11 +291,11 @@ extension AppStore {
         }
     }
 
-    // MARK: - 上传俾服务器嘅地点资料（冇坐标）
+    // MARK: - Uploading place context without coordinates
 
     nonisolated static func walkMinutes(_ metres: Double) -> Double { max(1, (metres / 65 * 10).rounded() / 10) }
 
-    /// 地标（名、有冇櫈）、你同每个街坊行过去几耐、之后三日每半个钟嘅遮荫（日落后冇）。坐标、屋企位置唔会上传。
+    /// Upload landmark names/seating, both walking times, and half-hour daylight shade for the next three days; exclude coordinates/home location.
     func assistantContextUpload() -> AssistantContextUpload {
         let home = scene.homeTarget
         let neighbours = residents.filter { $0.isNeighbor && !$0.isMe }
@@ -314,7 +314,7 @@ extension AppStore {
                 for day in 0..<3 {
                     for k in 0..<30 {
                         let a = start.addingTimeInterval(Double(day) * 86400 + 6 * 3600 + Double(k) * 1800)
-                        // 用时段开始嗰刻（约会多数约喺整点 / 半点；同手机复述卡讲嘅「嗰陣有冇遮」一致）
+                        // Sample at interval start, matching common whole/half-hour meetup times and local confirmation wording.
                         guard shade.isSunUp(at: a) else { continue }
                         let f = (shade.shade(landmarkID: l.id, at: a) * 100).rounded() / 100
                         slots.append(.init(start: iso.string(from: a), end: iso.string(from: a.addingTimeInterval(1800)), fraction: min(1, max(0, f))))
@@ -329,7 +329,7 @@ extension AppStore {
                                       shade_source: "街坊行手機遮蔭估算（按樓宇影子，集合點）")
     }
 
-    /// 等最多 seconds 秒；超时抛错（之后照用手机模板）。
+    /// Wait at most seconds; throw on timeout so the caller can use the local template.
     nonisolated static func withTimeout<T: Sendable>(_ seconds: Double, _ op: @escaping @Sendable () async throws -> T) async throws -> T {
         try await withThrowingTaskGroup(of: T.self) { g in
             g.addTask { try await op() }

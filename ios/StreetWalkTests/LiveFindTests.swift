@@ -2,16 +2,16 @@ import Foundation
 import Testing
 @testable import StreetWalk
 
-// 「查找」式找人：GPS 距离 / 方位、箭咀角度、远近模式、見到、位置讯息格式、演示模式唔用即时位置。
+// Live-finding tests: GPS distance/bearing, arrow angles, modes, meeting, wire format and demo exclusion.
 struct LiveFindMathTests {
     let a = GeoPoint(lat: 22.5044, lon: 114.1563)
 
     @Test func 距离同方位() {
-        // 向北约 200 m
+        // Roughly 200 m north.
         let north = GeoPoint(lat: a.lat + 200 / 111_000, lon: a.lon)
         #expect(abs(LiveFindMath.distance(a, north) - 200) < 3)
         #expect(abs(LiveFindMath.bearing(from: a, to: north)) < 1 || abs(LiveFindMath.bearing(from: a, to: north) - 360) < 1)
-        // 向东
+        // East.
         let east = GeoPoint(lat: a.lat, lon: a.lon + 0.001)
         #expect(abs(LiveFindMath.bearing(from: a, to: east) - 90) < 1)
         #expect(abs(LiveFindMath.bearing(from: east, to: a) - 270) < 1)
@@ -37,9 +37,9 @@ struct LiveFindMathTests {
         #expect(LiveFindMath.mode(gps: nil, ni: nil) == .waiting)
         #expect(LiveFindMath.mode(gps: 200, ni: nil) == .far)
         #expect(LiveFindMath.mode(gps: 8, ni: nil) == .near)
-        #expect(LiveFindMath.mode(gps: 25, ni: 6) == .near)        // 超宽带量到就用近距离
+        #expect(LiveFindMath.mode(gps: 25, ni: 6) == .near)        // Use near mode when UWB provides a measurement.
         #expect(LiveFindMath.isMet(gps: 2, ni: nil))
-        #expect(!LiveFindMath.isMet(gps: 2, ni: 5))                 // 有超宽带就信超宽带
+        #expect(!LiveFindMath.isMet(gps: 2, ni: 5))                 // Prefer UWB when available.
         #expect(LiveFindMath.isMet(gps: 12, ni: 2.5))
         #expect(!LiveFindMath.isMet(gps: nil, ni: nil))
     }
@@ -51,8 +51,8 @@ struct LiveFindMathTests {
     }
 
     @Test func 超宽带方向() {
-        #expect(abs(LiveFindMath.niAzimuth(x: 0, z: -1)) < 0.01)          // 正前面
-        #expect(abs(LiveFindMath.niAzimuth(x: 1, z: 0) - 90) < 0.01)      // 右边
+        #expect(abs(LiveFindMath.niAzimuth(x: 0, z: -1)) < 0.01)          // Straight ahead.
+        #expect(abs(LiveFindMath.niAzimuth(x: 1, z: 0) - 90) < 0.01)      // Right.
         #expect(abs(LiveFindMath.niAzimuth(x: -0.5, z: -0.5) + 45) < 0.01)
     }
 

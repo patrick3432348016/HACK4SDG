@@ -1,6 +1,6 @@
 import Foundation
 
-/// 成员 A：ShadeProviding 的实现。按"地标 + 15 分钟时段"缓存。
+/// A's ShadeProviding implementation caches by landmark and fifteen-minute interval.
 final class ShadeService: ShadeProviding {
     private let calc: ShadeCalculator
     private let center: GeoPoint
@@ -8,7 +8,7 @@ final class ShadeService: ShadeProviding {
     private var landmarks: [String: Vec2]
     private var cache: [String: Double] = [:]
 
-    /// 太阳低于这个高度（度）就当已经落山：没有日晒，不能说"有樓遮"。与 ShadeCalculator 一致。
+    /// Below this elevation, treat the sun as set; do not attribute darkness to building shade. Match ShadeCalculator.
     static let sunUpElevation = 2.0
 
     init(map: MapModel, landmarks: [Landmark]) {
@@ -32,13 +32,13 @@ final class ShadeService: ShadeProviding {
         return v
     }
 
-    /// 那个时刻太阳是否还在天上。日落后遮荫按 100% 计（排序用），但文案要说"已經日落"，不能说"有樓遮"。
+    /// After sunset, full shade is a ranking convention; display sunset rather than building shade.
     func isSunUp(at date: Date) -> Bool {
         SolarPosition.at(date, lat: center.lat, lon: center.lon).elevation > Self.sunUpElevation
     }
 
-    /// 某地标当天从几点开始有遮荫（下午优先），用于天气提示。
-    /// 只计太阳高于 5° 的钟点（天黑不算"有樓遮"）；19 点后没有可选的就返回 nil。
+    /// Find when a landmark becomes shaded that day, preferring afternoon, for weather guidance.
+    /// Only consider hours with sun elevation above five degrees; return nil when no valid hour remains after 19:00.
     func shadedFromHour(landmarkID: String, day: Date, after hour: Int) -> Int? {
         guard hour <= 18 else { return nil }
         var cal = Calendar(identifier: .gregorian)
@@ -52,7 +52,7 @@ final class ShadeService: ShadeProviding {
         return nil
     }
 
-    /// 天气提示用：有櫈的地标里哪个最早有楼遮；都没有就选第一个有櫈的（时段为 nil，提示不讲钟点）。
+    /// Choose the earliest shaded seated landmark; otherwise the first seated landmark with no time claim.
     func shadeTip(_ landmarks: [Landmark], day: Date, after hour: Int) -> (landmark: Landmark, shadedFrom: Int?)? {
         let seats = landmarks.filter(\.hasSeat)
         let best = seats.compactMap { l in shadedFromHour(landmarkID: l.id, day: day, after: hour).map { (l, $0) } }.min { $0.1 < $1.1 }

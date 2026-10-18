@@ -1,38 +1,55 @@
-# 香港北区天气接入
+# Hong Kong North District weather integration
 
-2026-10-12。入口为 Windows 实时语音助手 `VoicePolicy.answer()`，不改变旧 iOS REST 演示版的天气接口。朋友集成时复用 `assistant/weather.py` 及 `answer` 事件里的 `weather` 字段。
+> Historical integration note, 12 October 2026, for member B's original delivery. Its entry point is the Windows real-time assistant's `VoicePolicy.answer()`; the older iOS REST demo weather endpoint is unchanged. Reuse `assistant/weather.py` and the `weather` field of answer events. The integrated StreetWalk app is documented in [server/README.md](../../README.md).
 
-## 数据与范围
+## Sources and coverage
 
-采用[香港天文台官方开放数据 API 文档](https://www.hko.gov.hk/tc/weatherAPI/doc/files/HKO_Open_Data_API_Documentation.pdf)中的公开 GET 接口，无需新增 API Key：
+Use public GET endpoints from the [Hong Kong Observatory Open Data API documentation](https://www.hko.gov.hk/tc/weatherAPI/doc/files/HKO_Open_Data_API_Documentation.pdf), without an additional API key:
 
 `https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=…&lang=tc`
 
-| 数据集 | 用途 | 地理范围 |
+| Dataset | Purpose | Coverage |
 |---|---|---|
-| rhrread | 气温实况、雨量区间 | 只选择上水/打鼓岭有值的测站；雨量只取北区 |
-| flw | 最新本地天气预报，保留官方适用时段 | 全港；不当作北区专属预报 |
-| fnd | 所问日期的日预报、最高/最低气温 | 全港；今天以外最多未来八天 |
-| warnsum | 当前生效天气警告 | 官方警告适用范围，详情链接天文台 |
+| `rhrread` | Observed temperature and rainfall interval | Available Sheung Shui/Ta Kwu Ling station readings; North District rainfall only |
+| `flw` | Latest local forecast with its official validity period | Hong Kong-wide, not a North District-specific forecast |
+| `fnd` | Requested day's forecast and high/low temperature | Hong Kong-wide, up to eight days beyond today |
+| `warnsum` | Currently active warnings | Official warning coverage, with Observatory detail links |
 
-默认地点为北区。明确询问上水/粉岭但没有对应测站时，说明没有本地读数，只提供有标注的北区测站参考。不会把天文台总部湿度或气温当北区读数。没有北区逐小时数据；指定某时段会明确说明，只给全港预报参考。雨量是过去时段录得的区内最高值，不能推断稍后不下雨。
+Default to North District. If Sheung Shui/Fanling is explicitly requested but no matching station reading exists, state that limitation and clearly label any North District reference station. Do not substitute Observatory headquarters humidity/temperature as a North District observation.
 
-示例：“北区今日天气点呀？”、“粉岭听日落唔落雨？”、“打鼓岭而家几多度？”、“后日下午四点会唔会落雨？”。
+This module has no North District hourly forecast. For a specified time, explain that limitation and provide only the applicable Hong Kong-wide forecast. Rainfall is the district's maximum recorded amount over a past interval; it does not predict whether rain will stop.
 
-## 事实与故障处理
+Example requests include today's North District weather, rain in Fanling tomorrow, the current temperature in Ta Kwu Ling, and rain at 4 pm the day after tomorrow. Original Cantonese utterances in tests remain unchanged.
 
-- 模型只抽取有限的地点、日期、是否指定时段，不生成天气事实；对话仍先经过范围限制。
-- 日期按香港时间解释；仅紧接的天气追问可参考上轮查询条件。
-- 各接口并行读取，整体每接口最多 6 秒、响应最多 256 KB；成功响应在当前语音会话中缓存 60 秒。不是后台自动警报或持续天气监控。
-- 应用自行设定新鲜度门槛：气温 90 分钟、雨量结束时间 2 小时、本地预报 6 小时、九天天气预报 24 小时。拒绝超过当前时间 5 分钟的数据；这些是应用策略，并非天文台承诺。
-- 取消或过期的警告不显示为生效；未来预报查询中的警告明确称“现在生效”。接口失败或结构不合格不等于“没有警告”。没有警告也不等于保证适合散步。
-- 卡片显示测站、观测时间、预报发布时间、查询时间（香港）、数据缺失及官方链接。口头播报使用完整的短预报句子，详细预报在卡片。
-- 部分来源失败时提供其余有效资料并说明缺失；全部失败时明确无法取得有效数据。不用静态数据顶替实况，也不靠模型补猜。
+## Facts and failure handling
 
-## 验证
+- The model extracts only a bounded location/date/time request; it does not invent weather facts. Scope restrictions apply before weather handling.
+- Interpret dates in Hong Kong time. Only an immediately following weather question can inherit the previous query.
+- Fetch sources concurrently, with a six-second limit and 256 KB response cap per endpoint. Cache successful responses for 60 seconds within the current voice session. This is not a background warning monitor.
+- Application freshness limits: temperature 90 minutes, rainfall end time two hours, local forecast six hours, nine-day forecast 24 hours. Reject timestamps over five minutes in the future. These are app policies, not Observatory guarantees.
+- Do not display cancelled/expired warnings as active. In future-day queries, label warnings as active **now**. An endpoint failure or invalid response does not mean no warnings, and no warning does not guarantee a suitable walk.
+- Cards show station, observation time, forecast publication time, Hong Kong query time, missing data, and official links. Speech uses complete short forecast sentences; detailed forecasts remain on the card.
+- On partial failure, provide remaining valid information with an explicit gap. On complete failure, say valid data is unavailable. Do not substitute static examples or model guesses.
 
-在 backend 目录执行 `python -m unittest discover -s tests -p test_weather.py`。
+## Validation
 
-全套：`python tools/verify_backend.py`；页面状态：`node tools/test_voice_ui.cjs`。
+From the original backend directory:
 
-真实接口整链路：保存本机配置后，在用户授权云端用量的前提下执行 `python tools/check_voice_roundtrip.py --weather`。使用合成粤语问句输入 ASR，不开麦克风，不保存音频。此测试不能证明老人真人识别准确率或外放体验。
+```sh
+python -m unittest discover -s tests -p test_weather.py
+```
+
+Full backend and page-state checks:
+
+```sh
+python tools/verify_backend.py
+node tools/test_voice_ui.cjs
+```
+
+With local configuration saved and provider usage authorized:
+
+```sh
+python tools/check_voice_roundtrip.py --weather
+```
+
+The round-trip check feeds synthesized Cantonese into ASR without opening the microphone or saving audio. It does not measure older residents' recognition accuracy or loudspeaker experience.

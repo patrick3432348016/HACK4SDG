@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// 「查找」式找人画面（真街坊，store.find.live）：顶部「而家同〈網名〉分享緊位置」+ 停止；
-/// 中间大箭咀 + 距离 + 大约几分钟（远：GPS + 指南针；近：超宽带，对正咗转绿）；底部同模拟找人同一条底栏（FindBottomBar）。
+/// Real-neighbor live finding shows the active sharing partner and Stop at the top.
+/// Center arrow, distance and estimated minutes use GPS/compass far away and UWB nearby, turning green on alignment; reuse FindBottomBar.
 struct LiveFindOverlay: View {
     @Environment(AppStore.self) private var store
     @State private var arrowAngle: Double = 0
@@ -11,7 +11,7 @@ struct LiveFindOverlay: View {
             let place = store.placeName(f.landmarkID) ?? L.t("附近", "附近", "nearby")
             ZStack {
                 VStack(spacing: 8) {
-                    // 見到之后已经停咗分享：唔再显示「分享緊位置」
+                    // After meeting, sharing has stopped; remove the active-sharing label.
                     if f.stage != .met { sharingPill(p) }
                     ToastView()
                     Spacer(minLength: 0)
@@ -34,7 +34,7 @@ struct LiveFindOverlay: View {
             .animation(DS.motion(DS.spring), value: f.liveMode)
             .onAppear { arrowAngle = f.bearing }
             .onChange(of: f.bearing) { old, new in
-                // 走最短嘅方向转，跨过 ±180° 唔会成个圈咁转
+                // Use the shortest rotation across +/-180 degrees to avoid a full spin.
                 var d = (new - old).truncatingRemainder(dividingBy: 360)
                 if d > 180 { d -= 360 } else if d < -180 { d += 360 }
                 withAnimation(DS.motion(DS.snappy)) { arrowAngle += d }
@@ -42,7 +42,7 @@ struct LiveFindOverlay: View {
         }
     }
 
-    /// 「而家同〈網名〉分享緊位置」+ 停止（一撳两边都停）。
+    /// Show the sharing partner and a Stop action that ends both sides.
     private func sharingPill(_ p: Resident) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "location.fill")
@@ -86,7 +86,7 @@ struct LiveFindOverlay: View {
                     .ds(.body)
                     .foregroundStyle(.secondary)
             } else if near {
-                // 近：大箭咀放中间（同苹果「查找」一样），对正咗转绿
+                // Nearby mode centers the large arrow and turns it green on alignment.
                 arrow(color, size: 120, frame: 160)
                 distanceText(meters, size: 56)
                 Text(subtitle(f, p))
@@ -96,7 +96,7 @@ struct LiveFindOverlay: View {
                     .fixedSize(horizontal: false, vertical: true)
                 hints(f, p)
             } else {
-                // 远：箭咀同距离并排，留返位睇场景入面对方大概喺边
+                // Far mode places arrow and distance side-by-side, leaving room for the peer's approximate scene position.
                 HStack(spacing: 16) {
                     arrow(color, size: 80, frame: 128)
                     VStack(alignment: .leading, spacing: 2) {
@@ -164,8 +164,8 @@ struct LiveFindOverlay: View {
 
 }
 
-/// 两条找人流程（约会出发、过去搵佢 / 被搵）同一条底栏（UX 评审 22）：
-/// 一个主按钮按阶段变「出發喇 → 我就到 → 見到喇」（被搵嗰边「我喺度等你 → 見到喇」），右边咪；「結束 / 停止」喺顶部角落。
+/// UX 22: meeting departure and ad-hoc finding, including the recipient, share one bottom bar.
+/// Primary action follows departure, approaching and meeting states; the recipient waits then confirms. Microphone is right; Stop / End is top-right.
 struct FindBottomBar: View {
     @Environment(AppStore.self) private var store
     let f: FindSession
@@ -193,7 +193,7 @@ struct FindBottomBar: View {
     }
 }
 
-/// 找人画面嘅咪（同主画面个咪一样：讲完复述再撳「好」）。
+/// Finding microphone uses the main microphone's recap-then-confirm behavior.
 struct MicRoundButton: View {
     @Environment(AppStore.self) private var store
     var place: String

@@ -1,29 +1,29 @@
 import AVFoundation
 import Foundation
 
-// 组员 B 嗰套嘅连续对话（2026-10-12，用户：「直接换成 B 的，用它的那套」）。
+// B's continuous-conversation stack adopted on 2026-10-12 at the user's request.
 //
-// 撳一下咪 = 开始倾，唔使每句再撳：
-// - 耳：手机收音 → Mac 语音服务器 → 豆包流式识别，讲完一句（豆包判定停顿）自动出字（VoiceEar）；
-// - 脑：手机先认求救 / 问医疗 / 问天气（两种语言都喺手机答），同 App 自己做嘅指令（找人、改约、取消约、反映、地标改名…，
-//   TemplateAI）；其余交 B 嘅豆包理解（/v1/assistant/turn：B 嘅范围规则、约人确认卡），同撳咪讲一句完全一样（handle）；
-// - 嘴：小何（同收音共用一部 engine，开咗回声消除）：用户一开口就停（插嘴，B 嘅做法）。
-// 复述卡等紧确认时讲「好 / 可以 / 行」= 撳「好」，讲「不要 / 算了 / 取消」= 撳「唔係」（2026-10-17 用户测试要求；
-// 以前要亲手撳「好」）。否定先认，「不好」「唔得」唔会当「好」。
-// 再撳咪 / 「傾完」/ 45 秒冇人讲嘢 / 十分钟上限 / App 退后台 → 收咪。连唔到 Mac → 照旧用手机识别（Listener）。
+// One microphone tap starts a conversation without tapping for every sentence:
+// - Recognition: phone audio → Mac → Doubao streaming ASR; endpointing produces text through VoiceEar.
+// - Understanding: local safety/weather and app-specific intents such as finding, rescheduling, cancellation, reports, and landmark renaming,
+//     then B's policy/model/confirmation flow through /v1/assistant/turn, using the same handle path as one-shot speech.
+// - Speech: Xiaohe shares the capture engine with echo cancellation; speaking interrupts playback.
+// While a confirmation card is open, short spoken approval/rejection maps to its buttons (2026-10-17 requirement).
+// Previously confirmation required tapping. Match negatives first so disapproval containing an affirmative word is not accepted.
+// Tap again, finish, 45-second silence, ten-minute limit, or backgrounding stops capture. Without the Mac, fall back to Listener.
 extension AppStore {
-    /// 冇人讲嘢几耐就收咪（秒）。
+    /// Silence timeout in seconds.
     static let conversationIdle: TimeInterval = 45
-    /// 一句讲完之后等几耐睇下有冇下半句（B：0.35 秒合并相邻分句）。10-18：450 → 400 毫秒（服务器讲完判定亦由 1.2 秒缩到 0.8 秒），
-    /// 下半句已经开始讲（有新嘅字）就等埋佢，唔会拆开两句。
+    /// Sentence-joining delay: B used 0.35 s; on 10-18 the app changed 450→400 ms and server endpointing 1.2→0.8 s.
+    /// If the second clause has already begun, wait for it instead of splitting the request.
     static let utteranceJoin: Duration = .milliseconds(400)
-    /// 下半句讲紧但豆包迟迟未收尾（咳、杂声）：最多等咁耐就当讲完。
+    /// Maximum wait for an unfinished clause when endpointing is delayed by cough/noise.
     static let utteranceStall: Duration = .milliseconds(2500)
 
-    /// Mac 语音服务器有豆包识别。
+    /// Whether the discovered Mac server supports Doubao recognition.
     var canConverse: Bool { VoiceServer.shared.earURL != nil }
 
-    /// 开始连续对话。false = 开唔到（冇咪权限 / 连唔到 / 收唔到音），叫嘅人照旧用手机识别。
+    /// Start continuous conversation; false means permission/connection/capture failure and permits local recognition fallback.
     func startConversation() async -> Bool {
         guard let url = VoiceServer.shared.earURL else { return false }
         switch AVAudioApplication.shared.recordPermission {
@@ -31,14 +31,14 @@ extension AppStore {
         case .undetermined: guard await AVAudioApplication.requestRecordPermission() else { return false }
         default: return false
         }
-        // 经 https 隧道要登录；局域网直连唔使（唔好将 token 明文送过 Wi-Fi）
+        // HTTPS tunnel requires authentication; direct LAN recognition does not send a plaintext token unnecessarily.
         let token: String? = url.scheme == "wss" ? (try? await supabase?.api.accessToken()) ?? nil : nil
         let ok = await ear.open(url, token: token, locale: L.lang.locale) { [weak self] e in self?.earEvent(e) }
         guard ok else { return false }
         hush()
         #if DEBUG
         if let files = LaunchArgs.value("-earFeed") {
-            // 模拟器测试：用录好嘅 WAV（16 kHz 单声道 PCM16）当系用户讲，每段之间停 7 秒等回答
+            // Simulator feeds 16-kHz mono PCM16 WAV recordings as speech, with seven-second response gaps.
             feedEar(files.split(separator: ",").map(String.init))
             beginConversation()
             return true
@@ -76,7 +76,7 @@ extension AppStore {
         }
     }
 
-    /// 收咪（撳咪、「傾完」、冇声、出错、退后台）。
+    /// Stop capture on microphone tap, finish, silence, error, or backgrounding.
     func endConversation(toast message: String? = nil) {
         guard conversing else { return }
         conversing = false
@@ -87,28 +87,28 @@ extension AppStore {
         earPending = []
         heardPartial = ""
         listener.transcript = ""
-        ear.close()   // 连埋「说完了」嘅暂停一齐解除
+        ear.close()   // Also release the explicit done-speaking pause.
         speaker.stopCapture()
         if let message { toast(message) }
     }
 
-    /// 识别通道嘅一句字（主线程）。
+    /// Recognition text callback on the main thread.
     func earEvent(_ e: VoiceEar.Event) {
         guard conversing else { return }
         switch e {
         case .partial(let raw):
-            guard !ear.held else { return }   // 撳咗「说完了」：答案讲完之前嘅字唔要
+            guard !ear.held else { return }   // After done-speaking, ignore text until the answer finishes.
             let text = AssistantFlow.hant(raw)
             guard !isEcho(text) else { return }
             lastEarActivity = Date()
             show(partial: (earPending + [text]).joined(separator: Self.utteranceSeparator))
-            // 上半句等紧交出去、下半句已经开始讲：等埋下半句（豆包收尾或者停咗 2.5 秒）先一齐交
+            // If another clause starts while the first is pending, wait for finalization or 2.5-second silence and submit both together.
             if !earPending.isEmpty { armFlush(Self.utteranceStall, partial: text) }
-            // 插嘴：用户开口就停播报（B：识别到新语句即停旧播报）
+            // Barge-in: stop speech when new recognized user content begins.
             if speaker.isSpeaking && text.count >= 2 { hush() }
         case .final(let raw):
             guard !ear.held else { return }
-            // 口吃 / 重复嘅词收埋（「帮我帮我约」）；同上一句一模一样嘅唔再叠（2026-10-17 用户测试：字叠埋）
+            // Collapse stutters/repeated words and avoid appending an identical previous sentence (2026-10-17 feedback).
             let text = Listener.collapseRepeats(AssistantFlow.hant(raw))
             guard !isEcho(text) else { show(partial: earPending.joined(separator: Self.utteranceSeparator)); return }
             lastEarActivity = Date()
@@ -120,7 +120,7 @@ extension AppStore {
         }
     }
 
-    /// delay 之后将听到嘅字交出去（之前有新嘅字会重新计）。partial：仲未收尾嘅下半句，到时一齐交。
+    /// Submit after delay unless new text resets it; include any unfinished trailing clause at the deadline.
     private func armFlush(_ delay: Duration, partial: String? = nil) {
         earFlush?.cancel()
         earFlush = Task { @MainActor [weak self] in
@@ -133,8 +133,8 @@ extension AppStore {
         }
     }
 
-    /// 「说完了」掣（10-18 真机：一路倾一路更新，答案出唔到；想讲完就即刻交，唔好将后面唔相干嘅嘢听埋入去）：
-    /// 而家听到嘅字即刻交出去；答案出咗兼讲完之前暂停收音（豆包收静音），之后自动继续听。「结束对话」照旧收咪。
+    /// Done-speaking button addresses continuous updates preventing an answer and excludes unrelated subsequent speech (10-18).
+    /// Submit current text immediately and send silence until the answer finishes, then resume listening. End Conversation still closes capture.
     func conversationSubmitNow() {
         guard conversing else { return }
         earFlush?.cancel()
@@ -148,7 +148,7 @@ extension AppStore {
         Task { @MainActor [weak self] in
             let start = Date()
             var quiet = 0
-            // 等答案：「稍等」卡换咗、讲完、冇排紧（连续 3 次睇到先算，服务器声开始前有少少空档）；最多 30 秒
+            // Wait for the waiting card to change and speech/queue to finish, observed three times to bridge startup gaps; cap at 30 seconds.
             while Date().timeIntervalSince(start) < 30 {
                 try? await Task.sleep(for: .milliseconds(250))
                 guard let self, self.conversing, self.ear.holdGeneration == gen else { return }
@@ -167,51 +167,51 @@ extension AppStore {
         listener.transcript = partial
     }
 
-    /// 一句讲完：同撳咪讲一句一样处理（handle）。复述卡等紧确认时嘅「好 / 唔好」喺 routeHeard（answerConfirm）处理，
-    /// 手机识别同连续对话一样；求救 / 问医疗唔当「好 / 唔好」（安全先行）。
+    /// Handle completed utterances through the normal handle path. routeHeard/answerConfirm handles short approval/rejection for an open card.
+    /// Local and continuous recognition share this behavior; emergency/medical intents take precedence over confirmation.
     func conversationTurn(_ text: String) {
         handle(text)
     }
 
     enum YesNo { case yes, no }
 
-    /// 连续对话几段字串埋：中文用「，」、英文用「, 」。
+    /// Join clauses with the appropriate Chinese or English comma.
     static var utteranceSeparator: String { L.t("，", "，", ", ") }
 
-    /// 对住复述卡讲嘅「好 / 唔好」（成句好短先算，免得「好想約阿芳」当咗「好」）。纯逻辑，有单元测试。
+    /// Treat only short utterances as confirmation to avoid approving a new request containing yes-like wording. Pure logic covered by tests.
     nonisolated static func yesNo(_ text: String) -> YesNo? {
-        // 英文：yes / ok / sure / sounds good；no / don't / cancel / not now（否定优先）
+        // English approval: yes/ok/sure/sounds good; rejection: no/don't/cancel/not now. Negatives first.
         if EnglishText.isEnglish(text) { return EnglishText.yesNo(text) }
         let t = text.filter { !$0.isPunctuation && !$0.isWhitespace }
         guard (1...6).contains(t.count) else { return nil }
-        // 先认否定：「不好」「不对」「不可以」「唔得」「唔可以」都含「好 / 對 / 可以 / 得」，唔可以当「好」。
+        // Match negatives before their embedded affirmative words.
         let no = ["唔好", "唔係", "唔要", "取消", "唔使", "不要", "不是", "不用", "算啦", "算了", "算吧", "算數", "算数", "罷了", "罢了",
                   "不好", "不對", "不对", "不可以", "不行", "不確認", "不确认", "唔得", "唔可以", "唔啱", "唔確認",
                   "不約", "不约", "唔約", "不去", "唔去", "冇需要", "沒需要", "没需要"]
         if no.contains(where: t.contains) { return .no }
-        // 「沒問題」含「沒」，唔好当否定
+        // The phrase meaning no problem is affirmative despite containing a negative character.
         if ["沒問題", "没问题", "冇問題", "冇问题"].contains(where: t.contains) { return .yes }
         let yes = ["好", "係", "啱", "可以", "確認", "确认", "得", "OK", "ok", "Ok", "是", "对", "對", "行"]
-        // 否定字紧接「好 / 係 / 得…」（「唔OK」「沒確認」）都系否定
+        // A negative immediately before approval/confirmation wording remains a rejection.
         if yes.contains(where: { w in ["唔", "不", "冇", "沒", "没", "未", "別", "别"].contains { t.contains($0 + w) } }) { return .no }
-        // 「好」类只认好短嘅（「好呀」「係呀」「可以呀」）；「好想約阿芳」系新请求
+        // Only short affirmative phrases approve; a longer invitation request is new input.
         guard t.count <= 3 else { return nil }
         if yes.contains(where: t.contains) { return .yes }
         return nil
     }
 
-    // MARK: - 回声保险
+    // MARK: - Echo protection
 
-    /// 手机播报漏咗入咪（外放大声、回声消除未收晒）：认得系自己啱啱讲过嘅字就唔当用户讲。
+    /// Ignore recognized content matching the app's recent speech when loudspeaker audio leaks past echo cancellation.
     func isEcho(_ heard: String) -> Bool {
         let now = Date()
         recentSpoken.removeAll { now.timeIntervalSince($0.at) > 20 }
         return Self.looksLikeEcho(heard, spoken: recentSpoken.map(\.text))
     }
 
-    /// 纯逻辑（有单元测试）：听到嘅字（≥ 2 个）大部分喺最近讲过嘅句子入面出现过。
+    /// Pure tested comparison: most of a recognized phrase of at least two characters appears in recent spoken text.
     nonisolated static func looksLikeEcho(_ heard: String, spoken: [String]) -> Bool {
-        // 英文按字（word）比：字母人人都有，按字母比会将用户讲嘅嘢都当回声；一两个字（「yes」「no」）永远唔当回声
+        // Compare English by words, not letters; one/two-word yes/no replies are never treated as echo.
         if EnglishText.isEnglish(heard) {
             let h = EnglishText.words(heard)
             guard h.count >= 3 else { return false }
@@ -239,10 +239,10 @@ extension AppStore {
         return t.filter { !$0.isPunctuation && !$0.isWhitespace && !$0.isSymbol }
     }
 
-    // MARK: - 模拟器测试
+    // MARK: - Simulator input
 
     #if DEBUG
-    /// -earFeed a.wav,b.wav：当系用户讲（实时速度送），每段之后停 -earGap 秒（默认 7）；送完继续送静音保持连线。
+    /// -earFeed streams WAV files in real time, separated by -earGap seconds (default seven), then silence to keep the connection alive.
     private func feedEar(_ files: [String]) {
         let sender = ear.sender
         let gapFrames = Int((LaunchArgs.value("-earGap").flatMap(Double.init) ?? 7) * 5)

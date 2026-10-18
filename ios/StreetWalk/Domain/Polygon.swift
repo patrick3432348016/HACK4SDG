@@ -1,8 +1,8 @@
 import Foundation
 
-/// 平面多边形工具：面积、方向、包含测试、裁剪、三角化。
+/// Planar polygon helpers: area, orientation, containment, clipping, and triangulation.
 enum Polygon {
-    /// 有向面积，逆时针为正。
+    /// Signed area, positive counterclockwise.
     static func signedArea(_ p: [Vec2]) -> Double {
         guard p.count >= 3 else { return 0 }
         var a = 0.0
@@ -31,7 +31,7 @@ enum Polygon {
         return Vec2(x: cx / (6 * a), y: cy / (6 * a))
     }
 
-    /// 去掉首尾重复点，统一成逆时针。
+    /// Remove a duplicated closing point and normalize to counterclockwise order.
     static func normalized(_ ring: [Vec2]) -> [Vec2] {
         var r = ring
         if r.count > 1, r.first == r.last { r.removeLast() }
@@ -55,7 +55,7 @@ enum Polygon {
         return inside
     }
 
-    /// 用正方形 [-h, h]² 裁剪多边形（Sutherland–Hodgman）。
+    /// Sutherland–Hodgman polygon clipping against square [-h, h]^2.
     static func clip(_ poly: [Vec2], half h: Double) -> [Vec2] {
         var out = poly
         let edges: [(Vec2) -> Double] = [{ h - $0.x }, { $0.x + h }, { h - $0.y }, { $0.y + h }]
@@ -77,7 +77,7 @@ enum Polygon {
         return out
     }
 
-    /// 折线裁剪到正方形内，可能拆成多段。
+    /// Clip a polyline to the square, possibly producing multiple segments.
     static func clipPolyline(_ line: [Vec2], half h: Double) -> [[Vec2]] {
         var result: [[Vec2]] = []
         var current: [Vec2] = []
@@ -98,7 +98,7 @@ enum Polygon {
         return result
     }
 
-    /// Liang–Barsky 线段裁剪。
+    /// Liang–Barsky segment clipping.
     static func clipSegment(_ a: Vec2, _ b: Vec2, half h: Double) -> (Vec2, Vec2)? {
         let d = b - a
         var t0 = 0.0, t1 = 1.0
@@ -116,7 +116,7 @@ enum Polygon {
         return (a + d * t0, a + d * t1)
     }
 
-    /// 简单多边形耳切三角化（输入逆时针）。返回三角形顶点下标。
+    /// Ear-clipping triangulation of a simple counterclockwise polygon; returns vertex indices.
     static func triangulate(_ p: [Vec2]) -> [Int] {
         let n = p.count
         guard n >= 3 else { return [] }
@@ -147,7 +147,7 @@ enum Polygon {
         return tris
     }
 
-    /// Douglas–Peucker 简化闭合多边形（去掉小锯齿）。
+    /// Douglas–Peucker simplification of a closed polygon to remove small irregularities.
     static func simplify(_ ring: [Vec2], tolerance: Double) -> [Vec2] {
         guard ring.count > 4 else { return ring }
         func dp(_ pts: ArraySlice<Vec2>) -> [Vec2] {
@@ -166,7 +166,7 @@ enum Polygon {
         return out.count >= 3 ? out : ring
     }
 
-    /// 这一组楼的主方向（弧度，0…π/2）：按边长加权，4θ 平均消掉 90° 的对称。
+    /// Dominant building direction in 0...pi/2 radians, weighted by edge length; average 4*theta to remove 90-degree symmetry.
     static func dominantAngle(_ rings: [[Vec2]]) -> Double {
         var c = 0.0, s = 0.0
         for r in rings {

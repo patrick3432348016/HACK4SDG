@@ -2,25 +2,25 @@ import AVFoundation
 import CryptoKit
 import Foundation
 
-// Mac 语音服务器嘅真人声播放：边收边播（WAV / PCM16 单声道），播过嘅句子存喺手机（离线都即刻播到）。
-// 走边条路由 TTSRoute 决定；Speaker 负责后备（系统声音）同排队语义。
+// Stream WAV / mono PCM16 from the voice server and cache completed utterances for immediate offline replay.
+// TTSRoute chooses the path; Speaker owns system fallback and queue semantics.
 
-// MARK: - 揀边把声（纯逻辑，有单元测试）
+// MARK: - Pure, unit-tested voice routing
 
 enum TTSRoute: Equatable {
-    /// 手机系统声音（AVSpeechSynthesizer）。
+    /// Device system voice through AVSpeechSynthesizer.
     case system
-    /// 手机已经存咗呢句（之前由服务器播过）：即刻播，唔使网络。
+    /// Replay a previously cached server utterance immediately without networking.
     case cached(URL)
-    /// 问 Mac 服务器（边收边播；6 秒都未有声就转系统声音）。
+    /// Stream from the Mac server, falling back after 6 seconds without audio.
     case server(URL)
 
-    /// - language：而家播报语言
-    /// - server：可以用嘅服务器（模型准备好）；nil = 冇
-    /// - cached：手机缓存入面呢句嘅档案
-    /// - scripted：自动演示脚本（-script…）：画面同声音要对得准，冇缓存就唔等服务器
-    /// - mandarin：服务器有普通话声（豆包小何有；GPT-SoVITS 冇）
-    /// - english：服务器有英文声（/v1/voice 嘅 locales 有 en-US）。三种语言都优先用服务器小何，冇先用 iPhone 系统声。
+    /// language: current spoken language.
+    /// server: available model-ready server, or nil.
+    /// cached: local audio file for this utterance.
+    /// scripted: automated demos require timing alignment and do not wait for uncached server audio.
+    /// mandarin: server supports Mandarin, as Doubao Xiaohe does but GPT-SoVITS does not.
+    /// english: /v1/voice advertises en-US. Prefer server Xiaohe in all three languages, then device voices.
     static func decide(language: SpokenLanguage, server: URL?, cached: URL?, scripted: Bool, mandarin: Bool = false, english: Bool = false) -> TTSRoute {
         let serverSpeaks = switch language {
         case .cantonese: true
@@ -34,13 +34,13 @@ enum TTSRoute: Equatable {
         return .system
     }
 
-    /// 服务器几耐都未出声就放弃（秒）。
+    /// Maximum wait for first server audio, in seconds.
     static let firstAudioTimeout: TimeInterval = 6
-    /// 开始咗之后几耐冇新数据当断线（秒）。
+    /// Maximum silence between data chunks after playback begins, in seconds.
     static let stallTimeout: TimeInterval = 10
 
-    /// 设定「語速」→ 服务器 speed（服务器收 0.7–1.3）。豆包：喺 B 嘅基准 speech_rate（-15）上下加减 (speed - 1) × 100，
-    /// 即慢 -40、正常 -15、快 +10（10-17 用户测试：0.9 / 1.1 差别唔明显，拉开）。
+    /// Map speech speed to server range 0.7–1.3. Doubao offsets B's baseline speech_rate -15 by (speed - 1) * 100.
+    /// Slow/normal/fast become -40/-15/+10; 10-17 testing found the previous 0.9/1.1 difference too subtle.
     static func speed(_ pace: SpeechPace) -> Double {
         switch pace {
         case .slow: return 0.75
@@ -50,9 +50,9 @@ enum TTSRoute: Equatable {
     }
 }
 
-// MARK: - 解析流式 WAV（纯逻辑，有单元测试）
+// MARK: - Pure, unit-tested streaming WAV parser
 
-/// 一段段收到嘅字节 → 头（采样率）+ PCM16 样本。头入面嘅长度可能系 0xFFFFFFFF（流式），唔理佢。
+/// Convert chunks into sample-rate metadata and PCM16 samples; ignore streaming length values such as 0xFFFFFFFF.
 struct StreamingWAVParser {
     private(set) var sampleRate: Int?
     private(set) var channels = 1
@@ -60,7 +60,7 @@ struct StreamingWAVParser {
     private var headerDone = false
     private(set) var failed = false
 
-    /// 喂入新字节，返回可以播嘅样本（整数个；单数字节留低等下一段）。
+    /// Return whole playable samples and retain an odd trailing byte for the next chunk.
     mutating func feed(_ data: Data) -> [Int16] {
         guard !failed else { return [] }
         buffer.append(data)
@@ -79,10 +79,10 @@ struct StreamingWAVParser {
         return out
     }
 
-    /// 搵到 "data" 块就返回 PCM 开始位置；未够字节返回 nil；唔系 PCM16 WAV 就标记失败。
+    /// Return PCM start after finding data, nil if incomplete, or fail for non-PCM16 WAV.
     private mutating func parseHeader() -> Int? {
         let b = [UInt8](buffer)
-        // 一开头唔系 "RIFF"（例如服务器答咗 JSON 错误）：即刻当失败
+        // Reject a non-RIFF prefix immediately, including JSON error replies.
         if !b.prefix(4).elementsEqual("RIFF".utf8.prefix(min(4, b.count))) { failed = true; return nil }
         guard b.count >= 12 else { return nil }
         guard b[0..<4].elementsEqual("RIFF".utf8), b[8..<12].elementsEqual("WAVE".utf8) else { failed = true; return nil }
@@ -110,9 +110,9 @@ struct StreamingWAVParser {
     }
 }
 
-// MARK: - 手机上嘅缓存
+// MARK: - Device cache
 
-/// 播过嘅句子（Caches/voice-cache/*.wav）。key = 声音版本 + 语速 + 文字。最多留 300 句（旧嘅先删）。
+/// Caches/voice-cache/*.wav keyed by voice version, speed and text; retain at most 300 utterances, evicting oldest first.
 enum SpeechAudioCache {
     static let limit = 300
 
@@ -157,9 +157,9 @@ enum SpeechAudioCache {
     }
 }
 
-// MARK: - 播放
+// MARK: - Playback
 
-/// 边收边播。一次一句；stop() 即刻停（开咪、下一句、播报关）。
+/// Stream one utterance at a time; stop() immediately interrupts for microphone use, replacement or disabled output.
 @MainActor
 final class ServerSpeechPlayer: NSObject {
     enum Outcome { case finished, failedBeforeAudio, stopped }
@@ -187,14 +187,14 @@ final class ServerSpeechPlayer: NSObject {
         return URLSession(configuration: cfg, delegate: StreamDelegate(owner: self), delegateQueue: nil)
     }()
 
-    /// 播之前收集够几多秒先开始（生成速度大约等于实时，太早开始会断断续续）。
+    /// Buffer this many seconds before playback because near-real-time synthesis can otherwise stutter.
     static let preroll: Double = 0.8
-    /// 由开始请求到第一段声音几耐（秒），测量用（debug-state、日志）。
+    /// Seconds from request start to first audio for debug-state and logs.
     private(set) var lastFirstAudio: TimeInterval?
     private var requestedAt = Date()
 
     var isActive: Bool { completion != nil }
-    /// 连续对话收紧音（同播报共用呢部 engine：开咗「语音处理」，播报唔会被咪录返入去，用户可以插话）。
+    /// Continuous capture shares this voice-processing engine so output echo is suppressed and users can interrupt.
     private(set) var capturing = false
 
     override init() {
@@ -202,9 +202,9 @@ final class ServerSpeechPlayer: NSObject {
         engine.attach(node)
     }
 
-    // MARK: 收音（B 嘅豆包流式识别用，2026-10-12）
+    // MARK: Capture for Doubao streaming recognition, added 2026-10-12
 
-    /// 开咪：16 kHz 单声道 PCM16 交俾 onPCM（喺音频线程叫）。播报照用同一部 engine，回声消除先认得自己把声。
+    /// Start microphone and deliver 16 kHz mono PCM16 to onPCM on the audio thread; shared playback enables echo cancellation.
     func startCapture(_ onPCM: @escaping @Sendable (Data) -> Void) throws {
         stop()
         let session = AVAudioSession.sharedInstance()
@@ -224,7 +224,7 @@ final class ServerSpeechPlayer: NSObject {
         input.removeTap(onBus: 0)
         input.installTap(onBus: 0, bufferSize: 4096, format: format, block: Self.tapBlock(converter: converter, target: target, onPCM: onPCM))
         if connectedRate == nil {
-            // 未播过嘢：先接好播放线路，engine 先开得到输出（语音处理要输入输出一齐）
+            // Connect the playback path before first engine start because voice processing requires both input and output.
             let f = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 24000, channels: 1, interleaved: false)!
             engine.connect(node, to: engine.mainMixerNode, format: f)
             connectedRate = 24000
@@ -238,7 +238,7 @@ final class ServerSpeechPlayer: NSObject {
         capturing = true
     }
 
-    /// 收咪：停埋播报，音频会话转返淨播放。
+    /// Stop capture and playback, then restore a playback-only audio session.
     func stopCapture() {
         guard capturing else { return }
         stop()
@@ -249,7 +249,7 @@ final class ServerSpeechPlayer: NSObject {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
     }
 
-    /// 音频线程：转成 16 kHz PCM16。唔可以喺 @MainActor 入面整（会被当主线程闭包）。
+    /// Convert to 16 kHz PCM16 on the audio thread, outside MainActor-isolated closures.
     nonisolated private static func tapBlock(converter: AVAudioConverter, target: AVAudioFormat,
                                              onPCM: @escaping @Sendable (Data) -> Void) -> AVAudioNodeTapBlock {
         { buffer, _ in
@@ -269,7 +269,7 @@ final class ServerSpeechPlayer: NSObject {
         }
     }
 
-    /// 问服务器要一句，边收边播。cacheKey：播完就存手机。
+    /// Request and stream an utterance; cacheKey saves it after completion.
     func stream(text: String, server: URL, speed: Double, token: String?, cacheKey: String?, locale: String = "zh-HK",
                 done: @escaping (Outcome) -> Void) {
         stop()
@@ -280,7 +280,7 @@ final class ServerSpeechPlayer: NSObject {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("audio/wav", forHTTPHeaderField: "Accept")
-        // 登录 token 只经 HTTPS 送（局域网 HTTP 唔使登录）
+        // Send authentication tokens only over HTTPS; LAN HTTP does not require login.
         if let token, server.scheme == "https" { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": text, "locale": locale, "speed": speed])
         let t = session.dataTask(with: req)
@@ -298,7 +298,7 @@ final class ServerSpeechPlayer: NSObject {
         }
     }
 
-    /// 播手机存咗嘅一句。
+    /// Play a cached device utterance.
     func play(file: URL, done: @escaping (Outcome) -> Void) {
         stop()
         generation += 1
@@ -336,7 +336,7 @@ final class ServerSpeechPlayer: NSObject {
         watchdog?.cancel()
         watchdog = nil
         node.stop()
-        if !capturing { engine.stop() }   // 连续对话收紧音：engine 唔好停
+        if !capturing { engine.stop() }   // Keep the engine running during continuous capture.
         playing = false
         if outcome == .finished, let key = cacheKey, let rate = parser.sampleRate, !pcm.isEmpty {
             let data = pcm
@@ -345,7 +345,7 @@ final class ServerSpeechPlayer: NSObject {
         done?(outcome)
     }
 
-    // MARK: 收数据（由 StreamDelegate 转返主线程）
+    // MARK: Receive data transferred to the main thread by StreamDelegate
 
     fileprivate func receive(_ data: Data, gen: Int) {
         guard gen == generation, isActive else { return }
@@ -370,7 +370,7 @@ final class ServerSpeechPlayer: NSObject {
         if scheduled == 0 && pendingSamples.isEmpty { finish(.finished) }
     }
 
-    /// 够 preroll 就开始播；之后每收到约 0.15 秒就排一段。
+    /// Begin after preroll; then enqueue roughly 0.15-second chunks.
     private func pump() {
         guard let rate = parser.sampleRate else { return }
         let minimum = playing ? Int(Double(rate) * 0.15) : Int(Double(rate) * Self.preroll)
@@ -405,7 +405,7 @@ final class ServerSpeechPlayer: NSObject {
     }
 }
 
-/// URLSession 回调喺背景线程：转返主线程交俾播放器。
+/// URLSession callbacks run off-main; dispatch playback handling to the main thread.
 private final class StreamDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     weak var owner: ServerSpeechPlayer?
     init(owner: ServerSpeechPlayer) { self.owner = owner }
@@ -427,9 +427,9 @@ private final class StreamDelegate: NSObject, URLSessionDataDelegate, @unchecked
     }
 }
 
-// MARK: - 预热
+// MARK: - Warmup
 
-/// 连上服务器时叫佢先合成常用句子（排喺当场要讲嘅句子后面，唔会阻住）。之后呢啲句子一讲即出声。
+/// On connection, synthesize common phrases behind immediate speech requests so later playback starts quickly.
 enum VoicePrewarm {
     static let common = [
         "聽唔清楚。可以再講一次，或者揀一句。",
@@ -446,9 +446,9 @@ enum VoicePrewarm {
         "你好，我係街坊行嘅廣東話聲，由你部 Mac 讀出嚟。",
     ]
 
-    /// 第一轮：叫服务器排队合成（唔等）；已经合成好嘅就下载落手机（之后离线、演示脚本都用到真人声）。
-    /// 90 秒后再行一轮，攞返第一轮未合成好嗰啲。
-    /// 英文界面常用句（同 L.t 第三个参数一字不差先用得到缓存）。
+    /// First pass queues synthesis without waiting and downloads ready audio for offline / scripted use.
+    /// Retry after 90 seconds to collect phrases not ready in the first pass.
+    /// English common phrases must exactly match L.t's third argument to hit the cache.
     static let commonEnglish = [
         "Didn't catch that. Please say it again, or pick a sentence.",
         "Sorry, I didn't understand. Please say it again, or pick a sentence.",
@@ -459,7 +459,7 @@ enum VoicePrewarm {
         "Hello, I'm the StreetWalk voice assistant. Tap the mic and talk to me.",
     ]
 
-    /// 跟播报语言揀句子、locale、缓存 key（同 Speaker.speak 一样：粤语用原 voiceID，其他加「/语言」）。
+    /// Choose phrases, locale and cache key as Speaker.speak does: original voiceID for Cantonese, language suffix otherwise.
     static func run(server: URL, speed: Double, voiceID: String, language: SpokenLanguage) {
         switch language {
         case .cantonese: run(server: server, speed: speed, voiceID: voiceID, phrases: common, locale: language.bcp47)

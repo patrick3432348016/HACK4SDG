@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import StreetWalk
 
-// 英文界面：连唔到 Mac 语音服务器时，手机自己认英文句子（TemplateAI → EnglishText）。
-// 唔改全局语言（测试固定粤语）：英文解析睇句子本身係唔係英文。
+// English offline interpretation through TemplateAI / EnglishText when the Mac server is unavailable.
+// Do not change global language; English parsing detects input language directly.
 struct EnglishVoiceTests {
     let ai = TemplateAI()
     let chan = { var r = Resident(id: "chan", name: "陳太", floor: 8, colorIndex: 0, mobility: .walk, streakDays: 3, todayLine: ""); r.isNeighbor = true; r.isOut = true; return r }()

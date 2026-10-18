@@ -1,8 +1,8 @@
 import SwiftUI
 import UIKit
 
-// 设定页「聲音」：播报开关、语速三档、试听（常用，放上面）；
-// 语音服务器、揀把声、教用户去 iPhone 设定下载声音（VoiceAdvancedSections）收喺设定页最底「進階」。
+// Frequent Sound controls: enable, three speeds and preview.
+// VoiceAdvancedSections places server, voice selection and download instructions under Advanced.
 
 struct VoiceSettingsSection: View {
     @Environment(AppStore.self) private var store
@@ -13,7 +13,7 @@ struct VoiceSettingsSection: View {
             Toggle(isOn: $v.enabled) { Text(L.t("語音播報", "语音播报", "Read aloud")) }
                 .tint(DS.accent)
                 .frame(minHeight: 52)
-            // 播报语言跟设定页顶「語言」（AppLanguage.choose），呢度唔再分开揀。
+            // Speech follows the top-level App language; do not provide an independent language selector here.
             VStack(alignment: .leading, spacing: 12) {
                 Text(L.t("語速", "语速", "Speed"))
                 BigSegments(options: SpeechPace.allCases, selection: Binding(get: { v.pace }, set: { p in
@@ -34,8 +34,8 @@ struct VoiceSettingsSection: View {
     }
 }
 
-/// 「試聽」掣：讲紧就变「正在播放…」（底色变橙、撳咗一定见到反应），讲完 / 被打断变返；播緊再撳 = 停。
-/// key：边个掣（"current" 主掣、"assistant" 助手把声、系统声音 id），只有讲紧嗰个掣变。
+/// Preview button turns orange and shows playing during output, resets on completion/interruption, and stops on a second tap.
+/// key identifies current, assistant or a system voice ID; only that button changes state.
 struct PreviewButton: View {
     @ObservedObject var speaker: Speaker
     var key = "current"
@@ -59,7 +59,7 @@ struct PreviewButton: View {
     }
 }
 
-/// 设定页「進階」入面嘅声音部分：语音服务器、揀把声、下载声音指引。
+/// Advanced voice controls: server, voice choice and download instructions.
 struct VoiceAdvancedSections: View {
     var body: some View {
         let v = VoiceSettings.shared
@@ -80,7 +80,7 @@ struct VoiceAdvancedSections: View {
         .id("voiceList")
 
         if let up = v.recentUpgrade {
-            // 下载完返嚟：喺指引原位讲「裝好咗」，唔会成段突然唔见
+            // After download, show installed state where the guide was instead of removing the section.
             Section { UpgradeDone(voice: up) }.id("voiceGuide")
         } else if v.scanned && !v.hasNaturalVoice {
             Section {
@@ -96,7 +96,7 @@ struct VoiceAdvancedSections: View {
     }
 }
 
-/// 一把声：撳名 = 揀用（顺便试听），右边大「試聽」掣。
+/// Tap a voice name to select and preview; a large separate Preview action sits at right.
 private struct VoiceRow: View {
     @Environment(AppStore.self) private var store
     let voice: VoiceInfo
@@ -146,12 +146,12 @@ private struct VoiceRow: View {
     }
 }
 
-/// 冇「增強」或以上嘅声：教用户去 iPhone 设定下载（App 冇得代下载，亦冇公开链接直接跳去「聲音」页）。
+/// Without enhanced voices, guide users through Settings; the App cannot download them or deep-link directly to the Voices screen.
 struct VoiceDownloadGuide: View {
     @Environment(AppStore.self) private var store
     let language: SpokenLanguage
 
-    /// iOS 26 叫「閲讀與朗讀」，iOS 18 叫「語音內容」（Apple 香港支援页面同 iOS 26.5 系统字串核对过）。
+    /// Guide terminology follows iOS 26 Read & Speak versus iOS 18 Spoken Content, checked against Apple Hong Kong support and iOS 26.5 strings.
     static var menuName: String {
         if #available(iOS 26, *) { return L.t("閲讀與朗讀", "阅读与朗读", "Read & Speak") }
         return L.t("語音內容", "朗读内容", "Spoken Content")
@@ -223,7 +223,7 @@ struct VoiceDownloadGuide: View {
     }
 }
 
-/// 由 iPhone 设定下载完返嚟：已经自动转用新声音。
+/// On return from Settings, the newly installed voice has already been selected.
 private struct UpgradeDone: View {
     @Environment(AppStore.self) private var store
     let voice: VoiceInfo
@@ -252,7 +252,7 @@ private struct UpgradeDone: View {
     }
 }
 
-/// 大粒分段掣（系统 Picker 嘅分段字太细）：揀中 = 橙底白字。
+/// Large segmented controls replace small system Picker labels; selection is orange with white text.
 struct BigSegments<T: Hashable>: View {
     let options: [T]
     @Binding var selection: T
@@ -282,16 +282,16 @@ struct BigSegments<T: Hashable>: View {
 }
 
 extension AppStore {
-    /// 启动时接好：装咗更好嘅声音就讲俾用户知（launch() 调用，只係主 store）。
+    /// The main store wires voice-upgrade announcements during launch.
     func attachVoice() {
         VoiceSettings.shared.onUpgrade = { [weak self] v in self?.voiceUpgraded(v) }
-        // Mac 语音服务器（粤语真人声 + 组员 B 嘅助手）：自动搵；搵唔到照用系统声音（Voice/VoiceServer.swift）
+        // Discover the voice server automatically; use system speech when unavailable. See VoiceServer.swift.
         let server = VoiceServer.shared
         speaker.server = server
         speaker.token = { [weak self] in try? await self?.supabase?.api.accessToken() }
         server.onConnected = { [weak self] _ in self?.voiceServerConnected() }
         server.start()
-        // 截图用：-voiceSettings [voice|voiceList|voiceGuide] 直接打开设定页嘅「聲音」
+        // Screenshot entry: -voiceSettings voice, voiceList or voiceGuide opens Sound settings.
         if LaunchArgs.has("-voiceSettings") {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(2.5))
@@ -300,7 +300,7 @@ extension AppStore {
         }
     }
 
-    /// 连上语音服务器：常用句子叫服务器先合成好（之后即刻出声），上次未知嘅助手操作查一次。
+    /// On server connection, warm common phrases and reconcile the previous unresolved assistant operation once.
     func voiceServerConnected() {
         if let url = VoiceServer.shared.speechURL, let v = VoiceServer.shared.voiceID {
             VoicePrewarm.run(server: url, speed: TTSRoute.speed(VoiceSettings.shared.pace), voiceID: v, language: VoiceSettings.shared.language)
@@ -308,15 +308,15 @@ extension AppStore {
         assistantConnected()
     }
 
-    /// 由 iPhone 设定下载完返嚟：已经自动转用，讲一声（用新把声讲）。
+    /// Announce automatic selection of the downloaded voice using that voice.
     func voiceUpgraded(_ v: VoiceInfo) {
         toast(L.t("裝好咗新聲音。而家用「\(v.displayName)」同你講嘢。", "装好了新声音。现在用「\(v.displayName)」和你说话。", "New voice installed. Now using \"\(v.displayName)\"."))
     }
 
-    /// 试听：清走排紧嘅播报，即刻用呢把声讲试听句子。聆听中唔讲。读屏开着就等佢读完个掣先讲。
-    /// current：「聲音」主掣——试听真播报会用嘅声（连到 Mac 就係豆包小何）；「進階」逐把系统声音试听就唔使。
+    /// Clear queued speech for immediate preview, avoid listening capture, and wait for VoiceOver's button announcement first.
+    /// current previews the actual route, including connected Doubao Xiaohe; individual system-voice previews remain separate.
     func previewVoice(_ v: VoiceInfo?, current: Bool = false, text: String? = nil, key: String = "current") {
-        // 聆听中唔讲（会录埋入去），但要话俾人知点解冇声
+        // Avoid output during listening and explain why the preview is silent.
         guard !listening else {
             showToastSilently(L.t("聽緊你講嘢，講完先試聽。", "正在听你说话，说完再试听。", "Listening to you. Preview after you finish."))
             return
@@ -334,12 +334,12 @@ extension AppStore {
         }
     }
 
-    /// 媒体音量调到最细：试听有播但听唔到。只出字（唔读，免得盖住试听）。
+    /// At zero media volume show text only so guidance does not interrupt the preview.
     private func volumeHint() {
         showToastSilently(L.t("手機音量太細，按側邊「大聲」掣。", "手机音量太小，请按侧边的音量加键。", "Volume is too low. Press the volume up button."))
     }
 
-    /// 只出字唔读（toast() 会读出嚟，会截断啱啱开始嘅试听）。
+    /// Do not use the speaking toast helper, which would interrupt newly started preview audio.
     private func showToastSilently(_ s: String) {
         toast = s
         Task { @MainActor in
@@ -350,7 +350,7 @@ extension AppStore {
 }
 
 
-/// 「語音伺服器」：Mac 上嘅語音伺服器（tools/voice_server.sh，組員 B 嘅豆包：識別 + 理解 + 小何聲）。自動搵；搵唔到可以親手填地址。
+/// Voice server Settings supports automatic discovery and manual URL for Doubao recognition, understanding and Xiaohe speech.
 private struct VoiceServerSection: View {
     @Environment(AppStore.self) private var store
     @State private var draft = VoiceServer.shared.manualURL

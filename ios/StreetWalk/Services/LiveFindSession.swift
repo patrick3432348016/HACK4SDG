@@ -2,7 +2,7 @@ import Foundation
 import CoreLocation
 import NearbyInteraction
 
-/// 开 / 关同街坊之间嘅私有频道（SupabaseCommunityService 实现；pair:<小uuid>:<大uuid>，服务器只放行互为街坊嘅两个人）。
+/// Open/close a private neighbor channel through SupabaseCommunityService; pair:<lower UUID>:<higher UUID> admits only two mutual neighbors.
 @MainActor
 protocol PairChannelProvider: AnyObject {
     func openPairChannel(with partnerID: String) -> RealtimeChannel?
@@ -11,9 +11,9 @@ protocol PairChannelProvider: AnyObject {
 
 extension SupabaseCommunityService: PairChannelProvider {}
 
-/// 「查找」式找人：找人期间两部手机只经私有频道互传即时 GPS（App 喺前台时每 3 秒一次；唔落任何表），
-/// 加指南针方向；近距离（GPS ≤ 30 m）交换超宽带令牌，用 NISession 量精确距离同方向。
-/// 一结束（見到、停止、取消、超时）就 stop()：停定位、离开频道、停超宽带。
+/// During agreed finding, exchange live GPS only through the private channel every three seconds in foreground, without writing coordinates to tables.
+/// Use compass guidance and exchange UWB tokens when GPS distance is <= 30 m for precise NISession distance/direction.
+/// On found/stop/cancel/timeout, stop() ends location updates, channel membership, and UWB.
 @MainActor
 final class LiveFindSession: NSObject, CLLocationManagerDelegate, NISessionDelegate {
     struct Fix: Equatable {
@@ -26,19 +26,19 @@ final class LiveFindSession: NSObject, CLLocationManagerDelegate, NISessionDeleg
 
     let partnerID: String
     let started = Date()
-    /// 上次返前台（对方位置停咗几耐由呢度计）。
+    /// Last foreground time, used to measure peer-location silence.
     private(set) var resumedAt = Date()
     private(set) var myFix: Fix?
     private(set) var partnerFix: Fix?
-    /// 手机顶指住嘅方向（度，正北 0）；精度（度，负数 = 无效）。
+    /// Phone-top heading in degrees, north=0; negative accuracy is invalid.
     private(set) var heading: Double?
     private(set) var headingAccuracy: Double?
     private(set) var niDistance: Double?
-    /// 超宽带水平角（度，向右为正）；nil = 未有方向。
+    /// Horizontal UWB angle in degrees, positive right; nil when unavailable.
     private(set) var niAzimuth: Double?
     private(set) var niAt: Date?
     private(set) var niState: NIState = .idle
-    /// 镜头辅助未收敛：叫用户慢慢左右移动手机。
+    /// Camera-assisted convergence incomplete: ask for gentle side-to-side movement.
     private(set) var needsSweep = false
     private(set) var channelJoined = false
     private(set) var channelRefused: String?
@@ -46,7 +46,7 @@ final class LiveFindSession: NSObject, CLLocationManagerDelegate, NISessionDeleg
     private(set) var receivedCount = 0
     private(set) var stopped = false
 
-    /// 对方离开（停止 / 見到）。
+    /// Peer ended finding or confirmed arrival.
     var onPartnerEvent: ((PartnerEvent) -> Void)?
 
     private weak var provider: PairChannelProvider?
@@ -68,7 +68,7 @@ final class LiveFindSession: NSObject, CLLocationManagerDelegate, NISessionDeleg
         super.init()
     }
 
-    // MARK: - 开始 / 停止
+    // MARK: - Start/stop
 
     func start() {
         guard !stopped else { return }
@@ -91,7 +91,7 @@ final class LiveFindSession: NSObject, CLLocationManagerDelegate, NISessionDeleg
         resumeSensors()
     }
 
-    /// 结束：话俾对方知（bye），停晒所有嘢。可以叫多次。
+    /// Idempotent cleanup: notify the peer with bye, then stop all services.
     func stop(notify: Bool, met: Bool = false) {
         guard !stopped else { return }
         if notify { channel?.broadcast("bye", .object(["met": .bool(met)])) }
@@ -101,7 +101,7 @@ final class LiveFindSession: NSObject, CLLocationManagerDelegate, NISessionDeleg
         if let ch = channel {
             ch.onBroadcast = nil
             ch.onJoin = nil
-            // 等 bye 送出先离开频道（同一条 WebSocket，按次序送）
+            // Send bye before leaving the channel; preserve WebSocket send order.
             provider?.closePairChannel(ch)
         }
         channel = nil
@@ -109,7 +109,7 @@ final class LiveFindSession: NSObject, CLLocationManagerDelegate, NISessionDeleg
         partnerFix = nil
     }
 
-    /// App 前台 / 后台：后台即刻停传位置（只喺前台分享），返前台再开。
+    /// Stop transmitting location immediately in background; resume only on foreground.
     func setForeground(_ on: Bool) {
         guard !stopped, on != foreground else { return }
         foreground = on
@@ -137,9 +137,9 @@ final class LiveFindSession: NSObject, CLLocationManagerDelegate, NISessionDeleg
         manager.stopUpdatingHeading()
     }
 
-    // MARK: - 位置
+    // MARK: - Location
 
-    /// 传我而家嘅位置（企定唔郁时定位唔会更新：2 分钟内嘅最后定位照传，对方先知我仲喺度）。
+    /// Send the current location, or the latest fix up to two minutes old while stationary, so the peer still receives presence updates.
     private func sendLocation() {
         guard !stopped, foreground, channelJoined, let f = myFix, Date().timeIntervalSince(f.at) < 120 else { return }
         channel?.broadcast("loc", Self.locPayload(f))
@@ -174,7 +174,7 @@ final class LiveFindSession: NSObject, CLLocationManagerDelegate, NISessionDeleg
         }
     }
 
-    /// GPS 距离（两边都有定位先有）。
+    /// GPS distance requires a location on both sides.
     var gpsDistance: Double? {
         guard let a = myFix, let b = partnerFix else { return nil }
         return LiveFindMath.distance(a.geo, b.geo)
@@ -185,7 +185,7 @@ final class LiveFindSession: NSObject, CLLocationManagerDelegate, NISessionDeleg
         return LiveFindMath.bearing(from: a.geo, to: b.geo)
     }
 
-    /// 2 秒内嘅超宽带距离。
+    /// Use UWB distance only when less than two seconds old.
     var freshNIDistance: Double? {
         guard let d = niDistance, let t = niAt, Date().timeIntervalSince(t) < LiveFindMath.niFresh else { return nil }
         return d
@@ -221,11 +221,11 @@ final class LiveFindSession: NSObject, CLLocationManagerDelegate, NISessionDeleg
 
     nonisolated func locationManager(_ m: CLLocationManager, didFailWithError error: Error) {}
 
-    // MARK: - 超宽带（近距离）
+    // MARK: - Close-range UWB
 
     private var niSupported: Bool { NISession.deviceCapabilities.supportsPreciseDistanceMeasurement }
 
-    /// GPS 话够近就开 NISession、经频道传我嘅令牌。
+    /// When GPS indicates proximity, start NISession and send the local token through the channel.
     private func maybeStartNI() {
         guard !stopped, foreground, !sentToken, niState == .idle, let d = gpsDistance, d <= LiveFindMath.niStartDistance else { return }
         guard niSupported else { niState = .unsupported; return }
@@ -242,7 +242,7 @@ final class LiveFindSession: NSObject, CLLocationManagerDelegate, NISessionDeleg
         return s
     }
 
-    /// wantReply：叫对方都传佢嘅令牌返嚟（我新开咗 NISession）；回覆嗰个唔使再叫，免得两边传嚟传去。
+    /// wantReply requests the peer's token after creating a session; replies do not request another reply, preventing loops.
     private func sendMyToken(wantReply: Bool) {
         guard let s = ensureNISession(), let token = s.discoveryToken,
               let data = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) else { return }
@@ -272,7 +272,7 @@ final class LiveFindSession: NSObject, CLLocationManagerDelegate, NISessionDeleg
         niAzimuth = nil
     }
 
-    /// 有距离冇方向 3 秒：开镜头辅助（iPhone 14 之后好多时要靠镜头先知方向）。
+    /// After three seconds of distance without direction, enable camera assistance; newer phones often need it for direction.
     private func checkCameraAssist(hasDirection: Bool) {
         if hasDirection { directionMissingSince = nil; return }
         let now = Date()
@@ -319,10 +319,10 @@ final class LiveFindSession: NSObject, CLLocationManagerDelegate, NISessionDeleg
             self.niDistance = nil
             self.niAzimuth = nil
             if reason == .peerEnded {
-                // 对方停咗超宽带（例如退后台）：等佢再传令牌
+                // Peer UWB stopped, perhaps due to backgrounding; wait for a new token.
                 self.niState = .waitingPeer
             } else if let c = self.niConfig {
-                session.run(c)   // 超时（遮住 / 行远咗）：苹果建议用返同一个配置再开
+                session.run(c)   // After occlusion/out-of-range timeout, restart with the same configuration as Apple recommends.
             }
         }
     }
@@ -342,7 +342,7 @@ final class LiveFindSession: NSObject, CLLocationManagerDelegate, NISessionDeleg
             guard session === self.ni else { return }
             self.stopNI()
             self.sentToken = false
-            // 冇权限就用返 GPS 箭咀；其他错误等下次 GPS 够近再试
+            // Without permission, retain GPS guidance. For other errors, retry when GPS next indicates proximity.
             self.niState = denied ? .denied : .idle
         }
     }

@@ -72,7 +72,7 @@ class Assistant:
 
     async def evaluate(self, session, owner, token, cmd, locale, now, selected=None):
         selected = selected or {}
-        en = locale == "en-US"  # 10-17 加英文：App 多数自己出卡，但 info / 地标 / 月报会直接显示 message
+        en = locale == "en-US"  # 10-17 English: most cards render locally, but info, landmark and monthly-report messages display directly.
 
         def t(cmn, english):
             return english if en else cmn
@@ -196,7 +196,7 @@ class Assistant:
             context = context or await self.business.context(token, now, cmd.starts_at)
             action = {"action": action, "expected_context_version": context.version, "confirmation_text": message}
             status = "needs_confirmation"
-            # 成员 A 加：确认卡嘅结构化内容（联系人 / 地点 id、时间），App 用嚟出自己语言嘅复述卡，唔使由 message 猜。
+            # Structured confirmation includes contact/place IDs and time so the App localizes its recap without parsing message text.
             data["action"] = action["action"]
         payload = {"command": cmd.model_dump(mode="json"), "locale": locale, "status": status,
                    "selected": selected, "allowed": [c.id for c in choices]}

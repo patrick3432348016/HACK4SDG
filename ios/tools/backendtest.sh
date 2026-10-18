@@ -1,7 +1,7 @@
 #!/bin/sh
-# 后端客户端集成测试：打正式 Supabase（匿名登录、资料、排行榜、配对、Realtime、私有 pair 频道、续期、outbox）。
-# 唔使模拟器。会留低两个匿名测试用户（最后一行印出 id），测完喺 Supabase SQL Editor：delete from auth.users where id in (...);
-# 加 -v 打印每个请求。
+# Live Supabase client integration: anonymous auth, profiles, board, pairing, Realtime, private channels, refresh and outbox.
+# No simulator required. Creates two anonymous users and prints IDs; authorized cleanup can delete those exact test users afterward.
+# -v logs each request.
 set -e
 cd "$(dirname "$0")/.."
 OUT=$(mktemp -d)/backendtest

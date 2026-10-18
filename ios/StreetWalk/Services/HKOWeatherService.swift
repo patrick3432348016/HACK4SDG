@@ -1,18 +1,18 @@
 import Foundation
 
-/// 拉香港天文台开放数据（本港地区天气、警告、九天预报）。只发请求，不带任何位置；最近测站在手机上挑。
-/// 屋企喺香港以外（例如深圳）就改用 Open-Meteo 天气预报（OpenMeteo.swift），只送约 10 公里精度嘅位置。
-/// 失败就保留上一份，但读数超过 75 分钟（rhrread 每小时更新）就作废，离线时 report 为 nil，不显示假天气。
+/// Fetch Observatory observations/warnings/nine-day forecasts without location parameters; select the nearest station locally.
+/// Outside Hong Kong, use Open-Meteo and send only a location rounded to roughly ten-kilometre precision.
+/// Retain the previous report after fetch failure, but invalidate observations older than 75 minutes; nil means no valid report, not fabricated weather.
 @MainActor
 @Observable
 final class HKOWeatherService {
     private(set) var report: HKOReport?
-    /// 演示菜单 / 脚本手动选了天气：之后不再用实时数据覆盖，直到重置演示。
+    /// A manually selected demo/script weather override remains until demo reset.
     var demoOverride = false
     @ObservationIgnored private var fetchedAt: Date?
     @ObservationIgnored private var loading = false
     @ObservationIgnored private var loop: Task<Void, Never>?
-    /// 上次拉嘅系唔系香港：搬咗去深圳要即刻换来源，唔好等 10 分钟。
+    /// Track the previous source region; moving outside Hong Kong switches immediately without waiting ten minutes.
     @ObservationIgnored private var lastInHK: Bool?
 
     static let maxAge: TimeInterval = 75 * 60
@@ -27,7 +27,7 @@ final class HKOWeatherService {
         return URLSession(configuration: c)
     }()
 
-    /// 10 分钟内拉过就不再拉。成功或失败都返回当前可用的报告。
+    /// Skip a fetch if attempted within ten minutes; return the currently valid report on success or failure.
     func refresh(near p: GeoPoint, force: Bool = false) async -> HKOReport? {
         if LaunchArgs.has("-offline") { report = nil; return nil }
         if loading { return report }
@@ -52,12 +52,12 @@ final class HKOWeatherService {
             report = parsed
             fetchedAt = Date()
         }
-        // 读数太旧就唔好再讲"而家"
+        // Do not call an old reading current.
         if let old = report, Date().timeIntervalSince(old.updated ?? fetchedAt ?? .distantPast) > Self.maxAge { report = nil }
         return report
     }
 
-    /// 前台时每 15 分钟拉一次（拉之前 onTick 会调 refresh）；退到后台就停。
+    /// Refresh every 15 minutes in foreground through onTick; stop in background.
     func keepFresh(_ on: Bool, onTick: @escaping @MainActor () -> Void) {
         loop?.cancel()
         loop = nil

@@ -1,15 +1,15 @@
-"""成员 B 文档入面「A 必须提供的业务 API」：由成员 A 喺呢个服务入面用 Supabase 实现（2026-10-11）。
+"""A, 2026-10-11: implement B's required business API through Supabase within this service.
 
-同 B 嘅 Business 一样嘅接口（identity / context / execute / reconcile），所以 B 嘅 Assistant 流程、确认卡、
-幂等、唔重试等规则完全唔使改。
+Match Business identity/context/execute/reconcile so Assistant flow and confirmation cards
+retain their idempotency and no-retry rules unchanged.
 
-- 身份：用户嘅 Supabase access token（App 匿名登录得到）→ Supabase `GET /auth/v1/user` 核实，唔收客户端自报 id。
-  核实结果按 token 摘要缓存 60 秒（唔超过 token 本身过期时间）。
-- 联系人：`my_neighbors()`（RLS：只有互为街坊）。
-- 地点 / 步行 / 遮荫：App 喺手机计好再上传（POST /v1/assistant/context）；服务器冇坐标，只有地标名、分钟数同遮荫比例。
-- 写入：约人 = 插入 meetups（RLS 只准约互为街坊）；请假 = upsert leaves；改网名 = 更新 profiles.nickname。
-  每个 (用户, operation_id) 只写一次：回执存喺 B 嘅 SQLite；约人嘅 meetups.id 由 (用户, operation_id) 推导（uuid5），
-  就算回执未写低进程就死咗，再查都搵得返。
+Verify the App's anonymous Supabase access token through GET /auth/v1/user; reject client-asserted IDs.
+  Cache verification by token digest for at most 60 seconds and never past token expiry.
+Contacts come from my_neighbors, restricted to mutual neighbors.
+App uploads computed landmarks, walking minutes and shade to assistant/context without coordinates; separate live finding has its own channel.
+Actions insert mutual-neighbor meetups, upsert leave or update profiles.nickname under RLS.
+  Deduplicate by user/operation_id with SQLite receipts; derive meetup IDs using uuid5 from those values,
+  allowing lookup even if the process dies before saving the receipt.
 """
 from __future__ import annotations
 
@@ -52,10 +52,10 @@ class ShadeSlot(_Model):
 
 
 class UploadedPlace(_Model):
-    """App 上传嘅一个地标。冇坐标（extra=forbid：传 pos / lat / lng 会被拒绝）。"""
+    """Uploaded landmark forbids extra coordinate fields such as pos, lat or lng."""
     id: str = Field(min_length=1, max_length=100)
-    name: str = Field(min_length=1, max_length=100)              # 而家手机上显示嘅名（可能用户改过）
-    publish_name: str | None = Field(default=None, max_length=100)  # 上传 / 对方对得上嘅原名
+    name: str = Field(min_length=1, max_length=100)              # Current phone display name, possibly renamed.
+    publish_name: str | None = Field(default=None, max_length=100)  # Canonical name for upload and peer matching.
     has_seat: bool = False
     self_walk_minutes: float | None = Field(default=None, ge=0, le=1000)
     contact_walk_minutes: dict[str, float] = Field(default_factory=dict)
@@ -103,7 +103,7 @@ class SupabaseBusiness:
         except ValueError as exc:
             raise AssistantError("BUSINESS_INVALID", "业务服务返回了无效数据。", 502) from exc
 
-    # ── 身份 ──
+    # Identity.
 
     @staticmethod
     def token_expiry(token: str) -> float | None:
@@ -135,7 +135,7 @@ class SupabaseBusiness:
         self.identities[digest] = (user_id.lower(), expiry)
         return user_id.lower()
 
-    # ── 上下文 ──
+    # Context.
 
     def save_context(self, owner: str, uploaded: UploadedContext) -> str:
         payload = uploaded.model_dump(mode="json")
@@ -176,7 +176,7 @@ class SupabaseBusiness:
             slot = next((s for s in p.shade if s.start <= at < s.end), None)
             places.append({
                 "id": p.id, "name": p.name, "description": "有櫈" if p.has_seat else "",
-                # 户外地标：App 声明长开（冇开放时间数据嘅地标唔会上传）
+                # App declares uploaded outdoor landmarks always open; it omits landmarks without supported opening information.
                 "is_open": True,
                 "self_walk_minutes": p.self_walk_minutes,
                 "contact_walk_minutes": {k.lower(): v for k, v in p.contact_walk_minutes.items() if k.lower() in contact_ids},
@@ -191,7 +191,7 @@ class SupabaseBusiness:
         except ValidationError as exc:
             raise AssistantError("BUSINESS_INVALID", "业务数据不符合接口约定。", 502) from exc
 
-    # ── 写入 ──
+    # Writes.
 
     def receipt(self, owner, operation_id):
         with self.store.connection() as db:
@@ -207,7 +207,7 @@ class SupabaseBusiness:
 
     @staticmethod
     def place_reason(place, shade, partner_minutes):
-        """约会理由（粤语，同 App 嘅 honestReason 一样讲法）。"""
+        """Cantonese meeting reason matching the App's honestReason."""
         parts = []
         if shade is not None:
             parts.append("嗰陣有樓遮住" if shade >= 0.5 else "嗰陣會曬")
@@ -229,7 +229,7 @@ class SupabaseBusiness:
                 return Execution(status=existing["status"], receipt_id=existing["receipt_id"], message=existing["message"])
             return await self.reconcile(token, owner, draft_id)
         self.record(owner, draft_id, payload_hash, action["kind"], "pending", detail=action)
-        # 版本：确认卡生成之后联系人 / 地点有变（例如解除咗街坊）就唔写。
+        # Reject writes if contacts/places changed after drafting, such as unlinking a neighbor.
         context = await self.context(token, self.clock(), datetime.fromisoformat(action["starts_at"]) if action.get("starts_at") else None)
         if payload.get("expected_context_version") != context.version:
             return self.finish(owner, draft_id, payload_hash, action, "rejected", None, "资料已经更新，请重新提出请求。")
@@ -273,7 +273,7 @@ class SupabaseBusiness:
                "updated_by": owner, "updated_at": datetime.now(timezone.utc).isoformat()}
         response = await self.call("POST", "/rest/v1/meetups", token, headers={"Prefer": "return=minimal"}, json=row)
         if response.status_code == 409:
-            # 已经插入过（之前超时 / 进程中断）：同一个 id 喺度就当成功
+            # An existing deterministic ID after timeout/interruption proves the invitation was inserted.
             found = await self.meetup_exists(token, row_id)
             if found:
                 return self.finish(owner, draft_id, payload_hash, action, "succeeded", row_id, "")
@@ -283,11 +283,11 @@ class SupabaseBusiness:
         if response.is_success:
             return self.finish(owner, draft_id, payload_hash, action, "succeeded", receipt_id, "")
         if response.status_code in (401, 403):
-            # RLS 拒绝（例如唔系互为街坊）：确定冇写入
+            # RLS rejection, such as no mutual relationship, establishes no write.
             return self.finish(owner, draft_id, payload_hash, action, "rejected", None, "冇权限：对方要同你互为街坊。")
         if response.status_code in (400, 404, 409, 422):
             return self.finish(owner, draft_id, payload_hash, action, "rejected", None, "资料唔啱，冇写入。")
-        # 5xx / 429：唔知写咗未。交返 B 嘅流程标记「结果不确定」，之后用 reconcile 查。
+        # 5xx / 429 leave the result uncertain; return to B's reconciliation flow.
         raise AssistantError("BUSINESS_UNAVAILABLE", "业务服务暂时不可用。", 503)
 
     def finish(self, owner, draft_id, payload_hash, action, status, receipt_id, message):
@@ -305,7 +305,7 @@ class SupabaseBusiness:
         if existing and existing["status"] in {"succeeded", "rejected"}:
             return Execution(status=existing["status"], receipt_id=existing["receipt_id"], message=existing["message"])
         if existing is None:
-            # 回执都未写低：约人仍然可以按推导出嚟嘅 id 去 Supabase 查
+            # Even without a saved receipt, query the deterministic meetup ID in Supabase.
             row_id = meetup_id(owner, draft_id)
             if await self.meetup_exists(token, row_id):
                 return Execution(status="succeeded", receipt_id=row_id)

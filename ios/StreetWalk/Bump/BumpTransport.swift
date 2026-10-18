@@ -2,28 +2,28 @@ import Foundation
 import Network
 import CryptoKit
 
-/// 碰一碰：喺身边搵另一部手机，连上，开加密通道。参考组员 B 嘅 PeerTransport（ios/UWBMeetDemo/App/PeerTransport.swift），
-/// 改咗：唔使输入配对码——两部手机同时广播同搜索 `_jiefong._tcp`（Info.plist 已登记），
-/// id 细嘅一方主动连（BumpTieBreak），连上后用一次性 Curve25519 密钥协商（BumpChannel）。
-/// includePeerToPeer：唔使连同一个 Wi-Fi，Wi-Fi 同蓝牙开住就得（AWDL，点对点 Wi-Fi）。
-/// 全部回调都喺主线程（Network 用 .main 队列）。
+/// Discover a nearby phone and establish an encrypted pairing channel, adapted from B's ios/UWBMeetDemo/App/PeerTransport.swift.
+/// Change: no manually entered code. Both phones advertise and browse _jiefong._tcp, registered in Info.plist.
+/// The smaller ID initiates (BumpTieBreak); use ephemeral Curve25519 key agreement after connecting (BumpChannel).
+/// includePeerToPeer permits AWDL peer-to-peer Wi-Fi without a shared access point; Wi-Fi and Bluetooth must remain enabled.
+/// All callbacks run on the main thread; Network uses the .main queue.
 ///
-/// 2026-10-17（测试员 D-2 / D-5：用流量时碰唔到、成功率唔稳）：
-/// - 唔同 Wi-Fi 时要行 AWDL，连线会先「等緊」（.waiting）一阵；以前一见 .waiting 就当失败，仲永远唔再试嗰部
-///   → 实际上只有同一个 Wi-Fi 先得。而家 .waiting 照等（握手时限内），失败咗隔 retryDelay 秒再试同一部，唔会拉黑。
-/// - AWDL 下 Bonjour 可能得一边见到另一边：id 大嗰部见到对方 fallbackDelay 秒都未有人连过嚟，就由佢主动连。
-///   通道角色（边个定一次性码）仍然按 id 大细定（BumpTieBreak），同边个开 TCP 无关。
+/// 2026-10-17 feedback D-2/D-5: pairing failed on cellular and success was inconsistent.
+/// - AWDL between different Wi-Fi networks can initially enter .waiting. Previously this immediately failed and permanently excluded that peer,
+///   effectively requiring the same Wi-Fi. Now wait within the handshake deadline and retry after retryDelay rather than blacklisting.
+/// - Bonjour discovery over AWDL can be one-sided. The larger ID initiates after fallbackDelay if no inbound connection arrives.
+///   Channel roles and one-time-code ownership still follow ID order, independently of TCP initiation.
 @MainActor
 final class BumpTransport {
     enum Event {
-        /// 加密通道通咗。initiator = 我 id 细（负责定一次性码）。
+        /// Encrypted channel established. initiator means my ID is smaller and I generate the one-time code.
         case ready(initiator: Bool)
         case message(BumpMessage)
-        /// 「本地網絡」权限：true = 被挡住（未允许 / 拒绝咗），false = 通咗。
+        /// Local Network permission: true means blocked/not granted; false means available.
         case localNetwork(blocked: Bool)
-        /// 通道通咗之后断线（对方走咗 / 出错）。
+        /// An established channel disconnected because the peer left or an error occurred.
         case closed
-        /// Bonjour 本身用唔到（广播 / 搜索失败）。
+        /// Bonjour advertising/browsing is unavailable.
         case unavailable
     }
 
@@ -33,27 +33,27 @@ final class BumpTransport {
     private var listener: NWListener?
     private var browser: NWBrowser?
     private var connection: NWConnection?
-    /// 呢条连接係我主动开嘅（唔係对方连入嚟）。
+    /// This connection was initiated locally rather than accepted from a peer.
     private var outgoing = false
     private var peerID: String?
     private var channel: BumpChannel?
     private var frames = FrameBuffer()
     private var generation = UUID()
-    /// 连唔上 / 握手失败嘅对方：几时之后先再试、试咗几多次。
+    /// Failed connection/handshake peers: next retry time and attempt count.
     private var retryAt: [String: TimeInterval] = [:]
     private var attempts: [String: Int] = [:]
-    /// 每部对方第一次见到嘅时间（id 大嗰部要等 fallbackDelay 秒先主动连）。
+    /// First observation time per peer; the larger ID waits fallbackDelay before initiating.
     private var firstSeen: [String: TimeInterval] = [:]
     private var endpoints: [String: NWEndpoint] = [:]
     private var recheck: Task<Void, Never>?
-    /// kDNSServiceErr_PolicyDenied：本地网络权限未允许。
+    /// kDNSServiceErr_PolicyDenied: Local Network permission has not been granted.
     private static let policyDenied: Int32 = -65570
-    /// 一条连接几耐未握手完就放弃，迟啲再试（秒）。AWDL 第一次连可能要几秒。
+    /// Handshake timeout in seconds before retrying later. Initial AWDL connection may take several seconds.
     private static let handshakeTimeout: TimeInterval = 8
-    /// 连唔上之后隔几耐再试同一部；每部最多试几次。
+    /// Delay between attempts for the same peer and maximum attempts per peer.
     private static let retryDelay: TimeInterval = 1.5
     private static let maxAttempts = 8
-    /// id 大嗰部见到对方几耐都未有人连过嚟，就自己连（秒）。
+    /// Seconds the larger ID waits for an inbound connection before initiating itself.
     static let fallbackDelay: TimeInterval = 3
 
     private static func parameters() -> NWParameters {
@@ -99,7 +99,7 @@ final class BumpTransport {
         connection.send(content: frame, completion: .idempotent)
     }
 
-    /// 话俾对方知停咗（尽力），之后收线。
+    /// Best-effort stop message before closing the connection.
     func sendCancelAndStop() {
         if let connection, channel != nil, let frame = try? channel?.seal(.cancel) {
             connection.send(content: frame, completion: .contentProcessed { _ in connection.cancel() })
@@ -125,7 +125,7 @@ final class BumpTransport {
         recheck?.cancel(); recheck = nil
     }
 
-    // MARK: - 搵对方
+    // MARK: - Peer discovery
 
     private func listenerState(_ state: NWListener.State, _ gen: UUID) {
         guard generation == gen else { return }
@@ -164,8 +164,8 @@ final class BumpTransport {
         connectIfNeeded(gen)
     }
 
-    /// 揀一部去连：先揀 id 比我大嘅（正常方向）；冇就揀 id 比我细、见咗 fallbackDelay 秒都未连过嚟嘅（AWDL 一边见唔到另一边）。
-    /// 啱啱失败嘅等 retryDelay 秒先再试；未到钟就排一个复查。
+    /// Prefer a higher-ID peer (normal direction); otherwise connect to a lower-ID peer after fallbackDelay without an inbound connection.
+    /// Wait retryDelay after failure and schedule a recheck if necessary.
     private func connectIfNeeded(_ gen: UUID) {
         guard generation == gen, connection == nil else { return }
         let now = Self.now
@@ -197,15 +197,15 @@ final class BumpTransport {
         }
     }
 
-    /// 有人连入嚟时收唔收：未有连接就收；手上只有一条「后备」（我 id 大、主动连 id 细嗰部）而且未握手，就让路俾对方嗰条。
-    /// 我 id 细、自己嗰条（正常方向）未握手完：唔收，等对方收我嗰条（两边同时连都唔会互相拒绝）。
+    /// Accept inbound connections when idle. An unhandshaken fallback connection from the larger ID yields to the normal inbound direction.
+    /// A smaller ID with an unfinished normal outbound handshake rejects inbound attempts, avoiding mutual rejection during simultaneous connection attempts.
     private var acceptsIncoming: Bool {
         guard connection != nil else { return true }
         guard channel == nil, outgoing, let peerID else { return false }
         return BumpTieBreak.shouldConnect(me: peerID, peer: myID)
     }
 
-    /// 放低手上未握手嘅后备连接（让路俾连入嚟嗰条），唔当失败。
+    /// Release an unhandshaken fallback connection to yield to inbound traffic; this is not a failure.
     private func detachPending() {
         guard let c = connection, channel == nil else { return }
         c.stateUpdateHandler = nil
@@ -217,7 +217,7 @@ final class BumpTransport {
         frames = FrameBuffer()
     }
 
-    // MARK: - 连接与握手
+    // MARK: - Connection and handshake
 
     private func attach(_ c: NWConnection, outgoing: Bool, peer: String?, _ gen: UUID) {
         connection = c
@@ -235,7 +235,7 @@ final class BumpTransport {
                 case .failed:
                     self.dropConnection()
                 case .waiting:
-                    // AWDL / 网络未准备好：Network 会自己再试，握手时限到先放弃。握手之后先「等」就当断线。
+                    // Before handshake, Network retries .waiting until the deadline. After handshake, .waiting means the connection is lost.
                     if self.channel != nil { self.dropConnection() }
                 case .cancelled:
                     if self.channel != nil { self.dropConnection() }
@@ -244,7 +244,7 @@ final class BumpTransport {
             }
         }
         c.start(queue: .main)
-        // 握手太耐：放弃呢条，迟啲再试。
+        // Abandon an overdue handshake and retry later.
         Task { @MainActor [weak self, weak c] in
             try? await Task.sleep(for: .seconds(Self.handshakeTimeout))
             guard let self, let c, self.generation == gen, self.connection === c, self.channel == nil else { return }
@@ -281,11 +281,11 @@ final class BumpTransport {
         if channel == nil {
             let hello = try JSONDecoder().decode(BumpHello.self, from: record)
             if outgoing, hello.id != peerID { throw BumpChannel.Failure.badHello }
-            // 角色按 id 定（id 细 = 定码嗰方），同边个开 TCP 无关（后备连线都一样）。
+            // Roles follow ID order, independently of TCP initiation, including fallback connections.
             let initiator = BumpTieBreak.shouldConnect(me: myID, peer: hello.id)
             channel = try BumpChannel(myKey: myKey, myID: myID, peer: hello, initiator: initiator)
             peerID = hello.id
-            browser?.cancel(); browser = nil   // 已经搵到，唔使再搵
+            browser?.cancel(); browser = nil   // Peer found; stop discovery.
             recheck?.cancel(); recheck = nil
             onEvent?(.ready(initiator: initiator))
         } else {
@@ -294,7 +294,7 @@ final class BumpTransport {
         }
     }
 
-    /// 连接断咗：握手前 = 隔 retryDelay 秒再试（同一部都会再试）；握手后 = 话俾上面知。
+    /// Before handshake, retry a disconnected peer after retryDelay. After handshake, report disconnection to the owner.
     private func dropConnection() {
         let wasReady = channel != nil
         if let peerID, !wasReady { retryAt[peerID] = Self.now + Self.retryDelay }

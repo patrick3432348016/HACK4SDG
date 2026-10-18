@@ -1,11 +1,11 @@
 import CoreLocation
 import SwiftUI
 
-// 后台出门检测嘅界面：「始终允许」解释页、今日页嘅提示卡（权限未齐、係咪搬咗屋）、设定一栏、「定位紀錄」页。
+// Background detection UI: Always explanation, Today permission / move prompts, Settings status and location records.
 
-// MARK: - 「始终允许」解释页
+// MARK: - Always-permission explanation
 
-/// 第一次散步记好之后弹一次（offerAlwaysIfNeeded）：大字讲清楚点解要「始终允许」，按「好」先弹系统框。
+/// offerAlwaysIfNeeded explains why Always is needed in large text and opens the system prompt only after consent; timing is controlled by the store.
 struct AlwaysAskSheet: View {
     @Environment(AppStore.self) private var store
 
@@ -95,10 +95,10 @@ struct AlwaysAskSheet: View {
     }
 }
 
-// MARK: - 今日页嘅提示卡
+// MARK: - Today prompt cards
 
-/// 今日页最顶：係咪搬咗屋（连续两晚喺第二度过夜）、自动记录未开齐（唔係「始终允许」）。演示模式唔出。
-/// 未开齐嘅卡等第一次散步问过「始终允许」先出（要用时先问，UX 报告问题 24）；定位拒绝咗就即刻出。
+/// Top-of-Today move and incomplete automatic-recording prompts; suppress in demo mode.
+/// Show incomplete-permission prompts after the Always explanation; show denied-location guidance immediately (UX 24).
 struct LocationCards: View {
     @Environment(AppStore.self) private var store
 
@@ -179,7 +179,7 @@ private struct HomePromptCard: View {
     }
 }
 
-/// 自动记录未开齐：一句白话 + 一个掣（UX 报告问题 25）；右上角细「×」= 遲啲先（3 日后再出）。
+/// UX 25: one plain sentence and one action; the small dismiss control postpones for 3 days.
 private struct PermissionCard: View {
     @Environment(AppStore.self) private var store
 
@@ -217,7 +217,7 @@ private struct PermissionCard: View {
         .dsCard()
     }
 
-    /// 而家最要紧嗰样：一句白话、掣上面嘅字、图标。
+    /// Most important missing requirement: plain sentence, action label and icon.
     @MainActor static func ask(_ lm: LocationMonitor) -> (text: String, button: String, symbol: String) {
         switch lm.auth {
         case .denied, .restricted:
@@ -232,9 +232,9 @@ private struct PermissionCard: View {
     }
 }
 
-// MARK: - 设定一栏
+// MARK: - Settings section
 
-/// 设定页「出門自動記錄」：定位、精确位置、动作与健身嘅状态，未齐就有掣去开；入「定位紀錄」。
+/// Automatic recording shows location, precise-location and motion permission states, corrective actions and Location Records.
 struct LocationSettingsSection: View {
     @Environment(AppStore.self) private var store
 
@@ -267,16 +267,16 @@ struct LocationSettingsSection: View {
     }
 }
 
-/// LocationMonitor.describe 嘅「離屋企」（普通话「离家」）换成另一个参照。
-/// 英文：describe 预期写「… from home」，换成 en。
+/// Replace LocationMonitor.describe's home-relative wording with another reference point.
+/// English describe output is expected to contain from home, replaced by en.
 @MainActor fileprivate func relHome(_ d: Double?, _ yue: String, _ cmn: String, _ en: String = "from home") -> String {
     LocationMonitor.describe(d).replacingOccurrences(of: "離屋企", with: yue).replacingOccurrences(of: "离家", with: cmn)
         .replacingOccurrences(of: "from home", with: en)
 }
 
-/// 状态文字（设定、今日卡、定位纪录共用）。
+/// Shared status text for Settings, Today and location records.
 enum LocationStatusText {
-    /// 有咩未齐（齐晒就 nil）。
+    /// Missing requirement, or nil when complete.
     @MainActor static func problem(_ lm: LocationMonitor) -> String? {
         switch lm.auth {
         case .denied, .restricted: return L.t("定位已經拒絕咗：唔會記錄路線同地標，亦唔知你幾時返到屋企。", "定位已被拒绝：不会记录路线和地标，也不知道你什么时候到家。", "Location is denied: no routes or landmarks are recorded, and we can't tell when you get home.")
@@ -295,7 +295,7 @@ enum LocationStatusText {
     }
 }
 
-// MARK: - 定位紀錄（俾自己喺真機核對三日测试）
+// MARK: - Location records for the user's three-day device check
 
 struct LocationLogView: View {
     @Environment(AppStore.self) private var store
@@ -392,7 +392,7 @@ struct LocationLogView: View {
         return d <= HomeLearner.confirmRadius ? L.t("喺屋企附近（\(Int(d.rounded())) 米）", "在家附近（\(Int(d.rounded())) 米）", "Near home (\(Int(d.rounded())) m)") : LocationMonitor.describe(d)
     }
 
-    /// "2026-10-09" → 「10 月 9 日晚」。
+    /// Format a date key as an overnight date label.
     static func nightLabel(_ key: String) -> String {
         let p = key.split(separator: "-").compactMap { Int($0) }
         guard p.count == 3 else { return key }
@@ -436,7 +436,7 @@ private struct EventRow: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// 「10/10 08:05」（香港时间）。
+    /// Format month/day and HH:mm in Hong Kong time.
     static func time(_ d: Date) -> String {
         let c = AppStore.hk.dateComponents([.month, .day, .hour, .minute], from: d)
         return String(format: "%d/%d %02d:%02d", c.month ?? 0, c.day ?? 0, c.hour ?? 0, c.minute ?? 0)

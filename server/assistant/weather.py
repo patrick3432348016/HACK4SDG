@@ -15,12 +15,12 @@ SOURCE = "https://www.hko.gov.hk/tc/index.html"
 UNAVAILABLE = "暂时攞唔到有效嘅天文台天气资料，我唔会估天气。出发前请查看香港天文台最新天气同警告。"
 SCOPE = "北区测站实况；预报为全港参考，并非北区逐小时预报。"
 PLACES = {"north": "北區", "sheung_shui": "上水", "ta_kwu_ling": "打鼓嶺", "fanling": "粉嶺"}
-# 10-17 加英文（en-US）：天文台同一个 API 用 lang=en，测站名 / 预报 / 警告都系天文台官方英文。
+# 10-17: HKO lang=en supplies official English station, forecast and warning text.
 UNAVAILABLE_EN = "I can't get valid Observatory weather now, so I won't guess. Please check the Hong Kong Observatory before you go."
 PLACES_EN = {"north": "North District", "sheung_shui": "Sheung Shui", "ta_kwu_ling": "Ta Kwu Ling", "fanling": "Fanling"}
 STATIONS = {"tc": ("上水", "打鼓嶺"), "en": ("Sheung Shui", "Ta Kwu Ling"), "sc": ("上水", "打鼓岭")}
 DISTRICT = {"tc": "北區", "en": "North District", "sc": "北区"}
-# 普通话（zh-CN，10-17 加）：天文台 lang=sc（简体），句子用普通话（粤语版有「而家」「攞唔到」）。
+# Mandarin uses HKO lang=sc and Mandarin phrasing instead of Cantonese expressions.
 UNAVAILABLE_CMN = "暂时拿不到有效的天文台天气资料，我不会猜天气。出发前请查看香港天文台最新天气和警告。"
 PLACES_CMN = {"north": "北区", "sheung_shui": "上水", "ta_kwu_ling": "打鼓岭", "fanling": "粉岭"}
 

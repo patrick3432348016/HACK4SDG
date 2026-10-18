@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 「你喺呢度」标签用嘅距离字眼。
+/// Distance wording for the current-location label.
 enum HereText {
     static func distance(_ m: Double) -> String {
         if m < 1000 {
@@ -12,11 +12,11 @@ enum HereText {
     }
 }
 
-/// 场景上「你喺呢度」：蓝色小圆点（白边、慢慢一呼一吸）+ 上面一个小标签。点落喺 GPS 位置（超出模型就贴边）。
-/// 用法：.frame(width: 0, height: 0, alignment: .bottom).position(item.point)，圆点中心对住地面。
+/// Current-location marker: blue dot with white border/pulse and a label; place at GPS position or clamp to the model edge.
+/// Use a zero-size bottom-aligned frame at item.point so the dot centre matches the ground point.
 struct HereMarkerView: View {
     let text: String
-    /// 字摆喺圆点下面（上面撞到「你屋企」等名牌）；外层按顶部对齐。
+    /// Place text below the dot to avoid home labels above; top-align the outer container.
     var below = false
     @State private var pulse = false
 
@@ -26,7 +26,7 @@ struct HereMarkerView: View {
             if !text.isEmpty { label }
             if !below { dot }
         }
-        // 圆点中心对住位置
+        // Dot centre matches the location.
         .offset(y: below ? -15 : 15)
         .allowsHitTesting(false)
         .onAppear {
@@ -68,7 +68,7 @@ struct HereMarkerView: View {
     static let blue = Color(red: 0.16, green: 0.47, blue: 0.96)
 }
 
-/// 只画「你喺呢度」（选楼画面冇其他场景标签）。
+/// Draw only the current-location marker; home selection has no other scene labels.
 struct HereMarkerLayer: View {
     let overlay: OverlayModel
 
@@ -87,7 +87,7 @@ struct HereMarkerLayer: View {
     }
 }
 
-/// 「回正」：用手指放大、移动、转动过之后出现，撳一下返原来嘅角度同大细（同双击一样）。
+/// Show reset after gesture zoom/pan/rotation; restore original angle/scale like double-tap.
 struct MapResetButton: View {
     let action: () -> Void
 

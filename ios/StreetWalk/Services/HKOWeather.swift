@@ -1,50 +1,50 @@
 import Foundation
 
-/// 香港天文台开放数据整理后的结果：只留散步用得上的（警告、最近测站气温、最近分区雨量、九天预报）。
-/// 纯解析，不联网（联网在 HKOWeatherService）；selftest 直接测这里。
+/// Parsed Observatory data relevant to walking: warnings, nearest-station temperature, district rainfall, and nine-day forecast.
+/// Pure parsing without networking; HKOWeatherService fetches data and selftest exercises this parser.
 struct HKOReport: Equatable {
-    /// 数据来源：香港用天文台；香港以外（例如深圳）用 Open-Meteo 天气预报（OpenMeteo.swift），冇官方警告。
+    /// Hong Kong uses the Observatory; outside Hong Kong, OpenMeteo.swift provides forecasts without official warnings.
     enum Source: Equatable { case hko, forecast }
 
     struct Warning: Equatable {
-        var code: String        // 例如 WHOT、WRAINA、WTS
-        var name: String        // 例如 "黃色暴雨警告信號"
+        var code: String        // Examples: WHOT, WRAINA, WTS.
+        var name: String        // Example: Amber Rainstorm Warning Signal.
     }
 
     var station: String?
     var temperature: Int?
-    var rainMM: Double?         // 最近分区过去一小时雨量
+    var rainMM: Double?         // Nearest district's rainfall over the past hour.
     var icon: Int?
     var warnings: [Warning] = []
-    var todayMax: Int?          // 九天预报里有今日才有
+    var todayMax: Int?          // Available only when the nine-day forecast includes today.
     var todayPSR: String?
-    var tomorrowPSR: String?    // 降雨概率：低 / 中低 / 中 / 中高 / 高
+    var tomorrowPSR: String?    // Rain probability: low, medium-low, medium, medium-high, high.
     var updated: Date?
     var source: Source = .hko
 
-    /// 酷熱天氣警告，或气温 / 今日最高 33 度以上。
+    /// Very Hot Weather Warning, or current/today's maximum temperature at least 33 degrees.
     var isHot: Bool {
         warnings.contains { $0.code.hasPrefix("WHOT") || $0.code == "VHOT" }
             || (temperature ?? 0) >= 33 || (todayMax ?? 0) >= 33 || icon == 90
     }
 
-    /// 暴雨 / 雷暴警告，或附近过去一小时有雨、天气图标是雨（63–65；62 微雨全港统一，不算）、今日降雨概率中高以上。
+    /// Rainstorm/thunderstorm warning, recent nearby rain, rain icons 63–65, or medium-high/higher daily rain probability. Exclude generic icon 62.
     var isRain: Bool {
         isDanger || warnings.contains { $0.code.hasPrefix("WRAIN") || $0.code == "WTS" }
             || (rainMM ?? 0) >= 0.5 || rainIcon || ["中高", "高"].contains(todayPSR ?? "")
     }
 
-    /// 八號以上風球、山泥傾瀉、新界北部水浸：唔好出門。
+    /// Signal 8+, landslip, or northern New Territories flooding: advise against going out.
     var isDanger: Bool { warnings.contains { Self.isDangerCode($0.code) } }
 
     private var rainIcon: Bool { (63...65).contains(icon ?? 0) }
 
-    /// 句首讲明来源和读数，例如"天文台話打鼓嶺而家 27 度，黃色暴雨警告信號生效。"；冇读数时为空。
-    /// 香港以外讲"天氣預報話"，唔好冒认天文台。
-    /// 每次读都按而家嘅界面语言出（10-18 真机：转咗语言仲讲旧语言 / 粤普夹杂），唔好喺解析时定死。
+    /// Start with the source and reading, then warnings; return empty without a reading.
+    /// Outside Hong Kong, identify the source as a weather forecast rather than the Observatory.
+    /// Localize on every read, not during parsing, so switching languages cannot retain old/mixed wording (10-18 device feedback).
     var line: String {
         var parts: [String] = []
-        let en = L.isEn   // 英文：测站用天文台英文名（Kowloon City），警告按 code 出英文名
+        let en = L.isEn   // English uses Observatory station names, such as Kowloon City, and warning names derived from codes.
         if let t = temperature {
             let name = station == "香港天文台" ? nil : stationShown
             parts.append(en ? "\(t)°C" + (name.map { " in \($0)" } ?? "") + " now" : (name ?? "") + L.t("而家 \(t) 度", "现在 \(t) 度"))
@@ -53,10 +53,10 @@ struct HKOReport: Equatable {
         else if (rainMM ?? 0) >= 0.5 { parts.append(L.t("附近落緊雨", "附近正在下雨", "raining nearby")) }
         else if rainIcon { parts.append(L.t("有雨", "有雨", "rain about")) }
         else if let psr = todayPSR, ["中高", "高"].contains(psr) { parts.append(L.t("今日降雨機會\(psr)", "今天降雨概率\(psr)", "\(Self.psrEnglish(psr)) chance of rain today")) }
-        return parts.isEmpty ? "" : sourcePrefix + parts.joined(separator: en ? ", " : "，") + (en ? "" : "。")   // 英文唔加句号：AppStore+Places.oneSentence 会再拼
+        return parts.isEmpty ? "" : sourcePrefix + parts.joined(separator: en ? ", " : "，") + (en ? "" : "。")   // Omit English trailing punctuation because AppStore+Places.oneSentence appends more content.
     }
 
-    /// 测站名跟界面语言：粤语原文（繁体）、普通话简体、英文用天文台英文名（冇就唔讲）。
+    /// Station names follow UI language: Traditional Cantonese, Simplified Mandarin, or official English; omit missing English names.
     var stationShown: String? {
         guard let station else { return nil }
         switch L.lang {
@@ -68,12 +68,12 @@ struct HKOReport: Equatable {
 
     static func hans(_ s: String) -> String { s.applyingTransform(StringTransform("Hans-Hant"), reverse: true) ?? s }
 
-    /// 天文台降雨概率（低 / 中低 / 中 / 中高 / 高）嘅英文。
+    /// English labels for the Observatory's five rain-probability levels.
     static func psrEnglish(_ psr: String) -> String {
         ["低": "low", "中低": "medium-low", "中": "medium", "中高": "medium-high", "高": "high"][psr] ?? psr
     }
 
-    /// 天文台测站英文名（https://www.hko.gov.hk 自动气象站）。
+    /// Official English automatic-weather-station names from https://www.hko.gov.hk.
     static let stationsEn: [String: String] = [
         "京士柏": "King's Park", "香港天文台": "Hong Kong Observatory", "黃竹坑": "Wong Chuk Hang", "打鼓嶺": "Ta Kwu Ling",
         "流浮山": "Lau Fau Shan", "大埔": "Tai Po", "沙田": "Sha Tin", "屯門": "Tuen Mun", "將軍澳": "Tseung Kwan O",
@@ -86,17 +86,17 @@ struct HKOReport: Equatable {
 
     var sourcePrefix: String { source == .hko ? L.t("天文台話", "天文台说", "Observatory: ") : L.t("天氣預報話", "天气预报说", "Forecast: ") }
 
-    /// 跟散步有关的警告（風球、山泥、水浸、酷熱、暴雨、雷暴），用来拼句；危险的排前面。普通话转简体（名本身系天文台繁体数据）。
+    /// Walking-related warnings ordered by danger: cyclones, landslip, flooding, heat, rainstorm, thunderstorm. Convert official Traditional names for Mandarin display.
     var walkWarnings: [String] {
         let danger = warnings.filter { Self.isDangerCode($0.code) }
         let other = warnings.filter { $0.code.hasPrefix("WHOT") || $0.code == "VHOT" || $0.code.hasPrefix("WRAIN") || $0.code == "WTS" }
         return (danger + other).map { L.isCmn ? Self.hans($0.name) : $0.name }
     }
 
-    /// 而家有冇酷熱天氣警告（按 code 睇，唔睇名，三种语言都啱）。
+    /// Check Very Hot Weather Warning by code, independently of display language.
     var hasHeatWarning: Bool { warnings.contains { $0.code.hasPrefix("WHOT") || $0.code == "VHOT" } }
 
-    /// 英文界面用：天文台警告名系中文数据，按 code 出英文名。
+    /// Derive English warning names from codes because stored Observatory names are Chinese.
     var walkWarningsEn: [String] {
         let danger = warnings.filter { Self.isDangerCode($0.code) }
         let other = warnings.filter { $0.code.hasPrefix("WHOT") || $0.code == "VHOT" || $0.code.hasPrefix("WRAIN") || $0.code == "WTS" }
@@ -123,8 +123,8 @@ struct HKOReport: Equatable {
         c.hasPrefix("TC8") || c == "TC9" || c == "TC10" || c == "WL" || c == "WFNTSA"
     }
 
-    /// 风球 warnsum 的 name 只写"熱帶氣旋警告信號"，按 code 讲清楚几号。
-    /// 一律存繁体中文（同天文台数据一样）：显示时先按语言转（walkWarnings 转简体、英文用 englishName），转语言唔使重新攞数据。
+    /// warnsum uses a generic tropical-cyclone name; use the code to state the signal number.
+    /// Store original Traditional Chinese and localize on display; language switches do not require a refetch.
     static func displayName(code: String, type: String?, name: String?) -> String {
         if code.hasPrefix("TC8") { return "八號烈風或暴風信號" }
         switch code {
@@ -138,7 +138,7 @@ struct HKOReport: Equatable {
 }
 
 extension HKOReport {
-    /// 三份 JSON（rhrread 必须有，其余可缺）→ 报告。near 用来挑最近的测站和分区。
+    /// Parse three JSON responses; rhrread is required, others optional. near selects the nearest station/district.
     static func parse(rhrread: Data, warnsum: Data?, fnd: Data?, near p: GeoPoint, today: Date) -> HKOReport? {
         guard let r = try? JSONSerialization.jsonObject(with: rhrread) as? [String: Any],
               let temps = (r["temperature"] as? [String: Any])?["data"] as? [[String: Any]] else { return nil }
@@ -194,7 +194,7 @@ extension HKOReport {
         return dx * dx + dy * dy
     }
 
-    /// 测站大概位置（只用来挑最近的一个）。
+    /// Approximate station coordinates, used only for nearest-station selection.
     static let stations: [String: GeoPoint] = [
         "京士柏": .init(lat: 22.312, lon: 114.173), "香港天文台": .init(lat: 22.302, lon: 114.174), "黃竹坑": .init(lat: 22.248, lon: 114.174),
         "打鼓嶺": .init(lat: 22.529, lon: 114.157), "流浮山": .init(lat: 22.469, lon: 113.984), "大埔": .init(lat: 22.446, lon: 114.179),
@@ -207,7 +207,7 @@ extension HKOReport {
         "啟德跑道公園": .init(lat: 22.305, lon: 114.216), "元朗公園": .init(lat: 22.441, lon: 114.019), "大美督": .init(lat: 22.475, lon: 114.237),
     ]
 
-    /// 十八区大概中心（雨量按区给）。
+    /// Approximate centres of the eighteen rainfall districts.
     static let districts: [String: GeoPoint] = [
         "中西區": .init(lat: 22.283, lon: 114.150), "東區": .init(lat: 22.279, lon: 114.226), "葵青": .init(lat: 22.355, lon: 114.110),
         "離島區": .init(lat: 22.260, lon: 113.950), "北區": .init(lat: 22.495, lon: 114.140), "西貢": .init(lat: 22.380, lon: 114.270),

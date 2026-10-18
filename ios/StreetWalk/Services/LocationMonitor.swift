@@ -3,56 +3,56 @@ import CoreMotion
 import os
 import UIKit
 
-/// F1 真机：后台出门检测。用一个专用 CLLocationManager 做三样低耗电嘅监察（都要「始终允许」定位）：
-/// ① 屋企 100 m 区域（离开 / 返到）② 系统「到访」③ 大范围移动。
-/// 有事时 iOS 会喺背景叫醒 App（App 俾系统收咗都会重新开），由 AppStore+Location 决定开唔开准确定位记录散步。
-/// 用户喺多工画面将 App 扫走之后 iOS 唔会再叫醒（返前台时由 Core Motion 补记）。
-/// 另外：收集夜晚位置估计屋企（HomeLearner），同埋记低最近 50 件事俾「定位紀錄」页睇。全部只喺呢部手机，唔上传。
+/// F1 background departure detection uses a dedicated CLLocationManager for three low-power monitors, requiring Always location permission:
+/// 100-m home-region entry/exit, system visits, and significant location changes.
+/// iOS can wake/relaunch a system-terminated app for these events. AppStore+Location decides whether to start accurate walk tracking.
+/// After a user force-quit, iOS does not wake the app; Core Motion backfills on foreground.
+/// Also collect nighttime home-inference samples and the latest 50 diagnostic events, stored only on this phone.
 @MainActor
 @Observable
 final class LocationMonitor: NSObject, CLLocationManagerDelegate {
     static let shared = LocationMonitor()
     nonisolated static let regionID = "home"
 
-    // MARK: 界面状态
+    // MARK: UI state
 
     private(set) var auth: CLAuthorizationStatus = .notDetermined
-    /// 「精確位置」开咗（关咗认唔到行过边，区域监察都唔准）。
+    /// Whether Precise Location is enabled; reduced accuracy limits route and region detection.
     private(set) var precise = true
     private(set) var motionAuth: CMAuthorizationStatus = .notDetermined
-    /// 区域、到访、大范围移动监察开紧。
+    /// Whether region, visit, and significant-change monitoring are active.
     private(set) var monitoring = false
-    /// 「背景 App 重新整理」开咗（关咗 App 俾系统收咗之后唔会被叫醒）、低耗电模式。
+    /// Background App Refresh and Low Power Mode state; disabled refresh can prevent relaunch after system termination.
     private(set) var backgroundRefreshOK = true
     private(set) var lowPower = false
-    /// 系统话而家喺唔喺屋企范围内（未知 = nil）。
+    /// System-reported home-region membership; nil means unknown.
     private(set) var insideHome: Bool?
     private(set) var log = LocationLog()
     private(set) var learner = HomeLearner()
     private(set) var verdict: HomeVerdict = .learning(nights: 0)
-    /// 屋企（揀咗嘅楼嘅中心）同埋係唔係用户自己揀嘅。
+    /// Home-building centre and whether the user selected it.
     private(set) var home: GeoPoint?
     private(set) var homePicked = false
     private(set) var snoozeUntil: Date?
-    /// 问过「始终允许」（系统只会弹一次，之后要去设定改）。
+    /// Whether Always permission has been requested; subsequent changes require Settings.
     private(set) var askedAlways = UserDefaults.standard.bool(forKey: Keys.askedAlways)
-    /// 自动弹过解释页（之后只喺今日页同设定显示）。
+    /// Whether the automatic explanation was shown; later guidance appears on Today/Settings.
     private(set) var alwaysOffered = UserDefaults.standard.bool(forKey: Keys.alwaysOffered)
-    /// 今日页嘅「未開齊」卡：按「遲啲先」之后几时先再出。
+    /// When the incomplete-permissions card may reappear after choosing later.
     private(set) var cardHiddenUntil = UserDefaults.standard.object(forKey: Keys.cardHidden) as? Date
-    /// 完成首次使用后嘅「始终允许」解释页。
+    /// Post-onboarding Always-permission explanation sheet.
     var showAlwaysAsk = false
-    /// 今日页「係咪搬咗屋」卡读过边句（每句只读一次）。
+    /// Remember the spoken move-home prompt so each wording is read only once.
     @ObservationIgnored var spokenPrompt: String?
-    /// 今次开 App 弹过解释页（定位「未问」时每次开 App 只问一次）。
+    /// Whether the explanation was shown this launch; prompt only once per launch when permission is undetermined.
     @ObservationIgnored private(set) var offeredThisLaunch = false
 
-    /// 完成咗首次使用（同意咗）先开监察。
+    /// Start monitoring only after consented onboarding.
     var enabled = false { didSet { if enabled != oldValue { refreshMonitoring() } } }
 
-    // MARK: 内部
+    // MARK: Internal state
 
-    /// 叫醒 App 嘅事交俾 AppStore；未接上之前先排住。
+    /// Queue wake events until AppStore's handler is attached.
     @ObservationIgnored var onTrigger: ((LocationTrigger) -> Void)? { didSet { flush() } }
     @ObservationIgnored private var pending: [LocationTrigger] = []
     @ObservationIgnored private var wakeHandlers: [(LocationWake) -> Void] = []
@@ -84,9 +84,9 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
     var isBackground: Bool { UIApplication.shared.applicationState == .background }
     static var calendar: Calendar { AppStore.hk }
 
-    // MARK: - 启动
+    // MARK: - Startup
 
-    /// App 一启动就要叫（包括系统喺背景开 App）：建好 manager、设好 delegate，系统先会将定位事件交过嚟。
+    /// Initialize manager/delegate immediately on every launch, including background launch, so iOS can deliver location events.
     func activate() {
         guard manager == nil else { return }
         restore()
@@ -106,13 +106,13 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
     }
 
-    /// AppDelegate：系统喺背景开 App（App 之前冇开住，例如俾系统收咗；多数係定位事件）。
+    /// AppDelegate background relaunch when the process was not running, usually for location events.
     func noteLocationLaunch() {
         record(.launch, L.t("App 冇開住，iOS 喺背景重新開咗街坊行", "App 没开着，iOS 在后台重新打开了街坊行", "App was closed. iOS reopened StreetWalk in the background"))
         wake(.launch)
     }
 
-    /// 返到前台：权限可能喺设定改咗；夜晚就攞一个定位做夜晚位置。
+    /// On foreground, refresh permissions changed in Settings and request one nighttime home-learning sample if applicable.
     func appBecameActive() {
         guard let m = manager else { return }
         authChanged(m.authorizationStatus, precise: m.accuracyAuthorization == .fullAccuracy)
@@ -123,11 +123,11 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         reevaluate()
     }
 
-    /// 其他功能（后端刷新、出门状态上传）跟住背景唤醒做嘢：系统叫醒 App 时喺主线程叫 handler，
-    /// 同时发 Notification.Name.streetWalkLocationWake。叫醒后大约得 10 秒（记录紧散步就一直有）。
+    /// Run other wake-dependent work, such as backend refresh/outing upload, through handler on the main thread.
+    /// Also post streetWalkLocationWake. A wake usually offers about ten seconds unless a walk is being recorded.
     func onWake(_ handler: @escaping (LocationWake) -> Void) { wakeHandlers.append(handler) }
 
-    // MARK: - 监察
+    // MARK: - Monitoring
 
     func refreshMonitoring() {
         guard let m = manager else { return }
@@ -141,7 +141,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
             registerHome()
             if !monitoring {
                 monitoring = true
-                // 上次（包括之前嘅进程）已经开紧就唔再记，免得每次开 App 都多一行
+                // Do not duplicate the monitoring-start log if already active, including across process restarts.
                 if !UserDefaults.standard.bool(forKey: Keys.monitoring) { record(.monitor, L.t("開始監察：離開 / 返到屋企、到訪、大範圍移動", "开始监测：离开 / 回到家、到访、大范围移动", "Watching: leaving / back home, visits, big moves")) }
                 UserDefaults.standard.set(true, forKey: Keys.monitoring)
             }
@@ -158,7 +158,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         }
     }
 
-    /// 以屋企为中心登记 100 m 区域（屋企改咗就重新登记；同一个名会取代旧嘅）。
+    /// Register a 100-m home region; changing home replaces the previous same-name region.
     private func registerHome() {
         guard let m = manager, let h = home, CLLocationManager.isMonitoringAvailable(for: CLCircularRegion.self) else { return }
         let radius = min(TriggerRules.homeRadius, m.maximumRegionMonitoringDistance)
@@ -175,9 +175,9 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         record(.home, L.t("登記咗屋企範圍：你揀嗰座樓周圍 \(Int(radius)) 米", "已登记家的范围：你选的那栋楼周围 \(Int(radius)) 米", "Home area set: \(Int(radius)) m around your block"))
     }
 
-    // MARK: - 屋企
+    // MARK: - Home
 
-    /// 模型用紧嘅屋企（AppStore 装好地图时叫）。picked：用户自己揀嘅（唔係示例屋邨、唔係默认楼）。
+    /// AppStore supplies the model home after map installation; picked excludes example/developer defaults.
     func setHome(_ g: GeoPoint, picked: Bool) {
         let moved = home.map { HomeLearner.distance($0, g) > 5 } ?? true
         guard moved || picked != homePicked else { return }
@@ -198,7 +198,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         verdict = learner.verdict(home: home, picked: homePicked, now: Date(), calendar: Self.calendar)
     }
 
-    /// 要问「係咪搬咗屋」/ 建议用过夜嘅地方。
+    /// Whether to ask about moving or suggest the inferred overnight location.
     enum HomePrompt: Equatable {
         case moved(GeoPoint, distance: Double, nights: Int)
         case suggest(GeoPoint, distance: Double?, nights: Int)
@@ -219,7 +219,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         }
     }
 
-    /// 「唔係」：7 日内唔再问；「係」：重新揀楼期间 1 日内唔再问。
+    /// After no, suppress for seven days; after yes, suppress for one day while repicking home.
     func snooze(days: Double) { setSnooze(Date().addingTimeInterval(days * 86400)) }
 
     private func setSnooze(_ d: Date?) {
@@ -227,9 +227,9 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         UserDefaults.standard.set(d, forKey: Keys.snooze)
     }
 
-    // MARK: - 权限
+    // MARK: - Permissions
 
-    /// 先要「使用 App 期间」，再要「始终」（系统只会弹一次「改为始终允许」；问过就打开设定）。
+    /// Request When In Use before Always. After the one-time Always upgrade prompt, open Settings instead.
     func requestAlways() {
         guard let m = manager else { return }
         askedAlways = true
@@ -264,9 +264,9 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         UIApplication.shared.open(url)
     }
 
-    /// 自动记录要嘅权限未齐（唔係「始终」、或者精确位置关咗）。
+    /// Automatic tracking lacks permission when not Always or when Precise Location is disabled.
     var needsAlways: Bool { auth != .authorizedAlways || !precise }
-    /// 今日卡 / 设定要提：权限未齐，或者「背景 App 重新整理」关咗。
+    /// Today/Settings should explain missing location permissions or disabled Background App Refresh.
     var needsAttention: Bool { needsAlways || !backgroundRefreshOK }
 
     private func authChanged(_ s: CLAuthorizationStatus, precise full: Bool) {
@@ -304,9 +304,9 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         }
     }
 
-    // MARK: - 夜晚位置
+    // MARK: - Nighttime location
 
-    /// 夜晚（22:00–06:00）打开 App：攞一个定位做夜晚位置样本。
+    /// On an app launch between 22:00 and 06:00, request one home-learning location sample.
     private func sampleNightIfNeeded() {
         guard let m = manager, !oneShot, HomeLearner.isNight(Date(), calendar: Self.calendar), precise,
               auth == .authorizedAlways || auth == .authorizedWhenInUse else { return }
@@ -328,11 +328,11 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         }
     }
 
-    /// 模拟器测试（-simNights lat,lon）：喺呢个位置加最近两晚（22:30–06:30）嘅过夜样本。
+    /// Simulator -simNights lat,lon adds overnight samples for the last two nights, 22:30–06:30.
     func simulateNights(at p: GeoPoint, count: Int = 2) {
         let cal = Self.calendar
         let now = Date()
-        // 最近一晚已经完咗嘅：而家过咗 06:00 就係琴晚，否则係前晚
+        // Most recent completed night is last night after 06:00, otherwise the night before.
         let tonight = cal.startOfDay(for: now.addingTimeInterval(-Double(HomeLearner.nightEnd) * 3600))
         for i in 1...max(1, count) {
             guard let day = cal.date(byAdding: .day, value: -i, to: tonight),
@@ -345,7 +345,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         record(.night, L.t("模擬：加咗 \(count) 晚過夜位置（\(Self.describe(home.map { HomeLearner.distance($0, p) }))）", "模拟：加了 \(count) 晚过夜位置（\(Self.describe(home.map { HomeLearner.distance($0, p) }))）", "Simulated: added \(count) overnight spots (\(Self.describe(home.map { HomeLearner.distance($0, p) })))"))
     }
 
-    /// 开发用 -resetOnboarding：连屋企、问过「始终允许」都清走，当新装。
+    /// Development -resetOnboarding also clears home and Always-request history to simulate a fresh install.
     func resetAll() {
         [Keys.log, Keys.learner, Keys.home, Keys.snooze, Keys.askedAlways, Keys.alwaysOffered, Keys.cardHidden, Keys.lastSignificant, Keys.monitoring]
             .forEach(UserDefaults.standard.removeObject(forKey:))
@@ -360,7 +360,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         reevaluate()
     }
 
-    /// 「定位紀錄」页：清走事件同夜晚位置。
+    /// Location History clear action removes diagnostic events and nighttime samples.
     func clearRecords() {
         log = LocationLog()
         learner = HomeLearner()
@@ -411,7 +411,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         Task { @MainActor in self.oneShot = false }
     }
 
-    // MARK: - 事件
+    // MARK: - Events
 
     private func crossed(inside: Bool) {
         let now = Date()
@@ -431,7 +431,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         }
     }
 
-    /// 启动 / 返前台时系统话我哋喺唔喺屋企范围（唔当出入，只更新状态同过夜纪录）。
+    /// Initial/foreground region state updates membership and overnight records, but does not count as entry/exit.
     private func stateKnown(_ inside: Bool?) {
         guard let inside else { return }
         insideHome = inside
@@ -466,7 +466,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
             if mine { record(.night, L.t("夜晚位置（\(Self.describe(d))）", "夜间位置（\(Self.describe(d))）", "Night spot (\(Self.describe(d)))")) }
         }
         guard !mine else { return }
-        // 开始监察（每次启动）时系统会即刻俾一个位置：同上次大范围移动差唔多就唔当移动
+        // Monitoring immediately returns a position; do not treat a point near the previous significant-change fix as movement.
         let prev = UserDefaults.standard.data(forKey: Keys.lastSignificant).flatMap { try? JSONDecoder().decode(GeoPoint.self, from: $0) }
         if let data = try? JSONEncoder().encode(GeoPoint(lat: HomeLearner.round(p.lat), lon: HomeLearner.round(p.lon))) {
             UserDefaults.standard.set(data, forKey: Keys.lastSignificant)
@@ -494,7 +494,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         NotificationCenter.default.post(name: .streetWalkLocationWake, object: nil, userInfo: ["reason": r.rawValue, "background": isBackground])
     }
 
-    // MARK: - 纪录
+    // MARK: - History
 
     func record(_ kind: LocationEvent.Kind, _ detail: String) {
         let bg = isBackground
@@ -520,7 +520,7 @@ final class LocationMonitor: NSObject, CLLocationManagerDelegate {
         learner.prune(now: Date())
     }
 
-    /// 「離屋企 35 米」「離屋企 2.3 公里」。
+    /// Distance-from-home wording in metres or kilometres.
     static func describe(_ d: Double?) -> String {
         guard let d else { return L.t("未知離屋企幾遠", "不知离家多远", "distance from home unknown") }
         return d < 1000 ? L.t("離屋企 \(Int(d.rounded())) 米", "离家 \(Int(d.rounded())) 米", "\(Int(d.rounded())) m from home") : String(format: L.t("離屋企 %.1f 公里", "离家 %.1f 公里", "%.1f km from home"), d / 1000)

@@ -1,11 +1,11 @@
-"""本机粤语播报（成员 A 加，2026-10-11）：GPT-SoVITS 常驻内存，一句一句排队合成，边合成边传。
+"""A, 2026-10-11: keep GPT-SoVITS loaded for queued local Cantonese synthesis and streaming.
 
-- 声音：GPT-SoVITS v2ProPlus 预训练模型 + CC0 Common Voice 粤语参考录音（common_voice_yue_31206624）克隆。
-- 一次只合成一句（模型唔系线程安全）：一条工作线程 + 优先队列。App 当场要讲嘅句子（priority 0）排喺预热句子（priority 1）前面。
-- 传输：WAV（PCM16 单声道）。边合成边传嘅流式响应 RIFF / data 长度写 0xFFFFFFFF（App 自己解析）；缓存档案写正确长度。
-- 缓存：按（声音版本、语言、语速、文字）做 key。内存（最近 64 MB）+ 磁盘（data/tts-cache/*.wav）。同一句正在合成时，
-  第二个请求直接跟住收，唔会合成两次。
-- 测试用 FakeEngine（tests/test_sovits.py），唔使装 torch。
+Voice uses v2ProPlus pretrained weights and CC0 Common Voice Cantonese reference common_voice_yue_31206624.
+A single priority worker protects the non-thread-safe model; immediate speech priority 0 precedes warmup priority 1.
+Stream mono PCM16 WAV with unknown RIFF/data lengths 0xFFFFFFFF; cached files store correct lengths.
+Cache by voice version, language, speed and text, using recent 64 MB memory plus data/tts-cache/*.wav.
+  Concurrent requests for the same in-progress utterance share its stream instead of synthesizing twice.
+FakeEngine tests require no torch installation.
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ STREAM_SIZE = 0xFFFFFFFF
 
 
 def wav_header(sample_rate: int, data_bytes: int | None = None) -> bytes:
-    """44 字节 PCM16 单声道 WAV 头。data_bytes=None：流式（长度未知）。"""
+    """44-byte mono PCM16 WAV header; data_bytes=None means unknown streaming length."""
     size = STREAM_SIZE if data_bytes is None else data_bytes
     riff = STREAM_SIZE if data_bytes is None else 36 + data_bytes
     return (b"RIFF" + struct.pack("<I", riff) + b"WAVEfmt " + struct.pack("<IHHIIHH", 16, 1, 1, sample_rate,
@@ -39,7 +39,7 @@ def wav_header(sample_rate: int, data_bytes: int | None = None) -> bytes:
 
 
 def clean_text(text: str) -> str:
-    """App 嘅句子 → 适合合成嘅文字：去引号同符号、换行当句号、压空格。"""
+    """Normalize synthesis text by removing quote/symbol noise, turning line breaks into sentence stops and collapsing spaces."""
     s = text.replace("\n", "。")
     s = re.sub(r"[「」『』“”\"'《》〈〉【】()（）\[\]]", "", s)
     s = s.replace("·", "，").replace("…", "。").replace("～", "，").replace("~", "，")
@@ -48,7 +48,7 @@ def clean_text(text: str) -> str:
 
 
 class SynthesisFailed(Exception):
-    """一段声音都未出就失败（模型出错 / 文字合成唔到）。"""
+    """Synthesis failed before producing any audio."""
 
 
 class Engine(Protocol):
@@ -57,11 +57,11 @@ class Engine(Protocol):
     def load(self) -> None: ...
 
     def stream(self, text: str, speed: float) -> Iterator[bytes]:
-        """逐段返回 PCM16 小端字节（sample_rate 固定）。"""
+        """Yield little-endian PCM16 chunks at the fixed sample_rate."""
 
 
 class SovitsEngine:
-    """真模型：GPT-SoVITS 仓库入面嘅 TTS_infer_pack。只喺 load() 先 import torch。"""
+    """Real engine uses GPT-SoVITS TTS_infer_pack; import torch only during load()."""
 
     sample_rate = 32000
 
@@ -73,11 +73,11 @@ class SovitsEngine:
     def load(self):
         import sys
         root = os.path.abspath(self.root)
-        os.chdir(root)   # 模型相对路径（GPT_SoVITS/pretrained_models/...）同 G2P 字典都按仓库根目录读
+        os.chdir(root)   # Resolve pretrained model paths and G2P dictionaries relative to the GPT-SoVITS repository root.
         for p in (root, os.path.join(root, "GPT_SoVITS")):
             if p not in sys.path:
                 sys.path.insert(0, p)
-        from TTS_infer_pack.TTS import TTS, TTS_Config  # noqa: E402  (只喺有模型嘅机器先 import)
+        from TTS_infer_pack.TTS import TTS, TTS_Config  # noqa: E402  Import only on hosts with the model installed.
         pm = "GPT_SoVITS/pretrained_models"
         cfg = TTS_Config({"custom": {
             "device": self.device, "is_half": False, "version": self.version,
@@ -92,7 +92,7 @@ class SovitsEngine:
                    "seed": 1234, "streaming_mode": True, "speed_factor": float(speed), "fragment_interval": 0.25}
         for sr, chunk in self.tts.run(request):
             if sr != self.sample_rate:
-                # GPT-SoVITS 出错时会返回一段 16 kHz 静音：当失败处理，唔好将佢当成声音传出去。
+                # Treat GPT-SoVITS's 16 kHz silent error segment as failure, not valid speech.
                 raise RuntimeError("synthesis failed")
             yield np.asarray(chunk, dtype=np.int16).tobytes()
 
@@ -113,13 +113,13 @@ class Job:
 
 
 class SpeechService:
-    """一条工作线程排队合成；HTTP 层用 stream() 边收边传。"""
+    """Queue synthesis in a worker and expose incremental bytes through stream()."""
 
     def __init__(self, engine_factory: Callable[[], Engine], cache_dir: str, voice_id: str,
                  memory_bytes: int = 64_000_000, log_text: bool = False,
                  locales: tuple[str, ...] = ("zh-HK",), workers: int = 1):
         self.engine_factory, self.voice_id, self.log_text = engine_factory, voice_id, log_text
-        # 2026-10-12：豆包（云端）可以同时合成几句、有普通话；GPT-SoVITS 只可以一句一句、得粤语。
+        # 2026-10-12: cloud Doubao supports concurrent synthesis and Mandarin; local GPT-SoVITS remains serial and Cantonese-only.
         self.locales, self.workers = locales, workers
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -137,7 +137,7 @@ class SpeechService:
         self.extra_threads: list[threading.Thread] = []
         self.stats = {"hits": 0, "misses": 0, "synthesized": 0}
 
-    # ── 生命周期 ──
+    # Lifecycle.
 
     def start(self, warm_text: str | None = "你好。"):
         if self.thread:
@@ -164,7 +164,7 @@ class SpeechService:
                 for _ in engine.stream(warm_text, 1.0):
                     pass
             log.warning("tts ready voice=%s load+warm=%.1fs", self.voice_id, time.monotonic() - started)
-        except Exception as exc:  # 模型装唔到：服务照开（助手照用），播报返回 503，App 用系统声音
+        except Exception as exc:  # If the model fails to load, keep assistant service available and return synthesis 503 for device fallback.
             self.load_error = f"{type(exc).__name__}: {exc}"
             log.error("tts load failed: %s", self.load_error)
             self.ready.set()
@@ -179,7 +179,7 @@ class SpeechService:
                 return
             with self.lock:
                 if job.started or job.done:
-                    continue   # 同一句排咗两次（预热之后又当场要）：做一次就够
+                    continue   # Deduplicate a warmup request later requested for immediate speech.
                 job.started = True
             self._synthesize(job)
 
@@ -188,7 +188,7 @@ class SpeechService:
             for _ in range(1 + len(self.extra_threads)):
                 self.queue.put((-1, next(self.counter), None))
 
-    # ── 缓存 ──
+    # Cache.
 
     def key(self, text: str, locale: str, speed: float) -> str:
         raw = f"{self.voice_id}\n{locale}\n{speed:.2f}\n{clean_text(text)}"
@@ -217,7 +217,7 @@ class SpeechService:
                 _, old = self.memory.popitem(last=False)
                 self.memory_size -= len(old)
 
-    # ── 合成 ──
+    # Synthesis.
 
     def _synthesize(self, job: Job):
         t0 = time.monotonic()
@@ -258,7 +258,7 @@ class SpeechService:
                 loop.call_soon_threadsafe(q.put_nowait, None)
 
     def enqueue(self, text: str, locale: str = "zh-HK", speed: float = 1.0, priority: int = 0) -> tuple[str, Job | None]:
-        """排队（或者认返正在做 / 已经缓存咗嘅）。返回 (key, job)；job=None 表示已有缓存。"""
+        """Queue or reuse in-progress/cached work; return (key, job), with job=None for a cache hit."""
         key = self.key(text, locale, speed)
         if self.cached(key) is not None:
             return key, None
@@ -267,12 +267,12 @@ class SpeechService:
             if job is None:
                 job = self.jobs[key] = Job(key=key, text=text, speed=speed, locale=locale)
             if not job.started:
-                # 同一句可以排多次（预热 → 当场要）：工作线程见到已开始 / 已完成就跳过
+                # Duplicate queued entries are safe: workers skip already started or completed jobs.
                 self.queue.put((priority, next(self.counter), job))
         return key, job
 
     async def stream(self, text: str, locale: str = "zh-HK", speed: float = 1.0, priority: int = 0) -> tuple[bool, AsyncIterator[bytes]]:
-        """返回 (cache_hit, 字节流)。字节流第一段系 WAV 头。"""
+        """Return (cache_hit, byte stream), beginning with the WAV header."""
         key, job = self.enqueue(text, locale, speed, priority)
         if job is None:
             self.stats["hits"] += 1
@@ -308,7 +308,7 @@ class SpeechService:
                         job.subscribers.remove((loop, q))
 
         async def live():
-            # 等到第一段声音先出 WAV 头：合成失败（一段声都冇）时 HTTP 层可以答 503，App 即刻转用系统声音。
+            # Wait for first audio before yielding the header so no-audio failure can return HTTP 503 and trigger immediate fallback.
             source = chunks()
             try:
                 first = await source.__anext__()

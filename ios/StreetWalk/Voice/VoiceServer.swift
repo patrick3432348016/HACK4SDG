@@ -2,12 +2,12 @@ import Foundation
 import Network
 import Observation
 
-/// Mac 语音服务器（tools/voice_server.sh）：组员 B 嘅豆包那套（识别 + 理解 + 小何粤语 / 普通话声）+ App 业务。
-/// 2026-10-12 起默认豆包；`--voice=sovits` 先系旧嘅 GPT-SoVITS 真人声（只有粤语、冇识别）。
+/// Voice server combines B's Doubao recognition, understanding and Xiaohe speech with App business services.
+/// Doubao is default since 2026-10-12; --voice=sovits selects the legacy Cantonese-only synthesis path without recognition.
 ///
-/// 点搵：① 设定 → 聲音 →「語音伺服器」亲手填嘅地址；② 同一个 Wi-Fi 用 Bonjour（_jiefongvoice._tcp，TXT 带 url）自动搵；
-/// ③ 模拟器再试本机 http://127.0.0.1:8765。逐个问 GET /v1/voice，第一个答到就用。
-/// 连唔到 / 未开：播报用系统声音，语音助手用手机入面嘅模板（TemplateAI），功能唔会少。
+/// Discovery order: manual Settings URL, then same-Wi-Fi Bonjour _jiefongvoice._tcp with URL TXT record,
+/// then simulator localhost at http://127.0.0.1:8765. Probe /v1/voice and use the first available candidate.
+/// Unavailable servers fall back to system speech and limited TemplateAI understanding; arbitrary natural-language capability is not equivalent.
 @MainActor
 @Observable
 final class VoiceServer {
@@ -16,12 +16,12 @@ final class VoiceServer {
     static let serviceType = "_jiefongvoice._tcp"
 
     enum Status: Equatable {
-        /// 未搵到（或者未开始搵）。
+        /// Not found or discovery not started.
         case searching
-        /// 搵到，声音模型载入中（约 20 秒）：播报暂时用系统声音。
+        /// Server found but model loading, roughly 20 seconds; temporarily use system speech.
         case warming(URL)
         case connected(URL, voiceID: String, assistant: Bool)
-        /// 地址有，但问唔到（Mac 瞓咗 / 未开 / 唔同 Wi-Fi）。
+        /// Known address is unreachable, for example sleeping server or different Wi-Fi.
         case unreachable(URL?)
 
         var url: URL? {
@@ -31,7 +31,7 @@ final class VoiceServer {
             case .searching: return nil
             }
         }
-        /// 设定页显示。
+        /// Settings display text.
         var label: String {
             switch self {
             case .connected: return L.t("已連線", "已连接", "Connected")
@@ -42,42 +42,42 @@ final class VoiceServer {
         var isConnected: Bool { if case .connected = self { return true }; return false }
     }
 
-    /// 服务器 /v1/voice 嘅答覆。
+    /// Response from /v1/voice.
     struct Info: Decodable, Equatable {
         var service: String
         var tts: String?
         var voice_id: String?
         var status: String
         var assistant: String?
-        /// 播报支援嘅语言（豆包：zh-HK、zh-CN；GPT-SoVITS：zh-HK）。
+        /// Advertised synthesis locales; use the response rather than assuming all providers support every language.
         var locales: [String]?
-        /// 有冇 B 嘅豆包流式识别（/v1/voice/ear）：有就用连续对话。
+        /// Whether /v1/voice/ear supports Doubao streaming recognition for continuous conversation.
         var ear: Bool?
     }
 
     private(set) var status: Status = .searching
-    /// 设定页亲手填嘅地址（空 = 自动搵）。
+    /// Manual Settings address; empty selects discovery.
     var manualURL: String {
         didSet {
             defaults.set(manualURL, forKey: Self.manualKey)
             recheckSoon()
         }
     }
-    /// Bonjour 搵到嘅地址。
+    /// Bonjour-discovered address.
     private(set) var discovered: [URL] = []
-    /// 而家连住嘅服务器嘅能力（/v1/voice）。
+    /// Capabilities of the connected server from /v1/voice.
     private(set) var info: Info?
 
-    /// 播报用：而家可以用嘅服务器（模型准备好）。
+    /// Model-ready server available for synthesis.
     var speechURL: URL? { if case .connected(let u, let v, _) = status, !v.isEmpty { return u }; return nil }
     var voiceID: String? { if case .connected(_, let v, _) = status, !v.isEmpty { return v }; return nil }
-    /// 语音助手用：服务器开咗 Supabase 业务模式。
+    /// Server with Supabase business mode enabled for assistant requests.
     var assistantURL: URL? { if case .connected(let u, _, true) = status { return u }; return nil }
-    /// 播报可唔可以用普通话（豆包有，GPT-SoVITS 冇）。
+    /// Mandarin synthesis capability; Doubao supports it, legacy GPT-SoVITS does not.
     var speaksMandarin: Bool { speechURL != nil && (info?.locales ?? []).contains("zh-CN") }
-    /// 播报可唔可以用英文（服务器 /v1/voice 嘅 locales 有 en-US）。
+    /// English synthesis capability advertised as en-US.
     var speaksEnglish: Bool { speechURL != nil && (info?.locales ?? []).contains("en-US") }
-    /// B 嘅豆包流式识别（WebSocket）：http → ws、https → wss。
+    /// Map HTTP/HTTPS to WS/WSS for Doubao streaming recognition.
     var earURL: URL? {
         guard case .connected(let u, _, _) = status, info?.ear == true,
               var c = URLComponents(url: u.appendingPathComponent("v1/voice/ear"), resolvingAgainstBaseURL: false) else { return nil }
@@ -85,14 +85,14 @@ final class VoiceServer {
         return c.url
     }
 
-    /// 连续播报失败几多次（超过就当连唔到，重新搵）。
+    /// Consecutive synthesis failures trigger disconnection and rediscovery.
     @ObservationIgnored private var failures = 0
     @ObservationIgnored private var browser: NWBrowser?
     @ObservationIgnored private var loop: Task<Void, Never>?
     @ObservationIgnored private var started = false
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let session: URLSession
-    /// 接通 / 断线时通知（预热句子、设定页）。
+    /// Connection-change callback for warmup and Settings.
     @ObservationIgnored var onConnected: ((URL) -> Void)?
 
     static let manualKey = "voice.serverURL"
@@ -111,9 +111,9 @@ final class VoiceServer {
         session = URLSession(configuration: cfg)
     }
 
-    // MARK: - 开始搵
+    // MARK: - Discovery
 
-    /// App 启动后叫一次（单元测试唔叫，唔会连网络）。
+    /// Call once after launch; unit tests omit it to avoid network access.
     func start() {
         guard !started, !LaunchArgs.has("-noVoiceServer") else { return }
         started = true
@@ -122,7 +122,7 @@ final class VoiceServer {
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.check()
-                // 连住：每分钟睇一次；未连：10 秒再试（服务器啱啱开、模型载入中）
+                // Probe connected servers every minute, otherwise retry every 10 seconds during startup / loading.
                 let wait: Double = self.status.isConnected ? 60 : 10
                 try? await Task.sleep(for: .seconds(wait))
             }
@@ -134,7 +134,7 @@ final class VoiceServer {
         Task { await check() }
     }
 
-    /// 播报 / 助手请求失败：连续两次就当断咗，即刻重新搵。
+    /// Two consecutive speech or assistant failures mark disconnected and trigger immediate discovery.
     func noteFailure() {
         failures += 1
         if failures >= 2 {
@@ -146,7 +146,7 @@ final class VoiceServer {
 
     func noteSuccess() { failures = 0 }
 
-    /// 逐个候选地址问一次 /v1/voice。
+    /// Probe each candidate's /v1/voice endpoint.
     func check() async {
         let list = Self.candidates(manual: manualURL, discovered: discovered, simulator: Self.isSimulator)
         for url in list {
@@ -173,9 +173,9 @@ final class VoiceServer {
         return info
     }
 
-    // MARK: - 纯逻辑（有单元测试）
+    // MARK: - Pure, unit-tested logic
 
-    /// 候选次序：亲手填 > Bonjour 搵到 > （模拟器）本机。去重。
+    /// Deduplicated candidate order: manual, Bonjour, then simulator localhost.
     nonisolated static func candidates(manual: String, discovered: [URL], simulator: Bool) -> [URL] {
         var out: [URL] = []
         if let m = normalize(manual) { out.append(m) }
@@ -185,7 +185,7 @@ final class VoiceServer {
         return out.filter { seen.insert($0.absoluteString).inserted }
     }
 
-    /// 设定页填嘅地址 → URL：冇写 http 就补 http://，冇写端口（又唔系 https）就补 8765。空 / 唔啱 → nil。
+    /// Normalize Settings input: add http:// if absent and port 8765 without an explicit port unless HTTPS; invalid/empty yields nil.
     nonisolated static func normalize(_ raw: String) -> URL? {
         var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !s.isEmpty else { return nil }
@@ -202,7 +202,7 @@ final class VoiceServer {
 
     static func status(for url: URL, info: Info) -> Status {
         guard info.status == "ready", let v = info.voice_id else {
-            // 模型载入中 / 冇声音（只有助手，voiceID 空）：播报暂时用系统声音
+            // While loading or with an empty voiceID, use system output even if assistant service is available.
             if info.status == "loading" { return .warming(url) }
             return .connected(url, voiceID: "", assistant: info.assistant == "supabase")
         }

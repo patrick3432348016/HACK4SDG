@@ -1,4 +1,4 @@
-"""成员 A（2026-10-12）：换成 B 新版嗰套之后嘅接驳测试——豆包播报、话题判断（B 嘅 VoicePolicy）、识别通道。只用假供应商。"""
+"""A, 2026-10-12: fake-provider integration tests for Doubao synthesis, VoicePolicy routing and recognition channels."""
 import asyncio
 import base64
 from datetime import datetime, timedelta
@@ -39,7 +39,7 @@ class DoubaoSpeechTests(unittest.TestCase):
         self.assertEqual(b"".join(chunks), b"\x01\x02\x03\x04\x05\x06\x07\x08")
         params = seen[0]["req_params"]
         self.assertEqual(json.loads(params["additions"])["explicit_dialect"], "yue")
-        self.assertEqual(params["audio_params"]["speech_rate"], -5)   # B 嘅基准 -15，快一档 +10
+        self.assertEqual(params["audio_params"]["speech_rate"], -5)   # B's baseline -15 becomes +10 for Fast.
 
     def test_mandarin_has_no_dialect_and_vendor_error_fails(self):
         seen = []
@@ -58,7 +58,7 @@ class DoubaoSpeechTests(unittest.TestCase):
         list(self.engine(ok, seen).stream("Hello", 1.0, "en-US"))
         additions = json.loads(seen[0]["req_params"]["additions"])
         self.assertEqual(additions, {"explicit_language": "en"})
-        self.assertEqual(seen[0]["req_params"]["speaker"], CONFIG["speaker"])   # 默认照用小何
+        self.assertEqual(seen[0]["req_params"]["speaker"], CONFIG["speaker"])   # Default to Xiaohe.
         other = DoubaoEngine(DoubaoConfig.model_validate({**CONFIG, "speaker_en": "en_female_test"}))
         self.assertEqual(other.body("Hi", 1.0, "en-US")["req_params"]["speaker"], "en_female_test")
         self.assertEqual(other.body("你好", 1.0, "zh-HK")["req_params"]["speaker"], CONFIG["speaker"])
@@ -110,7 +110,7 @@ class TurnPolicyTests(unittest.IsolatedAsyncioTestCase):
         reply = await self.ask("Help! I fell down and can't get up", locale="en-US")
         self.assertEqual((reply.message, reply.data["policy"]), (EN["emergency"], "emergency"))
         self.assertEqual((await self.ask("Can I take this medicine with tea?", locale="en-US")).message, EN["deny"])
-        self.assertEqual((await self.ask("救命，有人晕倒了", locale="zh-CN")).message, CMN["emergency"])   # 普通话都行 B 嘅范围规则
+        self.assertEqual((await self.ask("救命，有人晕倒了", locale="zh-CN")).message, CMN["emergency"])   # Mandarin follows B's scope rules too.
         self.assertEqual(self.provider.calls, 0)
         self.provider.decision = {"topic": "weather"}
         weather = await self.ask("What's the weather today?", locale="en-US")
@@ -119,7 +119,7 @@ class TurnPolicyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.ask("Hello", locale="en-US")).message, EN["help"])
 
     async def test_model_copying_now_minutes_is_pinned(self):
-        # 10-18 真机：豆包将 now 嘅分钟抄入 starts_at（「下午3点散步40分钟」→ 15:02）
+        # 10-18 regression: model copied now's minutes into starts_at, yielding 15:02.
         when = (datetime.now(HK) + timedelta(days=1)).replace(hour=15, minute=2, second=41, microsecond=0)
         self.provider.decision = {"topic": "app", "command": {"intent": "invite", "contact_query": "邻居", "starts_at": when.isoformat(),
                                                               "max_walk_minutes": 40}}
@@ -183,7 +183,7 @@ class EarSocketTests(unittest.TestCase):
         with self.client.websocket_connect("/v1/voice/ear") as socket:
             socket.send_json({"locale": "zh-HK"})
             self.assertEqual(socket.receive_json()["code"], "UNAUTHORIZED")
-        with self.client.websocket_connect("/v1/voice/ear") as socket:   # 英文：接受 en-US，讯息用英文
+        with self.client.websocket_connect("/v1/voice/ear") as socket:   # Accept en-US and return English messages.
             socket.send_json({"locale": "en-US"})
             self.assertEqual(socket.receive_json()["message"], "Please sign in first.")
         with self.client.websocket_connect("/v1/voice/ear") as socket:

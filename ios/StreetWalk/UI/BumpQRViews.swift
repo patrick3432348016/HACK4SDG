@@ -1,9 +1,9 @@
 import SwiftUI
 
-// MARK: - 二维码加街坊（碰一碰全屏画面入面）
+// MARK: - QR neighbor pairing inside the full-screen bump flow
 
-/// 唔支援超宽带、碰唔到、或者只有一部支援时用：一部出示，另一部掃。
-/// 状态喺 store.bumpQR；流程见 AppStore+Bump。
+/// Fallback for unsupported or unsuccessful UWB: one phone displays a code and the other scans.
+/// State lives in store.bumpQR; see AppStore+Bump for the flow.
 struct BumpQRContent: View {
     @Environment(AppStore.self) private var store
     var qr: BumpQRState
@@ -26,7 +26,7 @@ struct BumpQRContent: View {
         .animation(DS.motion(DS.spring), value: qr)
     }
 
-    // MARK: 揀
+    // MARK: Choice
 
     private var chooser: some View {
         VStack(spacing: 24) {
@@ -58,7 +58,7 @@ struct BumpQRContent: View {
         }
     }
 
-    /// 大格按钮：图标 + 字，两格并排。
+    /// Two side-by-side large icon-and-label buttons.
     private func choice(_ title: String, symbol: String, filled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 12) {
@@ -75,7 +75,7 @@ struct BumpQRContent: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: 出示
+    // MARK: Display
 
     private func showing(_ code: String) -> some View {
         VStack(spacing: 20) {
@@ -112,7 +112,7 @@ struct BumpQRContent: View {
         }
     }
 
-    // MARK: 掃
+    // MARK: Scan
 
     private var scanning: some View {
         VStack(spacing: 20) {
@@ -152,9 +152,9 @@ struct BumpQRContent: View {
         }
     }
 
-    // MARK: 共用
+    // MARK: Shared components
 
-    /// 一行状态：配对中 / 等对方 / 提示（大字）。
+    /// Large status line for pairing, waiting or guidance.
     @ViewBuilder
     private func status(waiting: String?) -> some View {
         if qr.paired {
@@ -188,7 +188,7 @@ struct BumpQRContent: View {
     }
 }
 
-/// 二维码图：放大唔会模糊（interpolation none），黑码白底。
+/// Black-on-white QR image with no interpolation to preserve sharp scaling.
 struct QRCodeImage: View {
     var text: String
 
