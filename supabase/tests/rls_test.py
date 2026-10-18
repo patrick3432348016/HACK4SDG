@@ -1,4 +1,4 @@
-"""两个匿名用户端到端测试 RLS 与函数。用法：python3 -I rls_test.py <url> <publishable_key>"""
+"""Live anonymous-account RLS/function checks: python3 -I rls_test.py <url> <publishable_key>; require authorized test data and cleanup."""
 import json, sys, uuid, urllib.request, urllib.error
 
 URL, KEY = sys.argv[1], sys.argv[2]
@@ -41,7 +41,7 @@ def check(name, ok, detail=""):
 
 ta, a = signup()
 tb, b = signup()
-tc, c = signup()  # 第三人：住得远
+tc, c = signup()  # Third user lives far away.
 for t, uid, nick, tx in [(ta, a, "測試甲", 0), (tb, b, "測試乙", 1), (tc, c, "測試丙", 50)]:
     s, r = call("POST", "/rest/v1/profiles", t, {"id": uid, "nickname": nick, "tile_x": tx, "tile_y": 0,
                                                   "block": "4座", "floor": 12, "streak": 3,

@@ -1,16 +1,16 @@
 import SwiftUI
 
-// F5 碰一碰：真机超宽带 + 二维码后备（2026-10-10）。
-// 画面：UI/FullScreen.swift 嘅 BumpView（碰一碰）、UI/BumpQRViews.swift（二维码）。
-// 入口 startBump() / cancelBump() 仍然喺 AppStore+Neighbors。
+// F5 device UWB pairing with QR fallback (2026-10-10).
+// UI: BumpView in UI/FullScreen.swift and QR screens in UI/BumpQRViews.swift.
+// startBump()/cancelBump() remain in AppStore+Neighbors.
 extension AppStore {
-    /// 而家用边个碰一碰：演示模式 = 模拟（碰到示範街坊）；关咗演示模式 = 真机超宽带。
+    /// Demo uses simulated neighbors; normal mode uses device UWB.
     var bump: BumpService { community.isSimulated ? simulatedBump : nearbyBump }
 
-    /// 碰一碰 / 二维码配对用嘅后端（NeighborLinking.swift）。
-    /// 【整合】社区服务实现咗 NeighborLinker（SupabaseCommunityService）就自动用佢，唔使改；
-    /// 后端如果係另一个对象，改呢度一行就得。
-    /// 未接后端：Debug 版用 LocalTestLinker（本机假扮对方），Release 版冇（画面讲「未連到伺服器」）。
+    /// Backend for bump/QR pairing, defined in NeighborLinking.swift.
+    /// Automatically use CommunityService when it implements NeighborLinker, as SupabaseCommunityService does.
+    /// If pairing uses a separate backend object, replace this selection point.
+    /// Without a backend, Debug uses LocalTestLinker; Release reports unavailable server instead of simulating success.
     var linker: NeighborLinker? {
         if let l = community as? NeighborLinker { return l }
         #if DEBUG
@@ -20,9 +20,9 @@ extension AppStore {
         #endif
     }
 
-    // MARK: - 碰一碰
+    // MARK: - Proximity pairing
 
-    /// 开始（或者「再試」）碰一碰。bumpStage 要已经係 .searching（全屏画面开住）。
+    /// Start/retry pairing after bumpStage is searching and the full-screen view is open.
     func beginBumpSearch() {
         stopBumpWork()
         bumpQR = nil
@@ -33,11 +33,11 @@ extension AppStore {
         }, onFound: { [weak self] m in
             self?.bumpMatched(m)
         })
-        // 唔支援嘅手机会即刻报失败：唔好先讲「貼近」再讲「唔支援」。
+        // Unsupported hardware fails immediately; do not first instruct the user to approach.
         if bumpProgress == .searching { say(L.t("將手機貼近對方手機。", "把手机贴近对方的手机。")) }
     }
 
-    /// 停晒碰一碰、二维码嘅工作（唔改画面）。
+    /// Stop all bump/QR work without changing the screen.
     func stopBumpWork() {
         simulatedBump.cancel()
         nearbyBump.cancel()
@@ -72,7 +72,7 @@ extension AppStore {
         }
     }
 
-    /// 配上咗（碰一碰或者二维码）：画面先显示「成功」一阵，再交俾 addLinkedNeighbor（插入街坊、语音、问出门提醒）。
+    /// Briefly show pairing success, then call addLinkedNeighbor for insertion, speech, and reminder consent.
     func finishLinked(_ p: LinkedPeer) {
         guard bumpStage == .searching else { return }
         bumpProgress = .paired
@@ -85,21 +85,21 @@ extension AppStore {
             guard let self, !Task.isCancelled, self.bumpStage == .searching else { return }
             self.bumpQR = nil
             self.addLinkedNeighbor(p)
-            // addLinkedNeighbor 应该自己离开碰一碰画面（例如 bumpStage = .found）；冇嘅话喺度收埋。
+            // addLinkedNeighbor should exit pairing, for example via bumpStage=.found; close it here if necessary.
             if self.bumpStage == .searching { self.bumpStage = .idle; self.syncScene() }
         }
     }
 
-    // MARK: - 二维码（唔支援超宽带、碰唔到、或者只有一部支援时用）
+    // MARK: - QR fallback when either phone lacks usable UWB
 
-    /// 「用二維碼」：停碰一碰，揀出示定掃。
+    /// Stop proximity pairing and choose display/scan.
     func bumpUseQR() {
         stopBumpWork()
         bumpQR = BumpQRState(mode: .choose)
         say(L.t("一部手機出示二維碼，另一部掃。", "一台手机出示二维码，另一台扫。"))
     }
 
-    /// 出示二维码：一路问伺服器，对方扫咗就配上。码快过期（后端 2 分钟）就自动换新码。
+    /// Display a QR while polling the backend; rotate the code before its two-minute expiry.
     func bumpShowQR() {
         stopBumpWork()
         let code = PairCode.random()
@@ -108,7 +108,7 @@ extension AppStore {
         bumpTask = Task { [weak self] in await self?.waitForScan(code) }
     }
 
-    /// 掃二维码：开镜头。模拟器冇镜头，Debug 版可以用启动参数 `-bumpScanCode jiefong:<32 位码>` 扮扫到。
+    /// Open the scanner. Debug simulators can use -bumpScanCode jiefong:<32-character code> without a camera.
     func bumpScanQR() {
         stopBumpWork()
         bumpQR = BumpQRState(mode: .scan)
@@ -124,7 +124,7 @@ extension AppStore {
         #endif
     }
 
-    /// 镜头扫到嘢（可能唔係我哋嘅二维码）。
+    /// Handle scanned content, which may not be a StreetWalk QR.
     func qrScanned(_ payload: String) {
         guard let q = bumpQR, q.mode == .scan, !q.linking, !q.paired else { return }
         guard let code = PairCode.parseQR(payload) else {
@@ -133,7 +133,7 @@ extension AppStore {
             bumpQR?.note = s
             return
         }
-        guard code != q.rejected else { return }   // 啱啱配唔到嘅码：唔好不停重试
+        guard code != q.rejected else { return }   // Do not repeatedly retry the code that just failed.
         bumpQR?.linking = true
         bumpQR?.note = nil
         Haptics.select()
@@ -157,7 +157,7 @@ extension AppStore {
                 bumpQR?.note = L.t("網絡有問題，再試緊…", "网络有问题，正在重试…")
             }
             guard !Task.isCancelled, bumpQR?.mode == .show(code) else { return }
-            code = PairCode.random()   // 过咗期：换个新码再等
+            code = PairCode.random()   // Expired: generate a new code and wait again.
             bumpQR?.mode = .show(code)
         }
     }
@@ -178,7 +178,7 @@ extension AppStore {
         }
     }
 
-    /// 演示模式：二维码都係模拟，过一阵「碰到」第一个未係街坊嘅示範街坊。
+    /// Demo QR pairing is also simulated and eventually selects the first non-neighbor demo resident.
     private func demoQRMatch(after seconds: Double) async {
         try? await Task.sleep(for: .seconds(seconds))
         guard !Task.isCancelled, bumpStage == .searching else { return }

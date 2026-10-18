@@ -1,20 +1,20 @@
 import SwiftUI
 import UIKit
 
-// F8「查找」式找人（真街坊，2026-10-11）：
-// 找人期间（对方答「好」、我答「好」、或者约会出发）两部手机只经私有频道 pair:<a>:<b> 临时互传即时 GPS（前台每 3 秒），
-// 唔落任何表；结束（見到、停止、取消、超时、对方停咗）即刻停。
-// 远：GPS 方位 − 指南针 = 大箭咀，加距离、大约几分钟、场景入面对方大概位置；50 m 内震。
-// 近（≤ 10 m）：交换超宽带令牌，NISession 精确距离同方向（对正咗转绿 + 震）；≤ 3 m 或撳「見到喇」两边一齐结束。
-// 演示模式 / 示範街坊照用模拟路线（AppStore+Find），演示脚本唔受影响。
+// F8 live finding with real neighbors (2026-10-11).
+// After mutual consent or meeting departure, exchange temporary GPS over private pair:<a>:<b> channels every 3 seconds in foreground.
+// Do not persist coordinates to tables; stop on meeting, stop, cancellation, timeout, or peer termination.
+// Far away: GPS bearing minus compass heading drives the arrow, distance, minutes and approximate scene position; vibrate within 50 m.
+// Nearby: exchange UWB tokens for NISession distance and direction; alignment turns green and vibrates. Finish together within 3 m or on manual confirmation. See current thresholds below.
+// Demo mode / demo neighbors retain simulated routes in AppStore+Find and scripted demos.
 extension AppStore {
-    /// 呢次找人用唔用即时位置：真后端、真街坊（唔係示範）。
+    /// Use live location only with a real backend and a real, non-demo neighbor.
     func canShareLive(with partnerID: String) -> Bool {
         guard !demoMode, supabase != nil, let p = resident(partnerID), p.isNeighbor, !p.isDemo else { return false }
         return true
     }
 
-    /// 开始同对方分享位置（f 係即将放入 store 嘅找人状态）。
+    /// Start sharing with the peer; f is the finding state about to enter the store.
     func startLiveFind(_ f: inout FindSession) {
         guard canShareLive(with: f.partnerID), let s = supabase else { return }
         liveFind?.stop(notify: false)
@@ -28,18 +28,18 @@ extension AppStore {
         f.liveMode = .waiting
         lf.start()
         if isInBackground { lf.setForeground(false) }
-        // 即时位置唔使模拟路线：箭咀带路
+        // Live finding uses directional guidance, not a simulated route.
         scene.setRoute(nil)
     }
 
-    /// 停止分享（notify：话俾对方知，佢嗰边都会结束）。
+    /// Stop sharing; notify also ends the peer's session.
     func stopLiveFind(notify: Bool, met: Bool = false) {
         liveFind?.stop(notify: notify, met: met)
         liveFind = nil
         liveSceneStamp = nil
     }
 
-    /// 被搵嗰边：答咗「好」→ 一齐分享位置，打开找人画面睇住对方行过嚟。
+    /// The recipient accepts, starts mutual sharing, and opens finding to follow the approaching peer.
     func beginIncomingLiveFind(_ ask: IncomingFindAsk) {
         if find != nil { endFind() }
         banner = nil
@@ -60,13 +60,13 @@ extension AppStore {
         startTicker()
     }
 
-    /// 计时器每 0.25 秒：按即时位置更新距离、箭咀、远 / 近；够近自动「見到喇」。
+    /// Every 0.25 seconds update distance, arrow and near/far state; finish automatically when close enough.
     func tickLiveFind(_ f: inout FindSession) {
         guard let lf = liveFind, f.stage != .met else { return }
         let name = resident(f.partnerID)?.name ?? L.t("街坊", "邻居")
         let now = Date()
         let token = f.token
-        // 超时：最多分享一个钟；对方位置停咗 5 分钟（我喺前台嘅时间计）都当佢走咗
+        // Stop after one hour, or after 5 minutes without peer updates measured in foreground time.
         if now.timeIntervalSince(lf.started) > 3600 {
             endLiveLater(token, L.t("同\(name)分享位置已經一個鐘，自動停咗。", "和\(name)共享位置已经一小时，自动停止了。"))
             return
@@ -79,7 +79,7 @@ extension AppStore {
         let ni = lf.freshNIDistance
         let fresh = lf.partnerFix.map { now.timeIntervalSince($0.at) < LiveFindMath.staleAfter } ?? false
         f.partnerStale = lf.partnerFix != nil && !fresh
-        // 约会：收到对方位置 = 佢出咗门
+        // Receiving a meeting peer's location indicates departure.
         if lf.partnerFix != nil, !f.partnerOut { f.partnerOut = true }
         f.liveMode = LiveFindMath.mode(gps: gps, ni: ni)
         refreshLiveScene(lf)
@@ -99,7 +99,7 @@ extension AppStore {
         if facing && !f.facing && f.liveMode == .near { Haptics.success() }
         f.facing = facing
         f.sweep = lf.needsSweep && ni != nil && lf.freshNIAzimuth == nil
-        // 50 m 内震一下、讲一句（同模拟找人一样）
+        // Vibrate and speak once within 50 m, as in simulated finding.
         if d <= 50 && f.stage == .going && fresh {
             f.stage = .near
             Haptics.success()
@@ -112,14 +112,14 @@ extension AppStore {
         checkLate(&f)
     }
 
-    /// 撳「見到喇」。
+    /// Handle manual meeting confirmation.
     func liveMetTapped() {
         guard var f = find, f.live, f.stage != .met else { return }
         liveMet(&f, notify: true)
         find = f
     }
 
-    /// 見到：两边一齐结束（notify = 话俾对方知），3 秒后收埋画面。
+    /// Finish both sides when notify is true; hide the screen after 3 seconds.
     func liveMet(_ f: inout FindSession, notify: Bool) {
         f.stage = .met
         f.etaMinutes = 0
@@ -135,7 +135,7 @@ extension AppStore {
         }
     }
 
-    /// 对方停咗分享 / 見到咗。
+    /// The peer stopped sharing or confirmed meeting.
     func livePartnerEvent(_ e: LiveFindSession.PartnerEvent, token: UUID) {
         guard var f = find, f.token == token, f.stage != .met else { return }
         switch e {
@@ -152,7 +152,7 @@ extension AppStore {
         }
     }
 
-    /// 计时器入面唔可以即刻 endFind（tick 之后会写返 find）：下一轮先结束。
+    /// Defer endFind until the next turn; tick would otherwise overwrite find afterward.
     private func endLiveLater(_ token: UUID, _ message: String) {
         Task { @MainActor in
             guard self.find?.token == token else { return }
@@ -162,7 +162,7 @@ extension AppStore {
         }
     }
 
-    /// 即时位置 → 场景坐标（贴返最近嘅路；画风优先，只係大概位置）。
+    /// Convert live coordinates to scene positions, snapping to roads for approximate visual placement.
     func liveScenePoint(_ fix: LiveFindSession.Fix?) -> Vec2? {
         guard let fix, let m = map else { return nil }
         let v = m.scenePoint(fix.geo)
@@ -170,20 +170,20 @@ extension AppStore {
         return scene.nearestWalkable(Vec2(x: min(h, max(-h, v.x)), y: min(h, max(-h, v.y))))
     }
 
-    /// 有新定位先重画场景入面两个人；第一次见到对方就拉远镜头睇晒两个人。
+    /// Redraw only on new fixes; zoom out when the peer first appears to show both people.
     private func refreshLiveScene(_ lf: LiveFindSession) {
         let stamp = max(lf.myFix?.at ?? .distantPast, lf.partnerFix?.at ?? .distantPast)
         guard stamp != liveSceneStamp, stamp != .distantPast else { return }
         liveSceneStamp = stamp
         syncScene()
-        // 两个人都喺底座（约 300 m）入面：用总览镜头，两个都睇到
+        // Use overview when both people fit inside the roughly 300 m base.
         if !liveCameraDone, liveScenePoint(lf.myFix) != nil, liveScenePoint(lf.partnerFix) != nil {
             liveCameraDone = true
             scene.resetCamera()
         }
     }
 
-    /// 场景入面找人嘅两个人（即时位置）。对方未有位置就唔画佢。
+    /// Scene figures for live finding; omit the peer until its location arrives.
     func livePeople(_ f: FindSession, partner p: Resident) -> [ScenePerson] {
         var out = [ScenePerson(id: "me", color: me.uiColor, mobility: me.mobility,
                                motion: .stand(at: liveScenePoint(liveFind?.myFix) ?? myPosition()), label: L.t("你", "你"))]

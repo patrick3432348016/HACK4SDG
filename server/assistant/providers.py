@@ -82,7 +82,7 @@ class Providers:
         }, json={"model": self.settings.qwen_model, "messages": [
             {"role": "system", "content": system}, {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
         ], "response_format": {"type": "json_object"}, "temperature": 0, "max_tokens": 800,
-            # 成员 A 加：豆包方舟模型关思考（同 B 嘅 doubao.py），唔系就慢好多
+            # Disable Ark thinking as in B's doubao.py to reduce latency.
             **({"thinking": {"type": "disabled"}} if "volces.com" in self.settings.qwen_base_url else {})})
         try:
             result = response.json()
@@ -98,7 +98,7 @@ class Providers:
 
     async def interpret(self, text, previous, now, locale):
         if not self.settings.model_ready:
-            # 成员 A 改：supabase 模式（真业务数据）未有 Qwen key 时都用有限规则；production 照旧拒绝。
+            # Supabase mode permits limited rules without a Qwen key; production mode still rejects missing configuration.
             if self.settings.mode == "production":
                 raise AssistantError("MODEL_NOT_CONFIGURED", "AI 服务尚未配置。", 503)
             return demo_interpret(text, previous, now)
@@ -136,7 +136,7 @@ class Providers:
 
 
 def _cn_number(s: str):
-    """一至九十九嘅中文数字 → int（「十五」→15、「二十」→20）；唔识就 None。"""
+    """Parse Chinese integers one through ninety-nine, returning None for unsupported forms."""
     digits = {"一": 1, "二": 2, "两": 2, "兩": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
     if s in digits:
         return digits[s]
@@ -153,7 +153,7 @@ def demo_interpret(text: str, previous: Command | None, now: datetime) -> Comman
     text = text.strip()
     normalized = text.translate(str.maketrans({"約": "约", "陳": "陈", "時": "时", "點": "点", "陰": "阴", "請": "请", "報": "报", "稱": "称",
                                                "鐘": "钟", "鍾": "钟"}))
-    # 成员 A 加：粤语识别常出中文数字（「最多十五分鐘」），换成阿拉伯数字先比下面嘅规则用。
+    # Normalize Chinese numeral ASR output to digits before applying the following rules.
     normalized = re.sub(r"([一二两兩三四五六七八九十]{1,3})(?=\s*分钟)", lambda m: str(_cn_number(m[1]) or m[1]), normalized)
     if normalized in {"取消", "算了", "唔要", "取消请求"}:
         return Command(intent="cancel")
@@ -169,7 +169,7 @@ def demo_interpret(text: str, previous: Command | None, now: datetime) -> Comman
         match = re.search(r"(?:给|給)(.+?)(?:起名|命名)", normalized)
         return Command(intent="landmark", landmark_query=match[1] if match else None)
     if any(word in normalized for word in ["改名", "改昵称", "改暱称"]):
-        match = re.search(r"(?:改名|改昵称|改暱称)(?:为|為|叫|成|做)?\s*(.+)", normalized)  # 成员 A 加「做」（粤语「改名做」）
+        match = re.search(r"(?:改名|改昵称|改暱称)(?:为|為|叫|成|做)?\s*(.+)", normalized)  # Add the Cantonese rename connector.
         return Command(intent="rename", new_name=match[1] if match and len(match[1]) <= 40 else None)
     if "请假" in normalized:
         cmd = Command(intent="leave")

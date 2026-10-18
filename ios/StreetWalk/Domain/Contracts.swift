@@ -1,22 +1,22 @@
 import Foundation
 
-// 产品定稿 §8 的接口。成员 A（产品主体）和成员 B（AI、语音、碰一碰）只通过这里交接；改动要两人都同意。
+// Product specification §8 contracts between member A (app) and B (AI, speech, pairing). Both must agree to changes.
 
-/// 语音听懂后的意图。
+/// Intent understood from speech.
 enum VoiceIntent: Equatable {
-    case invite(partnerID: String, day: Int, hour: Int?)    // 约人：day 0=今日 1=聽日 2=後日
-    case goFind(partnerID: String)                           // 散步中过去找人
-    case leave                                               // 请假
-    case rename(landmarkID: String, newName: String)         // 改地标名
-    case report(ReportKind)                                  // 反映问题
-    case broadcast(String)                                   // 找人时播"我喺涼亭"
-    // 2026-10-07 新增（A 提出，待 B 确认）：改约、取消约。partnerID 为空 = 最近的约会。
-    case changeMeetup(partnerID: String?, day: Int?, hour: Int?, landmarkID: String?)   // "改做下晝 4 點""改去涼亭"
-    case cancelMeetup(partnerID: String?)                                                 // "取消同陳太嘅約"
+    case invite(partnerID: String, day: Int, hour: Int?)    // Invite: day 0 = today, 1 = tomorrow, 2 = day after tomorrow.
+    case goFind(partnerID: String)                           // Find a neighbor during a walk.
+    case leave                                               // Request leave.
+    case rename(landmarkID: String, newName: String)         // Rename a landmark.
+    case report(ReportKind)                                  // Report a local issue.
+    case broadcast(String)                                   // Relay a location phrase during finding, such as being at the pavilion.
+    // Added 2026-10-07 by A, pending B's agreement: reschedule/cancel. Empty partnerID selects the nearest meetup.
+    case changeMeetup(partnerID: String?, day: Int?, hour: Int?, landmarkID: String?)   // Examples: change to 4 pm or move the meeting to the pavilion.
+    case cancelMeetup(partnerID: String?)                                                 // Example: cancel the meetup with Mrs Chan.
     case unknown
 }
 
-/// AI 用到的上下文（只给模板/模型看得到的最少信息）。
+/// Minimal context available to the template/model.
 struct AIContext {
     var residents: [Resident]
     var landmarks: [Landmark]
@@ -25,7 +25,7 @@ struct AIContext {
     var finding: Bool
 }
 
-/// 成员 B 提供：所有 AI 能力。现在只有模板实现（TemplateAI），之后接真模型时实现同一协议即可。
+/// AIService contract supplied by B. TemplateAI provides the local template implementation; model integration can implement the same protocol.
 protocol AIService {
     func parseVoice(_ transcript: String, context: AIContext) -> VoiceIntent
     func dailyLine(for resident: Resident, passed: [Landmark]) -> String
@@ -33,31 +33,31 @@ protocol AIService {
     func alternativeNames(for l: Landmark) -> [String]
     func pickMeetupSpot(me: Resident, partner: Resident, date: Date, landmarks: [Landmark], shade: ShadeProviding) -> MeetProposal?
     func walkAdvice(weather: Weather, now: Date, shadeTip: (landmark: Landmark, shadedFrom: Int?)?) -> String?
-    /// reports 已包括全邨其他居民的匿名反映；stats 是 A 侧（后端）算好的匿名汇总。2026-10-07 加 stats（待 B 确认）。
+    /// reports includes anonymous reports from other estate residents; stats contains A/backend-computed aggregates. stats added 2026-10-07, pending B's confirmation.
     func monthlyReport(placeName: String, reports: [Report], landmarks: [Landmark], stats: MonthlyStats) -> MonthlyReport
 }
 
-/// 成员 A 提供：某地标某时段的遮荫比例（0–1）。
+/// A supplies a landmark's shade fraction (0–1) for a requested time.
 protocol ShadeProviding {
     func shade(landmarkID: String, at date: Date) -> Double
 }
 
-/// 成员 B 提供：碰一碰配对。演示模式用模拟实现（SimulatedBumpService），真机用超宽带（NearbyBumpService，移植自组员 B 嘅 UWBMeetDemo）。
-/// 2026-10-10 改（真机碰一碰）：加 onUpdate 报进度（界面显示距离、失败原因）；onFound 由 Resident 改成 BumpMatch
-/// （演示 = 示範居民，真机 = 后端返回嘅 LinkedPeer）。新类型喺 Domain/BumpEvents.swift。
+/// B supplies pairing: SimulatedBumpService in demo mode and NearbyBumpService/UWB on devices, adapted from B's UWBMeetDemo.
+/// 2026-10-10 device integration adds onUpdate for distance/failures and changes onFound from Resident to BumpMatch.
+/// Demo returns a simulated resident; device mode returns backend LinkedPeer. Types are in Domain/BumpEvents.swift.
 @MainActor
 protocol BumpService: AnyObject {
     func startSearching(candidates: [Resident], onUpdate: @escaping (BumpUpdate) -> Void, onFound: @escaping (BumpMatch) -> Void)
     func cancel()
 }
 
-/// 成员 A 提供：碰一碰成功后建立街坊关系。（主线程调用）
+/// A establishes the neighbor relationship after pairing; call on the main thread.
 @MainActor
 protocol NeighborRegistry: AnyObject {
     func createNeighbor(_ residentID: String, remind: Bool)
 }
 
-/// 成员 B 提供：语音播报。
+/// B supplies speech synthesis.
 protocol Speaking {
     func speak(_ text: String)
 }

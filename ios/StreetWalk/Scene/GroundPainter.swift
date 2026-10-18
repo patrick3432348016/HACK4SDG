@@ -1,6 +1,6 @@
 import UIKit
 
-/// 把地面（铺地、绿地、球场、水、道路）画成一张贴图，铺在底座顶面。北在图片上方。
+/// Render paving, greenery, sports areas, water, and roads into one base-top texture, north-up.
 enum GroundPainter {
     static func image(for map: MapModel, pixels: Int = 2048) -> UIImage {
         let size = CGSize(width: pixels, height: pixels)
@@ -11,7 +11,7 @@ enum GroundPainter {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = true
-        // 深浅色按调用时的 trait 解析。
+        // Resolve adaptive colors using the current traits at call time.
         let tc = UITraitCollection.current
         func c(_ color: UIColor) -> UIColor { color.resolvedColor(with: tc) }
         return UIGraphicsImageRenderer(size: size, format: format).image { ctx in
@@ -31,7 +31,7 @@ enum GroundPainter {
                 path.stroke()
             }
 
-            // 道路：先画边，再画路面；大路在下，行人路在上。
+            // Roads: draw borders before surfaces, major roads below footpaths.
             let order: [RoadKind] = [.major, .minor, .residential, .service, .cycleway, .steps, .footway]
             cg.setLineCap(.round)
             cg.setLineJoin(.round)

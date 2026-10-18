@@ -2,6 +2,6 @@ fastapi==0.136.3
 pydantic==2.13.4
 httpx==0.28.1
 uvicorn==0.49.0
-# 2026-10-12 B 新版（豆包流式识别）；3.10 环境要 async-timeout（assistant/compat.py）
+# B-side update, 2026-10-12: Doubao streaming recognition; Python 3.10 requires async-timeout (assistant/compat.py).
 websockets==16.0
 async-timeout==5.0.1; python_version < "3.11"

@@ -1,12 +1,12 @@
-"""成员 A 加（2026-10-12）：App 嘅「耳仔」—— B 嘅豆包流式识别，经 Mac 服务器转发（密钥唔使去手机）。
+"""A, 2026-10-12: forward B's Doubao streaming recognition through the Mac server, keeping credentials off the phone.
 
-WebSocket /v1/voice/ear，协议沿用 B（upstream_b/docs/DOUBAO-WINDOWS.md「音频与对话协议」）嘅收音部分：
-- 手机第一条：{"token": Supabase access token（局域网直连可以冇）, "locale": "zh-HK"|"zh-CN"}
-- 之后：16 kHz 单声道 PCM16 小端二进制，每段 200 ms（6400 字节）；{"type":"stop"} 结束。
-- 服务器：ready → transcript {text, final}（final = 豆包判定一句讲完）→ error。
-同 B 唯一唔同：一句讲完唔会由服务器自己答，而系交返手机——手机先睇系咪 App 自己做嘅指令（找人、改约、反映…），
-唔系先交 /v1/assistant/turn（B 嗰套理解、天气、确认卡）。播报由手机经 /v1/speech/synthesize（同一把小何声）。
-连接、确认、错误讯息、每段大小同速度检查、十分钟上限全部用 B 嘅 VoiceSession。
+/v1/voice/ear follows B's audio protocol in upstream_b/docs/DOUBAO-WINDOWS.md.
+- First phone message supplies an optional LAN Supabase access token and a zh-HK or zh-CN locale.
+Then send 16 kHz mono PCM16 little-endian binary in 200 ms / 6400-byte chunks; a stop message ends capture.
+Server emits ready, transcript text/final, then errors where applicable; final marks an ended utterance.
+Unlike B's web conversation, completed text returns to the phone first for local commands such as finding, edits and reports.
+Other requests use /v1/assistant/turn for understanding/weather/confirmation; output uses /v1/speech/synthesize with Xiaohe.
+Reuse VoiceSession connection, authentication, errors, chunk-size/rate checks and ten-minute limit.
 """
 import asyncio
 from contextlib import suppress
@@ -24,8 +24,8 @@ MAX_EARS = 4
 
 
 def settle(final: str, partial: str) -> str:
-    """豆包「二遍识别」（enable_nonstream）对好短嘅句子会乱认（2026-10-12 实测：「咁聽日呢」→「帮我导航到大沥公园」），
-    但边讲边出嘅字系啱嘅。二遍结果同最后一次边讲边出嘅字差唔多冇一个字一样，就信边讲边出嘅字；长句照用二遍（通常更准）。"""
+    """Observed on 2026-10-12: enable_nonstream second-pass recognition could replace correct short streaming text with unrelated content.
+    For short, almost entirely divergent final results, prefer the last streaming text; retain second pass for longer utterances."""
     p = "".join(c for c in partial if c.isalnum())
     f = "".join(c for c in final if c.isalnum())
     if len(p) < 2 or not f:
@@ -35,7 +35,7 @@ def settle(final: str, partial: str) -> str:
 
 
 class EarSession(VoiceSession):
-    """B 嘅 VoiceSession，只收音：一句讲完照送 transcript，但唔自己答（交返手机）。"""
+    """Capture-only VoiceSession sends transcripts but leaves responses to the phone."""
 
     async def read_asr(self, upstream):
         last = ""
@@ -54,7 +54,7 @@ def add_ear_route(app, settings, lan_caller):
     async def ear(socket: WebSocket):
         await socket.accept()
         counted = False
-        cmn = False  # 手机揀咗普通话（hello.locale == "zh-CN"）：之后嘅讯息用普通话（手机直接显示）
+        cmn = False  # Use Mandarin for subsequent phone-visible messages when hello.locale is zh-CN.
         try:
             if settings.doubao is None:
                 raise AssistantError("EAR_NOT_CONFIGURED", "語音伺服器未設定豆包識別。", 503)
@@ -64,7 +64,7 @@ def add_ear_route(app, settings, lan_caller):
             cmn = hello.get("locale") == "zh-CN"
             token = hello.get("token")
             if isinstance(token, str) and token and len(token) <= 4096:
-                await app.state.business.identity(token)       # Supabase 核实，唔收自报身份
+                await app.state.business.identity(token)       # Verify through Supabase; reject self-declared identity.
             elif not (settings.speech_lan_open and lan_caller(socket)):
                 raise AssistantError("UNAUTHORIZED", "請先登入。", 401)
             if getattr(app.state, "ear_connections", 0) >= MAX_EARS:

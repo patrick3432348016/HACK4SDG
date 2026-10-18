@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import StreetWalk
 
-// Mac 语音服务器：揀边把声（真人 / 缓存 / 系统）、流式 WAV 解析、搵服务器、组员 B 助手回覆 → 粤语复述卡、待查操作（B 嘅规则）。
+// Voice-server tests: route selection, WAV streaming, discovery, reply-to-card mapping and unresolved operations.
 
 struct TTSRouteTests {
     let server = URL(string: "http://192.168.1.20:8765")!
@@ -47,7 +47,7 @@ struct StreamingWAVTests {
         var bytes = header()
         pcm.forEach { var v = $0.littleEndian; bytes.append(Data(bytes: &v, count: 2)) }
         var out: [Int16] = []
-        // 每次喂 3 个字节（头会断开、样本会断开一半）
+        // Feed three bytes at a time, splitting both headers and samples.
         var i = 0
         while i < bytes.count {
             out += p.feed(bytes.subdata(in: i..<min(i + 3, bytes.count)))
@@ -111,7 +111,7 @@ struct VoiceServerTests {
     }
 }
 
-/// B 服务器嘅回覆（JSON 照抄服务器格式）。
+/// B reply JSON follows the server's actual response shape.
 func assistantReply(_ json: String) throws -> AssistantReply {
     try AssistantCoding.decoder().decode(AssistantReply.self, from: Data(json.utf8))
 }
@@ -235,12 +235,12 @@ struct AssistantSessionTests {
 
     @Test func 撳好断线之后只准查结果() async throws {
         let (s, d) = session()
-        StubProtocol.handler = { _ in nil }   // 断线
+        StubProtocol.handler = { _ in nil }   // Disconnection.
         await #expect(throws: (any Error).self) { try await s.confirm(draftID: draft) }
         #expect(s.unresolvedDraftID == draft, "送出前已经记低")
         #expect(d.string(forKey: "MobilityAssistant.pending.supabase:me:http://127.0.0.1:8765") == draft)
         await #expect(throws: AssistantAPIError.self) { try await s.turn("約阿芳") }
-        // 查结果：服务器话做好咗 → 清走待查
+        // Reconciliation reporting success clears the unresolved operation.
         var paths: [String] = []
         StubProtocol.handler = { req in paths.append(req.url!.path); return (200, body("completed")) }
         let r = try await s.reconcile()

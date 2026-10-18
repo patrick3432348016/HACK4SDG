@@ -14,12 +14,12 @@ final class LocalServer: ObservableObject {
     func start() {
         guard process == nil else { return }
         guard let path = Bundle.main.object(forInfoDictionaryKey: "AssistantProjectRoot") as? String else {
-            problem = "工程路径缺失，请在 Xcode 重新构建。"; return
+            problem = "Project path missing. Rebuild in Xcode."; return
         }
         let root = URL(fileURLWithPath: path).standardizedFileURL
         let python = root.appendingPathComponent(".venv/bin/python")
         guard FileManager.default.isExecutableFile(atPath: python.path) else {
-            problem = "请先运行解压目录内的 macOS/Setup.command 安装 Python 依赖，然后重新打开 App。"; return
+            problem = "Run macOS/Setup.command in the extracted directory to install Python dependencies, then reopen the app."; return
         }
         let child = Process(), reader = Pipe(), parent = Pipe()
         child.executableURL = python
@@ -42,23 +42,23 @@ final class LocalServer: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self, self.process != nil else { return }
                 self.url = nil
-                self.problem = "本机服务已退出。请检查 Private/voice-config.json 或重新运行 Setup.command。"
+                self.problem = "The local service exited. Check Private/voice-config.json or rerun Setup.command."
                 self.process = nil
             }
         }
         do { try child.run() }
-        catch { stop(); problem = "无法启动 Python，请重新运行 macOS/Setup.command。" }
+        catch { stop(); problem = "Could not start Python. Rerun macOS/Setup.command." }
     }
 
     private func consume(_ data: Data) {
         buffer.append(data)
-        guard buffer.count < 65536 else { stop(); problem = "本机服务启动输出异常。"; return }
+        guard buffer.count < 65536 else { stop(); problem = "Invalid local-service startup output."; return }
         while let newline = buffer.firstIndex(of: 10) {
             let line = Data(buffer[..<newline])
             buffer.removeSubrange(...newline)
             guard let info = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { continue }
             if info["error"] != nil {
-                problem = "配置文件缺失或格式错误，请检查 Private/voice-config.json。"
+                problem = "Configuration missing or invalid. Check Private/voice-config.json."
             }
             if info["ready"] as? Bool == true, let value = info["url"] as? String,
                let target = URL(string: value), target.scheme == "http", target.host == "127.0.0.1", target.port != nil {
@@ -132,7 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct VoiceAssistantMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     var body: some Scene {
-        WindowGroup("街坊同行 · 粤语助手") { MainView(server: delegate.server) }
+        WindowGroup("StreetWalk · Cantonese Assistant") { MainView(server: delegate.server) }
             .defaultSize(width: 1180, height: 860)
     }
 }
@@ -143,8 +143,8 @@ struct MainView: View {
         Group {
             if let url = server.url { AssistantBrowser(url: url) }
             else if let problem = server.problem {
-                VStack(spacing: 16) { Text("服务尚未启动").font(.title2); Text(problem).multilineTextAlignment(.center) }.padding(40)
-            } else { ProgressView("正在启动本机粤语助手…").padding(40) }
+                VStack(spacing: 16) { Text("Service not started").font(.title2); Text(problem).multilineTextAlignment(.center) }.padding(40)
+            } else { ProgressView("Starting the local Cantonese assistant...").padding(40) }
         }
         .frame(minWidth: 820, minHeight: 650)
         .task { server.start() }

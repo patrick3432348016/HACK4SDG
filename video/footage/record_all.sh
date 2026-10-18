@@ -1,22 +1,22 @@
 #!/bin/zsh
-# 录宣传片素材：iPhone Air 模拟器，无字幕、全分辨率。每段记录录屏开始时刻和 App 日志（带时间戳），方便按脚本秒数切片。
-# 用法：video/footage/record_all.sh [段名...]   默认全部
+# Record promotional footage on the iPhone Air simulator at full resolution without captions. Save recording start times and timestamped app logs for script-aligned cuts.
+# Usage: video/footage/record_all.sh [segment ...]; defaults to all segments.
 set -e
 cd "$(dirname "$0")/../../ios"
 OUT=../video/footage/raw
 SIM_NAME="iPhone Air"
 APPID=hk.hack4sdg.streetwalk
 UDID=$(SIM="$SIM_NAME" ./tools/run.sh -demo -skipOnboarding -hour 10 | grep UDID= | sed 's/UDID=//')
-[ -n "$UDID" ] || { echo "编译或启动失败"; exit 1; }
+[ -n "$UDID" ] || { echo "Build or launch failed"; exit 1; }
 xcrun simctl terminate "$UDID" $APPID || true
 xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4
 xcrun simctl ui "$UDID" appearance light
 
-rec() {   # rec 名 秒数 参数...
+rec() {   # rec name seconds arguments...
   local name=$1 secs=$2; shift 2
   echo "== $name ($secs s): $*"
   xcrun simctl terminate "$UDID" $APPID >/dev/null 2>&1 || true
-  # 模拟器有时会自己关机（10-11 录 main 时遇到）：每段前确保开着，并重设状态栏
+  # The simulator sometimes shut down during October 11 recording; ensure it is booted and reset the status bar before each segment.
   xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || true
   xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4
   xcrun simctl location "$UDID" set 22.5044,114.1563 >/dev/null 2>&1 || true

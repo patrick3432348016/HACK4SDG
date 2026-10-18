@@ -1,13 +1,13 @@
 import SceneKit
 import UIKit
 
-/// 地图米坐标 → 场景坐标：X 向东，Y 向上，Z 向南（-北）。
+/// Map metres → scene coordinates: X east, Y up, Z south (negative north).
 @inline(__always) func scenePoint(_ v: Vec2, height: Double = 0) -> SCNVector3 {
     let s = Double(SceneStyle.scale)
     return SCNVector3(Float(v.x * s), Float(height * s), Float(-v.y * s))
 }
 
-/// 楼宇、路线带等自建几何。
+/// Custom building and route-strip geometry.
 enum MeshBuilder {
     private struct Buffer {
         var positions: [SCNVector3] = []
@@ -20,7 +20,7 @@ enum MeshBuilder {
             return UInt32(positions.count - 1)
         }
 
-        /// 按期望法线自动决定三角形绕序，保证正面朝外。
+        /// Choose triangle winding from the desired normal so front faces point outward.
         mutating func tri(_ a: UInt32, _ b: UInt32, _ c: UInt32, facing n: SCNVector3) {
             let pa = positions[Int(a)], pb = positions[Int(b)], pc = positions[Int(c)]
             let u = SCNVector3(pb.x - pa.x, pb.y - pa.y, pb.z - pa.z)
@@ -32,7 +32,7 @@ enum MeshBuilder {
         func element() -> SCNGeometryElement { SCNGeometryElement(indices: indices, primitiveType: .triangles) }
     }
 
-    /// 一座楼：墙（窗格贴图，UV 以开间/层计）+ 平屋顶。返回的几何有两个元素：墙、屋顶。
+    /// Building geometry has two elements: window-textured walls with floor/bay UVs, and a flat roof.
     static func building(_ b: Building) -> SCNGeometry {
         var walls = Buffer()
         var roof = Buffer()
@@ -43,7 +43,7 @@ enum MeshBuilder {
             let e = p1 - p0
             let len = e.length
             guard len > 0.05 else { continue }
-            // 逆时针外环：外法线在边的右侧。
+            // For a counterclockwise outer ring, outward normals lie to the right of each edge.
             let out = Vec2(x: e.y, y: -e.x).normalized
             let n = SCNVector3(Float(out.x), 0, Float(-out.y))
             let u0 = run / 3.6, u1 = (run + len) / 3.6
@@ -66,7 +66,7 @@ enum MeshBuilder {
             roof.tri(UInt32(base + tris[i]), UInt32(base + tris[i + 1]), UInt32(base + tris[i + 2]), facing: up)
             i += 3
         }
-        // 遮蓬底面也要看得见。
+        // Canopy undersides must also remain visible.
         if b.kind == .canopy {
             let down = SCNVector3(0, -1, 0)
             let base2 = roof.positions.count
@@ -78,7 +78,7 @@ enum MeshBuilder {
             }
         }
 
-        // 两个元素共用一套顶点源：把屋顶顶点接在墙后面。
+        // Both elements share vertex sources; append roof vertices after wall vertices.
         let offset = UInt32(walls.positions.count)
         let positions = walls.positions + roof.positions
         let normals = walls.normals + roof.normals
@@ -90,7 +90,7 @@ enum MeshBuilder {
                            elements: [walls.element(), SCNGeometryElement(indices: roofIdx, primitiveType: .triangles)])
     }
 
-    /// 楼宇轮廓线：屋顶一圈 + 外角竖线，像插画里的描边。
+    /// Illustration-style building outlines: roof perimeter and vertical outer corners.
     static func outline(_ b: Building, color: UIColor = SceneStyle.outline) -> SCNGeometry? {
         let ring = b.outline
         guard ring.count >= 3 else { return nil }
@@ -102,7 +102,7 @@ enum MeshBuilder {
             let base = UInt32(pts.count)
             pts += [scenePoint(a, height: top), scenePoint(c, height: top)]
             idx += [base, base + 1]
-            // 只画凸角的竖线（凹角会被墙挡住，画了反而乱）。
+            // Draw vertical lines only at convex corners; hidden concave lines add clutter.
             let prev = ring[(i + ring.count - 1) % ring.count]
             if (a - prev).cross(c - a) > 0 {
                 let v = UInt32(pts.count)
@@ -115,7 +115,7 @@ enum MeshBuilder {
         return geo
     }
 
-    /// 贴地的带子（走过的路、约会路线）。dash > 0 时画成虚线。
+    /// Ground-level strip for walked/meetup routes; dash>0 creates a dashed line.
     static func ribbon(_ points: [Vec2], width: Double, height: Double, dash: Double = 0) -> SCNGeometry? {
         guard points.count >= 2 else { return nil }
         var buf = Buffer()
@@ -154,7 +154,7 @@ enum MeshBuilder {
                            elements: [buf.element()])
     }
 
-    /// 所有树合并成一个几何（低多边形树冠 + 方树干，顶点色），一次绘制。
+    /// Merge all low-poly crowns and rectangular trunks into one vertex-colored geometry for one draw call.
     static func trees(_ spots: [(Vec2, Double)], greens: [UIColor], trunk: UIColor) -> SCNGeometry? {
         guard !spots.isEmpty else { return nil }
         let t = (1.0 + 5.0.squareRoot()) / 2
@@ -184,7 +184,7 @@ enum MeshBuilder {
                 for v in (flip ? [a, d, b] : [a, b, d]) { pos.append(SCNVector3(Float(v.0), Float(v.1), Float(v.2))); nor.append(nv); col.append(c) }
                 idx += [base, base + 1, base + 2]
             }
-            // 树干：四棱柱的四个侧面。
+            // Trunk: four sides of a rectangular prism.
             let tw = 0.8 * size * sc, th = 4.5 * size * sc
             let corners = [(-tw, -tw), (tw, -tw), (tw, tw), (-tw, tw)]
             for i in 0..<4 {
@@ -197,7 +197,7 @@ enum MeshBuilder {
                 let base = UInt32(pos.count)
                 let quad = [(cx + x0, 0.0, cz + z0), (cx + x1, 0.0, cz + z1), (cx + x1, th, cz + z1), (cx + x0, th, cz + z0)]
                 for v in quad { pos.append(SCNVector3(Float(v.0), Float(v.1), Float(v.2))); nor.append(nv); col.append(trunkC) }
-                // 外法线朝外时的绕序。
+                // Winding for outward-facing normals.
                 let a = quad[0], b = quad[1], d = quad[2]
                 let cr = ((b.1 - a.1) * (d.2 - a.2) - (b.2 - a.2) * (d.1 - a.1), (b.2 - a.2) * (d.0 - a.0) - (b.0 - a.0) * (d.2 - a.2), (b.0 - a.0) * (d.1 - a.1) - (b.1 - a.1) * (d.0 - a.0))
                 if cr.0 * mid.0 + cr.2 * mid.1 >= 0 { idx += [base, base + 1, base + 2, base, base + 2, base + 3] }
@@ -216,7 +216,7 @@ enum MeshBuilder {
         return geo
     }
 
-    /// 动态色按当前 trait 解析（场景搭建时由 DioramaController 设好深浅色）。
+    /// Resolve adaptive colors from current traits, set by DioramaController during scene construction.
     static func material(_ color: UIColor, lit: Bool = true) -> SCNMaterial {
         let m = SCNMaterial()
         m.diffuse.contents = color.resolvedColor(with: .current)

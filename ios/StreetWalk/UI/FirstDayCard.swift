@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// 「今日」页最上面嘅「第一日」任务卡（UX 报告第五节）：今日三件事，做完一件打一个勾；三件做齐讲一声，留住等用户撳「收起」。
-/// 自己判断要唔要出（AppStore.showsFirstDay）：放喺「今日」页 VStack 最上面一行 `FirstDayCard()` 就得。
-/// 未做嘅两件撳得：碰一碰 → 开碰一碰画面；约佢 → 出约人卡（聽日）。行路唔使撳，出去行就自动记。
+/// UX section 5: first-day tasks sit atop Today; announce completion and retain the card until manually dismissed.
+/// FirstDayCard checks AppStore.showsFirstDay itself; place it first in Today's VStack.
+/// Remaining pairing/invitation tasks are tappable; invitations default to tomorrow. Walking is recorded automatically without a task-card tap.
 struct FirstDayCard: View {
     @Environment(AppStore.self) private var store
 
@@ -41,7 +41,7 @@ struct FirstDayCard: View {
                     title: L.t("約佢聽日一齊行", "约他明天一起走"),
                     note: inviteNote, action: f.invited == true ? nil : { store.firstDayInvite() })
             }
-            // 测试反馈：做齐即刻自己收埋，好似「全部消失」→ 做齐后留住，由用户自己撳「收起」
+            // Feedback: keep the completed card until explicit dismissal instead of making everything disappear.
             if done {
                 Button {
                     withAnimation(DS.motion(DS.spring)) { store.closeFirstDay() }
@@ -59,7 +59,7 @@ struct FirstDayCard: View {
         .onChange(of: store.neighbors.count) { _, _ in store.firstDayCheck() }
     }
 
-    /// 约咗之后喺任务下面写返约咗乜：「聽日下晝 5 點 · 生發魚蛋粉門口（等阿明確認）」。
+    /// After inviting, show the proposed time/place and whether the neighbor's confirmation is pending.
     private var inviteNote: String? {
         guard let a = store.appointments.filter({ $0.isOpen && $0.date > store.now }).sorted(by: { $0.date < $1.date }).first else { return nil }
         let name = store.resident(a.partnerID)?.name ?? L.t("街坊", "邻居")
@@ -70,7 +70,7 @@ struct FirstDayCard: View {
         return "\(store.dayTimeLabel(a.date)) · \(place)（\(status)）"
     }
 
-    /// 行咗一啲但未够：「行咗 4 / 10 分鐘」。
+    /// Show partial progress toward the ten-minute walking task.
     private func walkNote(_ f: FirstDayProgress) -> String? {
         let m = f.walkMinutes ?? 0
         guard m > 0, !f.walked else { return nil }

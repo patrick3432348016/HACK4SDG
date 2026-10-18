@@ -1,6 +1,6 @@
 import Foundation
 
-/// 本地平面坐标（米）。x 向东，y 向北，原点是格子中心。
+/// Local planar coordinates in metres: east is +x, north is +y, origin at the grid centre.
 struct Vec2: Codable, Hashable {
     var x: Double
     var y: Double
@@ -23,7 +23,7 @@ struct GeoPoint: Codable, Hashable {
     var lon: Double
 }
 
-/// 经纬度与本地米坐标互转（等距近似，几百米范围内误差可忽略）。
+/// Convert latitude/longitude to local metres using an equidistant approximation suitable for a few hundred metres.
 struct LocalProjection {
     let origin: GeoPoint
     let metersPerDegLat: Double
@@ -45,15 +45,15 @@ struct LocalProjection {
     }
 }
 
-/// 400 米网格上的一格。网格原点设在皇后山邨，让示例屋邨正好是 0_0 格居中。
-/// 只有格子范围会发给地图服务，不发精确位置。
+/// A 400-m grid cell, with the origin at Queen's Hill Estate so the example estate is centred in cell 0_0.
+/// Send the grid bounds, not the exact user position, to the map service.
 struct TileKey: Codable, Hashable, CustomStringConvertible {
     var ix: Int
     var iy: Int
 
     static let gridOrigin = GeoPoint(lat: 22.5044, lon: 114.1563)
     static let cellSize = 400.0
-    /// 底座边长（米）。比格子大，保证用户在格子边缘时周围也有内容。
+    /// Base width in metres exceeds the grid size to retain surroundings near a cell edge.
     static let plinthSize = 560.0
 
     var description: String { "\(ix)_\(iy)" }
@@ -67,7 +67,7 @@ struct TileKey: Codable, Hashable, CustomStringConvertible {
         LocalProjection(origin: Self.gridOrigin).toGeo(Vec2(x: Double(ix) * Self.cellSize, y: Double(iy) * Self.cellSize))
     }
 
-    /// Overpass 用的 south,west,north,east。
+    /// Overpass bounding-box order: south,west,north,east.
     var bboxString: String {
         let proj = LocalProjection(origin: center)
         let h = Self.plinthSize / 2

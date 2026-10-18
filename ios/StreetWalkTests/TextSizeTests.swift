@@ -3,8 +3,8 @@ import SwiftUI
 import Testing
 @testable import StreetWalk
 
-// 设定页「字體大小」：存档、启动参数、未揀过跟 iOS、场景高度。
-// 唔改全局 TextSizeSetting.shared（其他测试并行跑）。
+// Text-size tests: persistence, launch override, system bootstrap and scene height.
+// Do not mutate TextSizeSetting.shared during parallel tests.
 struct TextSizeTests {
     @Test func 存档同启动参数() {
         let d = UserDefaults(suiteName: "textsize-test-\(UUID())")!

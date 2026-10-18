@@ -1,6 +1,6 @@
 import Foundation
 
-/// 把 Overpass（`out geom`）的 JSON 转成 MapModel。实时数据和内置兜底数据都走这里。
+/// Parse Overpass out-geom JSON into MapModel for both live and bundled data.
 enum OSMParser {
     struct Response: Decodable { let elements: [Element] }
     struct LatLon: Decodable { let lat: Double; let lon: Double }
@@ -21,7 +21,7 @@ enum OSMParser {
 
     enum ParseError: Error { case empty }
 
-    /// size：这份数据拉取时的边长（实时 720 m，内置示例 560 m），超出的部分裁掉。
+    /// size is the source fetch width (720 m live, 560 m bundled); clip features beyond it.
     static func parse(_ data: Data, tile: TileKey, size: Double = TileKey.plinthSize, source: String) throws -> MapModel {
         let response = try JSONDecoder().decode(Response.self, from: data)
         let center = tile.center
@@ -54,7 +54,7 @@ enum OSMParser {
                 continue
             }
 
-            // way 或 relation：取外环。
+            // For ways/relations, use outer rings.
             var rings: [[Vec2]] = []
             if e.type == "way" {
                 rings = [local(e.geometry)]
@@ -89,9 +89,9 @@ enum OSMParser {
                 if closed, let kind = areaKind(tags) {
                     let outline = Polygon.normalized(Polygon.clip(Polygon.normalized(raw), half: half))
                     guard outline.count >= 3, Polygon.area(outline) >= 10 else { continue }
-                    // 保留 OSM 编号：地标 id 用它，换楼、缓存刷新后同一块地仍然是同一个 id。relation 用负数免得同 way 撞。
+                    // Preserve OSM identity across crops/cache refreshes; negative relation IDs avoid collisions with ways.
                     areas.append(Area(kind: kind, outline: outline, name: name, osmID: e.type == "relation" ? -e.id : e.id))
-                    // 面状的巴士总站、商场、街市也当作兴趣点。
+                    // Area bus terminals, malls, and markets also become points of interest.
                     if let pk = poiKind(tags) {
                         let c = Polygon.centroid(outline)
                         pois.append(POI(id: e.id, kind: pk, name: name, pos: c))
@@ -109,7 +109,7 @@ enum OSMParser {
             }
         }
 
-        // 商场等有名字的建筑也作兴趣点。
+        // Named buildings such as malls also become points of interest.
         for b in buildings where b.kind == .commercial && b.name != nil {
             pois.append(POI(id: b.id, kind: .mall, name: b.name, pos: b.centroid))
         }
@@ -120,9 +120,9 @@ enum OSMParser {
                         areas: areas, pois: pois, trees: trees, fetchedAt: Date(), source: source)
     }
 
-    // MARK: - 标签解读
+    // MARK: - Tag interpretation
 
-    /// 中文名优先，去掉"皇滙樓 Wong Wui House"后面的英文。
+    /// Prefer Chinese names, removing the English suffix from bilingual names.
     static func displayName(_ tags: [String: String]) -> String? {
         if let n = tags["name:zh-Hant"] ?? tags["name:zh"], !n.isEmpty { return n }
         guard let n = tags["name"], !n.isEmpty else { return nil }
@@ -148,10 +148,10 @@ enum OSMParser {
             kind = .residential; levels = 3
         case "school", "university", "college", "kindergarten":
             kind = .school; levels = 6
-        // 酒店、医院、政府楼这类高楼明确不是住宅：归商业 / 公共，不会被当成"只标 building=yes 的住宅高楼"选做屋企。
+        // Hotels, hospitals, and government buildings are commercial/public, not residential candidates even when tall.
         case "commercial", "retail", "office", "supermarket", "hotel", "hospital", "public", "civic", "government", "train_station", "transportation":
             kind = .commercial; levels = area > 2000 ? 4 : 5
-        // 工厦、货仓就算标了 10 层以上也不当住宅（tag 不是 yes，见 MapModel.markHomeCandidates）。
+        // Industry/warehouses remain non-residential even above ten floors; their tag is not building=yes.
         case "industrial", "warehouse":
             kind = .other; levels = 3
         case "construction":
@@ -164,7 +164,7 @@ enum OSMParser {
             kind = .other; levels = area > 2500 ? 5 : area > 400 ? 3 : 2
         }
         if tags["amenity"] == "school" { kind = .school }
-        // 标成 building=yes 的公厕不算一般建筑（不能选做屋企，也不拿来做地名）。
+        // A building=yes public toilet is not a general building candidate or an area-name source.
         if tags["amenity"] == "toilets" { kind = .small }
         if let l = tags["building:levels"].flatMap({ Int($0.filter(\.isNumber)) }), l > 0 { levels = l }
         var height = Double(levels) * 3.0 + (levels > 10 ? 2 : 0.6)
@@ -267,9 +267,9 @@ enum OSMParser {
         return nil
     }
 
-    // MARK: - 几何辅助
+    // MARK: - Geometry helpers
 
-    /// 把多段 way 首尾相接拼成环。
+    /// Join way fragments end-to-end into rings.
     static func joinRings(_ parts: [[Vec2]]) -> [[Vec2]] {
         var pending = parts.filter { $0.count >= 2 }
         var rings: [[Vec2]] = []

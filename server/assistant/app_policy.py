@@ -1,13 +1,13 @@
-"""成员 A 加（2026-10-12）：App 嘅 /v1/assistant/turn 换成 B 新版嗰套（voice_policy.py）。
+"""A, 2026-10-12: adapt the App's HTTP assistant endpoint to B's VoicePolicy.
 
-B 嘅 VoicePolicy 系为佢 Mac 网页实时对话写嘅：一个 WebSocket 一个对象、状态喺内存、播报用联调字眼。
-App 用 HTTP，每句一个请求、对话状态喺 store（conversation_id），所以呢度照 B 嘅次序做：
-1. B 嘅本地规则：紧急求助 → 固定求助提示；医疗 / 投资 / 政治 / 色情 → 固定拒答（唔问模型）；
-2. B 嘅豆包路由（直接用 VoicePolicy.decide，同一个提示、同一个 Decision 结构）：话题 + App 指令 + 天气查询条件；
-3. 天气 → B 嘅天文台（weather.py，只读官方数据，唔估）；交通 / 打招呼 → B 嘅固定句；排行榜 / 散步纪录 App 自己有，讲去边度睇；
-4. App 操作 → B 嘅 Assistant.evaluate（问时间、揀地点、确认卡、幂等、唔准自动执行，全部不变）。
-App 收到 Reply 照旧出自己嘅粤语卡、自己讲（唔会读模型写嘅字）；data.policy 话俾 App 知系边类。
-普通话界面（zh-CN）：B 嘅路由同固定句都系粤语，照旧用 Assistant.turn（豆包只抽指令）。
+B's original policy used one in-memory object per web WebSocket and integration-oriented spoken wording.
+The App uses HTTP requests with stored conversation_id state, preserving B's processing order:
+1. Local safety/scope rules return fixed guidance or refusal without calling the model.
+2. VoicePolicy.decide uses the same prompt and Decision schema to route topic, App commands and weather conditions.
+3. Weather reads official HKO data; transport/greetings use fixed text; rankings/history direct users to actual App screens.
+4. App actions use Assistant.evaluate with clarification, place choice, confirmation, idempotency and no automatic execution.
+Reply drives localized App cards and controlled speech; data.policy identifies the category.
+For zh-CN, use Assistant.turn because B's routing and fixed replies are Cantonese; Doubao extracts the command only.
 """
 from types import SimpleNamespace
 
@@ -15,7 +15,7 @@ from .models import Command, Reply
 from .voice_policy import DENIED, EMERGENCY, HELP, TRAFFIC, VoicePolicy
 from .weather import HKOWeather
 
-# App 入面有真排行榜同散步纪录（B 嘅 BOARD / HISTORY 讲「未接通」，喺 App 唔啱）。
+# The App has actual rankings/history, so replace B's standalone not-connected wording.
 BOARD = "排行榜喺下面「排行榜」嗰頁，睇到附近街坊連續行咗幾多日。"
 HISTORY = "你嘅散步紀錄喺「今日」嗰頁。想睇上個月，可以講「出月報」。"
 FIXED = {"deny": DENIED, "emergency": EMERGENCY, "traffic": TRAFFIC, "board": BOARD, "history": HISTORY, "help": HELP}
@@ -53,7 +53,7 @@ class TurnPolicy:
         return reply
 
     def info(self, session, owner, policy, text, data=None, weather=None):
-        # 记低天气查询条件：紧接住问「咁聽日呢」时 B 嘅路由会参考（previous_weather）。
+        # Store weather query conditions for follow-ups through previous_weather.
         self.store.save(session, owner, {"locale": "zh-HK", "status": "info", "weather": weather, "policy": policy})
         return Reply(conversation_id=session["id"], status="info", message=text, speech_text=text, command=Command(),
                      data={"policy": policy, **(data or {})}, demo=self.settings.mode == "demo")

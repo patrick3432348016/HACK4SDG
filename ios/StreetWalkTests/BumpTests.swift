@@ -3,13 +3,13 @@ import Testing
 import CryptoKit
 @testable import StreetWalk
 
-// 碰一碰（F5）：组员 B 原型嘅 8 个测试（ios/UWBMeetDemo/Tests/MeetCoreTests.swift，改用 Swift Testing、BumpMessage、BumpAgreement），
-// 加：密钥协商来回、反射 / 窜改 / 重放、边部主动连、二维码内容、轮询后端、两部手机（假超宽带）经真 Bonjour 成个流程。
+// F5 ports B's eight MeetCoreTests to Swift Testing, BumpMessage and BumpAgreement.
+// Also test key agreement, reflection/tampering/replay, initiator selection, QR, polling and fake-UWB phones over real Bonjour.
 
-// MARK: - 组员 B 原型移植
+// MARK: - B prototype port
 
 struct BumpPortedFromBTests {
-    /// B 原型嘅参数（0.30 米 / 0.5 秒），睇移植后判断一样。
+    /// Verify the original prototype's 0.30 m / 0.5 s threshold behavior after porting.
     func bGate() -> ProximityGate { ProximityGate(threshold: 0.30, dwell: 0.50, maxGap: 0.35) }
 
     @Test func 持续靠近先触发而且只触发一次() {
@@ -112,10 +112,10 @@ struct BumpPortedFromBTests {
     }
 }
 
-// MARK: - 新逻辑
+// MARK: - New logic
 
 struct BumpWireTests {
-    /// 两部手机：id 细嗰部（a）係主动连嗰方。
+    /// Of two phones, the smaller ID a initiates connection.
     func pair() throws -> (a: BumpChannel, b: BumpChannel) {
         let ka = Curve25519.KeyAgreement.PrivateKey(), kb = Curve25519.KeyAgreement.PrivateKey()
         let ida = String(repeating: "1", count: 32), idb = String(repeating: "e", count: 32)
@@ -149,12 +149,12 @@ struct BumpWireTests {
     @Test func 反射窜改重放都解唔开() throws {
         var (a, b) = try pair()
         let r = try record(a.seal(.hello, token: Data([9])))
-        #expect(throws: BumpChannel.Failure.decrypt) { try a.open(r) }   // 我自己嘅消息反射返嚟
+        #expect(throws: BumpChannel.Failure.decrypt) { try a.open(r) }   // Reflect my own message back.
         var bad = r
         bad[bad.count - 1] ^= 0x01
-        #expect(throws: BumpChannel.Failure.decrypt) { try b.open(bad) }   // 窜改
+        #expect(throws: BumpChannel.Failure.decrypt) { try b.open(bad) }   // Tampering.
         _ = try b.open(r)
-        #expect(throws: BumpChannel.Failure.replay) { try b.open(r) }   // 重放
+        #expect(throws: BumpChannel.Failure.replay) { try b.open(r) }   // Replay.
     }
 
     @Test func 第三者同搞错角色都解唔开() throws {
@@ -165,7 +165,7 @@ struct BumpWireTests {
                                 peer: BumpHello(id: String(repeating: "1", count: 32), key: Curve25519.KeyAgreement.PrivateKey().publicKey.rawRepresentation),
                                 initiator: false)
         #expect(throws: BumpChannel.Failure.decrypt) { try c.open(r) }
-        // id 大嘅一方话自己主动连：唔信。
+        // Reject the larger-ID peer claiming initiator status.
         #expect(throws: BumpChannel.Failure.badHello) {
             try BumpChannel(myKey: kc, myID: String(repeating: "f", count: 32),
                             peer: BumpHello(id: String(repeating: "1", count: 32), key: kc.publicKey.rawRepresentation), initiator: true)
@@ -180,7 +180,7 @@ struct BumpWireTests {
         _ = try b.open(record(a.seal(.hello, token: Data([1]))))
         #expect(throws: BumpChannel.Failure.malformed) { try b.open(record(a.seal(.code, code: "not-a-code"))) }
         var (c, d) = try pair()
-        #expect(throws: BumpChannel.Failure.malformed) { try d.open(record(c.seal(.hello))) }   // hello 冇令牌
+        #expect(throws: BumpChannel.Failure.malformed) { try d.open(record(c.seal(.hello))) }   // Hello without a token.
     }
 
     @Test func 边部主动连() {
@@ -188,7 +188,7 @@ struct BumpWireTests {
         #expect(BumpTieBreak.shouldConnect(me: lo, peer: hi))
         #expect(!BumpTieBreak.shouldConnect(me: hi, peer: lo))
         #expect(!BumpTieBreak.shouldConnect(me: mid, peer: mid))
-        // 两部手机：刚好一部主动连
+        // Exactly one of two phones initiates.
         for _ in 0..<50 {
             let x = BumpTieBreak.newInstanceID(), y = BumpTieBreak.newInstanceID()
             #expect(BumpTieBreak.shouldConnect(me: x, peer: y) != BumpTieBreak.shouldConnect(me: y, peer: x))
@@ -246,9 +246,9 @@ struct BumpWireTests {
     }
 }
 
-// MARK: - 后端轮询
+// MARK: - Backend polling
 
-/// 扮 link_neighbor：同一个码最多两个人；两个都交咗就互相返回对方。
+/// Fake link_neighbor permits at most two users per code and returns each peer after both submit.
 @MainActor
 final class FakePairServer {
     var submissions: [String: [String]] = [:]
@@ -257,7 +257,7 @@ final class FakePairServer {
     func link(user: String, code: String) -> LinkedPeer? {
         var s = submissions[code, default: []]
         if !s.contains(user) {
-            guard s.count < 2 else { return nil }   // 第三部永远配唔上
+            guard s.count < 2 else { return nil }   // A third phone never pairs.
             s.append(user)
         }
         submissions[code] = s
@@ -333,7 +333,7 @@ struct LinkPollingTests {
     }
 }
 
-// MARK: - 两部手机成个流程（假超宽带 + 真 Bonjour，模拟器上跑）
+// MARK: - Two-phone simulator flow with fake UWB and real Bonjour
 
 @MainActor
 final class FakeRanging: BumpRanging {
@@ -409,7 +409,7 @@ struct NearbyBumpFlowTests {
     @Test func 一部取消另一部知道() async throws {
         let ra = FakeRanging(), rb = FakeRanging()
         ra.distances = []; rb.distances = []
-        ra.hold = 0.8; rb.hold = 0.8   // 一直唔够近
+        ra.hold = 0.8; rb.hold = 0.8   // Never reaches sufficient proximity.
         let a = NearbyBumpService(ranging: { ra }, searchTimeout: 25), b = NearbyBumpService(ranging: { rb }, searchTimeout: 25)
         var updA: [BumpUpdate] = [], updB: [BumpUpdate] = []
         a.startSearching(candidates: [], onUpdate: { updA.append($0) }, onFound: { _ in Issue.record("唔应该配上") })
@@ -427,7 +427,7 @@ struct NearbyBumpFlowTests {
     }
 }
 
-// MARK: - 画面状态（store）
+// MARK: - Store UI state
 
 @MainActor
 struct BumpStoreTests {
@@ -436,7 +436,7 @@ struct BumpStoreTests {
         s.restoring = true
         s.clockTask?.cancel()
         s.announcer.voiceOverRunning = { false }
-        s.localCommunity?.demoEnabled = false   // 真机模式
+        s.localCommunity?.demoEnabled = false   // Real-device mode.
         s.residents = [Resident(id: "me", name: "你", floor: 12, colorIndex: 6, mobility: .walk, streakDays: 1, todayLine: "", isMe: true)]
         return s
     }
@@ -445,7 +445,7 @@ struct BumpStoreTests {
         let s = makeStore()
         s.startBump()
         #expect(s.bumpStage == .searching, "真机：圈入面冇人都照开碰一碰")
-        // 有啲模拟器（例如 iPhone 17）报自己有超宽带：嗰度测唔到「唔支援」，只测转二维码。
+        // Some simulators report UWB support; test QR switching there instead of unsupported-device detection.
         if !NearbyBumpService.deviceSupported { #expect(s.bumpProgress == .failed(.unsupported)) }
         s.bumpUseQR()
         #expect(s.bumpQR?.mode == .choose)

@@ -1,13 +1,13 @@
 import Foundation
 
-/// 灵动岛嘅状态：散步、找人、约会快到。
-/// App 入面岛两侧（IslandCompact）同真·灵动岛 / 锁屏嘅实时活动（StreetWalkWidgets）用同一份：
-/// 呢个文件喺 ios/Shared/，两个目标都编译，所以只放纯数据同纯逻辑，唔好引用 App 入面嘅类型。
+/// Dynamic Island state: walking, finding someone, or an upcoming meetup.
+/// Shared by the in-app IslandCompact and the real Dynamic Island / Lock Screen Live Activity (StreetWalkWidgets).
+/// Compiled into both targets from ios/Shared/. Keep data and logic independent of app-specific types.
 struct IslandStatus: Codable, Hashable, Sendable {
     enum Kind: String, Codable, Hashable, Sendable {
         case walk, find, meet
 
-        /// 优先次序：找人（跟住箭咀行）> 约会快到（要出发）> 散步（一直喺度）。
+        /// Priority: finding (follow the arrow) > upcoming meetup (time to leave) > walking (ongoing status).
         var priority: Int {
             switch self {
             case .find: return 0
@@ -18,44 +18,44 @@ struct IslandStatus: Codable, Hashable, Sendable {
     }
 
     var kind: Kind
-    /// 散步：行咗几多分钟；约会：仲有几多分钟（0 = 够钟）；找人：大约几耐到。
+    /// Walking: elapsed minutes; meetup: minutes remaining (0 means due); finding: estimated arrival time.
     var minutes: Int
-    /// 找人：相距几多米（已经取整，见 roundMeters）。
+    /// Finding: rounded distance in metres; see roundMeters.
     var meters: Int?
-    /// 找人：箭咀方向（度，0 = 向上，同找人画面一致）。
+    /// Finding: arrow bearing in degrees; 0 points up, matching the finding screen.
     var bearing: Double?
-    /// 找人、约会：对方个名。
+    /// Finding/meetup: the other person's name.
     var name: String?
-    /// 找人、约会：地标名。
+    /// Finding/meetup: landmark name.
     var place: String?
-    /// 约会：约定时间（真实时钟），实时活动自己倒数，App 喺背景都唔会停喺旧数字。演示拨过时间就冇。
+    /// Meetup: actual scheduled time, allowing Live Activity to count down while the app is backgrounded. Absent when demo time is shifted.
     var target: Date?
-    /// 散步：经过咗几多个地方。
+    /// Walking: number of places visited.
     var places: Int?
-    /// 示範数据（示範街坊、演示散步）：锁屏标「示範」。
+    /// Demo neighbors/walks: label the Lock Screen activity as a demo.
     var demo = false
-    /// 散步完咗：实时活动最后一版（锁屏显示「行咗 N 分鐘」一阵先收）。
+    /// Completed walk: final Live Activity state, briefly showing the total minutes before dismissal.
     var finished = false
-    /// 界面语言：App 交俾实时活动时先填（StreetWalkWidgets 另一个进程，读唔到 App 嘅设定）；App 入面 nil = 跟 L.lang。
+    /// Language is supplied when exporting to Live Activity: the widget runs separately and cannot read app settings. In-app nil follows L.lang.
     var lang: AppLang?
 
-    /// 跟呢个状态嘅语言揀字。
+    /// Choose text using this state's language.
     func t(_ yue: String, _ cmn: String) -> String { (lang ?? L.lang) == .cmn ? cmn : yue }
 }
 
 extension IslandStatus {
-    /// 约会提前几耐开始显示（分钟）。
+    /// Minutes before a meetup when its status becomes visible.
     static let meetLead = 30
-    /// 过咗约定时间几耐仍然显示「夠鐘喇」（之后由迟到询问接手）。
+    /// How long to show the due status after the scheduled time, before the late-arrival prompt takes over.
     static let meetGrace = 10
 
-    /// 约会仲有几多分钟（向上取整：14 分 20 秒 = 15 分鐘後）；唔喺显示范围（30 分钟前到过咗 10 分钟）就 nil。
+    /// Minutes remaining, rounded up (14:20 becomes 15). Return nil outside the window from 30 minutes before to 10 minutes after.
     static func meetMinutes(left: TimeInterval) -> Int? {
         guard left <= Double(meetLead * 60), left > -Double(meetGrace * 60) else { return nil }
         return max(0, Int((left / 60).rounded(.up)))
     }
 
-    /// 距离取整，数字唔会每一步都跳：100 米内按 5 米，1 公里内按 10 米，再远按 100 米。
+    /// Round distance to avoid changes at every step: 5 m below 100 m, 10 m below 1 km, then 100 m.
     static func roundMeters(_ d: Double) -> Int {
         let d = max(0, d)
         if d < 100 { return Int((d / 5).rounded()) * 5 }
@@ -64,10 +64,10 @@ extension IslandStatus {
     }
 
     static func metersText(_ m: Int) -> String {
-        m >= 1000 ? String(format: "%.1f 公里", Double(m) / 1000) : "\(m) 米"   // 粤普同字
+        m >= 1000 ? String(format: "%.1f 公里", Double(m) / 1000) : "\(m) 米"   // Same text in Cantonese and Mandarin.
     }
 
-    /// 同时有几样嘢：按优先次序排，同一类只留第一个。岛同实时活动只显示第一个。
+    /// Sort simultaneous states by priority and keep only the first of each kind. Both islands display the highest-priority state.
     static func ordered(_ all: [IslandStatus]) -> [IslandStatus] {
         var seen = Set<Kind>()
         return all.enumerated()
@@ -76,7 +76,7 @@ extension IslandStatus {
             .filter { seen.insert($0.kind).inserted }
     }
 
-    /// SF Symbol：散步小人、找人箭咀（按 bearing 转）、约会时钟。
+    /// SF Symbols: walking figure, finding arrow rotated by bearing, and meetup clock.
     var symbol: String {
         switch kind {
         case .walk: return finished ? "checkmark.circle.fill" : "figure.walk"
@@ -85,7 +85,7 @@ extension IslandStatus {
         }
     }
 
-    /// 岛右边嘅短字：「12 分」「35 米」「15 分鐘後」。
+    /// Short trailing text: 12 minutes, 35 metres, or in 15 minutes.
     var short: String {
         switch kind {
         case .walk: return t("\(minutes) 分", "\(minutes) 分")
@@ -94,7 +94,7 @@ extension IslandStatus {
         }
     }
 
-    /// 真·灵动岛右边位好窄：约会只出「15 分」（左边已经有时钟）。
+    /// The real Dynamic Island has little trailing space: show only 15 minutes; the clock icon is already on the left.
     var compact: String {
         switch kind {
         case .meet: return minutes > 0 ? "\(minutes) 分" : t("夠鐘", "到点")
@@ -102,7 +102,7 @@ extension IslandStatus {
         }
     }
 
-    /// 一句讲晒（锁屏大字、展开嘅岛）。
+    /// Single-sentence summary for large Lock Screen text and the expanded island.
     var title: String {
         switch kind {
         case .walk: return finished ? t("散步完成", "散步完成") : t("行緊 \(minutes) 分鐘", "已走 \(minutes) 分钟")
@@ -113,14 +113,14 @@ extension IslandStatus {
         }
     }
 
-    /// 找人：「喺涼亭 · 大約 2 分鐘到」（锁屏、展开嘅岛第二行用；detail 已经有距离）。
+    /// Finding subtitle: at the pavilion, about two minutes away. Used on the Lock Screen/expanded island; detail already contains distance.
     var findLine: String {
         let at = place.map { t("喺\($0)", "在\($0)") }
         let eta = minutes > 0 ? t("大約 \(minutes) 分鐘到", "大约 \(minutes) 分钟到") : t("就到喇", "马上到")
         return [at, eta].compactMap { $0 }.joined(separator: " · ")
     }
 
-    /// 第二行。
+    /// Second line.
     var detail: String {
         switch kind {
         case .walk:
@@ -136,7 +136,7 @@ extension IslandStatus {
         }
     }
 
-    /// 读屏：一句讲晒。
+    /// VoiceOver: one complete sentence.
     var spoken: String {
         switch kind {
         case .walk: return finished ? t("散步完成，行咗 \(minutes) 分鐘", "散步完成，走了 \(minutes) 分钟") : t("行緊 \(minutes) 分鐘", "已走 \(minutes) 分钟")

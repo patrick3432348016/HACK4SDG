@@ -4,7 +4,7 @@ enum LandmarkKind: String, Codable {
     case busTerminus, busStop, park, playground, pitch, shelter, bench, mall, market, community, lobby, food
 }
 
-/// 自动选出的地标候选，名字由 AIService.nameLandmark 决定。
+/// Automatically selected landmark candidate, named through AIService.nameLandmark.
 struct LandmarkCandidate: Codable, Hashable {
     var id: String
     var kind: LandmarkKind
@@ -21,10 +21,10 @@ struct Landmark: Codable, Identifiable, Hashable {
     var hasSeat: Bool
 }
 
-/// 从地图标签里挑 3–4 个间隔够远、居民会用来约见面的地方。
+/// Choose 3–4 well-separated map features residents could use as meeting places.
 enum LandmarkDeriver {
-    /// 底座的地标：先按常用地方挑；不够 3 个（村屋、资料未齐的新屋邨）就加上各座楼（包括我屋企）的楼下再挑；
-    /// 还不够（村屋太密，楼下都贴着别的屋）就逐个补，放得下就要；最后用底座外面不远的巴士站、车路出底座的路口（都放在底座边）。
+    /// Prefer common meeting places. If fewer than three, include building entrances, including home, then select again.
+    /// If still insufficient, add entrances where space permits, then nearby off-base bus stops and road exits projected onto the base edge.
     static func derive(in map: MapModel, home: Int64? = nil) -> [LandmarkCandidate] {
         let main = candidates(in: map)
         let first = settle(pick(main), in: map)
@@ -41,7 +41,7 @@ enum LandmarkDeriver {
         return best
     }
 
-    /// 底座外 80 m 内的巴士站（同名合并），挪到底座边上。只在地标不够时用。
+    /// Merge same-name bus stops within 80 m beyond the base and project to its edge, only as a fallback.
     static func edgeFallbacks(in map: MapModel) -> [LandmarkCandidate] {
         let inner = map.half - 20, edge = map.half - 14
         var byName: [String: [POI]] = [:]
@@ -51,7 +51,7 @@ enum LandmarkDeriver {
         return byName.compactMap { name, stops -> (LandmarkCandidate, Double)? in
             let c = stops.map(\.pos).reduce(Vec2.zero, +) * (1.0 / Double(stops.count))
             let out = max(abs(c.x), abs(c.y))
-            guard out > inner else { return nil }   // 底座里面的已在 candidates
+            guard out > inner else { return nil }   // Stops inside the base are already candidates.
             let terminus = name.contains("總站") || stops.contains { $0.kind == .busStation }
             let pos = Vec2(x: max(-edge, min(edge, c.x)), y: max(-edge, min(edge, c.y)))
             return (LandmarkCandidate(id: "bus-\(stops[0].id)", kind: terminus ? .busTerminus : .busStop, pos: pos, osmName: name,
@@ -59,8 +59,8 @@ enum LandmarkDeriver {
         }.sorted { $0.1 != $1.1 ? $0.1 < $1.1 : $0.0.id < $1.0.id }.map(\.0)
     }
 
-    /// 车路出底座的地方，放在底座边（"X路口"，名字见 uniqueNames）。有名、大路的先。
-    /// 没有"路口"这一类，借用涼亭类（只影响模板起名，uniqueNames 按 id 改名），不当有座位。
+    /// Project road exits onto the base edge, preferring named/major roads; uniqueNames supplies junction names.
+    /// Reuse the pavilion category for junction naming, then rename by ID in uniqueNames; do not imply seating.
     static func roadExits(in map: MapModel) -> [LandmarkCandidate] {
         let edge = map.half - 14
         var seen = Set<String>()
@@ -73,7 +73,7 @@ enum LandmarkDeriver {
         }.sorted { $0.1 != $1.1 ? $0.1 < $1.1 : $0.0.id < $1.0.id }.map(\.0).filter { seen.insert($0.id).inserted }
     }
 
-    /// 后备地标：我屋企楼下（我屋企可能只标 building=yes）→ 任何高度、有没有名字的住宅楼楼下 → 其他有名的楼（商场、学校）楼下 → 其他楼。
+    /// Fallback order: home entrance, residential entrances at any height/name, other named buildings such as malls/schools, then other buildings.
     static func lobbyFallbacks(in map: MapModel, home: Int64?) -> [LandmarkCandidate] {
         let limit = map.half - 20
         func rank(_ b: Building) -> Int { b.id == home ? 0 : b.kind == .residential ? 1 : b.name != nil ? 2 : 3 }
@@ -91,7 +91,7 @@ enum LandmarkDeriver {
         let limit = map.half - 20
         func inside(_ p: Vec2) -> Bool { abs(p.x) <= limit && abs(p.y) <= limit }
 
-        // 巴士站：同名的站合并成一个。
+        // Merge bus stops with the same name.
         var stopsByName: [String: [POI]] = [:]
         for p in map.pois where p.kind == .busStop || p.kind == .busStation {
             stopsByName[p.name ?? "巴士站#\(p.id)", default: []].append(p)
@@ -120,7 +120,7 @@ enum LandmarkDeriver {
             }
         }
 
-        // 面状地标的 id 用 OSM 编号（不用裁切后数组的下标）：换楼、缓存刷新后同一块地仍然是同一个 id。
+        // Area landmarks use OSM IDs rather than clipped-array indices, preserving identity across home changes/cache refreshes.
         for (i, a) in map.areas.enumerated() {
             let c = interiorPoint(a.outline)
             guard inside(c) else { continue }
@@ -136,24 +136,24 @@ enum LandmarkDeriver {
             }
         }
 
-        // 有名字的住宅大楼：楼下大堂。
+        // Named residential building: entrance lobby.
         for b in map.buildings where b.kind == .residential && b.levels >= 10 && b.name != nil {
             let lobby = nearestRoadPoint(to: b.centroid, in: map, maxDistance: 50) ?? edgePoint(b.outline, toward: .zero)
             guard inside(lobby) else { continue }
             raw.append((LandmarkCandidate(id: "lobby-\(b.id)", kind: .lobby, pos: lobby, osmName: b.name, hasSeat: false), 4))
         }
 
-        // 同一个 OSM 要素可能出几块（relation 多个外环）：id 重复的只留第一个。
+        // Relations may produce multiple outer rings; retain only the first candidate per OSM ID.
         var seen = Set<String>()
         return raw.sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0.pos.length < $1.0.pos.length }.map(\.0)
             .filter { seen.insert($0.id).inserted }
     }
 
-    /// 泛称地标（模板会叫做"公園櫈仔""涼亭"之类）：每类最多 1 个，免得两个同名。
+    /// At most one generic landmark per category, avoiding duplicate generic names.
     static let genericKinds: Set<LandmarkKind> = [.park, .playground, .shelter, .bench, .pitch]
 
-    /// 贪心挑选：间隔至少 spacing 米，泛称每类 1 个、其他每类 2 个，最多 maxCount 个；不够 3 个就放宽间隔再挑，
-    /// 还不够就用楼下补（各座楼名不同）。
+    /// Greedy selection: minimum spacing, one generic/two named per category, up to maxCount. Relax spacing if fewer than three remain.
+    /// Then fill with distinct building entrances if necessary.
     static func pick(_ cands: [LandmarkCandidate], maxCount: Int = 4) -> [LandmarkCandidate] {
         var best: [LandmarkCandidate] = []
         for spacing in [55.0, 40.0, 30.0] {
@@ -174,9 +174,9 @@ enum LandmarkDeriver {
         return best
     }
 
-    /// 名字不能重复（语音、约会都靠名字分辨）：重名的加上最近的有名楼宇（"皇滙樓旁公園櫈仔"），还不行就加编号。
-    /// 没有名的楼的楼下（模板叫"大堂"，长者分不出是哪座）：我屋企叫"你屋企樓下"；其他按附近有名的楼、店、路叫"21座旁"，
-    /// 都没有就按在我屋企哪个方向叫"東邊嗰座樓下"。底座边的路口叫"X路口"（模板当涼亭，这里改名）。
+    /// Names must be unique for voice/meetups. Prefix duplicates with the nearest named building, then add a number if still needed.
+    /// For unnamed entrances, use your home entrance for self, or a nearby named building/shop/road as an anchor.
+    /// Without an anchor, use the direction from home. Rename edge-road candidates as junctions rather than their placeholder pavilion category.
     static func uniqueNames(_ list: [Landmark], in map: MapModel, home: Int64? = nil) -> [Landmark] {
         var out = list
         var used = Set<String>()
@@ -203,10 +203,10 @@ enum LandmarkDeriver {
             if id == home { out[i].name = "你屋企樓下"; continue }
             let byBuilding = named.filter { $0.id != id && distance(from: p, to: $0.outline) < 60 }
                 .sorted { distance(from: p, to: $0.outline) < distance(from: p, to: $1.outline) }.map { $0.name! }
-            // 店名太长（"Win East Sanitary Ware Co., Ltd"）不好讲，只用 6 个字以内的。
+            // Use only short shop names of at most six characters; long company names are awkward to speak.
             let byPOI = map.pois.filter { $0.kind != .busStop && $0.kind != .busStation && (1...6).contains($0.name?.count ?? 0) && $0.pos.distance(to: p) < 50 }
                 .sorted { $0.pos.distance(to: p) < $1.pos.distance(to: p) }.map { $0.name! }
-            // 方向按真北：底座转过 rotation（逆时针），转回去再算方位角。
+            // Directions use true north: undo the base's counterclockwise rotation before calculating bearing.
             let c = b.centroid, cr = cos(-map.rotation), sr = sin(-map.rotation)
             let bearing = atan2(c.x * cr - c.y * sr, c.x * sr + c.y * cr) * 180 / .pi
             let dir = ["北", "東北", "東", "東南", "南", "西南", "西", "西北"][Int(((bearing + 382.5).truncatingRemainder(dividingBy: 360)) / 45) % 8]
@@ -227,9 +227,9 @@ enum LandmarkDeriver {
         return out
     }
 
-    /// 楼改成规整矩形后，地标可能压在楼上或贴着墙：挪到楼外、不在水里、底座内的最近位置，尽量少动。
-    /// clearance 是地标中心到楼的距离（小凉亭半宽约 4.75 m，8 m 即亭边离楼约 3 m）；地标之间仍保持 spacing。
-    /// 60 m 内都找不到合适位置的就不要了。
+    /// After rectangular building simplification, move overlapping/wall-adjacent landmarks to the nearest dry, in-base position outside buildings.
+    /// clearance measures centre-to-building distance. A 4.75-m pavilion half-width with 8-m clearance leaves about 3 m; preserve inter-landmark spacing.
+    /// Discard candidates without a suitable position within 60 m.
     static func settle(_ picked: [LandmarkCandidate], in map: MapModel, clearance: Double = 8, spacing: Double = 30) -> [LandmarkCandidate] {
         let limit = map.half - 10
         let water = map.areas.filter { $0.kind == .water }.map(\.outline)
@@ -241,7 +241,7 @@ enum LandmarkDeriver {
         }
         func spot(near q: Vec2, _ placed: [LandmarkCandidate]) -> Vec2? {
             if ok(q, placed) { return q }
-            // 由近到远一圈圈找：半径每次加 2 m，每圈 24 个方向。
+            // Search concentric rings at 2-m increments, with 24 directions per ring.
             for r in stride(from: 2.0, through: 60, by: 2) {
                 for k in 0..<24 {
                     let a = Double(k) * .pi / 12
@@ -260,9 +260,9 @@ enum LandmarkDeriver {
         return out
     }
 
-    // MARK: - 几何
+    // MARK: - Geometry
 
-    /// 点到多边形的距离（在里面算 0）。
+    /// Point-to-polygon distance; zero inside.
     static func distance(from p: Vec2, to poly: [Vec2]) -> Double {
         if Polygon.contains(poly, p) { return 0 }
         return (0..<poly.count).map { closestPoint(on: poly[$0], poly[($0 + 1) % poly.count], to: p).distance(to: p) }.min() ?? .infinity
@@ -286,7 +286,7 @@ enum LandmarkDeriver {
         return a + ab * t
     }
 
-    /// 质心落在多边形外（凹形）时，退而求其次取最靠近质心的内部点。
+    /// For a concave polygon whose centroid lies outside, choose the nearest interior point.
     static func interiorPoint(_ poly: [Vec2]) -> Vec2 {
         let c = Polygon.centroid(poly)
         if Polygon.contains(poly, c) { return c }

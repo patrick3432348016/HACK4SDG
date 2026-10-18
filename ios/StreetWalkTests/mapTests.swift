@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import StreetWalk
 
-// 地图、场景与遮荫的回归测试（2026-10-08 审核修正：A01 A08 A25 A26 A29 A32 A98 A99 A100；10-09 复核补充）。
+// Map/scene/shade regressions from the 2026-10-08 audit and 10-09 review: A01 A08 A25 A26 A29 A32 A98 A99 A100.
 
 private func hk(_ s: String) -> Date { SunShadeTests.hk(s) }
 
@@ -43,7 +43,7 @@ struct ShadeHourTests {
     @Test func 天黑唔算有樓遮() {
         let (s, lm) = service()
         let day = hk("2026-12-21 10:00")
-        // 冬至 18:00 太阳已经落山：就算遮荫按 100% 计，也不能答"6 點後有樓遮住"。
+        // At winter-solstice 18:00, the sun has set; computed full shade must not become a building-shade recommendation.
         if let h = s.shadedFromHour(landmarkID: lm.id, day: day, after: 14) {
             let el = SolarPosition.at(AppStore.hk.startOfDay(for: day).addingTimeInterval(Double(h) * 3600), lat: 22.5044, lon: 114.1563).elevation
             #expect(el > 5, "返回嘅钟点 \(h) 太阳要喺天上")
@@ -60,7 +60,7 @@ struct DioramaFixTests {
     let ai = TemplateAI()
 
     @Test func 细屋做屋企都留喺底座() {
-        // 9×7 m 斜放的村屋：转正后外接矩形内缩 2.5 m 不够 4 m，以前会被丢掉。
+        // Retain a rotated 9 x 7 m village home even when a 2.5 m inset leaves less than 4 m.
         let a = 0.4
         let pts = [Vec2(x: -4.5, y: -3.5), Vec2(x: 4.5, y: -3.5), Vec2(x: 4.5, y: 3.5), Vec2(x: -4.5, y: 3.5)]
             .map { Vec2(x: $0.x * cos(a) - $0.y * sin(a) + 30, y: $0.x * sin(a) + $0.y * cos(a) + 20) }
@@ -73,7 +73,7 @@ struct DioramaFixTests {
             let xs = k.outline.map(\.x), ys = k.outline.map(\.y)
             #expect(xs.max()! - xs.min()! >= 7.9 && ys.max()! - ys.min()! >= 7.9, "最少 8×8 m")
         }
-        // 示例屋邨里每座可选的楼都一样。
+        // Apply the same retention rule to every selectable sample-estate building.
         for b in full.pickView(near: nil).buildings where b.kind == .residential {
             #expect(full.simplified(around: full.building(id: b.id)!.centroid, home: b.id).buildings.contains { $0.id == b.id })
         }
@@ -100,7 +100,7 @@ struct DioramaFixTests {
     }
 
     @Test func 面状地标id用OSM编号() {
-        // 两座不同的屋企各自裁底座：面状地标的 id 是 OSM 编号，而且指向整格里同一块地（不再是裁切后的下标）。
+        // Different home crops must map area landmarks to the same OSM ID and geometry, not cropped array indices.
         func toFull(_ v: Vec2, from d: MapModel) -> Vec2 {
             let cs = cos(-d.rotation), sn = sin(-d.rotation)
             return full.scenePoint(LocalProjection(origin: d.center).toGeo(Vec2(x: v.x * cs - v.y * sn, y: v.x * sn + v.y * cs)))
@@ -131,12 +131,12 @@ struct DioramaFixTests {
     }
 
     @Test func 冇住宅楼时都有楼可以揀() {
-        // 村屋只标 building=yes：放宽到一般建筑。
+        // Allow general-building fallback for village houses tagged only building=yes.
         let village = testMap([box(1, 10, 10, kind: .other), box(2, -40, 30, kind: .other), box(3, 0, -60, kind: .small)])
         let v = village.pickView(near: Vec2(x: 5, y: 5))
         #expect(v.hasHomeCandidate)
         #expect(!v.buildings.contains { $0.id == 3 && $0.kind == .residential }, "细屋唔畀揀")
-        // 一座楼都没有：示意楼放在我的位置，下次启动按 id 放回原位。
+        // With no buildings, place a placeholder at my position and restore by ID on relaunch.
         let empty = testMap([box(3, 0, -60, kind: .small)])
         #expect(!empty.pickView(near: .zero).hasHomeCandidate)
         let p = Vec2(x: 123.4, y: -87.6)
@@ -148,7 +148,7 @@ struct DioramaFixTests {
     }
 
     @Test func 酒店高楼唔当住宅() {
-        // 天水围银座：25 层的酒店（building=hotel）以前被当成"只标 building=yes 的住宅高楼"可以选。
+        // Exclude a 25-floor Tin Shui Wai hotel from generic residential-high-rise eligibility.
         let hotel = OSMParser.makeBuilding(id: 1, type: "hotel", tags: ["building": "hotel", "building:levels": "25"], name: "第二期", outline: rect(-10, -8, 10, 8))
         #expect(hotel.kind == .commercial)
         let tall = OSMParser.makeBuilding(id: 2, type: "yes", tags: ["building": "yes", "building:levels": "30"], name: nil, outline: rect(30, -8, 50, 8))
@@ -158,7 +158,7 @@ struct DioramaFixTests {
     }
 
     @Test func 太近格边嘅楼唔畀揀() {
-        // 720 m 一格：离格心 300 m 的楼做屋企，200 m 底座会超出资料范围。
+        // A home 300 m from a 720 m tile center may leave its 200 m base beyond fetched data.
         let m = testMap([box(1, 0, 0), box(2, 300, 0)], size: 720)
         let v = m.pickView(near: nil)
         #expect(v.buildings.contains { $0.id == 1 && $0.kind == .residential })
@@ -166,7 +166,7 @@ struct DioramaFixTests {
     }
 
     @Test func 寻路唔行水() {
-        // 一个水池挡在起点和终点中间：路线要绕过去。
+        // Route around water between start and destination.
         let pond = Area(kind: .water, outline: rect(-30, -60, 30, 60), name: nil, osmID: 9)
         let m = testMap([], areas: [pond], roads: [Road(kind: .residential, points: [Vec2(x: -90, y: -95), Vec2(x: 90, y: -95)], width: 7)], size: 200)
         let grid = PathGrid(map: m)
@@ -176,7 +176,7 @@ struct DioramaFixTests {
     }
 
     @Test func 示意樓唔借远处嘅楼名() {
-        // 鳳凰嶺：示意楼 180 m 外才有"第五座"，不在底座里，地名不能叫"第五座"，设定页显示"示意樓"。
+        // A placeholder at Fung Wong Ling must not borrow a named building 180 m away outside the base.
         let (m, id) = testMap([box(1, 180, 0, name: "第五座")], size: 720).addingPlaceholderHome(at: .zero)
         let d = m.simplified(around: m.building(id: id)!.centroid, home: id)
         #expect(d.placeName == "你附近")
@@ -185,7 +185,7 @@ struct DioramaFixTests {
     }
 
     @Test func 工厦货仓唔当住宅() {
-        // 旺角：标 building=industrial 又有 12 层的工厦，以前当成"只标 yes 的住宅高楼"亮橙色。
+        // Exclude a 12-floor Mong Kok industrial building from generic residential fallback.
         let factory = OSMParser.makeBuilding(id: 1, type: "industrial", tags: ["building": "industrial", "building:levels": "12"], name: nil, outline: rect(-10, -8, 10, 8))
         let tall = OSMParser.makeBuilding(id: 2, type: "yes", tags: ["building": "yes", "building:levels": "20"], name: nil, outline: rect(30, -8, 50, 8))
         let flat = OSMParser.makeBuilding(id: 3, type: "apartments", tags: ["building": "apartments"], name: nil, outline: rect(-50, 20, -30, 34))
@@ -196,7 +196,7 @@ struct DioramaFixTests {
     }
 
     @Test func 附近冇住宅楼就近放宽() {
-        // 天水围：我在商场旁，住宅楼在 250 m 外。附近的一般建筑可以揀，不会只剩远处那几座。
+        // Near a mall with residences 250 m away, allow nearby general buildings instead of only distant homes.
         let m = testMap([box(1, 20, 10, kind: .commercial, height: 12), box(2, 250, 0)], size: 720)
         let v = m.pickView(near: .zero)
         #expect(v.size == MapModel.pickSize)
@@ -204,7 +204,7 @@ struct DioramaFixTests {
     }
 
     @Test func 附近乜都冇就睇最近嗰座() {
-        // 附近 150 m 内一座楼都没有：不要退回整格（720 m 时楼细到点不到），看最近那座可选的楼一带。
+        // With no building within 150 m, center the nearest selectable area rather than zooming out to an untappable 720 m tile.
         let m = testMap([box(1, 0, -10, kind: .small), box(2, 230, 40)], size: 720)
         let v = m.pickView(near: .zero)
         #expect(v.size == MapModel.pickSize)
@@ -212,7 +212,7 @@ struct DioramaFixTests {
     }
 
     @Test func 转咗向近格边嘅楼唔畀揀() {
-        // 270 m：不转时只出界一条 10 m 窄边，可以；近格角、附近的楼斜 45°：底座转正后两个角各出界约 50 m，不给选。
+        // A 270 m edge home may pass unrotated with 10 m overflow but fail at a rotated corner with roughly 50 m overflow.
         func diamond(_ id: Int64, _ x: Double, _ y: Double) -> Building {
             Building(id: id, name: nil, outline: [Vec2(x: x, y: y - 12), Vec2(x: x + 12, y: y), Vec2(x: x, y: y + 12), Vec2(x: x - 12, y: y)],
                      minHeight: 0, height: 30, levels: 10, kind: .residential)
@@ -224,7 +224,7 @@ struct DioramaFixTests {
     }
 
     @Test func 冇名嘅楼下唔叫大堂() {
-        // 古洞村屋：我屋企和隔篱屋都没有名。我屋企叫"你屋企樓下"，隔篱叫"21座旁"，不再是"大堂""大堂（二）"。
+        // Unnamed Kwu Tung homes receive distinct home/near-building labels instead of repeated generic lobbies.
         let d = testMap([box(1, 0, 0), box(2, 60, 0), box(3, 60, 30, name: "21座")], size: 200)
         let l = [Landmark(id: "lobby-1", name: "大堂", kind: .lobby, pos: Vec2(x: 0, y: -12), hasSeat: false),
                  Landmark(id: "lobby-2", name: "大堂", kind: .lobby, pos: Vec2(x: 60, y: -12), hasSeat: false),
@@ -233,7 +233,7 @@ struct DioramaFixTests {
     }
 
     @Test func 地标唔够用底座外嘅巴士站() {
-        // 只有我屋企一座楼：楼下 1 个 + 底座外 40 m 的巴士站（放在底座边）+ 公园。
+        // With one home, supplement its entrance with a bus stop 40 m outside the base, clamped to the edge, and a park.
         var m = testMap([box(1, 0, 0)], areas: [Area(kind: .park, outline: rect(-90, -90, -40, -40), name: nil, osmID: 7)], size: 720)
         m.pois = [POI(id: 5, kind: .busStop, name: "古洞", pos: Vec2(x: 140, y: 10))]
         let d = m.simplified(around: .zero, home: 1)

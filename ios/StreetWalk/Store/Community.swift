@@ -1,88 +1,88 @@
 import Foundation
 
-/// 成员 A：要和别人同步的数据——圈成员、街坊关系、约会、出门状态、反映、地标改名、全邨匿名汇总。
-/// 两个实现：演示模式用 LocalCommunityService（数据只在本机，对方由「示範街坊」模拟）；
-/// 关咗演示模式用 SupabaseCommunityService（Backend/，真后端，表结构见 supabase/migrations/001_init.sql）。
-/// 只上传地标级信息：出门状态是地标名，反映挂在地标上，原始轨迹永远不离开手机。
+/// A's synchronized data: circle members, relationships, meetings, outings, reports, landmark names and anonymous estate aggregates.
+/// LocalCommunityService simulates peers locally in demo mode.
+/// Normal mode uses Backend/SupabaseCommunityService; schema is in supabase/migrations/001_init.sql.
+/// Community records share landmark-level outings and reports, not raw walking tracks. Live finding has a separate temporary-coordinate channel.
 @MainActor
 protocol CommunityService: AnyObject {
-    /// 别人那边发生的事（街坊出门、应承约会、约你、反映有回覆）。
+    /// Peer events: outings, meeting acceptance, invitations and report responses.
     var onEvent: ((CommunityEvent) -> Void)? { get set }
-    /// 单机演示：圈里其他人都是模拟的。
+    /// Single-device demo simulates all other circle members.
     var isSimulated: Bool { get }
-    /// 有服务器（真后端，或者演示时模拟嘅服务器）：反映会交出去、排行榜有其他人。
+    /// A real or simulated server accepts reports and supplies other leaderboard residents.
     var hasServer: Bool { get }
-    /// 改地标名同圈都会见到（真后端未有地标改名表：只喺本机）。
+    /// Circle-wide landmark renaming awaits a backend table; current renaming remains local.
     var sharesLandmarkNames: Bool { get }
-    /// 街坊关系以服务器为准（唔用本机存档嘅关系表）。
+    /// Server relationships take precedence over locally saved relationships.
     var ownsNeighborLinks: Bool { get }
 
-    /// F2 圈成员（不含我）。blocks 是附近有名字的住宅楼，landmarks 是这个底座的地标。
-    /// 真后端：返回缓存，背景刷新，有变就发 .membersChanged（AppStore 重新 populate）。
+    /// F2 circle members exclude me; blocks are nearby named residences and landmarks belong to this base.
+    /// Real backend returns cache, refreshes asynchronously and emits membersChanged for AppStore to repopulate.
     func circleMembers(blocks: [String], landmarks: [Landmark]) -> [Resident]
-    /// 底座嘅地标（而家嘅名 + 改名前嘅原名）：上传 / 收到地标名时对返本机地标 id。
+    /// Current and canonical landmark names map exchanged names back to local IDs.
     func setLandmarks(_ landmarks: [Landmark], originals: [String: String])
 
-    // F5 / F6 街坊关系
+    // F5 / F6 neighbor relationships.
     func linkNeighbor(_ id: String, send: Bool, receive: Bool)
-    /// 解除街坊：只删自己这边的关系，对方不会收到通知。
+    /// Remove only my relationship; do not notify the peer of removal.
     func unlinkNeighbor(_ id: String)
     func updateRemind(_ id: String, send: Bool, receive: Bool)
-    /// 我出门（地标）/ 回家隐身（nil）。只发给开了"发送"的街坊。
+    /// My outing landmark, or nil on return; send only to neighbors with sending enabled.
     func publishOuting(landmarkID: String?)
 
-    // F7 约会
+    // F7 meetings.
     func sendInvite(_ a: Appointment)
     func respond(to a: Appointment, accept: Bool)
-    /// 改时间、改地点或取消。改动要对方再确认，取消直接通知对方。
+    /// Time / place changes require renewed peer confirmation; cancellation notifies directly.
     func updateMeetup(_ a: Appointment)
 
-    /// 重启后接返未完成的事（例如仲等紧对方确认的约会）。
+    /// Resume unfinished work after restart, including pending meeting confirmation.
     func resume(_ appointments: [Appointment])
 
     // F3 / F10
     func renameLandmark(_ id: String, to name: String)
     func submitReport(_ r: Report)
 
-    // 全邨匿名汇总（只出地标级、人数够多的数字）
+    // Estate aggregates expose landmark-level counts only above the anonymity threshold.
     func passersToday(at landmark: Landmark) -> (count: Int, isDemo: Bool)?
     func circleRace(placeName: String, myMonthSteps: Int) -> CircleRace
     func monthlyStats(myWalks: Int, myMeetups: Int, estateHomes: Int) -> MonthlyStats
-    /// 其他居民的匿名反映（月报用）。
+    /// Other residents' anonymous reports for monthly summaries.
     func othersReports(landmarks: [Landmark]) -> [Report]
 
-    // MARK: F8 找人（2026-10-08 补）
-    // 只传地标 id、分钟数同一句播送；双方位置唔离开手机。
+    // MARK: F8 finding, added 2026-10-08
+    // These events carry landmark IDs, minutes and spoken messages; live coordinates use the separate LiveFindSession channel.
 
-    /// 散步中临时"過去搵佢"：先问对方方唔方便。对方答复经 answer 送返（真后端：对方撳「好 / 唔方便」，Realtime 推返嚟）。
+    /// Ask permission before approaching during a walk; answer returns the peer's response through Realtime on the real backend.
     func askToFind(partnerID: String, landmarkID: String, answer: @escaping (_ accepted: Bool) -> Void)
-    /// 我取消 / 结束咗：撤回仲未答嘅询问。
+    /// Withdraw an unanswered request when cancelling or ending finding.
     func cancelFindAsk(partnerID: String)
-    /// 收到街坊问「方唔方便」（.findAsked），我撳「好 / 唔方便」。
+    /// Respond to an incoming findAsked event with acceptance or refusal.
     func answerFindAsk(_ ask: IncomingFindAsk, accepted: Bool)
-    /// 播送一句俾对方（「我喺X」「我就到X」）。
+    /// Send a short location or arrival message to the peer.
     func broadcast(to partnerID: String, text: String)
-    /// 约会当日我出发：话俾对方知我大约几分钟到。对方出门、途中、到达都经 partnerUpdate 送返（可以多次；
-    /// 第一次 = 佢出咗门）。真后端双方位置都唔离开手机，App 只靠呢度知道对方几耐到、到咗未。
+    /// On meeting departure, share estimated arrival minutes; partnerUpdate may report departure, progress and arrival repeatedly.
+    /// The first update indicates departure. These progress events contain no coordinates; live finding uses its own consented channel.
     func departForMeetup(_ appointmentID: UUID, etaMinutes: Int, partnerUpdate: @escaping (_ trip: PartnerTrip) -> Void)
-    /// 见到面 / 结束找人：停止通知。
+    /// Stop notifications after meeting or ending finding.
     func endMeetupTrip(_ appointmentID: UUID, met: Bool)
 
-    // MARK: 每日汇总、请假、个人资料、撤回反映（2026-10-08 补）
+    // MARK: Daily summaries, leave, profiles and report withdrawal, added 2026-10-08
 
-    /// 当日汇总（walks 表）：分钟数、步数（圈对圈）、经过的地标、落脚点地标、当日一句。排行榜上别人睇到嘅就係呢啲。
+    /// Daily walks summary includes minutes, steps and daily greeting; only stopping landmarks are shared, not pass-through landmarks.
     func uploadDay(day: String, minutes: Int, steps: Int, landmarkIDs: [String], stopLandmarkIDs: [String], line: String)
-    /// 请假（leaves 表）：连续天数唔断。
+    /// Leave records preserve streaks.
     func setLeave(day: String, on: Bool)
-    /// 个人资料（profiles 表）：网名、小人（行动方式、颜色、肤色、年纪）、屋企格子、屋邨名、座数楼层（只俾街坊睇）、连续天数。
+    /// Profiles include nickname, mobility / avatar, home grid, estate, neighbor-visible building / floor and streak.
     func updateProfile(_ p: CommunityProfile)
-    /// 撤回自己的一条反映。
+    /// Withdraw one of my reports.
     func retractReport(_ id: UUID)
 }
 
-/// F8 约会当日对方嘅进度（只有分钟数同到咗未，冇坐标）。
+/// F8 meeting-day progress contains minutes and arrival state, without coordinates.
 struct PartnerTrip: Equatable {
-    /// 大约仲要几分钟到约定地方；nil = 对方冇讲（单机由 App 按模拟路线估）。
+    /// Estimated minutes to the meeting place; nil means unreported. Local demo estimates from its simulated route.
     var etaMinutes: Int?
     var arrived = false
 }
@@ -93,26 +93,26 @@ enum CommunityEvent {
     case inviteAnswered(appointmentID: UUID, accepted: Bool)
     case invited(Appointment)
     case reportFollowUp(reportID: UUID, text: String, isDemo: Bool)
-    // 2026-10-10 真后端追加
-    /// 圈成员（排行榜、街坊、出门地标）变咗：AppStore 重新 populate。
+    // Real-backend additions, 2026-10-10.
+    /// AppStore repopulates after circle members, relationships or outing landmarks change.
     case membersChanged
-    /// 对方改咗约会时间 / 地点（要我再确认）。
+    /// Peer changed meeting time / place, requiring my confirmation.
     case meetupChanged(Appointment)
-    /// 对方取消咗约会。
+    /// Peer cancelled the meeting.
     case meetupCancelled(appointmentID: UUID)
-    /// 街坊散步中想過嚟搵我：问我方唔方便。
+    /// A walking neighbor asks permission to approach.
     case findAsked(IncomingFindAsk)
-    /// 佢撤回咗个询问（我未答）。
+    /// Peer withdrew the unanswered request.
     case findAskCancelled(askID: String)
-    /// 我问街坊方唔方便：问唔到（未连线）或者佢一直冇回覆。
+    /// My finding request failed to send or remained unanswered.
     case findAskUnanswered(partnerID: String, offline: Bool)
-    /// 找人时对方播送一句（「我喺涼亭」）。
+    /// Peer sent a spoken location message during finding.
     case partnerSaid(partnerID: String, text: String)
-    /// 约会当日对方出门 / 到达 / 放弃（我未撳出发，冇人接 partnerUpdate 时）。
+    /// Meeting-day departure, arrival or abandonment before I depart or while no partnerUpdate handler is active.
     case partnerTrip(appointmentID: UUID, partnerID: String, trip: PartnerTrip, ended: Bool)
 }
 
-/// 圈对圈：本月圈内总步数。
+/// Circle-versus-circle monthly step total.
 struct CircleRace: Equatable {
     var ourName: String
     var ourSteps: Int
@@ -121,7 +121,7 @@ struct CircleRace: Equatable {
     var isDemo: Bool
 }
 
-/// 单机实现。示範街坊的反应用固定延时模拟，数字由示範数据和本机记录推算。
+/// Local implementation uses fixed-delay demo reactions and numbers derived from sample data and local records.
 @MainActor
 final class LocalCommunityService: CommunityService {
     var onEvent: ((CommunityEvent) -> Void)?
@@ -129,21 +129,21 @@ final class LocalCommunityService: CommunityService {
     var hasServer: Bool { demoEnabled }
     var sharesLandmarkNames: Bool { demoEnabled }
     var ownsNeighborLinks: Bool { false }
-    /// 演示模式用：圈里系示範街坊。（关咗演示模式 AppStore 会换 SupabaseCommunityService。）
+    /// Demo circle contains sample neighbors; disabling demo switches to SupabaseCommunityService.
     var demoEnabled: Bool
-    /// 演示菜单「陳太唔方便（下一次）」：下一次邀请 / 询问会被拒绝。
+    /// The demo refusal action rejects the next invitation or request.
     var declineNext = false
-    /// 每个约会只留最新一次模拟回覆（改咗时间地点，旧回覆作废）。
+    /// Keep only each meeting's latest simulated reply; edits invalidate older replies.
     private var pending: [UUID: Task<Void, Never>] = [:]
-    /// 重启后要接返的约会：等圈成员装好（circleMembers）先排回覆，免得横幅出空名、空地点。
+    /// After restart wait for circleMembers before scheduling replies, avoiding blank names and places.
     private var resumeLater: [UUID] = []
-    /// 找人询问、约会当日对方出门：每个对方 / 约会只留最新一次模拟。
+    /// Keep only the latest simulated finding request / departure per peer or meeting.
     private var findAsks: [String: Task<Void, Never>] = [:]
     private var trips: [UUID: Task<Void, Never>] = [:]
 
     init(demoEnabled: Bool) { self.demoEnabled = demoEnabled }
 
-    /// 示範街坊：同一格子每次一样。住在附近的住宅楼，常去的地标各不相同；连续天数是示範数据。
+    /// Deterministic demo neighbors per tile, assigned nearby residences and varied destinations; streaks are sample data.
     private static let roster: [(id: String, name: String, floor: Int, color: Int, mobility: Mobility, streak: Int)] = [
         ("chan", "陳太", 8, 0, .walk, 21), ("wong", "黃太", 3, 1, .walk, 30), ("lee", "李伯", 15, 2, .wheelchair, 14),
         ("leung", "梁太", 6, 3, .stroller, 12), ("ho", "何生", 21, 4, .walk, 5), ("cheung", "張伯", 9, 5, .cane, 2),
@@ -174,7 +174,7 @@ final class LocalCommunityService: CommunityService {
     func sendInvite(_ a: Appointment) { answerLater(a.id, after: 4) }
 
     func updateMeetup(_ a: Appointment) {
-        // 取消直接生效；改时间 / 地点要对方再确认。
+        // Cancellation applies immediately; time / place edits require reconfirmation.
         if a.status == .waiting { answerLater(a.id, after: 3) } else { pending[a.id]?.cancel(); pending[a.id] = nil }
     }
 
@@ -200,7 +200,7 @@ final class LocalCommunityService: CommunityService {
         }
     }
 
-    // MARK: F8 找人（模拟：示範街坊 2.4 秒后答；演示菜单「陳太唔方便（下一次）」会拒绝一次）
+    // MARK: F8 simulated finding: reply after 2.4 seconds; the demo refusal option rejects once
 
     func askToFind(partnerID: String, landmarkID: String, answer: @escaping (Bool) -> Void) {
         findAsks[partnerID]?.cancel()
@@ -208,7 +208,7 @@ final class LocalCommunityService: CommunityService {
             try? await Task.sleep(for: .seconds(2.4))
             guard !Task.isCancelled else { return }
             self.findAsks[partnerID] = nil
-            // 答嗰陣先用「唔方便」：中途取消唔会用咗佢。
+            // Consume the refusal option only when answering, not if cancelled earlier.
             let accept = !self.declineNext
             self.declineNext = false
             answer(accept)
@@ -220,13 +220,13 @@ final class LocalCommunityService: CommunityService {
         findAsks[partnerID] = nil
     }
 
-    /// 单机：示範街坊唔会问你（冇对方部手机）。
+    /// Local demo has no peer phone to send incoming finding requests.
     func answerFindAsk(_ ask: IncomingFindAsk, accepted: Bool) {}
 
-    /// 单机：冇对方部手机，播送只喺本机显示。
+    /// Without a peer phone, local demo broadcasts appear only locally.
     func broadcast(to partnerID: String, text: String) {}
 
-    /// 单机：示範街坊 1.5 秒后出门，只报一次（之后嘅进度、到达由 App 按模拟路线自己行）。
+    /// The demo peer departs after 1.5 seconds and reports once; subsequent movement follows the App's simulated route.
     func departForMeetup(_ appointmentID: UUID, etaMinutes: Int, partnerUpdate: @escaping (PartnerTrip) -> Void) {
         trips[appointmentID]?.cancel()
         trips[appointmentID] = Task { @MainActor in
@@ -242,14 +242,14 @@ final class LocalCommunityService: CommunityService {
         trips[appointmentID] = nil
     }
 
-    // MARK: 每日汇总、请假、个人资料、撤回反映（单机：只存本机，冇嘢要上传）
+    // MARK: Local summaries, leave, profiles and withdrawals require no upload
 
     func uploadDay(day: String, minutes: Int, steps: Int, landmarkIDs: [String], stopLandmarkIDs: [String], line: String) {}
     func setLeave(day: String, on: Bool) {}
     func updateProfile(_ p: CommunityProfile) {}
     func retractReport(_ id: UUID) {}
 
-    // MARK: 演示触发（演示菜单 / 自动脚本）
+    // MARK: Demo-menu and scripted triggers
 
     func simulateOut(_ id: String, at landmarkID: String) { onEvent?(.neighborOut(residentID: id, landmarkID: landmarkID)) }
     func simulateHome(_ id: String) { onEvent?(.neighborHome(residentID: id)) }
@@ -264,7 +264,7 @@ final class LocalCommunityService: CommunityService {
         onEvent?(.reportFollowUp(reportID: r.id, text: text, isDemo: true))
     }
 
-    // MARK: 匿名汇总（示範数据：按地名 / 地标名做种子，同一屋邨每次一样）
+    // MARK: Sample anonymous aggregates seeded by estate / landmark names for repeatability
 
     private func seed(_ s: String) -> Int { s.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xFFFF } }
 
@@ -282,7 +282,7 @@ final class LocalCommunityService: CommunityService {
 
     func monthlyStats(myWalks: Int, myMeetups: Int, estateHomes: Int) -> MonthlyStats {
         guard demoEnabled else { return MonthlyStats(walks: myWalks, walkers: myWalks > 0 ? 1 : 0, meetups: myMeetups, isDemo: false) }
-        // 假设 3% 住户用 App、每人每月行 9 次、一成散步係同街坊一齊。
+        // Demo assumptions: 3% adoption, 9 walks per user per month, and 10% of walks with neighbors.
         let walkers = max(12, estateHomes * 3 / 100)
         let walks = walkers * 9 + myWalks
         return MonthlyStats(walks: walks, walkers: walkers, meetups: walks / 8 + myMeetups, isDemo: true)

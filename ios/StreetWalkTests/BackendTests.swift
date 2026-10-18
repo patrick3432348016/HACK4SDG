@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import StreetWalk
 
-// 真后端：服务器 JSON ↔ App 资料嘅对应、圈成员合并、约会对比、连续天数、写入排队。
-// 唔打网络；打正式后端嘅集成测试喺 ios/tools/backendtest.sh（会留低测试用户）。
+// Backend tests: JSON mapping, member merge, meeting diff, streaks and write outbox.
+// No network here; live backendtest.sh creates real test users.
 
 struct BackendJSONTests {
     @Test func 时间格式_微秒_Z_纯日期都读得() throws {
@@ -17,7 +17,7 @@ struct BackendJSONTests {
         #expect(BackendTime.parse(BackendTime.format(a)).map { abs($0.timeIntervalSince(a)) < 0.002 } == true, "写出去再读返一样")
     }
 
-    /// 实测 Realtime / PostgREST 返回嘅样子（2026-10-10 probe）。
+    /// Realtime / PostgREST response shape observed in the 2026-10-10 probe.
     @Test func 读服务器返回嘅行() throws {
         let board = """
         [{"id":"E5729A1E-a741-487b-af54-6197884c97a2","nickname":"探針乙","avatar":{"age":"elder","skin":1,"color":1,"mobility":"cane"},
@@ -172,11 +172,11 @@ struct BackendStreakTests {
     @Test func 连续天数计到边日_请假顺延() {
         let today = AppStore.today(at: 10)
         func key(_ d: Int) -> String { LocalStore.dayKey(today.addingTimeInterval(Double(d) * 86400)) }
-        // 今日行咗：今日
+        // If walked today, use today.
         #expect(BackendMapping.streakDay(today: today, streak: 3, walkedOrLeave: { $0 == key(0) }, leave: { _ in false }) == key(0))
-        // 今日未行：琴日（服务器两日内照显示）
+        // If not walked today, use yesterday; the server retains a two-day display window.
         #expect(BackendMapping.streakDay(today: today, streak: 3, walkedOrLeave: { _ in false }, leave: { _ in false }) == key(-1))
-        // 今日起请 3 日假：顺延到第 3 日，排行榜唔会中途变 0
+        // Three-day leave extends the streak window so it does not become zero midway.
         let leaves: Set<String> = [key(0), key(1), key(2)]
         #expect(BackendMapping.streakDay(today: today, streak: 3, walkedOrLeave: { leaves.contains($0) }, leave: { leaves.contains($0) }) == key(2))
         #expect(BackendMapping.streakDay(today: today, streak: 0, walkedOrLeave: { _ in false }, leave: { _ in false }) == key(0))

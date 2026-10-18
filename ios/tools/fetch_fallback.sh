@@ -1,5 +1,5 @@
 #!/bin/sh
-# 重新抓取内置兜底地图（皇后山邨 0_0 格）。App 内用同一份查询，解析器只有 Swift 一份。
+# Refetch Queen's Hill fallback tile 0_0 using the App's query; Swift remains the only parser.
 set -e
 cd "$(dirname "$0")/.."
 BBOX="22.5018715,114.1535787,22.5069285,114.1590213"

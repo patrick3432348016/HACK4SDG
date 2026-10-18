@@ -1,17 +1,17 @@
 import CoreLocation
 import Foundation
 
-/// 取当前位置 → 吸附到格子 → 读缓存 / 请求 Overpass → 失败就用旧缓存，再不行才用内置皇后山邨。
-/// 只有格子范围会发给地图服务，精确位置不离开手机。
+/// Location → grid → cache/Overpass → stale cache → bundled Queen's Hill example as the final fallback.
+/// For map requests, transmit grid bounds rather than the precise user position.
 @MainActor
 final class MapService: NSObject, CLLocationManagerDelegate {
     enum Source: String {
         case live = "實時", cache = "快取", fallback = "示例"
-        /// 显示用。
+        /// Display label.
         var label: String {
             switch self {
             case .live: return L.t("實時", "实时")
-            case .cache: return L.t("地圖", "地图")   // 唔讲「快取」（UX 评审 16）
+            case .cache: return L.t("地圖", "地图")   // Do not expose cache terminology to users (UX finding 16).
             case .fallback: return L.t("示例", "示例")
             }
         }
@@ -21,15 +21,15 @@ final class MapService: NSObject, CLLocationManagerDelegate {
     private var locationContinuation: CheckedContinuation<GeoPoint?, Never>?
     private var locationTimer: DispatchWorkItem?
 
-    /// overpass.private.coffee 已失效（2026-10 起一律回 500），不再用。
+    /// This branch excludes overpass.private.coffee after the team's October 2026 HTTP 500 observations.
     nonisolated static let endpoints = [
         "https://overpass-api.de/api/interpreter",
         "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
     ]
-    /// 实时拉取的边长（米）。比 400 m 格子大：屋企在格边（离格心约 200 m）时，以它为中心的 200 m 底座仍在资料范围内。
-    /// 内置示例屋邨仍然是 560 m（TileKey.plinthSize）。
+    /// Live fetch width exceeds the 400-m grid so a 200-m home-centred base still fits when home is near a grid edge.
+    /// Bundled example width remains 560 m (TileKey.plinthSize).
     nonisolated static let fetchSize = 720.0
-    /// 拉地图最多等几耐（秒）。两个服务器同时问，边个先答到就用边个。
+    /// Map-fetch timeout in seconds. Query two servers concurrently and use the first successful response.
     nonisolated static let fetchTimeout = 30.0
 
     override init() {
@@ -38,24 +38,24 @@ final class MapService: NSObject, CLLocationManagerDelegate {
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
     }
 
-    // MARK: - 位置
+    // MARK: - Location
 
-    /// 下一次 currentLocation 直接用呢个位置（「你係咪搬咗屋」按「係」：喺过夜嘅地方重新揀樓）。用一次就清。
+    /// One-shot location override for repicking home after confirming a move; clear after use.
     var pinnedLocation: GeoPoint?
 
-    /// 未问过定位（首次使用「屋企」一步要先讲一句点解要定位，再弹系统框）。
+    /// Whether location permission has never been requested; explain its purpose before showing the system prompt.
     var locationUndetermined: Bool {
         pinnedLocation == nil && !LaunchArgs.has("-offline") && manager.authorizationStatus == .notDetermined
     }
 
-    /// 只在首次选楼 / 重新选楼时调用。权限框未回答前不计时（长者看权限框可能要很久），回答后才等 timeout 秒。
+    /// Call only for initial/repeated home selection. Start the timeout after the permission prompt is answered, allowing time to read it.
     func currentLocation(timeout: TimeInterval = 8) async -> GeoPoint? {
         if let p = pinnedLocation { pinnedLocation = nil; return p }
         if LaunchArgs.has("-offline") { return nil }
         let status = manager.authorizationStatus
         if status == .denied || status == .restricted { return nil }
         return await withCheckedContinuation { cont in
-            // 上一次还在等（例如连按两次重新选楼）：先给它 nil，不要挂住。
+            // Resolve any previous pending request with nil before starting another, avoiding a hung continuation.
             finishLocation(nil)
             locationContinuation = cont
             if status == .notDetermined {
@@ -84,7 +84,7 @@ final class MapService: NSObject, CLLocationManagerDelegate {
 
     nonisolated func locationManagerDidChangeAuthorization(_ m: CLLocationManager) {
         Task { @MainActor in
-            // 建 CLLocationManager 时系统也会回调一次：没人在等位置就不取（F1：只在需要时开定位）。
+            // CLLocationManager invokes a callback on creation; request location only when a caller is waiting.
             guard self.locationContinuation != nil else { return }
             switch m.authorizationStatus {
             case .authorizedAlways, .authorizedWhenInUse:
@@ -106,7 +106,7 @@ final class MapService: NSObject, CLLocationManagerDelegate {
         Task { @MainActor in self.finishLocation(nil) }
     }
 
-    // MARK: - 地图
+    // MARK: - Map
 
     func load(tile: TileKey) async -> (MapModel, Source) {
         if !LaunchArgs.has("-offline") {
@@ -115,7 +115,7 @@ final class MapService: NSObject, CLLocationManagerDelegate {
                 TileCache.write(tile, data)
                 return (m, .live)
             }
-            // 拉不到：过期的旧缓存也比示例屋邨好（至少是你屋企附近）。
+            // Stale local-area cache is preferable to an unrelated example estate when fetching fails.
             if let c = TileCache.read(tile, maxAge: .infinity), let m = try? OSMParser.parse(c.data, tile: tile, size: c.size, source: "cache") { return (m, .cache) }
         }
         return (Self.fallback(), .fallback)
@@ -127,7 +127,7 @@ final class MapService: NSObject, CLLocationManagerDelegate {
         return try! OSMParser.parse(data, tile: TileKey(ix: 0, iy: 0), source: "fallback")
     }
 
-    /// Overpass 用的 south,west,north,east（以格心为中心、边长 size，仍然按格子对齐，不含精确位置）。
+    /// Overpass bounds in south,west,north,east order, centred on the grid with width size; no precise user coordinate.
     nonisolated static func bbox(_ t: TileKey, size: Double = fetchSize) -> String {
         let proj = LocalProjection(origin: t.center)
         let h = size / 2
@@ -137,7 +137,7 @@ final class MapService: NSObject, CLLocationManagerDelegate {
 
     private enum FetchResult: Sendable { case data(Data), failed, timeout }
 
-    /// 两个服务器同时问，边个先答到就用边个；总共最多等 fetchTimeout 秒。
+    /// Query two servers concurrently and use the first success, within fetchTimeout seconds overall.
     private func fetch(_ tile: TileKey) async -> Data? {
         guard let qURL = Bundle.main.url(forResource: "estate", withExtension: "overpassql"),
               let template = try? String(contentsOf: qURL, encoding: .utf8) else { return nil }
@@ -166,7 +166,7 @@ final class MapService: NSObject, CLLocationManagerDelegate {
         }
     }
 
-    /// 问一个服务器；好快就失败（504 / 429）就隔 2 秒再试，直到限期。
+    /// Query one server; retry fast failures such as 504 or 429 after two seconds until the deadline.
     private nonisolated static func post(_ endpoint: String, body: Data, until deadline: Date) async -> FetchResult {
         while !Task.isCancelled {
             let left = deadline.timeIntervalSinceNow
@@ -187,10 +187,10 @@ final class MapService: NSObject, CLLocationManagerDelegate {
     }
 }
 
-/// 解析前的原始 Overpass 响应按格子存在 Caches 里，保留 30 天；拉不到时再旧也照用。
-/// v2 起每格拉 720 m（MapService.fetchSize）；v1 是以前 560 m 的，只在拉不到时兜底，同一格写了 v2 就删掉。
+/// Cache raw Overpass responses per grid for 30 days; permit older data when the network is unavailable.
+/// v2 fetches 720 m per grid. Retain old 560-m v1 only as fallback and remove it once v2 is written for that grid.
 enum TileCache {
-    /// 缓存根目录 tiles/（v1、v2 都在里面）。演示「重新生成」用的 clear() 删的就是它，旧的 v1 不会在离线时又被读出来。
+    /// Both cache versions live under tiles/. Demo regeneration clears the entire root so old v1 data cannot reappear offline.
     static var dir: URL {
         let d = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("tiles", isDirectory: true)
         try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)

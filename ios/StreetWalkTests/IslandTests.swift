@@ -3,22 +3,22 @@ import Foundation
 import Testing
 @testable import StreetWalk
 
-// 灵动岛：岛嘅位置（有岛 / 刘海 / 新机型估算）、横幅同两侧状态排位、显示边样状态（优先次序、约会时间窗、距离取整、字）。
+// Island tests cover measured/fallback geometry, layouts, priority, meeting windows, rounded distance and labels.
 
 struct IslandGeometryTests {
     @Test func 已知机型用实测位置() {
-        // iPhone 17 Pro（模拟器截图实测）：岛 x 138.33、y 14、125.33 × 36.67
+        // iPhone 17 Pro simulator measurement: x=138.33, y=14, width=125.33, height=36.67.
         let p = IslandGeometry.make(screen: CGSize(width: 402, height: 874), safeTop: 62)
         let i = try! #require(p.island)
         #expect(abs(i.minX - 138.33) < 0.1 && i.minY == 14 && abs(i.width - 125.33) < 0.1 && abs(i.height - 36.67) < 0.1)
-        // iPhone 15（模拟器截图实测）：岛 x 134、y 11.33、125 × 36.67
+        // iPhone 15 simulator measurement: x=134, y=11.33, width=125, height=36.67.
         let f = IslandGeometry.make(screen: CGSize(width: 393, height: 852), safeTop: 59)
         let j = try! #require(f.island)
         #expect(abs(j.minX - 134) < 0.1 && abs(j.minY - 11.33) < 0.1 && j.width == 125)
     }
 
     @Test func 新机型按安全区估() {
-        // iPhone Air（420 × 912）未实测：按「岛顶 = 安全区 − 48」、居中
+        // Unmeasured iPhone Air 420 x 912 uses centered fallback at safe-area top minus 48.
         let a = IslandGeometry.make(screen: CGSize(width: 420, height: 912), safeTop: 68)
         let i = try! #require(a.island)
         #expect(i.minY == 20)
@@ -132,7 +132,7 @@ struct IslandStoreTests {
         s.walk = WalkSession(start: Date(), minutes: 12, passed: ["shelter-1"])
         #expect(s.islandStatuses.map(\.kind) == [.walk])
         #expect(s.islandStatuses.first?.places == 1)
-        // 15:20 约咗陳太（而家 15:00）：约会排先
+        // At 15:00, a 15:20 meeting with Mrs Chan takes priority.
         s.appointments = [Appointment(partnerID: "chan", date: AppStore.today(at: 15 + 20.0 / 60), landmarkID: "shelter-1", reason: "", status: .accepted)]
         let first = try! #require(s.islandStatuses.first)
         #expect(first.kind == .meet && first.minutes == 20 && first.name == "陳太" && first.place == "涼亭")

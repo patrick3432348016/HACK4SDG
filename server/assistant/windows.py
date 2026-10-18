@@ -16,7 +16,7 @@ from .doubao import DoubaoConfig
 from .realtime import add_realtime_route
 from .voice_policy import local_decision
 
-# 成员 A 改：仓库入面网页放 server/windows/web（B 原本系 backend/../windows/web）。
+# A adapted the web root to server/windows/web rather than B's original backend-relative path.
 WEB = Path(__file__).resolve().parents[1] / "windows" / "web"
 
 

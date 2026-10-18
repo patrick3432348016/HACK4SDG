@@ -15,7 +15,7 @@ import urllib.request
 
 root = Path(__file__).resolve().parents[1]
 subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"], cwd=root, check=True)
-# 成员 A：check_delivery.py（检查 B 独立交付包嘅 Xcode 工程）喺呢个仓库唔适用，已删。
+# A removed check_delivery.py because it validated B's standalone Xcode package, not this integrated repository.
 
 with tempfile.TemporaryDirectory(prefix="assistant-verify-") as temporary:
     with socket.socket() as reservation:

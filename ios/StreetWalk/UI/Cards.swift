@@ -1,11 +1,11 @@
 import SwiftUI
 
-// 子代理 B：底部卡片的内容。圆角、拉手、背后变暗由 MainView 的底部卡容器负责，这里只出内容。
+// Bottom-card content only; MainView supplies corners, handle and dimmed backdrop.
 
-// MARK: - 约人提议
+// MARK: - Invitation suggestions
 
-/// 约人：AI 给的时间 + 地点 + 理由；一个大「好」，「換個時間」「換個地方」各换一个。
-/// 改约（editing）：一打开就揀好一个唔同嘅时间，时间用几个大选项直接揀；卡上只有「發俾XX」同「唔改喇」（UX 评审 12）。
+/// Suggested time, place and reason with one prominent confirmation and separate time / place alternatives.
+/// UX 12: rescheduling preselects a different time, offers large direct choices, and shows only send / cancel-edit actions.
 struct ProposalCard: View {
     @Environment(AppStore.self) private var store
     @State private var taps = 0
@@ -29,7 +29,7 @@ struct ProposalCard: View {
         }
     }
 
-    // MARK: 新约
+    // MARK: New invitation
 
     private func newCard(_ p: Proposal) -> some View {
         let current = p.options[p.index]
@@ -65,7 +65,7 @@ struct ProposalCard: View {
             .animation(DS.motion(DS.spring), value: current)
             .accessibilityElement(children: .combine)
 
-            // 测试反馈：时间地点要可以撳入去自己揀，行几耐都可以喺度定
+            // Feedback: allow direct time, place and walk-duration selection.
             Button { customizing = true } label: {
                 Label(L.t("自己揀時間、地點、行幾耐", "自己选时间、地点、走多久"), systemImage: "slider.horizontal.3")
                     .ds(.captionBold)
@@ -100,7 +100,7 @@ struct ProposalCard: View {
         .buttonStyle(.dsSecondary)
     }
 
-    // MARK: 改约 / 回覆邀请换时间
+    // MARK: Reschedule or counter an invitation
 
     private func editingCard(_ p: Proposal, _ a: Appointment) -> some View {
         let current = p.options[p.index]
@@ -162,7 +162,7 @@ struct ProposalCard: View {
 
             closeLink(L.t("唔改喇", "不改了"))
 
-            // 自己嘅约会：取消放最底、细字（回覆别人嘅邀请就用「唔去」，唔使喺呢度出）
+            // For my meetings, place cancellation at the bottom in small text; incoming invitations use their refusal action elsewhere.
             if !replying {
                 Button { cancelling = a } label: {
                     Text(L.t("取消約會", "取消约会"))
@@ -176,7 +176,7 @@ struct ProposalCard: View {
         }
     }
 
-    /// 一个时间选项：成行撳得，揀咗嘅有橙色框。
+    /// A whole-row time choice with an orange selected border.
     private func timeOption(_ o: MeetProposal, selected: Bool, original: Bool, pick: @escaping () -> Void) -> some View {
         let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
         return Button(action: pick) {
@@ -214,9 +214,9 @@ struct ProposalCard: View {
     }
 }
 
-// MARK: - 点场景里的地标 / 人
+// MARK: - Scene landmark and person selection
 
-/// 点地标：名字、有冇櫈、而家有冇陰（普通文字，唔似掣）、「約街坊喺度」（主按钮）；点人：喺边、「約佢行」或「過去搵佢」。
+/// Landmark cards show name, seating and shade as text plus an invitation action; person cards offer invite or find.
 struct InfoCard: View {
     @Environment(AppStore.self) private var store
     @State private var taps = 0
@@ -248,7 +248,7 @@ struct InfoCard: View {
         .accessibilityLabel(L.t("收埋", "收起"))
     }
 
-    // 地标
+    // Landmark.
 
     private func landmarkView(_ lm: Landmark) -> some View {
         let renaming = store.renaming == lm.id
@@ -264,7 +264,7 @@ struct InfoCard: View {
                 closeButton
             }
 
-            // 测试反馈：「没凳子」「太阳下山了」做成胶囊似掣、以为撳得 → 改成普通说明文字，前面讲明「呢度而家」
+            // Feedback: seating / sunset capsules looked tappable; present them as plain current-condition text.
             VStack(alignment: .leading, spacing: 6) {
                 Text(L.t("呢度而家：", "这里现在："))
                     .ds(.caption)
@@ -310,7 +310,7 @@ struct InfoCard: View {
                 }
                 .transition(DS.slide(.bottom))
             } else {
-                // 测试反馈：「改名」唔知做咩用 → 拎走入口（讲「改名叫…」仍然得）
+                // Remove the confusing rename entry; explicit voice rename remains supported.
                 meetHereButton(lm)
                 .transition(.opacity)
             }
@@ -319,7 +319,7 @@ struct InfoCard: View {
         .animation(DS.motion(DS.spring), value: lm.name)
     }
 
-    /// 主按钮：「約街坊喺度」（一个街坊就直接写佢个名；几个就先揀边个）；未有街坊：「出去行吓」。
+    /// Invite here names the sole neighbor or opens neighbor selection; without neighbors, offer a walk.
     @ViewBuilder private func meetHereButton(_ lm: Landmark) -> some View {
         let ns = store.neighbors
         if ns.isEmpty {
@@ -365,7 +365,7 @@ struct InfoCard: View {
             .animation(DS.motion(DS.snappy), value: shade)
     }
 
-    // 人
+    // Person.
 
     private func personView(_ r: Resident) -> some View {
         let walking = store.walk != nil
@@ -418,20 +418,20 @@ struct InfoCard: View {
         }
     }
 
-    /// 网名；街坊加座数楼层（非街坊永远唔出座数楼层，2026-10-10 定）。
+    /// Nickname plus building / floor only for neighbors; never expose those details for non-neighbors (2026-10-10).
     private func title(for r: Resident) -> String { r.listName }
 
     private func whereText(for r: Resident) -> String {
         if r.isMe { return store.walk != nil ? L.t("行緊", "在散步") : L.t("喺屋企（街坊睇唔到你）", "在家（邻居看不到你）") }
         guard r.isNeighbor else { return L.t("仲未係你街坊", "还不是你的邻居") }
         if r.isOut, let place = store.placeName(r.atLandmarkID) { return L.t("喺\(place)附近", "在\(place)附近") }
-        return L.t("冇出門消息", "没有出门消息")   // 不断言「喺屋企」
+        return L.t("冇出門消息", "没有出门消息")   // Do not assert that the person is at home.
     }
 }
 
-// MARK: - 碰一碰后：开唔开出门提醒
+// MARK: - Outing-alert choice after pairing
 
-/// 碰一碰成功：庆祝一下，只问一次「開唔開出門提醒」。
+/// Celebrate successful pairing and ask about outing alerts once.
 struct RemindPrompt: View {
     @Environment(AppStore.self) private var store
     @State private var appeared = false
@@ -495,9 +495,9 @@ struct RemindPrompt: View {
     }
 }
 
-// MARK: - 本文件用的小部件
+// MARK: - Local components
 
-/// 地标小事实：图标 + 一句，胶囊底。
+/// Compact landmark fact with icon, sentence and capsule background.
 private struct CardFact: View {
     let symbol: String
     let text: String
@@ -514,9 +514,9 @@ private struct CardFact: View {
 }
 
 
-// MARK: - 自己揀时间地点
+// MARK: - Custom time and place
 
-/// 约人卡「自己揀」：日期时间（15 分钟一格，由而家到两个星期后）、地点（附近地标）、一齐行几耐。
+/// Custom picker: 15-minute intervals from now through two weeks, nearby landmarks and shared walk duration.
 struct CustomMeetupSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss

@@ -1,11 +1,11 @@
 import SceneKit
 import SwiftUI
 
-/// SwiftUI 里的 3D 微缩模型。只看不操作：镜头由流程自动移动；单击只用于首次使用时选楼。
+/// SwiftUI 3D diorama. This historical scene moves its camera automatically; tapping only selects a building during onboarding.
 struct DioramaView: UIViewRepresentable {
     let controller: DioramaController
     var onTap: ((DioramaController.Hit?) -> Void)?
-    /// 跟随系统深浅色，切换时场景重建材质。
+    /// Follow system light/dark appearance and rebuild scene materials when it changes.
     @Environment(\.colorScheme) private var colorScheme
 
     func makeUIView(context: Context) -> SCNView {
@@ -16,9 +16,9 @@ struct DioramaView: UIViewRepresentable {
         v.backgroundColor = SceneStyle.background
         v.antialiasingMode = .multisampling4X
         v.preferredFramesPerSecond = 60
-        // 只在有变化时才渲染：人在走、镜头在飞、楼在升起时 60 fps；静止时一帧都不画（省电、不发热）。
-        // isPlaying = true 会令 SCNView 每帧重画（实测静止时 60 fps、约 6% CPU），SCNAction 和过渡动画不需要它。
-        // 静止时标签内容变了由 DioramaController.labelsChanged 补推。
+        // Render at 60 fps only while people/camera/buildings animate; draw no frames when idle to reduce power and heat.
+        // isPlaying=true forces continuous redraw (observed idle 60 fps/~6% CPU); SCNAction and transitions do not require it.
+        // DioramaController.labelsChanged publishes changed labels while the scene is idle.
         v.isPlaying = false
         v.rendersContinuously = false
         v.allowsCameraControl = false
@@ -27,7 +27,7 @@ struct DioramaView: UIViewRepresentable {
         if LaunchArgs.has("-tilt") { v.technique = TiltShift.technique() }
         controller.view = v
 
-        // 场景只看不操作：没有拖动、缩放、双击；只保留单击（首次使用时点选自己住的楼）。
+        // No drag, zoom, or double-tap interaction in this historical scene; retain a single tap for onboarding home selection.
         let c = context.coordinator
         let single = UITapGestureRecognizer(target: c, action: #selector(Coordinator.tap(_:)))
         single.delegate = c

@@ -1,9 +1,9 @@
 import Foundation
 
-/// 香港范围（大约）：天文台数据只覆盖香港。北面沿深圳河、深圳湾中线，所以蛇口、福田、梅林都喺外面。
-/// 只用来拣天气来源，唔需要好准。
+/// Approximate Hong Kong boundary for source selection, following the Shenzhen River/Bay midline so Shekou, Futian, and Meilin fall outside.
+/// Only selects the weather source; survey-level precision is unnecessary.
 enum HongKongArea {
-    /// (经度, 纬度)，顺时针。
+    /// Clockwise longitude/latitude vertices.
     private static let outline: [(Double, Double)] = [
         (113.82, 22.15), (113.82, 22.40), (113.89, 22.42), (113.98, 22.475), (114.03, 22.495),
         (114.07, 22.515), (114.11, 22.535), (114.15, 22.555), (114.22, 22.555), (114.30, 22.57),
@@ -22,7 +22,7 @@ enum HongKongArea {
     }
 }
 
-/// 香港以外嘅天气：Open-Meteo（免费、唔使 key、全球）。只送大约位置（经纬度取到 0.1 度，约 10 公里），唔送屋企位置。
+/// Outside-Hong-Kong Open-Meteo forecasts send location rounded to 0.1 degrees, approximately 10 km, not the precise home coordinate.
 enum OpenMeteo {
     static func url(near p: GeoPoint) -> URL? {
         let lat = (p.lat * 10).rounded() / 10, lon = (p.lon * 10).rounded() / 10
@@ -32,7 +32,7 @@ enum OpenMeteo {
             + "&timezone=auto&forecast_days=2")
     }
 
-    /// 降雨概率 → 天文台用开嘅讲法（低 / 中低 / 中 / 中高 / 高），等提示句同香港一致。
+    /// Map rain probability to the Observatory's five labels for consistent wording across sources.
     static func psr(_ percent: Double?) -> String? {
         guard let v = percent else { return nil }
         switch v {
@@ -46,7 +46,7 @@ enum OpenMeteo {
 }
 
 extension HKOReport {
-    /// Open-Meteo JSON → 报告（source = .forecast，冇警告）。WMO 天气代码：61–67、80–82 雨，95–99 雷暴 → 当作有雨（icon 63）。
+    /// Open-Meteo JSON becomes source=.forecast without warnings. WMO rain codes 61–67/80–82 and storms 95–99 map to rainy icon 63.
     static func parseOpenMeteo(_ data: Data) -> HKOReport? {
         guard let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let cur = j["current"] as? [String: Any],
@@ -66,7 +66,7 @@ extension HKOReport {
             out.todayPSR = OpenMeteo.psr(probs?.first.flatMap { $0 })
             out.tomorrowPSR = OpenMeteo.psr(probs?.dropFirst().first.flatMap { $0 })
         }
-        // current.time 系当地时间（timezone=auto），配 utc_offset_seconds。
+        // current.time uses local timezone=auto with utc_offset_seconds.
         if let t = cur["time"] as? String, let off = (j["utc_offset_seconds"] as? NSNumber)?.intValue {
             let f = DateFormatter()
             f.dateFormat = "yyyy-MM-dd'T'HH:mm"

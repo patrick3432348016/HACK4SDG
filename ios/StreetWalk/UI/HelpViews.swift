@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// 设定页「幫助同意見」「私隱政策」（测试反馈：设定要有隐私协议同帮助反馈）。
-/// 两页都系纯文字，一页到底；内容跟返 App 实际做法写（同 PrivacyRows / 清除纪录嘅说明一致）。
+/// Settings help, feedback and privacy pages requested in testing.
+/// Both are continuous text pages matching actual behavior, PrivacyRows and deletion explanations.
 
-/// 意见反馈收件地址；未定就唔出「寫電郵」掣，只叫佢话俾帮手装 App 嘅人知。
+/// Feedback mailbox: if unset, omit the email button and suggest contacting the person who helped install the app.
 enum SupportConfig {
     static let feedbackEmail: String? = nil
 }

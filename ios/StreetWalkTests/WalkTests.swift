@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import StreetWalk
 
-// 散步、数据与服务：落脚点、真机开始 / 收尾、背景补记、步频、请假、示範数据唔盖真实纪录、旧存档、本地通知。
+// Walk/data tests: stops, device gates, backfill, cadence, leave, demo isolation, legacy saves and notifications.
 
 struct WalkLogicTests {
     let t0 = SunShadeTests.hk("2026-10-07 10:00")
@@ -11,10 +11,10 @@ struct WalkLogicTests {
     @Test func 落脚点要停够两分钟() {
         var d = StopDetector()
         var found: [Vec2] = []
-        // 1.2 m/s 行 60 秒：唔算
+        // Moving at 1.2 m/s for 60 seconds is not a stop.
         for i in 0...60 { if let c = d.add(Vec2(x: Double(i) * 1.2, y: 0), at: at(Double(i))) { found.append(c) } }
         #expect(found.isEmpty)
-        // 喺 (80, 0) 附近 10 m 内郁来郁去 150 秒：一个落脚点
+        // Movement within 10 m around (80,0) for 150 seconds forms one stop.
         for i in 0...30 {
             if let c = d.add(Vec2(x: 80 + Double(i % 5) * 2, y: Double(i % 3) * 3), at: at(70 + Double(i) * 5)) { found.append(c) }
         }
@@ -46,16 +46,16 @@ struct WalkLogicTests {
         func g_decide(fromHome: Double, acc: Double, at t: Date, recording: Bool, moving: Bool) -> LiveWalkGate.Action {
             gate.decide(fromHome: fromHome, acc: acc, at: t, recording: recording, moving: moving)
         }
-        // 冇行路（Core Motion）唔开始
+        // Do not start without Core Motion walking.
         _ = g_decide(fromHome: 90, acc: 10, at: at(0), recording: false, moving: false)
         #expect(g_decide(fromHome: 90, acc: 10, at: at(10), recording: false, moving: false) == .none)
-        // 底座外（150 m）照样开始
+        // Start outside the visible base at 150 m.
         _ = g_decide(fromHome: 150, acc: 10, at: at(20), recording: false, moving: true)
         #expect(g_decide(fromHome: 160, acc: 10, at: at(30), recording: false, moving: true) == .start)
-        // 400 m 外唔算出门
+        // Beyond 400 m does not count as a normal departure start.
         _ = g_decide(fromHome: 500, acc: 10, at: at(40), recording: false, moving: true)
         #expect(g_decide(fromHome: 510, acc: 10, at: at(50), recording: false, moving: true) == .none)
-        // 55–70 m、精度 25：扣埋误差未够 55 m，唔开始（唔会同返屋企一开一收）
+        // At 55–70 m with 25 m uncertainty, adjusted distance is below 55 m; avoid start/end oscillation.
         _ = g_decide(fromHome: 65, acc: 25, at: at(60), recording: false, moving: true)
         #expect(g_decide(fromHome: 68, acc: 25, at: at(70), recording: false, moving: true) == .none)
     }
@@ -86,7 +86,7 @@ struct WalkLogicTests {
     @Test func 最后一段啱啱停都会补记() {
         typealias S = WalkBackfill.Sample
         let to = at(60 * 60)
-        // 锁屏行咗 20 分钟返到屋企，停低 30 秒就开 App
+        // Walk 20 minutes while locked, return home and open after 30 seconds stopped.
         let home = [S(start: at(0), moving: false), S(start: at(10 * 60), moving: true), S(start: at(30 * 60), moving: false),
                     S(start: at(40 * 60), moving: true), S(start: to.addingTimeInterval(-30), moving: false)]
         let (done, tail) = WalkBackfill.split(home, until: to)
@@ -95,17 +95,17 @@ struct WalkLogicTests {
         #expect(tail?.interval(stoppedAt: to.addingTimeInterval(120)) == DateInterval(start: at(40 * 60), end: to.addingTimeInterval(-30)),
                 "冇接到真机散步：按停低嘅时间补记，唔计之后坐低嘅时间")
 
-        // 开 App 时仲行紧（行咗 25 分钟，可能喺 400 m 外）：交俾定位接手，开始时间唔受 10 分钟限制
+        // If still walking after 25 minutes, potentially beyond 400 m, transfer to location without the usual 10-minute start-age limit.
         let walking = [S(start: at(0), moving: false), S(start: to.addingTimeInterval(-25 * 60), moving: true)]
         let (done2, tail2) = WalkBackfill.split(walking, until: to)
         #expect(done2.isEmpty)
         #expect(tail2 == PendingWalk(start: to.addingTimeInterval(-25 * 60), end: nil))
         #expect(tail2?.interval(stoppedAt: to.addingTimeInterval(10 * 60))?.duration == TimeInterval(35 * 60), "之后停低：行到停低为止")
 
-        // 屋企入面行 3 分钟：唔记
+        // Do not record three minutes walking indoors at home.
         let short = [S(start: to.addingTimeInterval(-4 * 60), moving: true), S(start: to.addingTimeInterval(-60), moving: false)]
         #expect(WalkBackfill.split(short, until: to).tail?.interval(stoppedAt: to) == nil)
-        // 停咗好耐先开 App：唔係最后一段，直接补记
+        // After a long stop, backfill directly instead of handing over the final segment.
         let old = [S(start: at(0), moving: true), S(start: at(15 * 60), moving: false)]
         let (done3, tail3) = WalkBackfill.split(old, until: to)
         #expect(done3.count == 1 && tail3 == nil)
@@ -126,8 +126,8 @@ struct WalkLogicTests {
     @Test func 步频持续下降先提示一次() {
         var w = CadenceWatch()
         var fired = 0
-        for i in 0..<24 { if w.add(2.0, at: at(Double(i) * 30), walkStart: t0) { fired += 1 } }       // 12 分钟正常
-        for i in 0..<3 { if w.add(1.2, at: at(720 + Double(i) * 30), walkStart: t0) { fired += 1 } }  // 慢咗 1 分钟：未够
+        for i in 0..<24 { if w.add(2.0, at: at(Double(i) * 30), walkStart: t0) { fired += 1 } }       // Twelve minutes at normal cadence.
+        for i in 0..<3 { if w.add(1.2, at: at(720 + Double(i) * 30), walkStart: t0) { fired += 1 } }  // One minute slower is insufficient.
         #expect(fired == 0)
         for i in 3..<8 { if w.add(1.2, at: at(720 + Double(i) * 30), walkStart: t0) { fired += 1 } }
         #expect(fired == 1)
@@ -143,7 +143,7 @@ struct WalkLogicTests {
         #expect(LeaveRequest.parse("後日請兩日假") == LeaveRequest(startOffset: 2, days: 2))
         #expect(LeaveRequest.parse("我想請十日假") == LeaveRequest(startOffset: 0, days: 10))
         #expect(LeaveRequest.parse("請 30 日假").days == LeaveRequest.maxDays)
-        // 2026-10-07 係星期三：「下星期」由 10 月 12 號（星期一）開始；講咗幾日就照幾日
+        // 2026-10-07 is Wednesday; next week starts Monday 12 October, preserving explicit duration.
         #expect(LeaveRequest.parse("下星期去旅行請三日假", today: t0) == LeaveRequest(startOffset: 5, days: 3))
         #expect(LeaveRequest.parse("下個禮拜請假", today: t0) == LeaveRequest(startOffset: 5, days: 1))
         #expect(LeaveRequest.parse("請一個星期假", today: t0) == LeaveRequest(startOffset: 0, days: 7))
@@ -159,10 +159,10 @@ struct WalkStoreTests {
         for d in 1...9 { log[key(d)] = DayLog(minutes: 30, walks: 1) }
         #expect(LocalStore.streak(log, leaves: [], today: today, includeDemo: true) == 9)
         #expect(LocalStore.streak(log, leaves: [key(0)], today: today, includeDemo: true) == 9, "今日请假：保留 9 日，唔会变 10")
-        // 天天请假唔会升
+        // Daily leave never increases a streak.
         let leaves = Set((0...5).map(key))
         #expect(LocalStore.streak([:], leaves: leaves, today: today, includeDemo: true) == 0)
-        // 请假中间隔开都唔断
+        // Intervening leave days do not break the streak.
         log[key(3)] = nil
         #expect(LocalStore.streak(log, leaves: [key(3)], today: today, includeDemo: true) == 8)
     }
@@ -170,7 +170,7 @@ struct WalkStoreTests {
     @Test func 重置演示唔盖真实纪录() {
         var log: [String: DayLog] = [:]
         for d in 1...3 { log[key(d)] = DayLog(minutes: 40, walks: 1, landmarks: ["park-0"]) }
-        // 重置演示：删示範纪录、再放示範纪录
+        // Reset Demo deletes and reseeds sample records.
         log = log.filter { !$0.value.demo }
         LocalStore.seedDemo(&log, today: today)
         for d in 1...3 { #expect(log[key(d)] == DayLog(minutes: 40, walks: 1, landmarks: ["park-0"])) }
@@ -184,7 +184,7 @@ struct WalkStoreTests {
         let recorded = LocalStore.record(&log, key: key(0), minutes: 20, landmarks: ["b"], simulated: true)
         #expect(!recorded)
         #expect(log[key(0)] == DayLog(minutes: 30, walks: 1, landmarks: ["a"]))
-        // 真实散步盖过示範纪录；步数、落脚点记低
+        // Real walking replaces sample data and preserves steps/stops.
         var demo = [key(0): DayLog(minutes: 24, walks: 1, demo: true)]
         LocalStore.record(&demo, key: key(0), minutes: 12, landmarks: ["a", "b"], stops: ["b"], steps: 1500, simulated: false)
         #expect(demo[key(0)] == DayLog(minutes: 12, walks: 1, landmarks: ["a", "b"], demo: false, stops: ["b"], steps: 1500))
@@ -192,16 +192,16 @@ struct WalkStoreTests {
 
     @Test func 冇量步数嘅散步照估算() {
         var log: [String: DayLog] = [:]
-        // 真机量到 1500 步，同日再有一次冇量（轮椅 / 补记查唔到步数）12 分钟
+        // Combine 1500 measured steps with another 12-minute unmeasured walk that day.
         LocalStore.record(&log, key: key(0), minutes: 15, landmarks: [], steps: 1500, simulated: false)
         #expect(log[key(0)]?.stepEstimate == 1500 && log[key(0)]?.stepsEstimated == false)
         LocalStore.record(&log, key: key(0), minutes: 12, landmarks: [], steps: nil, simulated: false)
         #expect(log[key(0)]?.stepEstimate == 1500 + 1200, "冇量嗰次唔会被量到嘅盖过")
         #expect(log[key(0)]?.stepsEstimated == true)
-        // 轮椅成日都冇量：全部按分钟估算
+        // A fully unmeasured wheelchair day estimates all steps from minutes.
         LocalStore.record(&log, key: key(1), minutes: 30, landmarks: [], steps: nil, simulated: false)
         #expect(log[key(1)]?.stepEstimate == 3000 && log[key(1)]?.stepsEstimated == true)
-        // 旧纪录（冇 steps、冇 unmeasured）
+        // Legacy records lack steps and unmeasured fields.
         #expect(DayLog(minutes: 20, walks: 1).stepEstimate == 2000)
     }
 
@@ -231,7 +231,7 @@ struct WalkStoreTests {
         let files = try FileManager.default.contentsOfDirectory(atPath: dir.path)
         #expect(files.contains { $0.hasPrefix("state.bad-") }, "原文件留咗备份")
 
-        // 一个约会坏咗：其他照读，都留备份
+        // Skip one damaged meeting, recover the rest and retain a backup.
         let url2 = dir.appendingPathComponent("b").appendingPathExtension("json")
         let json = """
         {"appointments":[{"partnerID":"chan","date":800100000,"landmarkID":"a","reason":"","status":"唔識"},

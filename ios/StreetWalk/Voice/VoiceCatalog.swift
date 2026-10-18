@@ -1,15 +1,15 @@
 import Foundation
 
-// 揀系统声音嘅纯逻辑（唔掂 AVFoundation，单元测试直接用）：
-// 讲边种语言、声音档次、点样排先后、装咗新声音要唔要自动转。
+// Pure system-voice selection logic without AVFoundation, directly unit-tested.
+// Language compatibility, quality ranking, ordering and automatic selection of newly installed voices.
 
-/// 播报用嘅语言。界面文字暂时仲係粤语；普通话版界面会由另一位同事加，佢只要改 VoiceSettings.language。
+/// Spoken language; AppLanguage synchronizes it with the current three-language interface.
 enum SpokenLanguage: String, CaseIterable, Codable, Sendable {
     case cantonese = "yue"
     case mandarin = "cmn"
     case english = "en"
 
-    /// 设定页嘅名。
+    /// Display name in Settings.
     var label: String {
         switch self {
         case .cantonese: return L.t("粵語", "粤语")
@@ -18,7 +18,7 @@ enum SpokenLanguage: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// 交俾系统嘅语言代码（读屏公告、揀唔到声音时嘅后备）。
+    /// System locale for VoiceOver announcements and fallback voice selection.
     var bcp47: String {
         switch self {
         case .cantonese: return "zh-HK"
@@ -27,10 +27,10 @@ enum SpokenLanguage: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// 设定页可以揀嘅语言（英文暂时唔出：提示句子未有英文版）。
+    /// Selectable speech languages in this historical branch; English is hidden because English prompt text is absent here.
     static let pickable: [SpokenLanguage] = [.cantonese, .mandarin]
 
-    /// 试听句子（每种语言用自己嘅讲法，唔好叫普通话声音读粤语字）。
+    /// Use a natural preview sentence for each language instead of asking Mandarin voices to read Cantonese text.
     var sample: String {
         switch self {
         case .cantonese: return "你好，我係街坊行。陳太啱啱出咗門，喺涼亭附近。"
@@ -39,9 +39,9 @@ enum SpokenLanguage: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// 呢把声讲唔讲呢种语言；讲嘅话，地区排第几（0 最啱）。
-    /// iOS 26 粤语声音嘅语言代码係 "yue-HK"（以前係 "zh-HK"），两样都认。
-    /// 普通话只认 zh-CN / cmn / zh-TW，永远唔会揀到粤语声音（避开「普通话读成粤语」）。
+    /// Whether a voice supports this language and its locale preference rank, with zero best.
+    /// Accept both iOS 26 yue-HK and the older zh-HK Cantonese locale.
+    /// Mandarin accepts zh-CN / cmn / zh-TW and must never select a Cantonese voice.
     func regionRank(of language: String) -> Int? {
         let l = language.lowercased().replacingOccurrences(of: "_", with: "-")
         switch self {
@@ -63,8 +63,8 @@ enum SpokenLanguage: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// 同一档次入面优先揀嘅声音（按名）。
-    /// 粤语：Wing（女，高品质）→ 善怡；普通话：月 → 黎瀲（黎瀲旧版有漏读句尾字嘅报告，排第二）；英语：Ava。
+    /// Preferred named voices within a quality tier.
+    /// Cantonese prefers Wing then Sin-ji; Mandarin prefers Yue then Li-lian due to reported older trailing-word omissions; English prefers Ava.
     var preferredNames: [String] {
         switch self {
         case .cantonese: return ["Wing", "Sinji", "Fung", "Aasing"]
@@ -74,8 +74,8 @@ enum SpokenLanguage: String, CaseIterable, Codable, Sendable {
     }
 }
 
-/// 声音档次：Apple 嘅 default / enhanced / premium。界面写「標準 / 增強 / 高品質」。
-/// iPhone 设定（香港中文）入面分别写「預設」、「已強化」、「優質」。
+/// Apple default/enhanced/premium quality tiers map to localized standard/enhanced/premium labels.
+/// The Hong Kong Chinese system Settings uses different localized names for these three tiers.
 enum VoiceTier: Int, Comparable, Sendable {
     case standard = 1, enhanced = 2, premium = 3
 
@@ -90,22 +90,22 @@ enum VoiceTier: Int, Comparable, Sendable {
     static func < (a: VoiceTier, b: VoiceTier) -> Bool { a.rawValue < b.rawValue }
 }
 
-/// 一把已经装咗嘅声音（由 AVSpeechSynthesisVoice 抄出嚟，方便测试）。
+/// Installed-voice snapshot copied from AVSpeechSynthesisVoice for testability.
 struct VoiceInfo: Equatable, Hashable, Sendable, Identifiable {
     enum Gender: Sendable { case female, male, unknown }
 
     var id: String          // AVSpeechSynthesisVoice.identifier
-    var name: String        // 系统俾嘅名（英文名或者已经本地化）
-    var language: String    // 例如 "yue-HK"、"zh-CN"
+    var name: String        // System-provided English or localized voice name.
+    var language: String    // For example yue-HK or zh-CN.
     var tier: VoiceTier
     var gender: Gender = .unknown
-    /// 怪声（Bubbles、Zarvox）、Eloquence 机械声（Eddy、Grandma…）、个人声音：唔出喺列表，唔会自动揀。
+    /// Exclude novelty voices, mechanical Eloquence voices and Personal Voice from lists and automatic selection.
     var unsuitable = false
 
-    /// 香港中文 iPhone 设定显示嘅名（Sinji → 善怡）。Wing、Fung 系统都係用英文名。
+    /// Use localized Hong Kong Settings names where applicable; Wing and Fung retain English names.
     var displayName: String { Self.chineseNames[name] ?? name }
 
-    /// 「女聲 · 高品質」
+    /// Voice gender and quality label.
     var subtitle: String {
         let g: String? = switch gender {
         case .female: L.t("女聲", "女声")
@@ -115,7 +115,7 @@ struct VoiceInfo: Equatable, Hashable, Sendable, Identifiable {
         return ([g, tier.label].compactMap { $0 }).joined(separator: " · ")
     }
 
-    /// 出自 iOS 26.5 TextToSpeech.framework 嘅 zh_HK SpeechVoiceNames.strings。
+    /// Names sourced from iOS 26.5 TextToSpeech.framework's zh_HK SpeechVoiceNames.strings.
     static let chineseNames: [String: String] = [
         "Sinji": "善怡", "Aasing": "阿成",
         "Tingting": "婷婷", "Meijia": "美佳", "Lilian": "黎瀲", "Lili": "莉莉", "Yue": "月", "Han": "瀚",
@@ -125,9 +125,9 @@ struct VoiceInfo: Equatable, Hashable, Sendable, Identifiable {
     ]
 }
 
-/// 语速三档。默认「正常」= 系统默认 0.5。
-/// 以前用 0.42：低档粤语声一放慢就逐个字读、词同词唔连（用户 10-11 反映「每个字自己读自己的」），
-/// 所以「慢」只係慢少少（0.46），清楚主要靠句同句之间停一停（每句一个 utterance + postUtteranceDelay），唔拉长每个音节。
+/// Three speeds; Normal defaults to the system rate 0.5.
+/// The old 0.42 rate made the lower-quality Cantonese voice sound syllable-by-syllable, according to the user's October 11 feedback.
+/// Slow mode therefore uses 0.46 and longer sentence pauses via separate utterances and postUtteranceDelay, rather than stretching syllables.
 enum SpeechPace: String, CaseIterable, Sendable {
     case slow, normal, fast
 
@@ -139,7 +139,7 @@ enum SpeechPace: String, CaseIterable, Sendable {
         }
     }
 
-    /// AVSpeechUtterance.rate（0–1，系统默认 0.5）。
+    /// AVSpeechUtterance.rate, 0–1 with system default 0.5.
     var rate: Float {
         switch self {
         case .slow: return 0.46
@@ -148,7 +148,7 @@ enum SpeechPace: String, CaseIterable, Sendable {
         }
     }
 
-    /// 每句讲完停几耐（秒）。
+    /// Pause after each sentence, in seconds.
     var pauseAfterSentence: TimeInterval {
         switch self {
         case .slow: return 0.45
@@ -157,8 +157,8 @@ enum SpeechPace: String, CaseIterable, Sendable {
         }
     }
 
-    /// 按句号、问号、感叹号拆句（逗号唔拆，一句保持一个 utterance 先读得连贯）；唔加空格。
-    /// 句尾嘅「」』）」跟返上一句。
+    /// Split on periods, question marks and exclamation marks, not commas; preserve coherent utterances without adding spaces.
+    /// Keep closing quotation marks and brackets with the preceding sentence.
     static func sentences(_ text: String) -> [String] {
         let ends: Set<Character> = ["。", "！", "？", "!", "?"]
         let closers: Set<Character> = ["」", "』", "）", ")", "\"", "”", "’"]
@@ -178,7 +178,7 @@ enum SpeechPace: String, CaseIterable, Sendable {
 }
 
 enum VoicePicker {
-    /// 呢种语言可以用嘅声音，最好嘅排最前：档次 → 地区 → 推荐名 → 名。
+    /// Rank compatible voices by quality, locale, preferred name, then name.
     static func candidates(for language: SpokenLanguage, in voices: [VoiceInfo]) -> [VoiceInfo] {
         let preferred = language.preferredNames
         func nameRank(_ v: VoiceInfo) -> Int {
@@ -196,21 +196,21 @@ enum VoicePicker {
             }
     }
 
-    /// 而家用边把：用户揀过而又仲喺度（同埋係呢种语言）就用佢，否则用最好嗰把。
+    /// Use the user's saved compatible voice if still installed; otherwise choose the best available.
     static func pick(for language: SpokenLanguage, in voices: [VoiceInfo], chosen: String?) -> VoiceInfo? {
         let list = candidates(for: language, in: voices)
         if let chosen, let v = list.first(where: { $0.id == chosen }) { return v }
         return list.first
     }
 
-    /// 由 iPhone 设定返嚟、重新睇过一次：有冇新装、而且比而家用紧嗰把高档嘅声音？有就返佢（要自动转用、讲俾用户知）。
-    /// previous 係上一次见到嘅全部声音 id；空 = 第一次睇（新装 App），唔当「新装咗」。
+    /// After returning from Settings, detect newly installed higher-tier voices for automatic selection and notification.
+    /// previous contains all previously seen voice IDs; empty means first scan, not a new installation.
     static func upgrade(previous: Set<String>, now voices: [VoiceInfo], language: SpokenLanguage, chosen: String?) -> VoiceInfo? {
         guard !previous.isEmpty else { return nil }
         let list = candidates(for: language, in: voices)
         let fresh = list.filter { !previous.contains($0.id) }
         guard let best = fresh.first else { return nil }
-        // 「而家用紧」= 未装新声音之前会用嗰把
+        // Current voice means the selection before the new installation.
         let before = pick(for: language, in: voices.filter { previous.contains($0.id) }, chosen: chosen)
         guard best.tier > (before?.tier ?? .standard) || before == nil else { return nil }
         return best

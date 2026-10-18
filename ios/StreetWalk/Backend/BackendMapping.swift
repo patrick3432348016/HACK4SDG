@@ -1,8 +1,8 @@
 import Foundation
 
-// 服务器行 ↔ App 资料（Resident、Appointment、Report）嘅对应。纯函数，单元测试直接测（StreetWalkTests/BackendTests）。
+// Pure mappings between server rows and Resident/Appointment/Report, tested in StreetWalkTests/BackendTests.
 
-/// 上传嘅个人资料（profiles）。座数楼层只俾互为街坊睇；屋企位置只上传 400 m 格子同屋邨名。
+/// Uploaded profile: block/floor visible only to mutual neighbors; home location represented by a 400 m grid and estate name.
 struct CommunityProfile: Equatable {
     var nickname: String
     var mobility: Mobility
@@ -15,12 +15,12 @@ struct CommunityProfile: Equatable {
     var block: String?
     var floor: Int?
     var streak: Int
-    /// 连续天数计到边日（"yyyy-MM-dd"，香港日期）；服务器过咗呢日两日就当 0。
+    /// Hong Kong date through which the streak is valid (yyyy-MM-dd); the server displays zero two days later.
     var streakDay: String
 
     static let nicknameLimit = 20
 
-    /// 网名规则：去头尾空格，1–20 个字（同服务器 char_length 一致，按 Unicode 字符计）。
+    /// Nickname: trim surrounding whitespace and require 1–20 Unicode characters, matching server char_length.
     static func cleanNickname(_ s: String) -> String? {
         let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty, t.unicodeScalars.count <= nicknameLimit else { return nil }
@@ -35,7 +35,7 @@ struct CommunityProfile: Equatable {
     }
 }
 
-/// 街坊散步中想過嚟搵我：问我「方唔方便」（收到嘅一方，F8）。
+/// Incoming F8 request from a walking neighbor asking whether they may come over.
 struct IncomingFindAsk: Equatable, Identifiable {
     var id: String { askID }
     var askID: String
@@ -44,11 +44,11 @@ struct IncomingFindAsk: Equatable, Identifiable {
     var at = Date()
 }
 
-/// 地标名 ↔ 本机地标 id。服务器只有地标名；两部手机按名对返自己地图上同名嘅地标。
-/// 对唔上（对方喺我底座外面、或者改咗名）就用合成 id「lmname:<名>」，只显示文字，唔入场景。
+/// Map server landmark names to local IDs on each phone.
+/// If unmatched, use a synthetic lmname:<name> ID and text-only display; do not place it in the scene.
 struct LandmarkIndex: Equatable {
     var landmarks: [Landmark] = []
-    /// 地标 id → 原名（用户改名之前，大家都一样嘅名）。
+    /// Landmark ID → original name before local renaming.
     var originals: [String: String] = [:]
 
     static let syntheticPrefix = "lmname:"
@@ -58,14 +58,14 @@ struct LandmarkIndex: Equatable {
         return String(id.dropFirst(syntheticPrefix.count))
     }
 
-    /// 上传用嘅名：用原名（改过名都系），对方先对得上。
+    /// Upload the original name so the other phone can match it.
     func publishName(_ id: String?) -> String? {
         guard let id else { return nil }
         if let n = Self.syntheticName(id) { return n }
         return originals[id] ?? landmarks.first { $0.id == id }?.name
     }
 
-    /// 收到嘅地标名 → 本机 id：先对原名，再对而家嘅名；都冇就合成 id。
+    /// Resolve received names against original names, then current names; otherwise create a synthetic ID.
     func id(forName name: String?) -> String? {
         guard let name, !name.isEmpty else { return nil }
         if let (id, _) = originals.first(where: { $0.value == name }), landmarks.contains(where: { $0.id == id }) { return id }
@@ -75,7 +75,7 @@ struct LandmarkIndex: Equatable {
 }
 
 enum BackendMapping {
-    /// 出门超过 3 个钟仍未更新：当佢已经返咗屋企（App 闪退、冇咗网络，状态留咗喺服务器）。
+    /// Treat an outing not updated for more than three hours as ended, covering stale server state after crashes/network loss.
     static let staleOuting: TimeInterval = 3 * 3600
 
     static func avatar(mobility: Mobility, color: Int, skin: Int, age: AgeGroup) -> AvatarJSON {
@@ -94,8 +94,8 @@ enum BackendMapping {
         return true
     }
 
-    /// 排行榜（附近真人）∪ 我的街坊 → 圈成员。非街坊：只有网名、小人、连续日数（冇座数楼层、冇今日一句）；
-    /// 街坊：加座数楼层、今日一句、出门地标、提醒开关。唔包括我。
+    /// Merge nearby residents and neighbors into circle members. Non-neighbors expose only nickname, avatar, and streak, without block/floor or daily sentence.
+    /// Neighbors additionally expose block/floor, daily sentence, outing landmark, and reminder settings. Exclude self.
     static func residents(board: [BoardRow], neighbors: [NeighborRow], myID: String?, landmarks: LandmarkIndex, now: Date) -> [Resident] {
         var out: [Resident] = []
         var seen = Set<String>()
@@ -154,7 +154,7 @@ enum BackendMapping {
                     out_at: nil, out_since: nil, daily_line: nil)
     }
 
-    // MARK: - 约会
+    // MARK: - Meetups
 
     static func serverStatus(_ s: Appointment.Status) -> String {
         switch s {
@@ -183,18 +183,18 @@ enum BackendMapping {
     }
 
     enum MeetupChange: Equatable {
-        case invited            // 对方约我（新）
-        case answered(Bool)     // 对方应承 / 拒绝我嘅约
-        case changed            // 对方改咗时间地点（要我再确认）
-        case cancelled          // 对方取消
+        case invited            // New invitation from the other person.
+        case answered(Bool)     // The other person accepts/declines my invitation.
+        case changed            // The other person changes time/place; confirmation is required again.
+        case cancelled          // The other person cancels.
     }
 
-    /// 对比上次见过嘅样子，睇对方做咗乜。自己改嘅（updated_by == 我）唔出事件。
+    /// Compare with the last observed state. Do not emit events for changes made by self (updated_by).
     static func meetupChange(_ row: MeetupRow, seen: MeetupRow?, me: String, now: Date) -> MeetupChange? {
         let byOther = (row.updated_by ?? row.inviter).lowercased() != me
         guard byOther else { return nil }
         guard let seen else {
-            // 第一次见：对方约我（仲未过期）先算；其他（例如重装之后见返旧约）只记低。
+            // On first observation, emit only a still-valid incoming invitation. Merely remember other records, such as old meetups after reinstalling.
             if row.invitee.lowercased() == me, row.status == "waiting", row.at > now.addingTimeInterval(-3600) { return .invited }
             return nil
         }
@@ -208,7 +208,7 @@ enum BackendMapping {
         }
     }
 
-    // MARK: - 反映
+    // MARK: - Reports
 
     static func serverKind(_ k: ReportKind) -> String {
         switch k {
@@ -227,7 +227,7 @@ enum BackendMapping {
         }
     }
 
-    /// 月报：其他居民嘅匿名反映（每个人一条，放喺对得上嘅地标；对唔上嘅唔计）。
+    /// Monthly report: one anonymous report per resident, attached only to a matching local landmark.
     static func reports(_ rows: [MonthlyRow], landmarks: [Landmark], index: LandmarkIndex, now: Date) -> [Report] {
         rows.flatMap { row -> [Report] in
             guard let kind = reportKind(row.kind), let id = index.id(forName: row.landmark_name),
@@ -236,10 +236,10 @@ enum BackendMapping {
         }
     }
 
-    // MARK: - 连续天数
+    // MARK: - Streaks
 
-    /// streak_day：今日有行 / 请假就系今日（再顺延到之后连住请咗嘅假），否则系琴日（连续天数由琴日起计）。
-    /// 服务器喺 streak_day 两日之后就显示 0，所以请长假时要顺延，排行榜先唔会中途变 0。
+    /// streak_day is today when walking/on leave, extended through consecutive future leave days; otherwise yesterday.
+    /// Extend streak_day through long leave so the server's two-day expiry does not zero the board mid-leave.
     static func streakDay(today: Date, streak: Int, walkedOrLeave: (String) -> Bool, leave: (String) -> Bool) -> String {
         var day = walkedOrLeave(LocalStore.dayKey(today)) || streak == 0 ? today : today.addingTimeInterval(-86400)
         for _ in 0..<60 {

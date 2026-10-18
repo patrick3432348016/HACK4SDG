@@ -2,17 +2,17 @@ import Foundation
 import NearbyInteraction
 import UIKit
 
-/// 真机碰一碰（F5）：Bonjour 搵身边部手机 → 加密通道交换超宽带令牌 → 量距离 →
-/// 两部都连续够近 → 主动连嗰方定一个一次性码、经通道交俾对方 → 两部各自交俾后端（NeighborLinker）→ 返回对方。
-/// 移植自组员 B 嘅 UWBMeetDemo（MeetCoordinator：NISession、令牌归档、前台限制、时限），
-/// 改咗：唔使输入配对码、冇确认卡、唔交换联络方式；配对结果由后端决定。
+/// Physical-device F5: discover a phone over Bonjour, exchange UWB tokens over encryption, and measure distance.
+/// After sustained proximity on both phones, the initiator sends a one-time code; both submit it to NeighborLinker and receive the peer.
+/// Adapted from B's UWBMeetDemo MeetCoordinator: NISession, token archiving, foreground restrictions, and timeouts.
+/// Changes: no manual code, confirmation card, or contact-field exchange; the backend determines the paired identity.
 ///
-/// 限制（苹果）：两部都要 iPhone 11 或之后（有 U1/U2 芯片，SE 冇），App 要喺前台。唔支援就报 .unsupported，界面提供二维码。
+/// Requires supported UWB hardware on both phones and foreground apps. Report unsupported and offer QR when unavailable.
 @MainActor
 final class NearbyBumpService: BumpService {
     enum Phase: Equatable { case idle, searching, ranging, linking }
 
-    /// 后端。AppStore 每次开始前设（见 AppStore+Bump 嘅 linker）。
+    /// Backend set by AppStore before each attempt; see AppStore+Bump.linker.
     var linker: NeighborLinker?
     private(set) var phase: Phase = .idle
 
@@ -33,13 +33,13 @@ final class NearbyBumpService: BumpService {
     private var linkTask: Task<Void, Never>?
     private var backgroundObserver: NSObjectProtocol?
 
-    /// - ranging: 量距离嘅实现（真机 = 超宽带；单元测试用假嘅）。
+    /// ranging: actual UWB implementation on devices, fake implementation in unit tests.
     init(ranging: @escaping @MainActor () -> BumpRanging = { NIRanging() }, searchTimeout: TimeInterval = BumpTuning.searchTimeout) {
         makeRanging = ranging
         self.searchTimeout = searchTimeout
     }
 
-    /// 呢部手机有冇超宽带（模拟器、iPhone 11 之前、SE 都冇）。
+    /// Check hardware support; simulators and unsupported phone models lack UWB.
     static var deviceSupported: Bool { NISession.deviceCapabilities.supportsPreciseDistanceMeasurement }
 
     // MARK: - BumpService
@@ -77,7 +77,7 @@ final class NearbyBumpService: BumpService {
         onFound = nil
     }
 
-    // MARK: - 通道
+    // MARK: - Channel
 
     private func transportEvent(_ e: BumpTransport.Event) {
         guard phase != .idle else { return }
@@ -92,7 +92,7 @@ final class NearbyBumpService: BumpService {
         case .message(let m):
             received(m)
         case .closed:
-            // 已经交咗码：之后只係等伺服器，对方收线唔紧要。
+            // The code is already submitted; only the server result remains, so peer disconnection is harmless here.
             if agreement.code == nil { fail(.peerLeft) }
         case .unavailable:
             fail(.other)
@@ -112,7 +112,7 @@ final class NearbyBumpService: BumpService {
             agreement.markPeerNear()
             checkBothNear()
         case .code:
-            // 只收主动连嗰方嘅码，而且自己都要量到够近（对方话够近唔算数，B 原型嘅原则）。
+            // Accept only the initiator's code, and only after local proximity is measured; the peer's claim cannot replace local evidence.
             guard !initiator, phase == .linking, let code = m.code, agreement.accept(code: code) else { fail(.other); return }
             startLinking(code)
         case .cancel:
@@ -120,7 +120,7 @@ final class NearbyBumpService: BumpService {
         }
     }
 
-    // MARK: - 距离
+    // MARK: - Distance
 
     private func measured(_ d: Float?) {
         guard phase == .ranging else { return }
@@ -136,7 +136,7 @@ final class NearbyBumpService: BumpService {
         }
     }
 
-    /// 读数断咗：计时重来；超过 1 秒冇读数，画面改讲「量緊距離」。
+    /// Restart timing when readings stop; after more than one second without readings, show that distance is being measured.
     private func startGapWatch() {
         gapTask?.cancel()
         gapTask = Task { [weak self] in
@@ -155,7 +155,7 @@ final class NearbyBumpService: BumpService {
         guard agreement.bothNear, phase == .ranging else { return }
         phase = .linking
         gapTask?.cancel()
-        ranging?.stop()   // 够近咗，唔使再量
+        ranging?.stop()   // Proximity confirmed; stop ranging.
         onUpdate?(.linking)
         if initiator {
             let code = PairCode.random()
@@ -165,7 +165,7 @@ final class NearbyBumpService: BumpService {
         }
     }
 
-    // MARK: - 后端
+    // MARK: - Backend
 
     private func startLinking(_ code: String) {
         guard let linker else { fail(.noServer); return }
@@ -190,10 +190,10 @@ final class NearbyBumpService: BumpService {
         found?(.linked(peer))
     }
 
-    // MARK: - 失败与收尾
+    // MARK: - Failure and cleanup
 
     private func wentToBackground() {
-        // 已经交咗码就继续等伺服器（返嚟前台会接住问）；否则超宽带一定停，讲清楚。
+        // After code submission, keep waiting for the server and resume polling on foreground. Otherwise stop UWB and explain the interruption.
         guard phase != .idle, agreement.code == nil else { return }
         fail(.background)
     }
@@ -226,23 +226,23 @@ final class NearbyBumpService: BumpService {
     }
 }
 
-// MARK: - 量距离
+// MARK: - Ranging
 
-/// 量距离嘅抽象：真机用超宽带（NIRanging），单元测试用假嘅（唔使硬件都试得到成个流程）。
+/// Ranging abstraction: NIRanging on hardware, fakes for end-to-end unit tests without hardware.
 @MainActor
 protocol BumpRanging: AnyObject {
     var isSupported: Bool { get }
-    /// 开会话，返回我嘅令牌（经加密通道交俾对方）。
+    /// Start a session and return the local token for encrypted exchange.
     func prepare() throws -> Data
-    /// 用对方令牌开始量。
+    /// Begin ranging with the peer's token.
     func start(peerToken: Data) throws
     func stop()
-    /// 每次量到（米）；nil = 暂时冇读数。
+    /// Distance readings in metres; nil means temporarily unavailable.
     var onDistance: ((Float?) -> Void)? { get set }
     var onFailure: ((BumpFailure) -> Void)? { get set }
 }
 
-/// 超宽带（Nearby Interaction）。令牌用 NSKeyedArchiver 归档（同 B 原型一样）。
+/// Nearby Interaction ranging with NSKeyedArchiver token serialization, matching B's prototype.
 @MainActor
 final class NIRanging: NSObject, BumpRanging, NISessionDelegate {
     enum Failure: Error { case noToken, badToken }
@@ -269,7 +269,7 @@ final class NIRanging: NSObject, BumpRanging, NISessionDelegate {
         peerToken = token
         let c = NINearbyPeerConfiguration(peerToken: token)
         config = c
-        s.run(c)   // 第一次会弹「附近互動」权限框
+        s.run(c)   // The first use prompts for Nearby Interaction permission.
     }
 
     func stop() {
@@ -291,7 +291,7 @@ final class NIRanging: NSObject, BumpRanging, NISessionDelegate {
         MainActor.assumeIsolated {
             guard session === self.session else { return }
             if reason == .peerEnded { onFailure?(.peerLeft); return }
-            // 超时（行远咗 / 遮住）：苹果建议用返同一个配置再开。
+            // After timeout/out-of-range/occlusion, Apple recommends restarting with the same configuration.
             onDistance?(nil)
             if let config { session.run(config) }
         }

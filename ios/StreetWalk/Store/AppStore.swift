@@ -1,27 +1,27 @@
 import SwiftUI
 import UIKit
 
-/// 成员 A：应用状态和全部流程。B 侧能力（AI、语音、碰一碰）通过 Contracts 里的协议调用。
+/// Member A owns App state and flows; AI, speech and bump capabilities use Domain/Contracts protocols.
 @MainActor
 @Observable
 final class AppStore: NeighborRegistry {
     enum Phase: Equatable { case onboarding(Step), main }
-    /// 首次使用 5 步：欢迎、私隐、屋企（定位 + 揀樓）、樓層同網名、試一次撳咪。改楼（设定）只行屋企同樓層。
+    /// Five onboarding steps: welcome, privacy, location/building, floor/nickname, microphone trial. Home changes use only building and floor.
     enum Step: Int { case welcome, consent, locate, pickHome, floor, tryMic }
     enum Tab: Hashable { case today, board, neighbors }
     enum BumpStage: Equatable { case idle, searching, found(String) }
     enum Selection: Equatable { case landmark(String), person(String) }
 
-    // 服务
+    // Services.
     @ObservationIgnored let ai: AIService = TemplateAI()
-    /// 碰一碰：演示模式用模拟（碰到示範街坊），关咗演示模式用真机超宽带。选边个见 AppStore+Bump 嘅 bump。
+    /// Bump uses simulated neighbors in demo mode and real UWB otherwise; selection lives in AppStore+Bump.
     @ObservationIgnored let simulatedBump = SimulatedBumpService()
     @ObservationIgnored let nearbyBump = NearbyBumpService()
     @ObservationIgnored let speaker = Speaker()
     @ObservationIgnored let listener = Listener()
     @ObservationIgnored let mapService = MapService()
     @ObservationIgnored let scene = DioramaController()
-    /// 演示模式：LocalCommunityService（示範街坊）；关咗：SupabaseCommunityService（真后端）。见 AppStore+Backend.installCommunity。
+    /// Demo uses LocalCommunityService; normal mode uses SupabaseCommunityService. See installCommunity.
     @ObservationIgnored var community: CommunityService
     @ObservationIgnored let hko = HKOWeatherService()
     @ObservationIgnored let walkDetector = WalkDetector()
@@ -29,8 +29,8 @@ final class AppStore: NeighborRegistry {
     @ObservationIgnored var ticker: Task<Void, Never>?
     @ObservationIgnored private var bannerTask: Task<Void, Never>?
 
-    // 流程内部状态（不触发界面刷新）
-    /// 完整格子（560 m，首次使用选楼时用）。选好楼后场景只用以我屋企为中心的 300 m。
+    // Internal flow state that does not publish UI updates.
+    /// Full tile for home selection; the selected-home scene uses a smaller base. See current map sizing constants.
     @ObservationIgnored var fullMap: MapModel?
     @ObservationIgnored var findRoute: [Vec2]?
     @ObservationIgnored var partnerRoute: [Vec2]?
@@ -42,12 +42,12 @@ final class AppStore: NeighborRegistry {
     @ObservationIgnored var saveTask: Task<Void, Never>?
     @ObservationIgnored var savedMapKey: String?
     @ObservationIgnored var savedNeighbors: [String: NeighborLink] = [:]
-    /// 地标的原名（清除纪录时改回去）。
+    /// Canonical landmark names for restoring after data deletion.
     @ObservationIgnored var originalLandmarkNames: [String: String] = [:]
     @ObservationIgnored var clockTask: Task<Void, Never>?
 
-    // 状态
-    // 换页 / 换标签 / 开关设定：上一个画面讲紧嘅嘢即刻停（2026-10-12 用户：「切到画面上一个画面声音没有停一直播」）
+    // Published state.
+    // Stop prior-screen speech immediately on navigation or Settings changes (2026-10-12 user feedback).
     var phase: Phase = .onboarding(.consent) { didSet { if phase != oldValue { hush() } } }
     var tab: Tab = .today { didSet { if tab != oldValue { hush() } } }
     var map: MapModel?
@@ -64,9 +64,9 @@ final class AppStore: NeighborRegistry {
     var banner: BannerItem?
     var voiceCard: VoiceCard?
     var listening = false
-    /// 连续对话中（B 嘅豆包识别，见 AppStore+Conversation）：listening 都系 true，但唔使每句撳。
+    /// Continuous Doubao conversation keeps listening true without requiring a tap for each utterance.
     var conversing = false
-    /// 连续对话：而家听到（未处理）嘅字。
+    /// Current unprocessed continuous-conversation transcript.
     var heardPartial = ""
     @ObservationIgnored let ear = VoiceEar()
     @ObservationIgnored var earPending: [String] = []
@@ -74,7 +74,7 @@ final class AppStore: NeighborRegistry {
     @ObservationIgnored var earIdle: Task<Void, Never>?
     @ObservationIgnored var earFeed: Task<Void, Never>?
     @ObservationIgnored var lastEarActivity = Date()
-    /// 最近讲过嘅句子（连续对话嘅回声保险）。
+    /// Recent output sentences for the continuous-conversation echo guard.
     @ObservationIgnored var recentSpoken: [(text: String, at: Date)] = []
     var phrasePicker = false
     var bumpStage: BumpStage = .idle
@@ -82,13 +82,13 @@ final class AppStore: NeighborRegistry {
     var selection: Selection?
     var renaming: String?
     var reports: [Report] = [] { didSet { scheduleSave() } }
-    /// 每日散步记录（键是香港日期）。今日分钟、连续天数都由它推算。
+    /// Daily walking records keyed by Hong Kong date; derive today's minutes and streak from these.
     var walkLog: [String: DayLog] = [:] { didSet { scheduleSave() } }
     var leaveDays: Set<String> = [] { didSet { scheduleSave() } }
-    /// 改过的地标名（地标 id → 名），重新装载地图后要套回去。
+    /// Renamed landmarks, ID to name, reapplied after map reload.
     var landmarkNames: [String: String] = [:] { didSet { scheduleSave() } }
     var showSettings = false { didSet { if showSettings != oldValue { hush() } } }
-    /// 录演示视频用的字幕（启动参数 -captions）：模拟器录屏录唔到声，用字幕讲清楚每一步。
+    /// -captions provides recording subtitles when simulator screen capture cannot record audio.
     var caption: (zh: String, en: String)?
     var weather: Weather = .normal
     var weatherTip: String?
@@ -101,76 +101,76 @@ final class AppStore: NeighborRegistry {
     var floorChoice = 12
     var mobilityChoice: Mobility = .walk
     var colorChoice = Palette.meIndex
-    /// 我的外形：肤色档、年龄段（首次使用 / 设置里选；即时存盘）。
+    /// My skin tone and age group, selectable in onboarding / Settings and saved immediately.
     var skinChoice = UserDefaults.standard.object(forKey: "skin") as? Int ?? 1 { didSet { UserDefaults.standard.set(skinChoice, forKey: "skin") } }
     var ageChoice = AgeGroup(rawValue: UserDefaults.standard.string(forKey: "age") ?? "") ?? .elder { didSet { UserDefaults.standard.set(ageChoice.rawValue, forKey: "age") } }
 
-    /// 演示模式：圈里有示範街坊、右上有演示菜单。设置里可以关；启动参数 -demo 强制开。
+    /// Demo mode adds sample neighbors and the demo menu; Settings disables it and -demo forces it on.
     var demoMode = LaunchArgs.has("-demo") || UserDefaults.standard.object(forKey: "demoMode") as? Bool ?? true
-    // 出门提醒：总开关 + 只在这个时段接收（F6）。
+    // F6: master outing-alert switch and receiving time window.
     var remindAll = UserDefaults.standard.object(forKey: "remindAll") as? Bool ?? true { didSet { UserDefaults.standard.set(remindAll, forKey: "remindAll") } }
     var remindFrom = UserDefaults.standard.object(forKey: "remindFrom") as? Int ?? 7 { didSet { UserDefaults.standard.set(remindFrom, forKey: "remindFrom") } }
     var remindTo = UserDefaults.standard.object(forKey: "remindTo") as? Int ?? 21 { didSet { UserDefaults.standard.set(remindTo, forKey: "remindTo") } }
-    // 散步、数据与服务（A 线追加）
-    /// 今次散步嘅附加状态：演示时钟、落脚点、步数。
+    // Walking, data and services added by A.
+    /// Per-walk demo clock, stopping places and step state.
     @ObservationIgnored var track = WalkTrack()
-    /// 约会嘅本地通知（出发前提醒、过期）。
+    /// Local departure and expiry notifications for meetings.
     @ObservationIgnored let notifier = Notifier()
-    /// 前台时每分钟检查：太阳跟真实时间、过咗午夜刷新「今日」。
+    /// Foreground minute checks update sunlight and refresh Today after midnight.
     @ObservationIgnored var dayClock: Task<Void, Never>?
-    /// 喺设置「改我住嘅樓」入嚟嘅首次使用流程（可以「唔改」退返出去）。
+    /// Home-change onboarding entered from Settings supports cancellation.
     var changingHome = false
 
-    // 语音与社交流程（A 线追加）
-    /// 播报排队、读屏兼容、聆听时先收起（AppStore+Voice 的 say()）。
+    // Voice and social flows added by A.
+    /// Speech queuing, VoiceOver compatibility and listening deferral through AppStore+Voice.say().
     @ObservationIgnored let announcer = Announcer()
-    /// 按咪后等紧权限框：再撳唔会开两次。
+    /// Prevent a second microphone start while permission dialogs are pending.
     @ObservationIgnored var micStarting = false
 
-    // 地图、场景与性能（A 线追加）
-    /// 地图有状况时的一句说明（示例屋邨、示意楼、拿不到位置），选楼画面可以显示；见 AppStore+Map。
+    // Map, scene and performance additions by A.
+    /// Map notice for sample estates, placeholder buildings or unavailable location; shown during home selection.
     var mapNotice: String?
-    /// 第几次装地图：等网络时改用示例屋邨或重新选楼，旧的结果就不要。
+    /// Map-load generation rejects stale results after sample selection or restarting home selection.
     @ObservationIgnored var mapLoadGen = 0
-    /// 碰一碰时两个人见面的位置（碰面期间固定）。
+    /// Fixed scene meeting point during bump pairing.
     @ObservationIgnored var bumpSpot: Vec2?
 
-    // 合并时追加
-    /// 改楼前嘅肤色、年纪（佢哋一改就存，「唔改」要还原）。
+    // Integration additions.
+    /// Snapshot skin tone and age before home changes so cancellation can restore immediately saved edits.
     @ObservationIgnored var lookBeforeChange: (skin: Int, age: AgeGroup)?
 
-    // 真机碰一碰、二维码（2026-10-10 追加，流程见 AppStore+Bump）
-    /// 碰一碰全屏画面显示嘅进度（距离、够近、配对中、失败原因）。
+    // Real-device bump and QR additions (2026-10-10); see AppStore+Bump.
+    /// Full-screen bump progress: distance, proximity, pairing and failure reason.
     var bumpProgress: BumpUpdate = .searching
-    /// 改用二维码时嘅状态；nil = 碰一碰画面。
+    /// QR state; nil shows the bump screen.
     var bumpQR: BumpQRState?
-    /// 二维码配对 / 成功后交接嘅任务（取消时一齐停）。
+    /// QR pairing and post-success handoff tasks cancelled together.
     @ObservationIgnored var bumpTask: Task<Void, Never>?
 
-    // 真后端追加（AppStore+Backend）
-    /// 网名（排行榜上同区嘅人见到；1–20 字）。即时存盘。
+    // Real-backend additions (AppStore+Backend).
+    /// Nickname, 1–20 characters, visible on the local leaderboard and saved immediately.
     var nickname = UserDefaults.standard.string(forKey: "nickname") ?? "" { didSet { UserDefaults.standard.set(nickname, forKey: "nickname") } }
-    /// 组员 B 嘅语音助手（Mac 语音服务器，见 AppStore+Assistant）：对话、待查操作。
+    /// B's voice assistant conversation and unresolved operations through the Mac server.
     @ObservationIgnored let assistant = AssistantSession()
-    /// 而家等紧边一次助手请求（旧嘅答覆返嚟就唔理）。
+    /// Current assistant request ID; discard replies to superseded requests.
     @ObservationIgnored var assistantGen = UUID()
-    /// 撳咗「好」但未知结果嗰个动作（查到做好咗之后加约会用）。
+    /// Confirmed action with unknown result, retained for adding the meeting after successful reconciliation.
     @ObservationIgnored var pendingAssistantAction: AssistantCard.Action?
-    /// F8：街坊问「想過嚟搵你，方唔方便？」，等我撳「好 / 唔方便」。
+    /// F8 incoming request to find me awaits acceptance or refusal.
     var incomingFind: IncomingFindAsk?
 
-    // 「查找」式找人（AppStore+LiveFind）
-    /// 同真街坊临时共享即时位置（找人期间先有；结束即刻停）。
+    // Live finding (AppStore+LiveFind).
+    /// Temporarily share live coordinates with a real neighbor during finding; stop when it ends.
     @ObservationIgnored var liveFind: LiveFindSession?
-    /// 场景上次按边个对方定位画人（新定位先重画）。
+    /// Last peer location rendered; redraw only when it changes.
     @ObservationIgnored var liveSceneStamp: Date?
-    /// 第一次见到对方位置：镜头移去两人之间（只做一次）。
+    /// On the first peer fix, center the camera between both people once.
     @ObservationIgnored var liveCameraDone = false
-    /// 找人见到咗面：而家同边个一齐行（「今日」页主角卡改讲「同XX一齊行緊」，唔再叫你過去搵佢）。行完 / 再找人就清。
+    /// After meeting, Today's hero names the walking companion instead of prompting finding again; clear on walk end or new finding.
     var walkingWith: String?
 
-    // 首次使用之后（AppStore+FirstDay）
-    /// 「今日三件事」任务卡嘅进度（nil = 冇任务卡，例如旧用户）。存档。
+    // After onboarding (AppStore+FirstDay).
+    /// Persist first-day task progress; nil means no card, including legacy users.
     var firstDay: FirstDayProgress? { didSet { scheduleSave() } }
 
     var me: Resident { residents.first { $0.isMe } ?? Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice, streakDays: 9, todayLine: "", isMe: true, nickname: nickname) }
@@ -190,10 +190,10 @@ final class AppStore: NeighborRegistry {
         hk.startOfDay(for: Date()).addingTimeInterval(Double(dayOffset) * 86400 + hour * 3600)
     }
 
-    /// 全部日期、钟点都按香港时间（约会、提醒、每日记录用同一个日历）。
+    /// Use the same Hong Kong calendar for meetings, reminders and daily records.
     nonisolated static let hk: Calendar = { var c = Calendar(identifier: .gregorian); c.timeZone = SolarPosition.hongKong; return c }()
 
-    // MARK: - 启动
+    // MARK: - Startup
 
     init() {
         demoHour = LaunchArgs.hour
@@ -211,23 +211,23 @@ final class AppStore: NeighborRegistry {
             phase = .main
             Task { await loadMap(home: (d.object(forKey: "homeBuilding") as? NSNumber)?.int64Value, animated: true) }
         } else {
-            phase = .onboarding(.welcome)     // 首次使用由欢迎页开始（讲用途），再到私隐
+            phase = .onboarding(.welcome)     // Start onboarding with purpose on the welcome screen, followed by privacy.
         }
         runOnboardingScriptIfNeeded()
     }
 
-    // MARK: - 横幅与提示
+    // MARK: - Banners and toasts
 
-    // 横幅、提示直接改值，唔好包 withAnimation（动画由 IslandBanner / ToastView 自己按值做）：
-    // 同一刻仲有其他改动未刷新时，withAnimation 会令 SwiftUI 喺 willSet 嗰刻同步重画，读到旧值，
-    // 之后呢次改动就冇再通知（合并时用日志实测：横幅已经设好但画面冇出，三次有两次）。
-    /// reply：要你回应嘅横幅（别人约你、改约）留 30 秒（读屏 60 秒），长者来得及按；
-    /// 收咗之后「今日」页最上面同「街坊」页最上面都有张可以直接回覆嘅卡（UX 评审 5 / 11）。只係话你知嘅照 8 秒收。
+    // Assign banner / toast values without withAnimation; IslandBanner and ToastView animate their own values.
+    // With other pending updates, withAnimation can synchronously redraw during willSet and read the old value,
+    // then coalesce away the new notification; integration logs reproduced a missing banner in two of three trials.
+    /// reply banners remain 30 seconds, or 60 with VoiceOver, to allow response.
+    /// UX 5 / 11: persistent reply cards remain atop Today and Neighbors afterward; informational banners last 8 seconds.
     func showBanner(_ b: BannerItem, haptic: Bool = true, reply: Bool = false) {
         banner = b
         if haptic { Haptics.warning() }
         bannerTask?.cancel()
-        let seconds: Double = UIAccessibility.isVoiceOverRunning ? (reply ? 60 : 30) : (reply ? 30 : 8)   // 读屏开着：留时间找按钮（A43）
+        let seconds: Double = UIAccessibility.isVoiceOverRunning ? (reply ? 60 : 30) : (reply ? 30 : 8)   // A43: allow VoiceOver users time to find buttons.
         bannerTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(seconds))
             if !Task.isCancelled { self.banner = nil }
@@ -256,7 +256,7 @@ final class AppStore: NeighborRegistry {
         }
     }
 
-    // MARK: - 几何辅助
+    // MARK: - Geometry helpers
 
     func pathLength(_ p: [Vec2]) -> Double { zip(p, p.dropFirst()).reduce(0) { $0 + $1.0.distance(to: $1.1) } }
 

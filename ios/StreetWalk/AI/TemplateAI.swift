@@ -1,26 +1,26 @@
 import Foundation
 
-/// 成员 B：AIService 的模板实现（离线可跑）。关键词理解粤语同普通话，模板生成句子（跟 L.t 界面语言）。
-/// 之后接真模型时，新建一个实现同一协议的类，失败或超时就退回这里。
+/// Member B: offline template implementation of AIService. Cantonese/Mandarin keywords and sentences follow the L.t UI language.
+/// A real-model implementation can conform to the same protocol and fall back here on failure or timeout.
 struct TemplateAI: AIService {
 
-    // MARK: - 听懂一句话
+    // MARK: - Understanding an utterance
 
     func parseVoice(_ raw: String, context: AIContext) -> VoiceIntent {
-        // 普通话识别出简体字：先转繁体，人名、地标名、关键词就同粤语一样对得上（陈太→陳太、凉亭→涼亭）。
+        // Convert recognized Simplified Chinese to Traditional Chinese so names, landmarks, and keywords match Cantonese data.
         let text = Self.toHant(raw.replacingOccurrences(of: " ", with: ""))
         guard !text.isEmpty else { return .unknown }
 
         if Self.asksLeave(text) { return .leave }
 
-        // 改约 / 取消约：要讲到时间或地标，免得同改地标名撞。
+        // Rescheduling/cancellation must mention a time or landmark to avoid confusion with landmark renaming.
         let partnerHit = context.residents.first { !$0.isMe && (text.contains($0.name) || text.contains("\($0.floor)樓") || text.contains("\($0.floor)層")) }
         if text.contains("唔約") || text.contains("不約") || (text.contains("取消") && (text.contains("約") || partnerHit != nil)) {
             return .cancelMeetup(partnerID: partnerHit?.id)
         }
         if !text.contains("改名"), let r = ["改去", "改喺", "改在", "改到", "改做", "改成", "改返", "改回"].compactMap({ text.range(of: $0) }).first {
             let before = String(text[..<r.lowerBound]), after = String(text[r.upperBound...])
-            let lm = context.landmarks.filter { after.contains($0.name) }.max { $0.name.count < $1.name.count }   // 名有包含关系时揀最长
+            let lm = context.landmarks.filter { after.contains($0.name) }.max { $0.name.count < $1.name.count }   // When one name contains another, prefer the longest match.
             let hour = parseHour(after)
             let day = Self.parseDay(after)
             let aboutMeetup = before.isEmpty || before.contains("約") || partnerHit != nil
@@ -43,8 +43,8 @@ struct TemplateAI: AIService {
         if Self.noSeatWords.contains(where: text.contains) { return .report(.noSeat) }
         if Self.roughWords.contains(where: text.contains) { return .report(.rough) }
 
-        // 讲到名 / 楼层就揀嗰个；只讲「鄰居 / 街坊」（普通话常见：「约邻居明天一起走」「找邻居」）就揀一个街坊：
-        // 找人揀喺外面嗰个，约人揀第一个。
+        // Match a named person or floor. For a generic reference to a neighbor, choose an existing neighbor:
+        // For finding, prefer someone outside; for invitations, choose the first neighbor.
         let others = context.residents.filter { !$0.isMe }
         let named = others.first { text.contains($0.name) || text.contains("\($0.floor)樓") || text.contains("\($0.floor)層") }
         let generic = Self.genericNeighborWords.contains(where: text.contains)
@@ -58,7 +58,7 @@ struct TemplateAI: AIService {
         return .unknown
     }
 
-    // 关键词（已转繁体；粤语 + 普通话常见讲法）。
+    // Common Cantonese/Mandarin keywords, after conversion to Traditional Chinese.
     static let inviteWords = ["約", "一齊行", "一齊去", "一起", "散步", "行街", "陪我", "走走", "去走", "出去行"]
     static let findWords = ["搵", "找", "過去", "去見", "見見", "見下"]
     static let genericNeighborWords = ["鄰居", "街坊", "朋友", "老友"]
@@ -66,27 +66,27 @@ struct TemplateAI: AIService {
     static let noSeatWords = ["冇櫈", "冇凳", "無櫈", "沒有凳", "沒凳", "沒有椅", "沒椅", "沒地方坐", "沒有地方坐", "冇位坐", "沒得坐", "坐不了", "唔夠櫈"]
     static let roughWords = ["難行", "唔好行", "難走", "不好走", "路不平", "路爛", "路很爛", "好滑", "很滑", "路滑"]
     static let weatherWords = ["天氣", "天气", "落雨", "下雨", "會唔會熱", "熱不熱", "熱唔熱", "幾多度", "多少度", "幾度", "氣溫", "溫度", "颱風", "打風"]
-    /// 冷熱晴雨：问句（「今天会很热吗」「明天冷不冷」）或者讲今日 / 聽日（「今天很热」）就当问天气。
+    /// Treat temperature/rain questions, or statements about today/tomorrow, as weather requests.
     static let feelWords = ["熱", "曬", "太陽", "雨", "凍", "冷", "晴", "風"]
-    /// 讲明「呢度」先算反映呢个位（「这里好晒」「呢度好曬」）。
+    /// Only an explicit reference to this place counts as a local resident report.
     static let hereWords = ["呢度", "呢處", "呢邊", "呢個位", "這裡", "這裏", "這兒", "這邊", "這個位", "此處"]
 
-    /// 问天气（手机自己答：天文台嗰句）。「今天会很热吗」「明天热不热」「会不会下雨」「今日熱唔熱」都系。
+    /// Weather questions use the phone's Observatory summary, including questions about heat, cold, or rain today/tomorrow.
     static func asksWeather(_ raw: String) -> Bool {
         let t = toHant(raw.replacingOccurrences(of: " ", with: ""))
         if weatherWords.contains(where: t.contains) { return true }
         return feelWords.contains(where: t.contains) && (isQuestion(t) || parseDay(t) != nil)
     }
 
-    /// 曬 / 熱只喺讲紧「呢度」先当反映（「这里好晒」「呢度好曬」「太陽好大」）；
-    /// 问句（「今天会很热吗」）、讲今日聽日 / 天气（「今天很热」）系问天气，唔记反映。t 已转繁体。
+    /// Sun/heat statements count as reports only when explicitly about this location.
+    /// Questions or references to today, tomorrow, or the weather are weather requests, not reports. t is already Traditional Chinese.
     static func isSunnyReport(_ t: String) -> Bool {
         guard sunnyWords.contains(where: t.contains), !isQuestion(t) else { return false }
         if hereWords.contains(where: t.contains) { return true }
         return parseDay(t) == nil && !weatherWords.contains(where: t.contains)
     }
 
-    /// 问句：「嗎」「？」「咩」「幾多」「點樣」…、A唔A / A不A（熱唔熱、會不會、要不要），或者句尾「呢」。t 已转繁体。
+    /// Recognize question particles, question marks, interrogatives, and affirmative-negative constructions. t is already Traditional Chinese.
     static func isQuestion(_ t: String) -> Bool {
         let markers = ["嗎", "吗", "?", "？", "咩", "乜", "幾多", "多少", "點樣", "怎", "如何", "係咪", "是否", "有冇", "有沒有", "什麼", "甚麼", "幾時"]
         if markers.contains(where: t.contains) || t.trimmingCharacters(in: .punctuationCharacters.union(.whitespaces)).hasSuffix("呢") { return true }
@@ -96,17 +96,17 @@ struct TemplateAI: AIService {
         return false
     }
 
-    /// 请假：「請假」「聽日請假」，或者「請三天假」「请3天假」「請兩日假」「请一个星期假」（請同假中间系日数）。t 已转繁体。
+    /// Recognize leave requests, including durations inserted between the request verb and leave noun. t is already Traditional Chinese.
     static func asksLeave(_ t: String) -> Bool {
         if ["請假", "告假", "请假", "請個假", "休息一天", "休息一日", "今日唔行", "今天不走", "今天不去走"].contains(where: t.contains) { return true }
         return t.range(of: "[請请告][個个]?[0-9一二兩两三四五六七八九十半幾几成整]*[個个]?(日|天|星期|禮拜|礼拜|周|週)假", options: .regularExpression) != nil
     }
 
-    // MARK: - 安全（手机先认：两种语言、有冇 Mac 服务器都一样，唔交服务器）
+    // MARK: - Safety: recognize locally in both languages, with or without a Mac server
 
     enum Safety: Equatable { case emergency, medical }
 
-    /// 紧急求助只认好明确嘅讲法（唔会将「帮我约阿芳」当求救）；问食咩藥 / 睇咩醫生当医疗问题。
+    /// Require explicit emergency wording; an invitation request for help is not an emergency. Medication/doctor questions are medical requests.
     static func safety(_ raw: String) -> Safety? {
         let s = raw.filter { !$0.isWhitespace }
         let t = toHant(s)
@@ -116,18 +116,18 @@ struct TemplateAI: AIService {
         return nil
     }
 
-    /// 普通话（简繁都列）+ 粤语 + B 服务器嘅讲法（voice_policy.py URGENT）。胸口痛 / 心口痛另外用正则（「胸口好痛」都算）。
+    /// Mandarin variants, Cantonese, and server voice_policy.py URGENT expressions. Chest-pain variants also use a regex.
     static let emergencyWords = ["救命", "救我", "摔倒", "跌倒", "跌親", "跌亲", "爬不起來", "爬不起来", "起不了身", "起唔到身",
                                  "喘不過氣", "喘不过气", "透不過氣", "透不过气", "唞唔到氣", "唞唔到气", "透唔到氣", "透唔到气",
                                  "呼吸困難", "呼吸困难", "暈倒", "晕倒", "暈低", "晕低", "流血", "流緊血", "流紧血",
                                  "叫救護車", "叫救护车", "叫白車", "叫白车", "報警", "报警", "我想自殺", "我想自杀", "我想死"]
 
-    /// 问食咩藥 / 睇咩醫生（繁体）。
+    /// Medication/doctor questions in Traditional Chinese.
     static let medicalWords = ["什麼藥", "甚麼藥", "咩藥", "乜藥", "乜嘢藥", "咩嘢藥", "邊種藥", "哪種藥", "哪個藥",
                                "什麼醫生", "甚麼醫生", "哪個醫生", "咩醫生", "乜醫生", "邊個醫生", "什麼科", "甚麼科", "哪個科", "咩科", "邊科",
                                "要不要看醫生", "要唔要睇醫生", "使唔使睇醫生", "用不用看醫生", "需不需要看醫生", "需唔需要睇醫生", "要看醫生嗎", "要睇醫生嗎"]
 
-    /// 问医疗：上面嘅讲法，或者讲到「藥」又系问句（「要不要吃药」「可以食止痛藥嗎」）；藥房、藥店系地方，唔算。
+    /// Medical requests include these expressions or a question mentioning medication. A pharmacy is a place and does not count.
     static func isMedicalQuestion(_ t: String) -> Bool {
         if medicalWords.contains(where: t.contains) { return true }
         var d = t
@@ -135,7 +135,7 @@ struct TemplateAI: AIService {
         return d.contains("藥") && isQuestion(d)
     }
 
-    /// 听唔明嘅句子大概想做乜（用嚟讲点解做唔到）：约人 / 找人 / 反映。
+    /// Infer the broad unsupported intent (invite/find/report) to explain why the request could not be completed.
     enum Topic { case invite, find, report }
     static func topic(_ raw: String) -> Topic? {
         let t = toHant(raw.replacingOccurrences(of: " ", with: ""))
@@ -145,12 +145,12 @@ struct TemplateAI: AIService {
         return nil
     }
 
-    /// 简体转繁体（ICU）；转唔到就原样。
+    /// ICU Simplified-to-Traditional conversion; leave unchanged if conversion fails.
     static func toHant(_ s: String) -> String {
         s.applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? s
     }
 
-    /// 後日 / 後天 → 2；聽日 / 明天 / 明日 → 1；今日 / 今天 → 0。
+    /// Recognize Cantonese and Mandarin expressions for the day after tomorrow (2), tomorrow (1), and today (0).
     static func parseDay(_ t: String) -> Int? {
         if t.contains("後日") || t.contains("後天") { return 2 }
         if t.contains("聽日") || t.contains("明天") || t.contains("明日") { return 1 }
@@ -158,7 +158,7 @@ struct TemplateAI: AIService {
         return nil
     }
 
-    /// "下晝三點" → 15；"朝早8點" → 8；普通话 "下午三点" → 15。
+    /// Interpret Cantonese and Mandarin time expressions, including 3 pm as 15 and 8 am as 8.
     func parseHour(_ t: String) -> Int? {
         let digits: [Character: Int] = ["一": 1, "二": 2, "兩": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10]
         let t = Self.toHant(t)
@@ -177,7 +177,7 @@ struct TemplateAI: AIService {
         return (5...21).contains(h) ? h : nil
     }
 
-    // MARK: - 生成句子
+    // MARK: - Sentence generation
 
     func dailyLine(for r: Resident, passed: [Landmark]) -> String {
         if r.onLeave { return L.t("\(r.floorLabel)今日請咗假", "\(r.floorLabel)今天请假了") }
@@ -279,7 +279,7 @@ struct TemplateAI: AIService {
                              items: items, walkers: stats.walks, meetups: stats.meetups)
     }
 
-    /// 规格 F10：只输出人数 ≥ 10 的汇总。
+    /// F10 specification: output aggregates only when the participant count is at least 10.
     static let minReporters = 10
 
     static func hourLabel(_ h: Int) -> String {
@@ -288,7 +288,7 @@ struct TemplateAI: AIService {
         return h < 18 ? L.t("下晝 \(h - 12) 點", "下午 \(h - 12) 点") : L.t("夜晚 \(h - 12) 點", "晚上 \(h - 12) 点")
     }
 
-    /// 约会钟点：整点同 hourLabel 一样；有分钟就讲埋（自己揀 16:45 →「下晝 4 點 45 分」）。
+    /// Meetup time: use hourLabel for whole hours and include explicit minutes otherwise, such as 16:45.
     static func timeLabel(hour h: Int, minute m: Int) -> String {
         m == 0 ? hourLabel(h) : hourLabel(h) + L.t(" \(m) 分", " \(m) 分")
     }

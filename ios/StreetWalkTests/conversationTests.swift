@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import StreetWalk
 
-// 组员 B 嗰套（2026-10-12）：豆包识别嘅讯息、连续对话嘅「好 / 唔好」同回声保险、B 范围规则嘅卡、普通话用服务器声。
+// B integration tests (2026-10-12): recognition events, confirmation/echo guards, policy cards and Mandarin server speech.
 
 struct EarProtocolTests {
     @Test func 服务器讯息() {
@@ -27,7 +27,7 @@ struct ConversationRuleTests {
     }
 
     @Test func 否定先认_不好唔得唔会当好() {
-        // 「不好」「唔得」「不可以」含「好 / 得 / 可以」，以前当咗「好」（连续对话豆包嘅字已转繁体：不對）
+        // Negative words containing affirmative substrings must not confirm, including traditional-character Doubao output.
         for t in ["不好", "不对", "不對", "不可以", "不行", "唔好", "唔得", "唔可以", "唔係", "不好。", "唔得呀"] {
             #expect(AppStore.yesNo(t) == .no, "\(t)")
         }

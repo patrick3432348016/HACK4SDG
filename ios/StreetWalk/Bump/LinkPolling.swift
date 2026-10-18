@@ -1,11 +1,11 @@
 import Foundation
 
-/// 向后端交一次性码，配上为止（NeighborLinking.swift 嘅约定：未配上返回 nil，每 1–2 秒再问）。
-/// 碰一碰（NearbyBumpService）同二维码（AppStore+Bump）共用。
+/// Submit a one-time code until paired. NeighborLinking.swift defines nil as pending, with polling every 1–2 seconds.
+/// Shared by NearbyBumpService and QR pairing in AppStore+Bump.
 @MainActor
 enum LinkPolling {
-    /// 每 interval 秒问一次：配上返回对方；够钟都未配上返回 nil；中途网络出错唔即刻放弃，
-    /// 够钟时如果最后一次係出错就抛返嗰个错（界面讲「網絡有問題」）。Task 被取消就抛 CancellationError。
+    /// Poll every interval seconds. Return the peer on success or nil on timeout; tolerate transient network errors during the wait.
+    /// At timeout, rethrow the last error if present so the UI can explain network failure. Task cancellation throws CancellationError.
     static func poll(_ linker: NeighborLinker, code: String,
                      interval: TimeInterval = BumpTuning.linkInterval,
                      timeout: TimeInterval = BumpTuning.linkTimeout) async throws -> LinkedPeer? {
@@ -31,10 +31,10 @@ enum LinkPolling {
 }
 
 #if DEBUG
-/// 【只限 Debug】未接后端时假扮伺服器同对方，等碰一碰 / 二维码喺模拟器、单部手机都试得到成个流程。
-/// 同一个码第一次交返 nil（等紧对方），过咗 delay 秒就返回一个「測試街坊」（由码推出，两部手机见到同一个）。
-/// 启动参数：`-testLinkerDelay 秒`（默认 3）、`-testLinkerNever`（永远配唔上，试超时）、`-testLinkerError`（试网络出错）。
-/// 【整合】接咗后端（社区服务实现 NeighborLinker）就唔会再用呢个，见 AppStore+Bump 嘅 linker。
+/// Debug only: simulate the server/peer for a complete bump/QR flow on a simulator or one phone before backend integration.
+/// First submission returns nil; after delay, return a test neighbor deterministically derived from the code.
+/// Launch options: -testLinkerDelay seconds (default 3), -testLinkerNever for timeout, and -testLinkerError for network failure.
+/// Once CommunityService implements NeighborLinker, this test implementation is unused; see AppStore+Bump.linker.
 @MainActor
 final class LocalTestLinker: NeighborLinker {
     static let shared = LocalTestLinker()
@@ -48,7 +48,7 @@ final class LocalTestLinker: NeighborLinker {
     struct TestError: Error {}
 
     func link(code: String) async throws -> LinkedPeer? {
-        try await Task.sleep(for: .milliseconds(150))   // 扮网络来回
+        try await Task.sleep(for: .milliseconds(150))   // Simulate network round-trip time.
         if failing { throw TestError() }
         submitted.append(code)
         let t0 = firstSeen[code] ?? Date()

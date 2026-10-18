@@ -5,37 +5,37 @@ import Speech
 final class Speaker: ObservableObject {
     private var synth = AVSpeechSynthesizer()
     @Published var lastSpoken = ""
-    /// 设定页「試聽」讲紧（个掣变「正在播放…」，撳咗一定有反应）。
+    /// Track Settings preview playback so the button visibly responds immediately.
     @Published private(set) var previewing = false
-    /// 系统声音嘅开始 / 讲完回调（试听状态、冇出声自动重试）。
+    /// System speech start/finish callbacks drive preview state and silent-start retry.
     private lazy var observer: SynthObserver = {
         let o = SynthObserver()
         o.owner = self
         return o
     }()
-    /// 而家呢批句子（play() 一次）：最后一句讲完 = 讲完；有冇真系开始讲。
+    /// Track each play() batch: whether speech started and when its final utterance finishes.
     private var batchLast: ObjectIdentifier?
     private var batchStarted = false
     private var playGeneration = 0
-    /// 讲边种语言、用边把声、几快、开唔开（设定页「聲音」）。测试可以换。
+    /// Configurable language, voice, speed and enabled state; replaceable in tests.
     var settings: VoiceSettings = .shared
-    /// 声音对象只查一次（有些模拟器每次查都会卡住主线程）。
+    /// Query available voices once because repeated simulator queries can block the main thread.
     private var voiceCache: [String: AVSpeechSynthesisVoice] = [:]
 
-    /// Mac 语音服务器（粤语真人声）。nil = 唔用（单元测试）。见 Voice/VoiceServer.swift、ServerSpeech.swift。
+    /// Optional voice server, nil in unit tests; see VoiceServer.swift and ServerSpeech.swift.
     var server: VoiceServer?
-    /// 登录 token（只经 HTTPS 送；局域网唔使）。
+    /// Authentication token sent only through HTTPS, not needed on LAN.
     var token: (() async -> String?)?
     private lazy var serverPlayer = ServerSpeechPlayer()
-    /// 而家呢句点讲（debug-state、测试）。
+    /// Current utterance route for debug-state and tests.
     private(set) var lastRoute: TTSRoute = .system
-    /// 自动演示脚本：冇缓存就唔等服务器（画面同声音要对得准）。
+    /// Automated scripts use cache or system speech instead of waiting for the server.
     static let scripted = ProcessInfo.processInfo.arguments.contains { $0.hasPrefix("-script") }
 
-    /// 每次 speak / stop 加一：等 token 嗰阵被打断就唔再开始。
+    /// Increment on speak/stop so an interrupted token lookup cannot restart obsolete speech.
     private var speakGeneration = 0
     var isSpeaking: Bool { synth.isSpeaking || serverPlayer.isActive }
-    /// 连续对话收紧音（ServerSpeechPlayer 嘅 engine）：唔好改音频会话，否则咪会断。
+    /// Do not alter the audio session while ServerSpeechPlayer captures continuous input, or the microphone disconnects.
     var capturing: Bool { serverPlayer.capturing }
     func startCapture(_ onPCM: @escaping @Sendable (Data) -> Void) throws { try serverPlayer.startCapture(onPCM) }
     func stopCapture() { serverPlayer.stopCapture() }
@@ -47,8 +47,8 @@ final class Speaker: ObservableObject {
         synth.stopSpeaking(at: .immediate)
     }
 
-    /// 播报一句：粤语有 Mac 服务器（或者手机存咗呢句）就用真人声，否则 / 太慢（6 秒）就用系统声音。
-    /// 开关由 Announcer 管（关咗唔会叫到呢度，除非用户亲手撳「再聽一次」）。
+    /// Prefer available server or cached speech for supported languages; fall back to system output after a 6-second delay.
+    /// Announcer owns the enable switch; explicit replay may still call here while disabled.
     func speak(_ text: String) {
         speakGeneration += 1
         previewing = false
@@ -56,7 +56,7 @@ final class Speaker: ObservableObject {
         settings.ensureScanned()
         let language = settings.language
         let speed = TTSRoute.speed(settings.pace)
-        // 普通话同粤语同一把声（豆包小何）：缓存要分开（粤语照旧 key，同预热一致）
+        // Doubao Xiaohe serves Cantonese and Mandarin; separate cache keys while retaining the original Cantonese warmup key.
         let voiceID = server?.voiceID.map { language == .cantonese ? $0 : "\($0)/\(language.rawValue)" }
         let key = voiceID.map { SpeechAudioCache.key(text: text, voiceID: $0, speed: speed) }
         let cached = key.flatMap { SpeechAudioCache.file(for: $0) }
@@ -79,7 +79,7 @@ final class Speaker: ObservableObject {
             synth.stopSpeaking(at: .immediate)
             let gen = speakGeneration
             if url.scheme == "https", let token {
-                // 隧道（公网 HTTPS）要登录：攞 token 期间被 stop / 换咗句就唔好再开始
+                // Public HTTPS tunnels require authentication; discard token results if speech was stopped or replaced meanwhile.
                 Task { @MainActor [weak self] in
                     let t = await token()
                     guard let self, self.speakGeneration == gen else { return }
@@ -114,8 +114,8 @@ final class Speaker: ObservableObject {
         }
     }
 
-    /// 每句讲之前都设好：.playback 喺静音模式（响铃 / 静音掣拨咗静音）都会出声；.spokenAudio + 压低其他声音。
-    /// 连续对话收紧音（playAndRecord，同样唔受静音掣影响）就唔好郁，否则咪会断。
+    /// Use playback mode so the silent switch does not suppress speech, with spokenAudio and ducking.
+    /// Do not modify playAndRecord during continuous capture; it also ignores the silent switch.
     func activateSession() {
         guard !capturing else { return }
         let session = AVAudioSession.sharedInstance()
@@ -125,7 +125,7 @@ final class Speaker: ObservableObject {
             }
             try session.setActive(true)
         } catch {
-            // 啱啱收完咪，会话未放手：放咗再开一次
+            // If microphone shutdown has not released the session yet, retry after release.
             print("[voice] audio session: \(error) → retry")
             try? session.setActive(false, options: .notifyOthersOnDeactivation)
             try? session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
@@ -137,8 +137,8 @@ final class Speaker: ObservableObject {
         play(text, voice: settings.active, language: language)
     }
 
-    /// 设定页「聲音」嗰粒主「試聽」：同真播报行同一条路——连到 Mac 语音服务器就用豆包小何把声，连唔到先用系统声音
-    /// （用户 10-16：试听都要係豆包把声，唔好又係系统声）。返回 false = 媒体音量係 0。
+    /// Settings' primary preview follows actual routing: Doubao Xiaohe when connected, otherwise system voice.
+    /// 10-16 user requirement: preview must use the assistant voice too. False indicates zero media volume.
     @discardableResult
     func previewCurrent(language: SpokenLanguage) -> Bool {
         guard server?.speechURL != nil else { return preview(settings.active, language: language) }
@@ -152,13 +152,13 @@ final class Speaker: ObservableObject {
         return AVAudioSession.sharedInstance().outputVolume > 0.02
     }
 
-    /// 设定页「試聽」：用指定嘅声音讲试听句子（唔理开关）。讲紧期间 previewing = true。
-    /// 返回 false = 媒体音量係 0（静音掣唔影响，但音量调到最细就听唔到），叫人按音量加。
+    /// Preview the specified voice regardless of the enable switch; previewing remains true while speaking.
+    /// False means media volume is zero; suggest volume-up, since the silent switch is irrelevant.
     @discardableResult
     func preview(_ v: VoiceInfo?, language: SpokenLanguage) -> Bool {
         play(language.sample, voice: v, language: language)
         previewing = true
-        // 保险：回调冇嚟都唔好一直显示「正在播放」
+        // Do not leave the playing indicator active indefinitely if a completion callback never arrives.
         let gen = playGeneration
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(15))
@@ -172,15 +172,15 @@ final class Speaker: ObservableObject {
         activateSession()
         synth.stopSpeaking(at: .immediate)
         previewing = false
-        // 一定要指明边把声（只写语言会拎到最低档；普通话只会揀 zh-CN 声，见 VoicePicker）。
+        // Specify a voice explicitly; language alone may select the lowest tier. Mandarin selects only compatible voices via VoicePicker.
         let voice = v.flatMap(systemVoice) ?? fallback(language)
         let pace = settings.pace
-        // 每句一个 utterance、句同句之间停一停：清楚靠停顿，唔靠放慢音节（放慢会逐个字读，见 SpeechPace）。
+        // Use one utterance per sentence with pauses for clarity, rather than slowing every syllable; see SpeechPace.
         let make: () -> [AVSpeechUtterance] = {
             SpeechPace.sentences(text).map { sentence in
                 let u = AVSpeechUtterance(string: sentence)
                 u.voice = voice
-                // 唔跟「辅助使用」入面嘅朗读设定（语速、声音由我哋设定页管）。
+                // App Settings owns speed and voice instead of inheriting system spoken-content settings.
                 u.prefersAssistiveTechnologySettings = false
                 u.rate = pace.rate
                 u.pitchMultiplier = 1.0
@@ -189,7 +189,7 @@ final class Speaker: ObservableObject {
             }
         }
         enqueue(make())
-        // 真机试过：啱啱 stopSpeaking 即刻 speak，合成器有时成批唔讲（冇声、冇回调）。1.5 秒都未开始就换个新合成器再讲一次。
+        // Device testing found immediate speak after stop could produce no sound/callbacks; replace the synthesizer and retry once after 1.5 seconds.
         playGeneration += 1
         let gen = playGeneration
         Task { @MainActor [weak self] in
@@ -228,7 +228,7 @@ final class Speaker: ObservableObject {
         return s
     }
 
-    /// 揀唔到（未装 / 假声音）：用系统按语言俾嘅声。
+    /// If the requested voice is missing or invalid, use the system language fallback.
     private func fallback(_ l: SpokenLanguage) -> AVSpeechSynthesisVoice? {
         let key = "lang:" + l.bcp47
         if let c = voiceCache[key] { return c }
@@ -238,7 +238,7 @@ final class Speaker: ObservableObject {
     }
 }
 
-/// AVSpeechSynthesizer 回调（背景线程）→ 主线程交返 Speaker。
+/// Forward AVSpeechSynthesizer callbacks from background threads to Speaker on main.
 private final class SynthObserver: NSObject, AVSpeechSynthesizerDelegate, @unchecked Sendable {
     weak var owner: Speaker?
 
@@ -264,7 +264,7 @@ final class Listener: ObservableObject {
     @Published var transcript = ""
     @Published var available = false
 
-    /// 跟界面语言：粤语 zh-HK、普通话 zh-CN（每次开始听先揀，切换语言即时生效）。
+    /// Select recognition locale from the current UI language at each start so switching applies immediately.
     private var recognizers: [AppLang: SFSpeechRecognizer] = [:]
     private var recognizer: SFSpeechRecognizer? {
         let l = L.lang
@@ -316,7 +316,7 @@ final class Listener: ObservableObject {
         isListening = true
     }
 
-    /// 停顿之后 iOS 有时会由头再认（新一段字唔包含之前嗰段）：前面嗰段留低，接埋；空字唔好盖走已经认到嘅字。
+    /// iOS may restart recognition after a pause; preserve the previous segment and do not overwrite recognized text with empty output.
     private var committed = ""
     private var lastPartial = ""
 

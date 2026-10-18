@@ -1,0 +1,2 @@
+# Development-only dependency for the repository language audit.
+Pygments==2.21.0

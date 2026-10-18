@@ -68,6 +68,7 @@ The promotional-video project was removed from main in `f8d63c9`; it is maintain
 - [Backend schema, access rules, and tests](supabase/README.md).
 - [Voice server setup and integration](server/README.md).
 - [English translation scope and verification](docs/reviews/2026-10-19-english-translation.md) — preserves app languages and original evidence; records the existing Windows test failures.
+- [English-only material recheck](docs/reviews/2026-10-19-english-recheck.md) — remaining exceptions, both-branch fixes, and a repeatable language check.
 
 Historical documents retain their dates, findings, and unresolved items. For implementation, use current source and record the branch and commit.
 

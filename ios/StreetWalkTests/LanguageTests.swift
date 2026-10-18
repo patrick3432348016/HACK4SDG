@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import StreetWalk
 
-// 普通话版：语言切换（启动参数、存档、实时活动）同普通话语音意图。
-// 唔改全局 AppLanguage.shared（其他测试并行跑，默认粤语）。
+// Mandarin tests cover launch/saved language, Live Activities and intents.
+// Preserve AppLanguage.shared for parallel Cantonese-default tests.
 struct LanguageTests {
     @Test func 默认粤语同显示名() {
         #expect(ReportKind.noSeat.rawValue == "冇櫈", "存档值唔变")
@@ -52,14 +52,14 @@ struct MandarinVoiceTests {
     }
 
     @Test func 普通话常见讲法更宽松() {
-        // 只讲「邻居」：约 / 找第一个街坊（测试员 10-12：「约邻居明天一起走」被当听不明白）
+        // A generic neighbor request selects the first neighbor, addressing 10-12 feedback.
         #expect(ai.parseVoice("约邻居明天一起走", context: ctx()) == .invite(partnerID: "chan", day: 1, hour: nil))
         #expect(ai.parseVoice("我想和邻居明天早上散步", context: ctx()) == .invite(partnerID: "chan", day: 1, hour: 8))
         #expect(ai.parseVoice("找邻居", context: ctx()) == .goFind(partnerID: "chan"))
         #expect(ai.parseVoice("陈太明天下午三点散步", context: ctx()) == .invite(partnerID: "chan", day: 1, hour: 15))
         #expect(ai.parseVoice("这里没地方坐", context: ctx()) == .report(.noSeat))
         #expect(ai.parseVoice("太阳很大", context: ctx()) == .report(.sunny))
-        // 唔识嘅名唔会乱约
+        // Unknown names must not invite an arbitrary person.
         #expect(ai.parseVoice("约李先生明天一起走", context: ctx()) == .unknown)
         #expect(TemplateAI.asksWeather("今天天气怎么样"))
         #expect(TemplateAI.topic("约李先生明天一起走") == .invite)
@@ -74,7 +74,7 @@ struct MandarinVoiceTests {
         #expect(LeaveRequest.parse("请两天假") == LeaveRequest(startOffset: 0, days: 2))
         #expect(LeaveRequest.parse("请一个星期假") == LeaveRequest(startOffset: 0, days: 7))
         #expect(LeaveRequest.parse("明天请两天假") == LeaveRequest(startOffset: 1, days: 2))
-        // 连续对话：豆包嘅字已转繁体
+        // Doubao continuous transcripts have already been converted to traditional characters.
         #expect(LeaveRequest.parse("請兩天假") == LeaveRequest(startOffset: 0, days: 2))
         #expect(LeaveRequest.parse("請一個星期假") == LeaveRequest(startOffset: 0, days: 7))
         #expect(LeaveRequest.parse("請兩周假") == LeaveRequest(startOffset: 0, days: 14))
@@ -85,7 +85,7 @@ struct MandarinVoiceTests {
             #expect(ai.parseVoice(q, context: ctx()) == .unknown, "\(q)")
             #expect(TemplateAI.asksWeather(q), "\(q)")
         }
-        // 讲明「这里」先系反映
+        // Only an explicit here-reference makes this a local report.
         #expect(ai.parseVoice("这里好晒", context: ctx()) == .report(.sunny))
         #expect(ai.parseVoice("这里太晒", context: ctx()) == .report(.sunny))
         #expect(!TemplateAI.asksWeather("约陈太明天下午三点一起走"))
@@ -99,7 +99,7 @@ struct MandarinVoiceTests {
         for s in ["我头痛吃什么药", "要不要吃药", "感冒该看什么医生", "要不要看医生", "可以吃止痛药吗"] {
             #expect(TemplateAI.safety(s) == .medical, "\(s)")
         }
-        // 唔好误认：「帮我」唔系求救；药房系地方
+        // Avoid safety false positives: ordinary help wording is not distress, and a pharmacy can be a place.
         for s in ["帮我约阿芳", "约陈太明天下午三点一起走", "今天天气怎么样", "这里太晒", "约陈太在药房门口见", "请三天假", "好的"] {
             #expect(TemplateAI.safety(s) == nil, "\(s)")
         }

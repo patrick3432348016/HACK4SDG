@@ -119,7 +119,7 @@ class ChoiceRequest(Model):
 class SpeakRequest(Model):
     text: str = Field(min_length=1, max_length=1000)
     locale: Locale = "zh-HK"
-    # 成员 A 加：语速（对应 App 设定「語速」）同预热（只排队合成、唔等声音）。
+    # A additions: App speech speed and nonblocking queued warmup.
     speed: float | None = Field(default=None, ge=0.7, le=1.3)
     prefetch: bool = False
 

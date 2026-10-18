@@ -1,12 +1,12 @@
 import Foundation
 
-/// 重启后要保留的数据。存在 Application Support/StreetWalk/state.json。
-/// 上线后街坊关系、约会、反映、地标名以服务器为准，这里只当缓存；散步记录（含原始轨迹）只存在手机。
-/// 读取时缺字段用默认值、坏咗嘅约会 / 反映逐条跳过（见下面 init(from:)）；加字段唔使升 version，
-/// 结构真系改咗（改名、改类型）先升 version，喺 LocalStore.load 做迁移。
+/// Restart-persistent data at Application Support/StreetWalk/state.json.
+/// Server-backed fields act as cache where supported; local walk history remains on the phone and raw tracks are not uploaded.
+/// Decode absent fields with defaults and skip damaged meetings / reports individually; adding a field does not require a version increment.
+/// Increment version for structural renames or type changes and migrate in LocalStore.load.
 struct SavedState: Codable, Equatable {
     var version = 1
-    /// 底座是哪一格、哪座楼。换了地方，跟地图有关的数据（约会地点、反映位置、改过的地标名）就作废。
+    /// Base tile and home building; moving invalidates map-dependent meeting places, reports and landmark names.
     var mapKey: String?
     var neighbors: [String: NeighborLink] = [:]
     var appointments: [Appointment] = []
@@ -14,7 +14,7 @@ struct SavedState: Codable, Equatable {
     var landmarkNames: [String: String] = [:]
     var walkLog: [String: DayLog] = [:]
     var leaveDays: Set<String> = []
-    /// 「今日三件事」任务卡（首次使用之后）。可选：旧存档冇呢个字段都读得返。
+    /// Optional first-day task card field preserves compatibility with older saves.
     var firstDay: FirstDayProgress?
 }
 
@@ -24,23 +24,23 @@ struct NeighborLink: Codable, Equatable {
     var receive: Bool
 }
 
-/// 一日的散步记录（只记分钟、次数、经过的地标、落脚点，不记轨迹）。demo = 演示模式预先放的示範纪录。
+/// Daily record stores minutes, count, passed landmarks and stopping places, not tracks; demo marks sample records.
 struct DayLog: Codable, Equatable {
     var minutes = 0
     var walks = 0
-    /// 经过的地标（只留喺手机）。
+    /// Pass-through landmarks remain local.
     var landmarks: [String] = []
     var demo = false
-    /// 落脚点（停 ≥2 分钟）对应的地标：对外（每日一句、上线后上传）只用呢个。
+    /// Landmarks corresponding to stops of at least 2 minutes; use only these for shared greetings / uploads.
     var stops: [String] = []
-    /// 计步器量到嘅步数；nil = 冇量（模拟器、演示、轮椅、旧纪录），按分钟估算。
+    /// Measured pedometer steps; nil for unmeasured, simulator, demo, wheelchair or legacy records, estimated from minutes.
     var steps: Int?
-    /// 冇量步数嗰几次散步嘅分钟（同日有量、有冇量时，冇量嗰部分照估算）。
+    /// Minutes from walks without step measurements, allowing mixed measured / estimated totals within a day.
     var unmeasured = 0
 
-    /// 步数：量到嘅，加冇量嘅分钟按每分钟约 100 步估算。
+    /// Total measured steps plus roughly 100 steps per unmeasured minute.
     var stepEstimate: Int { steps.map { $0 + unmeasured * 100 } ?? minutes * 100 }
-    /// 有冇用到估算（界面写「約」）。
+    /// Whether an approximation label is required.
     var stepsEstimated: Bool { walks > 0 && (steps == nil || unmeasured > 0) }
 }
 
@@ -51,7 +51,7 @@ enum LocalStore {
         return dir.appendingPathComponent("state.json")
     }
 
-    /// 读唔到（或者只救返部分）时，原文件先复制一份 state.bad-时间.json，之后写盘都唔会冚咗佢。
+    /// Before saving after failed or partial recovery, preserve the original as state.bad-<timestamp>.json.
     static func load(from url: URL = url) -> SavedState {
         guard let data = try? Data(contentsOf: url) else { return SavedState() }
         let report = DecodeReport()
@@ -79,13 +79,13 @@ enum LocalStore {
         try? FileManager.default.copyItem(at: url, to: to)
     }
 
-    /// 连续天数：从今日（今日未行就从昨日）往回数行过的日子。请假日唔断、但唔加（F4：请假期间连续天数保留）。
-    /// includeDemo = false 时不计示範纪录。
+    /// F4: count walking days backward from today or yesterday; leave neither breaks nor increases the streak.
+    /// includeDemo=false excludes sample records.
     static func streak(_ log: [String: DayLog], leaves: Set<String>, today: Date, includeDemo: Bool) -> Int {
         streakKeys(log, leaves: leaves, today: today, includeDemo: includeDemo).count
     }
 
-    /// 计入连续天数嘅日子（日期键）。
+    /// Date keys included in the streak.
     static func streakKeys(_ log: [String: DayLog], leaves: Set<String>, today: Date, includeDemo: Bool) -> [String] {
         func walked(_ k: String) -> Bool {
             guard let l = log[k], includeDemo || !l.demo else { return false }
@@ -102,8 +102,8 @@ enum LocalStore {
         return keys
     }
 
-    /// 记一次散步。演示散步（simulated）算示範纪录，唔会改真实纪录；真实散步盖过当日嘅示範纪录。
-    /// 返回有冇记到。
+    /// Simulated walks never overwrite real records; real walks replace that day's demo record.
+    /// Return whether the walk was recorded.
     @discardableResult
     static func record(_ log: inout [String: DayLog], key: String, minutes: Int, landmarks: [String], stops: [String] = [],
                        steps: Int? = nil, simulated: Bool) -> Bool {
@@ -119,7 +119,7 @@ enum LocalStore {
         return true
     }
 
-    /// 示範纪录：过去 8 日 + 今日早上，连续 9 日。只填冇纪录嘅日子，真实纪录唔郁。
+    /// Seed nine demo days only where records are absent; preserve real records.
     static func seedDemo(_ log: inout [String: DayLog], today: Date) {
         let mins = [24, 32, 28, 41, 25, 36, 30, 22, 38]
         for (i, m) in mins.enumerated() {
@@ -128,7 +128,7 @@ enum LocalStore {
         }
     }
 
-    /// 香港时区的日期键，例如 "2026-10-07"。
+    /// Hong Kong date key, for example 2026-10-07.
     static func dayKey(_ d: Date) -> String {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = SolarPosition.hongKong
@@ -137,9 +137,9 @@ enum LocalStore {
     }
 }
 
-// MARK: - 宽松读取（A24：旧存档缺字段、某条坏咗，都唔好成份读唔返）
+// MARK: - A24 tolerant decoding of missing fields and individual damaged records
 
-/// 读取时有冇丢过嘢（丢过就备份原文件）。
+/// Track data loss during decoding to trigger an original-file backup.
 final class DecodeReport {
     static let key = CodingUserInfoKey(rawValue: "streetwalk.decodeReport")!
     var lossy = false
@@ -150,7 +150,7 @@ private extension Decoder {
 }
 
 private extension KeyedDecodingContainer {
-    /// 缺键用默认值；有键但读唔到都用默认值，并记低有损失。
+    /// Default missing keys; also default invalid values while recording the loss.
     func value<T: Decodable>(_ key: Key, _ fallback: T, _ d: Decoder) -> T {
         guard contains(key) else { return fallback }
         if let v = try? decode(T.self, forKey: key) { return v }
@@ -158,7 +158,7 @@ private extension KeyedDecodingContainer {
         return fallback
     }
 
-    /// 数组逐条读，坏咗嘅跳过。
+    /// Decode arrays item by item and skip damaged entries.
     func lossyArray<T: Decodable>(_ key: Key, _ d: Decoder) -> [T] {
         guard contains(key) else { return [] }
         guard let items = try? decode([Lossy<T>].self, forKey: key) else { d.markLossy(); return [] }
@@ -202,7 +202,7 @@ extension DayLog {
     }
 }
 
-/// 约会：旧存档冇 fromPartner、reminded 都读得返。
+/// Accept legacy meetings without fromPartner or reminded.
 extension Appointment {
     private enum Keys: String, CodingKey { case id, partnerID, date, landmarkID, reason, status, fromPartner, reminded }
 

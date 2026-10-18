@@ -2,23 +2,23 @@ import Foundation
 import Network
 import Observation
 
-/// 真后端（关咗演示模式时用）：CommunityService + NeighborLinker 嘅 Supabase 实现。
+/// Supabase implementation of CommunityService and NeighborLinker for normal, non-demo mode.
 ///
-/// 收：App 喺前台时经 Realtime（outings / neighbors / meetups 变咗就重新拉；signals 直接用推过嚟嘅行），
-///     另外每 60 秒补拉一次；后台被叫醒时 `backgroundRefresh()` 拉一次（AppStore 出本地通知）。
-/// 发：全部写入经 Outbox 排队（离线、服务器暂时唔得都唔会冇，之后再试）；「方唔方便」呢类即时询问直接发，发唔到即刻话俾用户知。
-/// 隐私：服务器冇坐标、冇门牌；位置一律系地标名（用原名，两部手机先对得上）。出门状态回家时改成 null、唔删行
-///      （Realtime 嘅 DELETE 事件唔经 RLS，所有订阅者都收到，会泄露「边个返咗屋企」）。
+/// Receive through foreground Realtime: refetch outings/neighbors/meetups after changes, but consume signal rows directly.
+/// Also refresh every 60 seconds, and once through backgroundRefresh() on wake-up; AppStore posts local notifications.
+/// Queue durable writes through Outbox. Send time-sensitive availability requests directly and report delivery failure immediately.
+/// Ordinary community rows use original landmark names rather than coordinates/unit numbers. On return home, set the outing landmark to null instead of deleting.
+/// Realtime DELETE events bypass row filtering and expose primary keys to subscribers, revealing who returned home.
 @MainActor
 @Observable
 final class SupabaseCommunityService: CommunityService, NeighborLinker {
     static let shared = SupabaseCommunityService()
 
     enum Status: Equatable {
-        /// 未登录（未完成首次使用 / 未有网名）。
+        /// Not signed in: onboarding/nickname is incomplete.
         case idle
         case online
-        /// 上一次请求因为冇网络 / 服务器暂时唔得而失败：界面显示「未連線」。
+        /// The previous request failed because the network or server was unavailable; show the disconnected state.
         case offline
     }
     private(set) var status: Status = .idle
@@ -30,11 +30,11 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
     var sharesLandmarkNames: Bool { false }
     var ownsNeighborLinks: Bool { true }
 
-    /// AppStore 提供：而家嘅个人资料（未完成首次使用 / 冇网名时 nil）。散步、请假之后用嚟重传连续天数。
+    /// AppStore supplies the current profile, or nil before onboarding/nickname. Reupload streaks after walking/leave changes.
     @ObservationIgnored var profileProvider: (() -> CommunityProfile?)?
 
     enum Part: Hashable, CaseIterable { case neighbors, board, meetups, signals, followUps, monthly, passers }
-    /// 等对方答「方唔方便」最多几耐（之后讲「佢暫時冇回覆」）。
+    /// Maximum wait for an availability response before reporting no reply yet.
     static let askTimeout: TimeInterval = 120
 
     let api: SupabaseAPI
@@ -46,13 +46,13 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
     @ObservationIgnored private(set) var myID: String?
     @ObservationIgnored private(set) var active = false
     @ObservationIgnored private var foreground = true
-    /// AppStore 已经装好圈成员（第一次叫 circleMembers）：之后先处理约会、信号（唔会因为界面未有呢个人而丢咗）。
+    /// Process meetups/signals only after circleMembers first loads the people, avoiding events being discarded before UI setup.
     @ObservationIgnored private var uiReady = false
     @ObservationIgnored private var lastMembers: [Resident] = []
     @ObservationIgnored private var pendingAsks: [String: PendingAsk] = [:]
     @ObservationIgnored private var tripHandlers: [UUID: (PartnerTrip) -> Void] = [:]
     @ObservationIgnored private var lastTrips: [UUID: PartnerTrip] = [:]
-    /// 已经喺本机解除、未送到服务器嘅街坊（刷新时唔好又加返）。
+    /// Locally unlinked neighbors whose deletion is still pending; do not restore them during refresh.
     @ObservationIgnored private var pendingUnlinks: Set<String> = []
     @ObservationIgnored private var remindOverrides: [String: (send: Bool, receive: Bool)] = [:]
     @ObservationIgnored private var pendingOutingStart: Date?
@@ -97,7 +97,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
             try? await api.accessToken()
         }
         realtime.onStateChange = { [weak self] s in
-            // 断线时用较密嘅轮询补；连返就即刻补拉一次
+            // Poll more frequently while disconnected and refresh immediately on reconnection.
             if s == .connected { self?.scheduleRefresh([.neighbors, .meetups, .signals]) }
         }
         Task { [weak self] in
@@ -105,9 +105,9 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         }
     }
 
-    // MARK: - 生命周期
+    // MARK: - Lifecycle
 
-    /// 换成真后端（关演示模式 / 启动时已经系真模式）。
+    /// Switch to the real backend at normal-mode startup or when demo mode is disabled.
     func activate() {
         guard !active else { return }
         active = true
@@ -119,14 +119,14 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         }
     }
 
-    /// 换返演示模式：停晒（唔登出，下次关演示模式即刻用返）。
+    /// Stop services when entering demo mode, retaining login for the next switch back.
     func deactivate() {
         active = false
         uiReady = false
         stopForegroundWork()
     }
 
-    /// App 返前台 / 退后台（AppStore.appActive）。
+    /// Foreground/background transition from AppStore.appActive.
     func setForeground(_ on: Bool) {
         foreground = on
         guard active else { return }
@@ -165,13 +165,13 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         monitor.start(queue: DispatchQueue(label: "streetwalk.backend.path"))
     }
 
-    /// 后台被叫醒（BGAppRefresh、定位唤醒）：送出排队嘅写入，拉一次街坊、约会、信号。
-    /// 有新嘅出门 / 邀约 / 找人询问，AppStore 收到事件会出本地通知。60 秒内只做一次。
+    /// On background/location wake-up, flush queued writes and fetch neighbors, meetups, and signals.
+    /// AppStore posts local notifications for new outings/invitations/finding requests. Refresh at most once per 60 seconds.
     func backgroundRefresh() async {
         guard active else { return }
         if let t = lastBackgroundRun, Date().timeIntervalSince(t) < 60 { return }
         lastBackgroundRun = Date()
-        // 界面未装好圈成员（后台冷启动、地图未装好）：最多等 10 秒，免得事件冇人接而丢咗
+        // Wait up to ten seconds for circle members during cold/background startup so events have a receiver.
         for _ in 0..<50 where !uiReady { try? await Task.sleep(for: .milliseconds(200)) }
         await flushNow()
         if let id = await api.userID { adopt(id) }
@@ -181,13 +181,13 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         saveCacheNow()
     }
 
-    // MARK: - 登录
+    // MARK: - Authentication
 
     private func adopt(_ id: String) {
         let id = id.lowercased()
         guard myID != id else { return }
         myID = id
-        // 换咗身份（旧登录失效、重新匿名登录）：旧频道嘅过滤条件系旧 id，要重开
+        // Recreate channels when identity changes; their filters refer to the previous user ID.
         if let ch = channel, ch.name != "sw:\(id)" { realtime.remove(ch); channel = nil }
         if cache.userID != id {
             cache = BackendCache(userID: id)
@@ -197,7 +197,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         if active, foreground { startForegroundWork() }
     }
 
-    /// 已登录就返回自己 id；未登录：有资料要上传（即系完成咗首次使用、同意咗）先匿名登录。
+    /// Return the current user ID if signed in. Otherwise log in anonymously only when consented onboarding has produced a profile.
     private func ensureSignedIn(allowSignUp: Bool) async throws -> String {
         if let id = await api.userID { adopt(id); return id.lowercased() }
         guard allowSignUp else { throw BackendError.notSignedIn }
@@ -235,7 +235,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         }
     }
 
-    /// 前台每 5 秒醒一次：每 60 秒全面补拉；等紧对方答「方唔方便」/ 约会途中、或者 Realtime 断咗时密啲拉信号。
+    /// Wake every five seconds in foreground, fully refresh every 60, and poll signals faster while awaiting availability, meeting, or disconnected from Realtime.
     private func startPoller() {
         poller?.cancel()
         poller = Task { [weak self] in
@@ -257,7 +257,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         }
     }
 
-    // MARK: - 拉数据
+    // MARK: - Fetching data
 
     func scheduleRefresh(_ parts: Set<Part>, delay: Double = 0.3) {
         guard active else { return }
@@ -314,7 +314,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         for e in events { onEvent?(e) }
     }
 
-    /// 街坊由「冇出门」变「出咗门」（新一次出门：开始时间唔同）先算出门；途中换地标只更新位置，唔再提醒。
+    /// Only a new outing start time triggers a departure reminder. Mid-walk landmark changes update position silently.
     private func outingTransitions(_ rows: [NeighborRow]) -> [CommunityEvent] {
         var events: [CommunityEvent] = []
         let now = Date()
@@ -326,7 +326,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
             let since = n.out_since ?? now
             guard cache.lastOut[id] != since else { continue }
             cache.lastOut[id] = since
-            // 出咗门好耐先见到（例如 App 啱啱打开）：静静更新，唔讲「啱啱出門」
+            // If an outing is first observed long after departure, update silently rather than saying just left.
             if now.timeIntervalSince(since) < 30 * 60, let lm = index.id(forName: n.out_at) {
                 events.append(.neighborOut(residentID: id, landmarkID: lm))
             }
@@ -447,7 +447,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         cache.passersDay = today
     }
 
-    // MARK: - 写入（Outbox）
+    // MARK: - Writes through Outbox
 
     private func enqueue(_ op: OutboxOp) {
         outbox.add(op)
@@ -463,7 +463,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         }
     }
 
-    /// 即刻送晒（等送完先返回）。
+    /// Flush immediately and await completion.
     func flushNow() async {
         retryTask?.cancel(); retryTask = nil
         if let t = flushTask { await t.value }
@@ -484,13 +484,13 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
                 retryDelay = 5
                 opDone(op, ok: true)
             } catch BackendError.notSignedIn {
-                return      // 未完成首次使用：等资料
+                return      // Wait for a profile while onboarding is incomplete.
             } catch let e as BackendError where e.isRetryable {
                 handle(e, during: "flush \(op.key ?? op.path)")
                 scheduleRetry()
                 return
             } catch {
-                // 服务器拒绝（权限、格式）：再试都冇用，丢咗佢
+                // Drop permanent permission/format rejections rather than retrying.
                 if log { print("[backend] drop \(op.method) \(op.path) \(op.key ?? ""): \(error)") }
                 outbox.remove(op.id)
                 outbox.save(dir.appendingPathComponent("outbox.json"))
@@ -543,7 +543,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         }
     }
 
-    // MARK: - CommunityService：圈成员
+    // MARK: - CommunityService: circle members
 
     func circleMembers(blocks: [String], landmarks: [Landmark]) -> [Resident] {
         let first = !uiReady
@@ -557,7 +557,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         index = LandmarkIndex(landmarks: landmarks, originals: originals)
     }
 
-    // MARK: - 个人资料、每日汇总、请假
+    // MARK: - Profiles, daily summaries, and leave
 
     func updateProfile(_ p: CommunityProfile) {
         let body = p.upsert(id: OutboxOp.me)
@@ -591,7 +591,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         reuploadProfile()
     }
 
-    // MARK: - 街坊关系
+    // MARK: - Neighbor relationships
 
     func linkNeighbor(_ id: String, send: Bool, receive: Bool) { updateRemind(id, send: send, receive: receive) }
 
@@ -617,7 +617,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         enqueue(OutboxOp(key: "unlink:\(id)", method: "DELETE", path: "/rest/v1/neighbors", query: "owner=eq.\(OutboxOp.me)&other=eq.\(id)"))
     }
 
-    /// 碰一碰 / 二维码：交一次性码（见 NeighborLinking.swift）。资料未上传就先上传（pair_codes 引用 profiles）。
+    /// Submit the one-time bump/QR code (NeighborLinking.swift). Upload the profile first because pair_codes references profiles.
     func link(code: String) async throws -> LinkedPeer? {
         if cache.lastProfile == nil || outbox.contains(key: "profile") {
             reuploadProfile()
@@ -639,10 +639,10 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         return peer
     }
 
-    /// 之后做「找人时即时位置」嘅模块用：同街坊之间嘅私有频道 pair:<小uuid>:<大uuid>
-    /// （服务器只放行互为街坊嘅两个人；位置只经呢度即时转发，唔落表）。
-    /// 用法：`let ch = service.openPairChannel(with: id); ch?.onBroadcast = { event, payload in … }; ch?.broadcast("loc", …)`，
-    /// 完咗 `service.closePairChannel(ch)`。App 退后台会断线，返前台自动再加入。
+    /// Private pair channel for temporary live-finding location: pair:<lower UUID>:<higher UUID>.
+    /// The server admits only two mutual neighbors; coordinates are relayed through the channel, not stored in a table.
+    /// Usage: let ch = service.openPairChannel(with: id); set onBroadcast, then call broadcast("loc", ...).
+    /// Close with service.closePairChannel(ch). Backgrounding disconnects; foregrounding rejoins automatically.
     func openPairChannel(with partnerID: String) -> RealtimeChannel? {
         guard let me = myID else { return nil }
         let other = partnerID.lowercased()
@@ -654,7 +654,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
 
     func closePairChannel(_ ch: RealtimeChannel) { realtime.remove(ch) }
 
-    // MARK: - 出门状态
+    // MARK: - Outing state
 
     func publishOuting(landmarkID: String?) {
         let body: OutingUpsert
@@ -664,7 +664,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
             cache.outingActive = true
             body = OutingUpsert(user_id: OutboxOp.me, landmark_name: name, started_at: pendingOutingStart, updated_at: Date())
         } else {
-            // 回家 / 隐身：改成 null（唔删行，见类说明）。启动时清一次（上次闪退可能留低出门状态）。
+            // Home/hidden: set the landmark to null without deleting. Clear once at startup in case the previous run crashed.
             guard cache.outingActive || !clearedOutingThisLaunch else { return }
             guard cache.lastProfile != nil || outbox.contains(key: "profile") else { return }
             clearedOutingThisLaunch = true
@@ -677,7 +677,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
                          prefer: "resolution=merge-duplicates,return=minimal"))
     }
 
-    // MARK: - F7 约会
+    // MARK: - F7 Meetups
 
     func sendInvite(_ a: Appointment) {
         let id = a.id.uuidString.lowercased()
@@ -715,7 +715,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
                          body: json(JSONValue.object(f)), prefer: "return=minimal"))
     }
 
-    /// 语音助手（Mac 服务器）用我嘅登录代我插入咗呢个约会：记低系我自己约嘅（之后对方应承 / 拒绝先认得），唔再上传。
+    /// The voice server inserted this meetup with my credentials. Remember it as my invitation for later responses; do not upload it again.
     func adoptServerInvite(_ a: Appointment) {
         rememberOwn(MeetupRow(id: a.id.uuidString.lowercased(), inviter: OutboxOp.me, invitee: a.partnerID, at: a.date,
                               landmark_name: index.publishName(a.landmarkID), reason: a.reason, status: "waiting",
@@ -733,7 +733,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
 
     // MARK: - F3 / F10
 
-    /// 服务器未有地标改名表：改名只喺本机（上传地标名时用原名，对方先对得上）。
+    /// The backend has no landmark-renaming table. Rename locally and upload original names for cross-device matching.
     func renameLandmark(_ id: String, to name: String) {}
 
     func submitReport(_ r: Report) {
@@ -749,14 +749,14 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         enqueue(OutboxOp(key: "report-del:\(k)", method: "DELETE", path: "/rest/v1/reports", query: "id=eq.\(k)"))
     }
 
-    // MARK: - 匿名汇总（服务器按附近 3×3 格算；人数唔够唔出）
+    // MARK: - Anonymous aggregates across nearby 3×3 grids; suppress insufficient counts
 
     func passersToday(at landmark: Landmark) -> (count: Int, isDemo: Bool)? {
         guard cache.passersDay == LocalStore.dayKey(Date()), let name = index.publishName(landmark.id), let n = cache.passers[name] else { return nil }
         return (n, false)
     }
 
-    /// 未有「对面圈」嘅真数据：rivalSteps = 0，排行榜只显示本圈总步数（唔造假）。
+    /// No real rival-circle data: rivalSteps = 0 and show only this circle's total, without inventing a comparison.
     func circleRace(placeName: String, myMonthSteps: Int) -> CircleRace {
         let others = cache.board.filter { !$0.is_me && $0.id.lowercased() != myID }.reduce(0) { $0 + max(0, $1.month_steps ?? 0) }
         return CircleRace(ourName: L.t("我哋呢頭", "我们这边"), ourSteps: others + myMonthSteps, rivalName: "", rivalSteps: 0, isDemo: false)
@@ -773,7 +773,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         BackendMapping.reports(cache.monthly, landmarks: landmarks, index: index, now: Date())
     }
 
-    // MARK: - F8 找人
+    // MARK: - F8 Finding
 
     func askToFind(partnerID: String, landmarkID: String, answer: @escaping (Bool) -> Void) {
         if let old = pendingAsks.removeValue(forKey: partnerID) { old.timeout.cancel() }
@@ -819,7 +819,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
     func departForMeetup(_ appointmentID: UUID, etaMinutes: Int, partnerUpdate: @escaping (PartnerTrip) -> Void) {
         tripHandlers[appointmentID] = partnerUpdate
         if let t = lastTrips[appointmentID] {
-            // 对方早过我出门：即刻话俾 App 知（下一轮，等 App 设定好找人状态）
+            // If the other person left first, notify the app on the next turn after finding state is initialized.
             Task { @MainActor in partnerUpdate(t) }
         }
         guard let partner = partner(of: appointmentID) else { return }
@@ -842,7 +842,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         return p.lowercased()
     }
 
-    /// 即时信号直接发（试两次）；发唔到就 throw（由调用者话俾用户知）。
+    /// Send transient signals directly with two attempts; throw on failure for the caller to inform the user.
     private func sendSignalNow(to: String, kind: String, payload: JSONValue) async throws {
         let me = try await ensureSignedIn(allowSignUp: false)
         let body = try BackendCoding.encoder.encode(SignalInsert(from_user: me, to_user: to, kind: kind, payload: payload))
@@ -867,14 +867,14 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
                          expires: Date().addingTimeInterval(ttl)))
     }
 
-    // MARK: - 清除我喺服务器上嘅资料（设置「清除我嘅紀錄」）
+    // MARK: - Clear server data from the Settings deletion action
 
-    /// 删走散步、请假、反映、出门状态、街坊关系；资料行冇删除权限，改成「已離開」并搬去冇人嘅格子，附近排行榜唔会再见到。
-    /// 之后登出：下次上传资料会用一个新嘅匿名身份。返回有冇做到（冇网络就 false）。
+    /// Clear walks, leave, reports, outing state, and neighbor relationships. Without profile-delete permission, de-identify and move the profile to an unused grid.
+    /// Then sign out; the next upload uses a new anonymous identity. Return false on network failure.
     func deleteMyServerData() async -> Bool {
         guard let me = await api.userID?.lowercased() else { resetLocalState(); return true }
         do {
-            // 出门状态改成 null（唔删行，见类说明）；其他逐个表删。某个表唔俾删（权限改咗）就跳过，冇网络先当失败。
+            // Clear outing landmark to null; delete other tables individually. Skip permission-denied tables; only network failure counts as failure here.
             try await api.upsert("outings", OutingUpsert(user_id: me, landmark_name: nil, started_at: nil, updated_at: Date()), onConflict: "user_id")
             for (table, col) in [("walks", "user_id"), ("leaves", "user_id"), ("reports", "user_id"), ("neighbors", "owner")] {
                 do { _ = try await api.request("DELETE", "/rest/v1/\(table)", query: "\(col)=eq.\(me)") }
@@ -910,7 +910,7 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
         status = .idle
     }
 
-    // MARK: - 缓存存盘
+    // MARK: - Persisting cache
 
     private func saveCacheSoon() {
         saveTask?.cancel()
@@ -927,25 +927,25 @@ final class SupabaseCommunityService: CommunityService, NeighborLinker {
     }
 }
 
-/// 服务器数据喺本机嘅缓存（重启即刻有排行榜、街坊；记住处理过边啲约会、信号，唔会重复提醒）。
+/// Cache server data for immediate restart display and remember processed meetups/signals to avoid duplicate reminders.
 struct BackendCache: Codable, Equatable {
     var userID: String?
     var board: [BoardRow] = []
     var neighbors: [NeighborRow] = []
-    /// 见过嘅约会（最新样子）：对比出对方做咗乜。
+    /// Latest observed meetup states, used to identify the other person's changes.
     var seenMeetups: [String: MeetupRow] = [:]
     var lastSignalID: Int64?
     var seenFollowUps: Set<String> = []
     var monthly: [MonthlyRow] = []
     var monthlyAt: Date?
-    /// 今日经过各地标嘅人数（≥5 人先有）。
+    /// Today's passers per landmark, available only at counts of at least five.
     var passers: [String: Int] = [:]
     var passersDay: String?
-    /// 街坊出门开始时间（判断系咪新一次出门）。
+    /// Neighbor outing start times, used to distinguish new departures.
     var lastOut: [String: Date] = [:]
-    /// 我而家喺服务器上系咪「出咗门」。
+    /// Whether my server state currently indicates an outing.
     var outingActive = false
-    /// 上一次成功上传嘅个人资料（一样就唔再传）。
+    /// Last successfully uploaded profile; skip identical uploads.
     var lastProfile: ProfileUpsert?
 
     static func load(_ url: URL) -> BackendCache {

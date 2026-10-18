@@ -2,15 +2,15 @@ import Foundation
 import Testing
 @testable import StreetWalk
 
-// 后台出门检测：夜晚位置估计屋企（HomeLearner）、系统叫醒后点做（TriggerRules）、定位纪录、经纬度换算。
+// Background tests: HomeLearner, TriggerRules, location records and coordinate conversion.
 
 struct HomeLearnerTests {
     let cal = AppStore.hk
-    let home = GeoPoint(lat: 22.5044, lon: 114.1563)          // 皇后山邨
-    let shenzhen = GeoPoint(lat: 22.5431, lon: 114.0579)      // 约 11 km 外
+    let home = GeoPoint(lat: 22.5044, lon: 114.1563)          // Queen's Hill Estate.
+    let shenzhen = GeoPoint(lat: 22.5431, lon: 114.0579)      // Roughly 11 km away.
     func t(_ s: String) -> Date { SunShadeTests.hk(s) }
 
-    /// 由 day 22:30 到第二朝 06:30 喺 p 过夜（系统「到访」）。
+    /// Simulate a visit overnight at p from day 22:30 to next day 06:30.
     func night(_ day: String, at p: GeoPoint) -> NightSample {
         let s = t("\(day) 22:30")
         return NightSample(lat: p.lat, lon: p.lon, start: s, end: s.addingTimeInterval(8 * 3600), source: .visit)
@@ -38,13 +38,13 @@ struct HomeLearnerTests {
 
     @Test func 到访按晚计停留() {
         let now = t("2026-10-12 12:00")
-        // 20:00 到第二朝 08:00：只计 22:00–06:00 = 8 小时
+        // A 20:00–08:00 visit contributes only the 22:00–06:00 window: 8 hours.
         let a = NightSample(lat: home.lat, lon: home.lon, start: t("2026-10-08 20:00"), end: t("2026-10-09 08:00"), source: .visit)
         #expect(HomeLearner.pieces(a, now: now, calendar: cal) == [.init(night: "2026-10-08", seconds: 8 * 3600)])
-        // 跨两晚
+        // Spans two nights.
         let b = NightSample(lat: home.lat, lon: home.lon, start: t("2026-10-08 21:00"), end: t("2026-10-10 07:00"), source: .visit)
         #expect(HomeLearner.pieces(b, now: now, calendar: cal).map(\.night) == ["2026-10-08", "2026-10-09"])
-        // 单点：夜晚当 15 分钟；日头唔计
+        // A night point contributes 15 minutes; daytime points contribute none.
         let p = NightSample(lat: home.lat, lon: home.lon, start: t("2026-10-09 01:00"), end: t("2026-10-09 01:00"), source: .significant)
         #expect(HomeLearner.pieces(p, now: now, calendar: cal) == [.init(night: "2026-10-08", seconds: 15 * 60)])
         let d = NightSample(lat: home.lat, lon: home.lon, start: t("2026-10-09 13:00"), end: t("2026-10-09 13:00"), source: .significant)
@@ -75,7 +75,7 @@ struct HomeLearnerTests {
     @Test func 屋企范围未离开都计_离开就收() {
         var l = HomeLearner()
         l.add(NightSample(lat: home.lat, lon: home.lon, start: t("2026-10-11 19:00"), end: nil, source: .region), now: t("2026-10-11 19:00"), calendar: cal)
-        // 半夜两点：计到而家（4 小时）
+        // At 02:00, count four elapsed night hours.
         #expect(HomeLearner.pieces(l.samples[0], now: t("2026-10-12 02:00"), calendar: cal).first?.seconds == Double(4 * 3600))
         #expect(l.hasOpen(.region))
         let closed = l.close(.region, at: t("2026-10-12 07:00"))
@@ -142,11 +142,11 @@ struct HomeLearnerTests {
 
     @Test func 唔连续嘅两晚唔问() {
         let now = t("2026-10-12 12:00")
-        // 9 号、11 号喺深圳，10 号返屋企：唔係连续两晚
+        // Away on the 9th and 11th but home on the 10th is not two consecutive nights.
         let l = learner([night("2026-10-09", at: shenzhen), night("2026-10-10", at: home), night("2026-10-11", at: shenzhen)], now: now)
         let v = l.verdict(home: home, picked: true, now: now, calendar: cal)
         if case .moved = v { Issue.record("唔连续唔应该问：\(v)") }
-        // 返屋企之后（最近一晚喺屋企）都唔问
+        // Do not prompt after the latest night was at home.
         let back = learner([night("2026-10-09", at: shenzhen), night("2026-10-10", at: shenzhen), night("2026-10-11", at: home)], now: now)
         if case .moved = back.verdict(home: home, picked: true, now: now, calendar: cal) { Issue.record("已经返咗屋企") }
     }
@@ -167,7 +167,7 @@ struct HomeLearnerTests {
         guard case .suggest(_, 2, nil) = l.verdict(home: nil, picked: false, now: now, calendar: cal) else {
             Issue.record("冇屋企应该建议"); return
         }
-        // 用示例屋邨揀（picked = false）：唔近就建议，近就确认
+        // With a sample-selected home, picked=false confirms nearby evidence or suggests a distant location.
         guard case .suggest(_, 2, let d?) = l.verdict(home: home, picked: false, now: now, calendar: cal), d > 10_000 else {
             Issue.record("示例屋邨应该建议"); return
         }
@@ -231,7 +231,7 @@ struct TriggerRuleTests {
         #expect(TriggerRules.maxStart(leftHomeAt: nil, now: t0) == LiveWalkGate.maxStart)
         #expect(TriggerRules.maxStart(leftHomeAt: t0, now: t0.addingTimeInterval(600)) == TriggerRules.relaxedStart)
         #expect(TriggerRules.maxStart(leftHomeAt: t0, now: t0.addingTimeInterval(4 * 3600)) == LiveWalkGate.maxStart, "3 个钟之后照旧")
-        // 区域离开迟报：行到 600 m 先叫醒都照样开始
+        // A delayed departure wake at 600 m still starts detection.
         var gate = LiveWalkGate()
         _ = gate.decide(fromHome: 600, acc: 10, at: t0, recording: false, moving: true)
         #expect(gate.decide(fromHome: 610, acc: 10, at: t0.addingTimeInterval(10), recording: false, moving: true) == .none)

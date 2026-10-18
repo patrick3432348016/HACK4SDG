@@ -1,57 +1,57 @@
 import Foundation
 
-// 碰一碰（F5）嘅进度同结果：BumpService（Contracts.swift）用。
-// 2026-10-10 加：真机碰一碰要报距离、失败原因；结果可以係示範居民，或者后端配好嘅对方（LinkedPeer）。
+// F5 pairing progress/results used by BumpService in Contracts.swift.
+// Added 2026-10-10: real-device distance/failure reporting; results can be a demo Resident or backend LinkedPeer.
 
-/// 碰一碰嘅结果。
+/// Pairing result.
 enum BumpMatch: Equatable {
-    /// 演示模式：碰到一个示範街坊（SimulatedBumpService）。
+    /// Demo mode: a simulated neighbor from SimulatedBumpService.
     case demo(Resident)
-    /// 真机 / 二维码：两部手机交咗同一个一次性码，后端（NeighborLinker）返回对方。
+    /// Device/QR: both phones submit the same single-use code; NeighborLinker returns the peer.
     case linked(LinkedPeer)
 }
 
-/// 碰一碰过程（界面用大字显示，语音讲重点）。
+/// Pairing progress: large visual prompts and concise speech.
 enum BumpUpdate: Equatable {
-    /// 搵緊身邊部手機（Bonjour 广播 + 搜索）。
+    /// Discovering a nearby phone through Bonjour advertising/browsing.
     case searching
-    /// 等緊「本地網絡」权限（系统框未撳，或者撳咗唔允许）。继续等，时限到先算失败。
+    /// Waiting for Local Network permission, whether unanswered or denied; fail only at the deadline.
     case needsLocalNetwork
-    /// 连上咗对方，量紧距离（米）；nil = 暂时量唔到。
+    /// Connected and ranging in metres; nil means no current measurement.
     case ranging(Float?)
-    /// 呢部手机已经够近，等对方部都够近。
+    /// Local proximity confirmed; waiting for the peer's measurement.
     case nearMe
-    /// 两部都够近，向伺服器登记（link(code:)）。
+    /// Mutual proximity confirmed; register through link(code:).
     case linking
-    /// 配上咗（store 收到 onFound 后自己设，服务唔会发）。
+    /// Paired state set by the store after onFound, not emitted by the service.
     case paired
     case failed(BumpFailure)
 }
 
-/// 点解碰唔到。每一种都有一句广东话解释，界面同时提供「用二維碼」。
+/// Every failure has a Cantonese explanation and a QR fallback in the UI.
 enum BumpFailure: Equatable {
-    /// 部手机冇超宽带（iPhone 11 之前、SE、模拟器）。
+    /// UWB unavailable on this device/simulator.
     case unsupported
-    /// 「本地網絡」被拒绝：搵唔到身边部手机。
+    /// Local Network denied; nearby discovery is blocked.
     case localNetworkDenied
-    /// 「附近互動」被拒绝：量唔到距离。
+    /// Nearby Interaction denied; ranging is blocked.
     case nearbyDenied
-    /// 时限内搵唔到 / 未够近。
+    /// Peer not found or not close enough before timeout.
     case timeout
-    /// App 去咗背景（超宽带只可以喺前台用）。
+    /// App backgrounded; UWB requires foreground operation.
     case background
-    /// 对方取消、断线或者离开咗。
+    /// Peer cancelled, disconnected, or left.
     case peerLeft
-    /// 冇后端（未接伺服器）。
+    /// Backend is not connected/configured.
     case noServer
-    /// 伺服器配唔上（时限内对方冇交同一个码）。
+    /// Backend pairing timed out without the peer submitting the same code.
     case linkFailed
-    /// 网络有问题，问唔到伺服器。
+    /// Network failure prevented contacting the backend.
     case network
-    /// 其他（例如超宽带出错）。
+    /// Other failure, such as a UWB error.
     case other
 
-    /// 大字标题。
+    /// Large-text title.
     var title: String {
         switch self {
         case .unsupported: return L.t("呢部手機唔支援碰一碰", "这部手机不支持碰一碰")
@@ -67,7 +67,7 @@ enum BumpFailure: Equatable {
         }
     }
 
-    /// 辅助说明（点样做）。
+    /// Supporting guidance explaining what to do.
     var hint: String {
         switch self {
         case .unsupported: return L.t("要兩部 iPhone 11 或之後嘅型號先得。可以改用二維碼。", "需要两部 iPhone 11 或更新的机型。可以改用二维码。")
@@ -83,29 +83,29 @@ enum BumpFailure: Equatable {
         }
     }
 
-    /// 要去「設定」改权限。
+    /// Permission must be changed in Settings.
     var needsSettings: Bool { self == .localNetworkDenied || self == .nearbyDenied }
-    /// 「再試」有冇用（唔支援、冇伺服器就冇用）。
+    /// Whether retry can help; unsupported hardware or missing backend cannot be fixed by retrying.
     var canRetry: Bool { self != .unsupported && self != .noServer }
 }
 
-/// 二维码加街坊（唔支援超宽带、或者碰唔到时用）。
+/// QR neighbor pairing when UWB is unsupported or unsuccessful.
 struct BumpQRState: Equatable {
     enum Mode: Equatable {
-        /// 揀：出示 / 掃。
+        /// Choose to display or scan a code.
         case choose
-        /// 出示二维码，等对方扫（code 係 PairCode）。
+        /// Display a PairCode QR and wait for scanning.
         case show(String)
-        /// 开镜头扫对方。
+        /// Open the camera to scan the peer.
         case scan
     }
     var mode: Mode
-    /// 扫到 / 对方扫咗，等伺服器。
+    /// Code scanned; waiting for the backend.
     var linking = false
-    /// 配上咗。
+    /// Paired successfully.
     var paired = false
-    /// 大字提示（例如「呢個唔係街坊行嘅二維碼」）。
+    /// Large guidance text, for example when a QR code is not a StreetWalk code.
     var note: String?
-    /// 扫过但配唔到嘅码：镜头仲对住都唔再重试。
+    /// Do not retry a previously scanned failed code while the camera remains pointed at it.
     var rejected: String?
 }

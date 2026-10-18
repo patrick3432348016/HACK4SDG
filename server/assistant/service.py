@@ -177,7 +177,7 @@ class Assistant:
             context = context or await self.business.context(token, now, cmd.starts_at)
             action = {"action": action, "expected_context_version": context.version, "confirmation_text": message}
             status = "needs_confirmation"
-            # 成员 A 加：确认卡嘅结构化内容（联系人 / 地点 id、时间），App 用嚟出自己语言嘅复述卡，唔使由 message 猜。
+            # Structured confirmation includes contact/place IDs and time so the App localizes its recap without parsing message text.
             data["action"] = action["action"]
         payload = {"command": cmd.model_dump(mode="json"), "locale": locale, "status": status,
                    "selected": selected, "allowed": [c.id for c in choices]}

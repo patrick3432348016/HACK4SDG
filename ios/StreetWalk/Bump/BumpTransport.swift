@@ -2,22 +2,22 @@ import Foundation
 import Network
 import CryptoKit
 
-/// 碰一碰：喺身边搵另一部手机，连上，开加密通道。参考组员 B 嘅 PeerTransport（ios/UWBMeetDemo/App/PeerTransport.swift），
-/// 改咗：唔使输入配对码——两部手机同时广播同搜索 `_jiefong._tcp`（Info.plist 已登记），
-/// id 细嘅一方主动连（BumpTieBreak），连上后用一次性 Curve25519 密钥协商（BumpChannel）。
-/// includePeerToPeer：唔使连同一个 Wi-Fi，Wi-Fi 同蓝牙开住就得（AWDL）。
-/// 全部回调都喺主线程（Network 用 .main 队列）。
+/// Discover a nearby phone and establish an encrypted pairing channel, adapted from B's ios/UWBMeetDemo/App/PeerTransport.swift.
+/// Change: no manually entered code. Both phones advertise and browse _jiefong._tcp, registered in Info.plist.
+/// The smaller ID initiates (BumpTieBreak); use ephemeral Curve25519 key agreement after connecting (BumpChannel).
+/// includePeerToPeer enables AWDL without a shared Wi-Fi network; Wi-Fi and Bluetooth must be enabled.
+/// All callbacks run on the main thread; Network uses the .main queue.
 @MainActor
 final class BumpTransport {
     enum Event {
-        /// 加密通道通咗。initiator = 我係主动连嗰方（负责定一次性码）。
+        /// The encrypted channel is connected. The initiator creates the one-time pairing code.
         case ready(initiator: Bool)
         case message(BumpMessage)
-        /// 「本地網絡」权限：true = 被挡住（未允许 / 拒绝咗），false = 通咗。
+        /// Local Network permission: true means blocked/not granted; false means available.
         case localNetwork(blocked: Bool)
-        /// 通道通咗之后断线（对方走咗 / 出错）。
+        /// An established channel disconnected because the peer left or an error occurred.
         case closed
-        /// Bonjour 本身用唔到（广播 / 搜索失败）。
+        /// Bonjour advertising/browsing is unavailable.
         case unavailable
     }
 
@@ -32,12 +32,12 @@ final class BumpTransport {
     private var channel: BumpChannel?
     private var frames = FrameBuffer()
     private var generation = UUID()
-    /// 连唔上 / 握手失败嘅对方：今次唔再试。
+    /// Do not retry a peer whose connection or handshake failed during this attempt.
     private var tried: Set<String> = []
     private var endpoints: [String: NWEndpoint] = [:]
-    /// kDNSServiceErr_PolicyDenied：本地网络权限未允许。
+    /// kDNSServiceErr_PolicyDenied: Local Network permission has not been granted.
     private static let policyDenied: Int32 = -65570
-    /// 一条连接几耐未握手完就放弃，试下一部（秒）。
+    /// Handshake timeout in seconds before abandoning this connection and trying another phone.
     private static let handshakeTimeout: TimeInterval = 8
 
     private static func parameters() -> NWParameters {
@@ -80,7 +80,7 @@ final class BumpTransport {
         connection.send(content: frame, completion: .idempotent)
     }
 
-    /// 话俾对方知停咗（尽力），之后收线。
+    /// Best-effort stop message before closing the connection.
     func sendCancelAndStop() {
         if let connection, channel != nil, let frame = try? channel?.seal(.cancel) {
             connection.send(content: frame, completion: .contentProcessed { _ in connection.cancel() })
@@ -102,7 +102,7 @@ final class BumpTransport {
         tried = []
     }
 
-    // MARK: - 搵对方
+    // MARK: - Peer discovery
 
     private func listenerState(_ state: NWListener.State, _ gen: UUID) {
         guard generation == gen else { return }
@@ -146,7 +146,7 @@ final class BumpTransport {
         attach(NWConnection(to: ep, using: Self.parameters()), initiator: true, peer: pick, gen)
     }
 
-    // MARK: - 连接与握手
+    // MARK: - Connection and handshake
 
     private func attach(_ c: NWConnection, initiator: Bool, peer: String?, _ gen: UUID) {
         connection = c
@@ -170,7 +170,7 @@ final class BumpTransport {
             }
         }
         c.start(queue: .main)
-        // 握手太耐：放弃呢部，试下一部。
+        // Handshake timed out: abandon this phone and try another.
         Task { @MainActor [weak self, weak c] in
             try? await Task.sleep(for: .seconds(Self.handshakeTimeout))
             guard let self, let c, self.generation == gen, self.connection === c, self.channel == nil else { return }
@@ -209,7 +209,7 @@ final class BumpTransport {
             if initiator, hello.id != peerID { throw BumpChannel.Failure.badHello }
             channel = try BumpChannel(myKey: myKey, myID: myID, peer: hello, initiator: initiator)
             peerID = hello.id
-            browser?.cancel(); browser = nil   // 已经搵到，唔使再搵
+            browser?.cancel(); browser = nil   // Peer found; stop discovery.
             onEvent?(.ready(initiator: initiator))
         } else {
             guard let m = try channel?.open(record) else { return }
@@ -217,7 +217,7 @@ final class BumpTransport {
         }
     }
 
-    /// 连接断咗：握手前 = 呢部唔得，试下一部；握手后 = 话俾上面知。
+    /// Before handshake completion, try another phone after disconnection; afterward, notify the caller.
     private func dropConnection() {
         let wasReady = channel != nil
         if let peerID { tried.insert(peerID) }

@@ -1,8 +1,8 @@
 import Foundation
 
-/// 成员 B：碰一碰的模拟实现（演示模式）。2.2 秒后"碰到"第一个还不是街坊的人；
-/// 中间报几次模拟距离，等演示画面同真机一样由「靠近啲」行到「成功」（画面标明「示範」）。
-/// 真机版本：NearbyBumpService（超宽带 + Bonjour）。
+/// Member B's demo implementation pairs with the first non-neighbor after 2.2 seconds.
+/// Emit simulated distances so the labeled demo follows the real-device approach-to-success UI.
+/// Physical-device implementation: NearbyBumpService with UWB and Bonjour.
 @MainActor
 final class SimulatedBumpService: BumpService {
     private var work: [DispatchWorkItem] = []

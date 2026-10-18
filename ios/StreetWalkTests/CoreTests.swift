@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import StreetWalk
 
-// 核心逻辑单元测试：地图解析与风格化、地标、太阳与遮荫、寻路、语音意图、连续天数、持久化编码、示範数据。
-// 运行：cd ios && xcodebuild test -project StreetWalk.xcodeproj -scheme StreetWalk -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.5'
+// Core tests: map parsing/styling, landmarks, solar/shade, routing, intents, streaks, persistence and demo data.
+// Run from ios: xcodebuild test -project StreetWalk.xcodeproj -scheme StreetWalk -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.5'
 
 @MainActor
 struct MapTests {
@@ -128,7 +128,7 @@ struct VoiceTests {
     }
 
     @Test func 问热唔当反映() {
-        // 问天气，唔记「好曬」
+        // Weather questions must not create heat reports.
         for q in ["今日熱唔熱", "聽日會唔會好熱", "今日好熱呀？", "會唔會落雨"] {
             #expect(ai.parseVoice(q, context: ctx()) == .unknown, "\(q)")
             #expect(TemplateAI.asksWeather(q), "\(q)")
@@ -173,7 +173,7 @@ struct StoreTests {
     }
 
     @Test func 日期键用香港时区() {
-        // UTC 16:30 = 香港翌日 00:30
+        // 16:30 UTC is 00:30 the next day in Hong Kong.
         let utc = ISO8601DateFormatter().date(from: "2026-10-06T16:30:00Z")!
         #expect(LocalStore.dayKey(utc) == "2026-10-07")
     }
@@ -195,7 +195,7 @@ struct StoreTests {
     @Test func 旧存档冇任务卡都读得返() throws {
         let old = try JSONDecoder().decode(SavedState.self, from: Data(#"{"version":1,"walkLog":{},"leaveDays":[]}"#.utf8))
         #expect(old.firstDay == nil)
-        // 任务卡入面缺字段（以后加嘅）都照读
+        // Decode task cards even when newly introduced fields are absent.
         let partial = try JSONDecoder().decode(SavedState.self, from: Data(#"{"firstDay":{"bumped":true}}"#.utf8))
         #expect(partial.firstDay?.bumped == true && partial.firstDay?.walked == false && partial.firstDay?.doneCount == 1)
     }

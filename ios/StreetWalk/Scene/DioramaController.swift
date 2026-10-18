@@ -2,12 +2,12 @@ import SceneKit
 import UIKit
 import QuartzCore
 
-/// 场景里一个人的显示状态（只给街坊和"我"用；非街坊永远不进场景）。
+/// Scene appearance state for self and neighbors only; never add non-neighbors.
 struct ScenePerson: Equatable {
     enum Motion: Equatable {
-        case wander(around: Vec2)          // 在地标附近 25 m 内慢慢走
-        case route([Vec2], speed: Double)  // 沿路线走（米/秒，演示时加速）
-        case catchUp(lead: [Vec2], fast: Double, rest: [Vec2], speed: Double)  // 先快步走完 lead 追上进度，再按 speed 走 rest
+        case wander(around: Vec2)          // Wander slowly within 25 m of a landmark.
+        case route([Vec2], speed: Double)  // Follow a route in metres per second, accelerated for demos.
+        case catchUp(lead: [Vec2], fast: Double, rest: [Vec2], speed: Double)  // Traverse lead quickly to catch up, then follow rest at speed.
         case stand(at: Vec2)
     }
     var id: String
@@ -16,12 +16,12 @@ struct ScenePerson: Equatable {
     var motion: Motion
     var label: String?
     var highlighted = false
-    /// 外形：肤色档、年龄段（AppStore.syncScene 按居民资料填）。
+    /// Skin/age appearance filled from resident data by AppStore.syncScene.
     var skin = 1
     var age: AgeGroup = .adult
 }
 
-/// 覆盖层上的一个标签（SwiftUI 画，跟随 3D 投影）。
+/// A SwiftUI overlay label following its projected 3D position.
 struct OverlayItem: Identifiable, Equatable {
     enum Kind { case landmark, person, home, report }
     var id: String
@@ -37,9 +37,9 @@ final class OverlayModel {
     var items: [OverlayItem] = []
 }
 
-/// 3D 微缩模型的全部场景逻辑：搭建、太阳、相机、人物、路线、遮挡淡化、标签投影。
-/// 线程：场景由主线程搭建和修改；SceneKit 渲染线程只在 renderer(_:updateAtTime:) 里读标签和跟随要用的状态。
-/// 渲染线程会读的属性（map、人物、地标、屋企标签、反映标记、跟随、相机位置）一律在 lock 里写，渲染线程在 lock 里复制一份再用。
+/// Complete diorama logic: construction, sunlight, camera, people, routes, occlusion fading, and projected labels.
+/// Build/mutate on the main thread; the SceneKit render thread reads label/follow state only in renderer(_:updateAtTime:).
+/// Lock writes to all render-read properties; the render thread copies a snapshot under the same lock.
 final class DioramaController: NSObject, SCNSceneRendererDelegate {
     let scene = SCNScene()
     weak var view: SCNView?
@@ -62,15 +62,15 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     private var personState: [String: ScenePerson] = [:]
     private var pathGrid: PathGrid?
 
-    // 相机：固定俯角和方位，只由流程自动移动（场景只看不操作，没有拖动、缩放）。
+    // Camera: fixed tilt and heading, moved automatically by the flow; this historical scene has no drag or zoom controls.
     private let cameraNode = SCNNode()
     private let sunNode = SCNNode()
     private let ambientNode = SCNNode()
     private let pitch: Float = Float(LaunchArgs.value("-pitch").flatMap(Double.init) ?? 33) * .pi / 180
-    private let azimuth: Float = 45 * .pi / 180      // 从东南方看
+    private let azimuth: Float = 45 * .pi / 180      // View from the southeast.
     private var _target = Vec2(x: -72, y: 72)
     private var _distance: Float = 2.35
-    /// 镜头对准的地面点（米）。镜头飞行和跟随在渲染线程改，所以加锁。
+    /// Ground target in metres, locked because flight/follow updates occur on the render thread.
     private(set) var target: Vec2 {
         get { locked { _target } }
         set { locked { _target = newValue } }
@@ -81,7 +81,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     }
     var homeTarget = Vec2.zero
 
-    // 标签（渲染线程读，主线程写：都经 lock）
+    // Labels: render-thread reads and main-thread writes both use the lock.
     private var _homeBuildingID: Int64?
     private var _homeLabel: String?
     private var _reportMarks: [(id: String, pos: Vec2, text: String)] = []
@@ -98,20 +98,20 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         get { locked { _reportMarks } }
         set { locked { _reportMarks = newValue }; labelsChanged() }
     }
-    /// 跟随某个人（散步时跟着"我"）。
+    /// Follow a person, normally self during a walk.
     var followID: String? {
         get { locked { _followID } }
         set { locked { _followID = newValue } }
     }
-    /// 标签每秒最多推 20 次，而且只在有变化时推（SwiftUI 跟得上，也省电）。
+    /// Publish changed labels at most 20 times per second to limit SwiftUI work and power use.
     private static let overlayInterval = 1.0 / 20
     private var lastOverlayPush: TimeInterval = 0
     private var lastOverlay: [OverlayItem] = []
     private var trailingScheduled = false
-    /// 每次取快照加一；主线程只采用比已显示更新的一份（渲染线程和主线程同时推时，旧快照不会盖过新的）。
+    /// Increment snapshot versions and accept only newer ones on main, preventing stale render/main publications from overwriting updates.
     private var overlaySeq = 0
     private var lastOverlaySeq = 0
-    private var appliedSeq = 0   // 只在主线程读写
+    private var appliedSeq = 0   // Access only on the main thread.
     private let lock = NSLock()
 
     private func locked<T>(_ body: () -> T) -> T {
@@ -119,16 +119,16 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         return body()
     }
 
-    /// 减少动态效果：镜头直接跳到位、楼宇不升起、光晕不脉冲。渲染线程也要读，所以在主线程缓存一份。
+    /// Reduce Motion: jump camera, omit building rise, and stop halo pulses. Cache the setting on main for render-thread access.
     private var _reduceMotion = UIAccessibility.isReduceMotionEnabled
     private var reduceMotion: Bool { locked { _reduceMotion } }
 
-    /// 深色模式：搭建场景时按它解析 SceneStyle 的动态色。
+    /// Resolve SceneStyle adaptive colors using dark-mode state during construction.
     private(set) var isDark = UITraitCollection.current.userInterfaceStyle == .dark
     private var traits: UITraitCollection { UITraitCollection(userInterfaceStyle: isDark ? .dark : .light) }
     private var highlighted: (ids: Set<Int64>, color: UIColor?) = ([], nil)
     private var highlightedLandmark: String?
-    /// 当前被调成半透明的楼（切深浅色重建后补回）。
+    /// Buildings currently faded, restored after rebuilding for appearance changes.
     private var faded: Set<Int64> = []
 
     override init() {
@@ -144,7 +144,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         }
     }
 
-    // MARK: - 搭建
+    // MARK: - Construction
 
     func load(map: MapModel, landmarks: [Landmark], animated: Bool) {
         locked { _map = map }
@@ -153,7 +153,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         locked { towerNodes = [:]; pickableNodes = [:]; landmarkNodes = [:]; personNodes = [:]; personState = [:] }
         faded = []
 
-        // 阴影范围跟着底座大小走，小底座的影子更清楚。
+        // Scale shadow bounds with the base for sharper shadows on small scenes.
         sunNode.light?.orthographicScale = map.size * Double(SceneStyle.scale) * 0.75
         highlighted = ([], nil)
         highlightedLandmark = nil
@@ -165,7 +165,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         }
     }
 
-    /// 系统切换深浅色：按新配色重建地面、楼、树、地标的材质，不重放楼宇升起；人和路线不动。
+    /// On light/dark changes, rebuild ground/building/tree/landmark materials without replaying rise animation or moving people/routes.
     func setDark(_ dark: Bool) {
         guard dark != isDark else { return }
         isDark = dark
@@ -229,7 +229,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         let homeBuildingID = self.homeBuildingID
         for b in map.buildings {
             let geo = MeshBuilder.building(b)
-            // 按用途区分颜色；我屋企淡橙 + 橙色描边，是画面主角。
+            // Color by purpose; home is the focal point with pale orange and an orange outline.
             switch b.kind {
             case _ where b.id == homeBuildingID: geo.materials = [homeMat, homeMat]
             case .construction: geo.materials = [constructionMat, constructionMat]
@@ -248,7 +248,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
                 node.addChildNode(en)
             }
             if b.isTower || b.kind == .residential || b.id == homeBuildingID {
-                // 可选中的楼各用一份材质，高亮时不会连累其他楼。
+                // Give selectable buildings separate materials so highlighting one cannot tint others.
                 geo.materials = geo.materials.map { $0.copy() as! SCNMaterial }
                 buildingsNode.addChildNode(node)
                 pickableNodes[b.id] = node
@@ -263,7 +263,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         buildingsNode.addChildNode(low)
 
         guard animated, !reduceMotion else { return }
-        // 楼宇按离我屋企的距离错峰"升起"。
+        // Stagger building-rise animations by distance from home.
         let origin = homeTarget
         for (id, node) in pickableNodes {
             let d = map.building(id: id).map { $0.centroid.distance(to: origin) } ?? 0
@@ -276,7 +276,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         node.scale = SCNVector3(1, 0.001, 1)
         let grow = SCNAction.customAction(duration: 0.9) { n, t in
             let x = Float(t / 0.9)
-            // 近似弹簧：快速冲上去，轻微回弹后停住。
+            // Approximate a spring: rise quickly, rebound slightly, then settle.
             let y = 1 - exp(-6 * x) * cos(7.5 * x)
             n.scale = SCNVector3(1, max(0.001, y), 1)
         }
@@ -300,7 +300,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
                 y += 18
             }
         }
-        // 做减法：最多 5 棵。
+        // Keep the scene sparse: at most five trees.
         spots = Array(spots.prefix(5))
         guard let geo = MeshBuilder.trees(spots, greens: SceneStyle.treeGreens, trunk: SceneStyle.trunk) else { return }
         let node = SCNNode(geometry: geo)
@@ -330,7 +330,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         labelsChanged()
     }
 
-    // MARK: - 太阳
+    // MARK: - Sun
 
     private func setupLights() {
         let sun = SCNLight()
@@ -358,7 +358,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         setSun(SolarPosition(elevation: 45, azimuth: 135), animated: false)
     }
 
-    /// 太阳高度和方位驱动光照方向、强度和色温；夜晚只留柔和环境光。
+    /// Sun elevation/bearing drive light direction, intensity, and color temperature; retain only soft ambient light at night.
     func setSun(_ sun: SolarPosition, animated: Bool) {
         let d = sun.direction
         let up = max(d.up, 0.02)
@@ -370,7 +370,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         let day = sun.elevation > 0
         let warm = max(0, min(1, (sun.elevation - 5) / 35))
         sunNode.light?.intensity = day ? CGFloat(230 + 60 * warm) : 0
-        // 夜晚没有太阳：阴影 pass 也不用跑。
+        // No sun at night; skip the shadow pass too.
         sunNode.light?.castsShadow = day
         sunNode.light?.temperature = CGFloat(5200 + 1300 * warm)
         ambientNode.light?.intensity = day ? 820 : 520
@@ -378,11 +378,11 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         SCNTransaction.commit()
     }
 
-    // MARK: - 相机
+    // MARK: - Camera
 
     private func setupCamera() {
         let cam = SCNCamera()
-        // 等距（正交）投影：和参考图一样平行线不汇聚。distance 只用来换算放大倍数。
+        // Orthographic projection keeps parallel lines parallel like the reference; distance only determines scale.
         cam.usesOrthographicProjection = true
         cam.zNear = 0.05
         cam.zFar = 12
@@ -401,8 +401,8 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         applyCamera()
     }
 
-    /// 场景视窗比原来（屏幕 42%）矮几多：用嚟保持每米几多像素唔变，只系裁走上下（用户 10-12：场景缩到约 25%）。
-    /// 1 = 原来嘅比例（找人全屏都系 1）。
+    /// Viewport-height ratio relative to the former 42%-screen scene: crop vertically while preserving pixels per metre after the 10-12 reduction.
+    /// One means the original ratio, also used for full-screen finding.
     var viewportScale: Float = 1 {
         didSet { if abs(viewportScale - oldValue) > 0.001 { applyCamera() } }
     }
@@ -414,11 +414,11 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         let horiz = cos(pitch) * far
         cameraNode.position = SCNVector3(t.x + horiz * sin(azimuth), sin(pitch) * far, t.z + horiz * cos(azimuth))
         cameraNode.look(at: t, up: SCNVector3(0, 1, 0), localFront: SCNVector3(0, 0, -1))
-        // 与之前 20° 透视在同等 distance 下的取景高度一致：半高 = distance · tan(10°)。
+        // Match the previous 20-degree perspective framing: half-height = distance * tan(10 degrees).
         cameraNode.camera?.orthographicScale = Double(dist) * 0.1763 * Double(viewportScale)
     }
 
-    /// 减少动态效果时不飞，直接跳到位。
+    /// Jump directly instead of flying under Reduce Motion.
     func setCamera(target t: Vec2, distance d: Float, animated: Bool, duration: Double = 0.75) {
         let half = (map?.half ?? 280) - 30
         let clamped = Vec2(x: max(-half, min(half, t.x)), y: max(-half, min(half, t.y)))
@@ -430,7 +430,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         let action = SCNAction.customAction(duration: duration) { [weak self] _, e in
             guard let self else { return }
             let x = Double(e) / duration
-            // 临界阻尼弹簧的形状：起步快、结尾柔。
+            // Critically damped spring shape: fast start, gentle finish.
             let k = 1 - exp(-7 * x) * (1 + 7 * x)
             self.target = from.0 + (clamped - from.0) * k
             self.distance = from.1 + (d - from.1) * Float(k)
@@ -440,11 +440,11 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         cameraNode.runAction(action, forKey: "fly")
     }
 
-    /// 总览：看到整个底座，沿视线（西北）方向偏移，底座只上下移、不左右偏，给顶部按钮留位置。
-    /// 数值按 560 m 底座调好，再按当前底座边长等比缩放。
+    /// Overview frames the whole base, offset along the northwest view axis to move vertically without sideways drift and leave room for controls.
+    /// Values were tuned for a 560-m base and scale with the current width.
     var overviewTarget: Vec2 {
         let size = map?.size ?? 560
-        // 300 m 小底座上高楼相对更高：取景中心再往下压一点，楼顶不碰顶部状态栏。
+        // On a 300-m base, tall buildings are proportionally larger; lower the framing centre to keep roofs clear of the status bar.
         let k = LaunchArgs.value("-ovy").flatMap(Double.init) ?? (size < 400 ? 60 * size / 200 : 72 * size / 560)
         return Vec2(x: -k, y: k)
     }
@@ -454,7 +454,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     }
     func resetCamera() { setCamera(target: overviewTarget, distance: overviewDistance, animated: true) }
 
-    // MARK: - 命中
+    // MARK: - Hit testing
 
     enum Hit { case building(Int64), landmark(String), person(String) }
 
@@ -475,13 +475,13 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         return nil
     }
 
-    // MARK: - 高亮与遮挡
+    // MARK: - Highlighting and occlusion
 
-    /// 给楼染色（白色楼体上用自发光看不出来，所以改用正片叠底）：只有一座时用深一点的橙，表示"选中"。
-    /// 深色时深灰楼体正片叠底不够亮：先叠一层暖色压掉蓝，再加橙色自发光。
+    /// Tint white buildings by multiplication rather than emission; a single selected building uses a stronger orange.
+    /// Dark-gray buildings need a warm overlay plus orange emission because multiplication alone remains too dark.
     func highlightBuildings(_ ids: Set<Int64>, color: UIColor?) {
         highlighted = (ids, color)
-        // 选楼：可以揀嘅楼用实心橙（以前太淡，近肉色，长者搵唔到）；揀中嗰座再深一档。
+        // Use solid orange for selectable buildings; the former pale tint was hard for older users to identify. Selected is darker.
         let tint = color ?? (ids.count == 1 ? UIColor(red: 0.86, green: 0.40, blue: 0.22, alpha: 1)
                                             : UIColor(red: 0.95, green: 0.62, blue: 0.42, alpha: 1))
         let glow = ids.count == 1 ? UIColor(red: 0.62, green: 0.28, blue: 0.04, alpha: 1) : UIColor(red: 0.45, green: 0.22, blue: 0.06, alpha: 1)
@@ -503,7 +503,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         if let id, let b = map?.building(id: id) { homeTarget = b.centroid }
     }
 
-    /// 选中地标的光晕慢慢一呼一吸；减少动态效果时改成静止放大。
+    /// Selected-landmark halo pulses slowly, or remains statically enlarged under Reduce Motion.
     func highlightLandmark(_ id: String?) {
         highlightedLandmark = id
         for (lid, node) in landmarkNodes {
@@ -525,7 +525,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         }
     }
 
-    /// 相机与焦点之间的高楼变半透明（固定视角下看不到楼后的人和地标）。
+    /// Fade tall buildings between the camera and focus so people/landmarks behind them remain visible.
     func fadeOccluders(toward p: Vec2?) {
         var fade: Set<Int64> = []
         if let p {
@@ -541,7 +541,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         SCNTransaction.commit()
     }
 
-    // MARK: - 人物
+    // MARK: - People
 
     func setPeople(_ people: [ScenePerson]) {
         let ids = Set(people.map(\.id))
@@ -615,7 +615,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         return Vec2(x: Double(p.x) / s, y: -Double(p.z) / s)
     }
 
-    /// 从 start 起沿折线走，每段转向前进方向；没有 start 就先瞬移到第一点。
+    /// Follow a polyline from start, turning along each segment; without start, teleport to its first point.
     private func walk(_ pts: [Vec2], speed: Double, from start: Vec2?) -> SCNAction {
         var actions: [SCNAction] = []
         var prev = start
@@ -623,7 +623,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
             if let q = prev {
                 let d = q.distance(to: p)
                 if d < 0.3 { prev = p; continue }
-                let heading = atan2(p.x - q.x, p.y - q.y)     // 从北顺时针
+                let heading = atan2(p.x - q.x, p.y - q.y)     // Clockwise from north.
                 let turn = SCNAction.rotateTo(x: 0, y: CGFloat(.pi - heading), z: 0, duration: 0.18, usesShortestUnitArc: true)
                 let move = SCNAction.move(to: scenePoint(p), duration: d / max(speed, 0.1))
                 actions.append(.group([turn, move]))
@@ -645,7 +645,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         return Vec2(x: Double(p.x) / s, y: -Double(p.z) / s)
     }
 
-    // MARK: - 路线
+    // MARK: - Routes
 
     func setTrail(_ pts: [Vec2]) { setRibbon("trail", pts, width: 4, color: SceneStyle.accent.withAlphaComponent(0.55), dash: 0, height: 0.35) }
     func setRoute(_ pts: [Vec2]?) { setRibbon("route", pts ?? [], width: 3, color: SceneStyle.accent, dash: 5, height: 0.45) }
@@ -664,7 +664,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         routesNode.addChildNode(n)
     }
 
-    /// 镜头跟着某个人（渲染线程每帧调用）。减少动态效果时不慢慢移，人走出 35 m 才一下跳过去。
+    /// Render-thread camera follow. Under Reduce Motion, jump only after the person moves 35 m instead of continuously tracking.
     private func followStep() {
         let (fid, node) = locked { (_followID, _followID.flatMap { personNodes[$0] }) }
         guard fid != nil, let n = node, cameraNode.action(forKey: "fly") == nil else { return }
@@ -681,14 +681,14 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         applyCamera()
     }
 
-    // MARK: - 标签投影（渲染线程 → 主线程）
+    // MARK: - Label projection from render thread to main
 
-    /// 场景没有在动、但标签内容变了（改名、反映、屋企标签）：主线程补推一次。
-    /// 场景只在有变化时才渲染（见 DioramaView），所以不能只靠渲染回调。
+    /// Publish once from main when label content changes while the scene is stationary, such as names/reports/home labels.
+    /// DioramaView renders only on changes, so render callbacks alone are insufficient.
     private func labelsChanged() { scheduleTrailing() }
 
-    /// 安排一次主线程补推：最早在上次推送一个间隔之后；已经安排了就不再安排。
-    /// 渲染回调因为限速跳过的那一帧也靠它补，动画停下后标签也会停在最后位置。
+    /// Schedule one main-thread catch-up publication no earlier than the next allowed interval; avoid duplicate scheduling.
+    /// Also catch up a throttled render frame so labels reach the final position after animation stops.
     private func scheduleTrailing() {
         let delay: Double? = locked {
             guard !trailingScheduled else { return nil }
@@ -708,7 +708,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         pushOverlay(renderer)
     }
 
-    /// 投影出全部标签，有变化先推给 SwiftUI。两次推送至少隔 overlayInterval（每秒最多 20 次）；未到时间就约一次补推。
+    /// Publish changed projected labels to SwiftUI at most once per overlayInterval (20 Hz); schedule a later update if throttled.
     private func pushOverlay(_ renderer: SCNSceneRenderer) {
         let now = CACurrentMediaTime()
         let due: Bool = locked {
@@ -726,7 +726,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
         func project(_ p: SCNVector3) -> CGPoint? {
             let q = renderer.projectPoint(p)
             guard q.z > 0, q.z < 1 else { return nil }
-            // 取到半点，细微抖动不会让标签重排
+            // Round to half-points to prevent tiny jitter from relaying out labels.
             return CGPoint(x: (CGFloat(q.x) * 2).rounded() / 2, y: (CGFloat(q.y) * 2).rounded() / 2)
         }
         for (id, st) in personState {
@@ -750,7 +750,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
             if let pt = project(scenePoint(r.pos, height: 2)) { items.append(OverlayItem(id: "r:\(r.id)", kind: .report, text: r.text, point: pt, highlighted: false, priority: 0)) }
         }
         items.sort { $0.id < $1.id }
-        // 比较时也按快照先后：较旧的快照不会覆盖 lastOverlay（否则可能误判"没有变化"而漏推）。
+        // Compare snapshot versions before replacing lastOverlay; an older snapshot could otherwise suppress a necessary update.
         let changed: Bool = locked {
             guard seq > lastOverlaySeq, items != lastOverlay else { return false }
             lastOverlay = items
@@ -767,7 +767,7 @@ final class DioramaController: NSObject, SCNSceneRendererDelegate {
     }
 }
 
-/// 可重复的伪随机数（同一格子每次生成一样的树和人）。
+/// Deterministic pseudorandom values keep trees/people consistent for the same grid.
 struct SeededRandom {
     private var state: UInt64
     init(seed: UInt64) { state = seed &* 6364136223846793005 &+ 1442695040888963407 }

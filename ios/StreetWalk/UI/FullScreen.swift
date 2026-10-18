@@ -1,10 +1,10 @@
 import SwiftUI
 
-// MARK: - 碰一碰全屏画面
+// MARK: - Full-screen bump pairing
 
-/// MainView 在 bumpStage == .searching 时全屏显示；找到对方后由 MainView 关掉。
-/// 真机（2026-10-10）：搵緊身邊部手機 → 靠近啲 → 再近啲 → 成功，中间一个进度环显示距离（组员 B 原型嘅进度环）；
-/// 失败讲清楚原因，提供「用二維碼」「再試」「去設定」。二维码画面见 BumpQRViews.swift。
+/// MainView presents while bumpStage is searching and dismisses after pairing.
+/// Real-device flow: discover phone, approach, move closer, succeed; the progress ring displays distance.
+/// Explain failure and offer QR, retry or Settings; see BumpQRViews.swift.
 struct BumpView: View {
     @Environment(AppStore.self) private var store
 
@@ -67,7 +67,7 @@ struct BumpView: View {
     private func buttons(_ p: BumpUpdate) -> some View {
         switch p {
         case .paired:
-            Color.clear.frame(height: 56)   // 成功：等画面自己关，唔好俾人撳取消
+            Color.clear.frame(height: 56)   // After success wait for automatic dismissal; disable cancellation.
         case .failed(let f):
             VStack(spacing: 8) {
                 Button { store.bumpUseQR() } label: {
@@ -126,8 +126,8 @@ struct BumpView: View {
     }
 }
 
-/// 进度环（组员 B 原型嘅意念）：越近填得越满，中间大字显示距离（厘米）。
-/// 未连上时显示原本两部手机慢慢靠近、一圈圈涟漪嘅插图。
+/// Progress ring inspired by B's prototype; fill increases with proximity and large text shows centimeters.
+/// Before connection, show the approaching phones and ripple illustration.
 private struct BumpRing: View {
     var progress: BumpUpdate
 
@@ -208,7 +208,7 @@ private struct BumpRing: View {
     }
 }
 
-/// 出现时弹一下的 SF Symbol（成功剔号）。
+/// Bounce the success SF Symbol on appearance.
 struct BumpPopSymbol: View {
     var name: String
     var size: CGFloat
@@ -228,7 +228,7 @@ struct BumpPopSymbol: View {
     }
 }
 
-/// 两部手机慢慢靠近，中间一圈圈涟漪。
+/// Two phones approach slowly, with ripples between them.
 private struct FSBumpIllustration: View {
     var body: some View {
         ZStack {
@@ -295,9 +295,9 @@ private struct FSRipples: View {
     }
 }
 
-// MARK: - 问对方（底部卡片内容）
+// MARK: - Asking the peer: bottom-card content
 
-/// MainView 在 find != nil && !findFullScreen 时放进底部卡片容器。只有内容，没有外框。
+/// MainView wraps this content when find is non-nil and findFullScreen is false.
 struct FindAskCard: View {
     @Environment(AppStore.self) private var store
 
@@ -310,7 +310,7 @@ struct FindAskCard: View {
                     AvatarBadge(p, size: 52)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(L.t("問緊\(p.name)", "正在问\(p.name)")).ds(.bodyBold)
-                        // 真后端对方见到我嘅网名（演示模式冇网名就照用楼层）
+                        // Real peers see my nickname; demo mode falls back to floor when unnamed.
                         Text(L.t("「\(store.nickname.isEmpty ? store.me.floorLabel : store.nickname)想過嚟搵你，喺\(place)等陣？」", "「\(store.nickname.isEmpty ? store.me.floorLabel : store.nickname)想过来找你，在\(place)等一下？」"))
                             .ds(.caption)
                             .foregroundStyle(.secondary)
@@ -364,9 +364,9 @@ struct FindAskCard: View {
     }
 }
 
-// MARK: - 找人全屏控件
+// MARK: - Full-screen finding controls
 
-/// 画在全高 3D 场景上面（findFullScreen 时）。空白处不挡手势。
+/// Overlay the full-height scene during findFullScreen without blocking gestures in empty areas.
 struct FindOverlay: View {
     @Environment(AppStore.self) private var store
     @State private var arrowAngle: Double = 0
@@ -378,18 +378,18 @@ struct FindOverlay: View {
             let place = store.landmark(f.landmarkID)?.name ?? L.t("約定地方", "约定地点")
             ZStack {
                 VStack(spacing: 8) {
-                    // 演示：约会找人时都撳得到演示菜单（「遲到」= 将时间拨到约定后 11 分钟）。
+                    // Keep the demo menu accessible; Late advances the clock to 11 minutes after the meeting.
                     if store.demoMode && !f.spontaneous {
                         HStack { Spacer(minLength: 0); DemoMenu() }
                     }
                     topCard(f, p, place)
-                    ToastView()   // 提示放在顶卡下面（全屏时 MainView 不画自己那个）
+                    ToastView()   // Place the toast below the top card; MainView omits its own in full-screen mode.
                     Spacer(minLength: 0)
                     if f.latePrompt && f.stage != .met {
                         lateCard(p)
                             .transition(DS.slide(.bottom))
                     } else if f.stage != .met {
-                        // 远近都有大箭咀（以前要近先有，UX 评审 19）
+                        // UX 19: show a large arrow both near and far.
                         arrowPill(f, p, place)
                             .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
                         FindBottomBar(f: f, place: place)
@@ -410,7 +410,7 @@ struct FindOverlay: View {
             .sensoryFeedback(.warning, trigger: f.latePrompt) { _, now in now }
             .onAppear { arrowAngle = f.bearing }
             .onChange(of: f.bearing) { old, new in
-                // 走最短的方向转，避免跨过 ±180° 时整圈打转。
+                // Rotate along the shortest arc to avoid full turns across +/-180 degrees.
                 var d = (new - old).truncatingRemainder(dividingBy: 360)
                 if d > 180 { d -= 360 } else if d < -180 { d += 360 }
                 withAnimation(DS.motion(DS.snappy)) { arrowAngle += d }
@@ -429,12 +429,12 @@ struct FindOverlay: View {
                     } else if f.spontaneous {
                         Text(L.t("\(p.name)喺\(place)等你 · 你大約 \(eta) 分鐘到", "\(p.name)在\(place)等你 · 你大约 \(eta) 分钟到"))
                     } else if !f.partnerOut {
-                        // 未收到对方出门通知，唔好讲佢出咗门（A19）。
+                        // A19: do not claim peer departure before receiving its notification.
                         Text(L.t("約咗\(p.name)喺\(place) · 等緊佢出門", "约了\(p.name)在\(place) · 等对方出门"))
                     } else if f.etaMinutes == 0 {
                         Text(L.t("\(p.name)已經喺\(place)等你", "\(p.name)已经在\(place)等你"))
                     } else {
-                        // 对方仲要几耐到约定地方（按佢剩低嘅路，A67）。
+                        // A67: estimate peer arrival from its remaining route.
                         Text(L.t("\(p.name)出咗門 · 大約 \(eta) 分鐘到\(place)", "\(p.name)出门了 · 大约 \(eta) 分钟到\(place)"))
                     }
                 }
@@ -443,7 +443,7 @@ struct FindOverlay: View {
                 .contentTransition(.numericText(value: Double(eta)))
                 .animation(DS.motion(DS.snappy), value: eta)
                 Spacer(minLength: 0)
-                // 「結束」放角落（同「查找」式找人嘅「停止」一样位置，UX 评审 22）
+                // UX 22: put End in the corner, matching live finding's Stop position.
                 if f.stage != .met {
                     Button { store.endFind() } label: { Text(L.t("結束", "结束")).lineLimit(1).fixedSize() }
                         .buttonStyle(.dsSecondary)
@@ -469,7 +469,7 @@ struct FindOverlay: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// 大箭咀 + 距离：近（50 米内）讲「就喺附近」，远讲行路几耐 / 跟住箭咀去约定地方。
+    /// Large arrow and distance: within 50 m indicate nearby; farther away show walking time / meeting-place guidance.
     private func arrowPill(_ f: FindSession, _ p: Resident, _ place: String) -> some View {
         let meters = Int(f.distance)
         let near = f.stage == .near
@@ -507,7 +507,7 @@ struct FindOverlay: View {
     }
 
     private func lateCard(_ p: Resident) -> some View {
-        // 冇对方电话号码就唔出「打電話」（撳咗只会话未有号码），叫佢喺附近搵吓。
+        // Without a phone number, omit the ineffective call button and suggest looking nearby.
         let canCall = PhoneBook.number(for: p.id) != nil
         return VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
@@ -542,7 +542,7 @@ struct FindOverlay: View {
     }
 }
 
-/// 相遇：对勾弹一下 + "見到喇！"。store 3 秒后自动结束。
+/// Meeting success bounces a checkmark; the store ends automatically after 3 seconds.
 struct FSMetCelebration: View {
     var name: String
     var place: String
@@ -574,7 +574,7 @@ struct FSMetCelebration: View {
     }
 }
 
-/// 出现时弹一下的 SF Symbol（卡片新插入时 value 型 symbolEffect 不会触发，所以自己触发一次）。
+/// Trigger the SF Symbol bounce explicitly on insertion because value-based symbolEffect does not run for a new card.
 private struct FSPopSymbol: View {
     var name: String
     var size: CGFloat

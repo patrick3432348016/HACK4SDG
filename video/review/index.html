@@ -1,4 +1,4 @@
-<title>街坊行宣传片组员意见</title>
+<title>StreetWalk video team review</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
 <style>
@@ -97,81 +97,81 @@ textarea { min-height: 84px; resize: vertical; }
 
 <div class="wrap">
   <header>
-    <div class="eyebrow">HACK4SDG 2026 · 赛道 2 · 组内评审</div>
-    <h1 style="margin-top:14px">StreetWalk <span class="zh">街坊行</span> 宣传片</h1>
-    <p class="lede">先看完 3 分钟的英文讲解片，再按功能给产品提意见。重点是<strong>产品还能怎么改</strong>，视频本身哪里看不懂也可以写。大约 5 分钟。</p>
+    <div class="eyebrow">HACK4SDG 2026 · Track 2 · Team review</div>
+    <h1 style="margin-top:14px">StreetWalk promotional video</h1>
+    <p class="lede">Watch the three-minute English video, then review each feature. Focus on <strong>how the product could improve</strong>; also note unclear parts of the video. Allow about five minutes. This historical review page describes an earlier video, not current implementation or privacy guarantees; see main for current documentation.</p>
   </header>
 
   <section aria-labelledby="watch">
-    <h2 id="watch" class="sr" style="position:absolute;left:-9999px">观看视频</h2>
+    <h2 id="watch" class="sr" style="position:absolute;left:-9999px">Watch the video</h2>
     <div class="player"><video id="video" src="streetwalk_pitch_720.mp4" controls playsinline preload="metadata"></video></div>
     <div class="chapters" id="chapters"></div>
   </section>
 
   <section aria-labelledby="give">
-    <div class="eyebrow">你的意见</div>
-    <h2 id="give" style="margin-top:10px">逐个功能提改进</h2>
-    <p class="lede">每个功能先选「有没有用」，有想法再写一句。没想法的可以跳过。</p>
+    <div class="eyebrow">Your feedback</div>
+    <h2 id="give" style="margin-top:10px">Suggest improvements by feature</h2>
+    <p class="lede">Rate the usefulness of each feature, then add a short suggestion if you have one. You may skip features.</p>
     <form id="form" novalidate style="margin-top:22px">
       <div class="field">
-        <label for="name">你的名字</label>
-        <input type="text" id="name" maxlength="30" placeholder="例如：阿明" autocomplete="name">
-        <div class="err" id="name-err" hidden>先填名字，方便我们知道是谁的意见</div>
+        <label for="name">Your name</label>
+        <input type="text" id="name" maxlength="30" placeholder="For example: Alex" autocomplete="name">
+        <div class="err" id="name-err" hidden>Enter your name so the team knows whose feedback this is.</div>
       </div>
       <div class="ratings">
-        <div class="field"><span class="q" id="q-product">产品整体打几分？</span><div class="stars" role="group" aria-labelledby="q-product" data-key="productScore"></div></div>
-        <div class="field"><span class="q" id="q-video">视频整体打几分？</span><div class="stars" role="group" aria-labelledby="q-video" data-key="videoScore"></div></div>
+        <div class="field"><span class="q" id="q-product">Overall product rating</span><div class="stars" role="group" aria-labelledby="q-product" data-key="productScore"></div></div>
+        <div class="field"><span class="q" id="q-video">Overall video rating</span><div class="stars" role="group" aria-labelledby="q-video" data-key="videoScore"></div></div>
       </div>
       <div class="features" id="features"></div>
       <div class="field">
-        <label for="add">最想加的功能，或最想改的一件事</label>
-        <textarea id="add" maxlength="800" placeholder="例如：约人之后希望能一键打电话给对方"></textarea>
+        <label for="add">One feature you most want added or changed</label>
+        <textarea id="add" maxlength="800" placeholder="For example: a one-tap call after arranging a walk"></textarea>
       </div>
       <div class="field">
-        <label for="video-note">视频哪里看不懂、太快或太长？</label>
-        <textarea id="video-note" maxlength="800" placeholder="例如：碰一碰那段看不出是两部真手机"></textarea>
+        <label for="video-note">Which parts of the video are unclear, too fast, or too long?</label>
+        <textarea id="video-note" maxlength="800" placeholder="For example: the pairing scene does not clearly show two real phones"></textarea>
       </div>
       <div class="field">
-        <label for="other">其他想说的</label>
+        <label for="other">Other comments</label>
         <textarea id="other" maxlength="800"></textarea>
       </div>
       <div class="actions">
-        <button type="submit" class="primary" id="submit">提交意见</button>
-        <button type="button" class="secondary" id="copy">复制文字版</button>
+        <button type="submit" class="primary" id="submit">Submit feedback</button>
+        <button type="button" class="secondary" id="copy">Copy as text</button>
       </div>
       <div class="status" id="status" role="status" aria-live="polite"></div>
     </form>
   </section>
 
   <section aria-labelledby="all">
-    <div class="eyebrow">大家的意见</div>
-    <h2 id="all" style="margin-top:10px">已收到的意见</h2>
+    <div class="eyebrow">Team feedback</div>
+    <h2 id="all" style="margin-top:10px">Received feedback</h2>
     <div class="responses" id="responses" style="margin-top:18px">
-      <div class="empty">还没有人提交。提交后，你和队友的意见会出现在这里，可以互相看。</div>
+      <div class="empty">No feedback yet. Submitted feedback from you and your teammates will appear here for the team to read.</div>
     </div>
   </section>
 </div>
 
 <script>
 const CHAPTERS = [
-  ["开场：北都新屋邨", 0], ["问题", 13], ["洞察与产品", 48],
-  ["首次设置", 59], ["自动记录散步", 68], ["排行榜", 78], ["碰一碰", 90], ["出门提醒", 103],
-  ["语音约人", 113], ["找人", 125], ["天气与遮荫", 133], ["居民反映与月报", 140], ["语音与双语", 152],
-  ["隐私设计", 160], ["真功能", 171], ["结尾", 182],
+  ["Opening: new Northern Metropolis estates", 0], ["Problem", 13], ["Insight and product", 48],
+  ["Onboarding", 59], ["Automatic walk recording", 68], ["Rankings", 78], ["In-person pairing", 90], ["Outing alerts", 103],
+  ["Voice invitations", 113], ["Finding a neighbor", 125], ["Weather and shade", 133], ["Resident reports and monthly summaries", 140], ["Speech and two languages", 152],
+  ["Privacy design", 160], ["Implemented features", 171], ["Ending", 182],
 ];
 const FEATURES = [
-  ["onboard", "首次设置", "选楼、选小人（拐杖、轮椅）、语音讲清楚谁看到什么", 59],
-  ["walk", "自动记录散步", "出门自动开始记录，夜间学出「家」，家永远隐身", 68],
-  ["board", "排行榜", "同区常走的人按连续天数排名，陌生人只见网名和小人", 78],
-  ["bump", "碰一碰", "只能当面碰手机加街坊（超宽带，旧机用二维码）", 90],
-  ["alert", "出门提醒", "街坊出门时收到一句话，只讲地标；从灵动岛长出来", 103],
-  ["book", "语音约人", "说一句就约好，AI 选有遮荫、有凳的地点并说明理由", 113],
-  ["find", "找人", "50 米内震动 + 大箭头，不用看地图，见到喇", 125],
-  ["shade", "天气与遮荫", "热天按楼影建议几点出门", 133],
-  ["report", "居民反映与月报", "说「呢度好晒」挂到地标，每月匿名汇总给社工和管理处", 140],
-  ["voice", "语音与双语", "粤语 / 普通话随时切换，每个语音操作都有大按钮", 152],
+  ["onboard", "Onboarding", "Select a building and avatar (cane or wheelchair); hear who can see what.", 59],
+  ["walk", "Automatic walk recording", "Automatic departure recording and overnight home learning; the earlier design hides home from the scene.", 68],
+  ["board", "Rankings", "Rank local walkers by streak; the earlier design shows strangers a nickname and avatar.", 78],
+  ["bump", "In-person pairing", "Pair in person using UWB, with QR for older phones.", 90],
+  ["alert", "Outing alerts", "Landmark-only neighbor outing alerts appear from the Dynamic Island.", 103],
+  ["book", "Voice invitations", "A spoken request creates an invitation draft; place-selection rules consider shade and seats, with an explanation.", 113],
+  ["find", "Finding a neighbor", "In the earlier video, vibration and a large arrow guide finding within 50 m.", 125],
+  ["shade", "Weather and shade", "Suggest departure times using estimated building shade on hot days.", 133],
+  ["report", "Resident reports and monthly summaries", "Attach a spoken heat-exposure report to a landmark; the proposed monthly summary is for community workers and estate management.", 140],
+  ["voice", "Speech and two languages", "The earlier video switches Cantonese and Mandarin; large buttons accompany voice actions.", 152],
 ];
-const USE = [["useful", "很有用"], ["ok", "一般"], ["drop", "可以不要"]];
+const USE = [["useful", "Very useful"], ["ok", "Somewhat useful"], ["drop", "Can be dropped"]];
 const $ = (id) => document.getElementById(id);
 const video = $("video");
 const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -193,7 +193,7 @@ document.querySelectorAll(".stars").forEach((g) => {
   const key = g.dataset.key;
   for (let i = 1; i <= 5; i++) {
     const b = document.createElement("button");
-    b.type = "button"; b.textContent = `${i} 分`; b.setAttribute("aria-pressed", "false");
+    b.type = "button"; b.textContent = `${i} points`; b.setAttribute("aria-pressed", "false");
     b.addEventListener("click", () => { state[key] = i; paintStars(); });
     g.append(b);
   }
@@ -211,12 +211,12 @@ FEATURES.forEach(([k, name, desc, t], i) => {
     <div class="feat-head">
       <span class="feat-n">${String(i + 1).padStart(2, "0")}</span>
       <span class="feat-name"></span>
-      <button type="button" class="seek">在视频里看（${fmt(t)}）</button>
+      <button type="button" class="seek">Watch in video (${fmt(t)})</button>
       <span class="feat-desc"></span>
     </div>
     <div class="feat-body">
-      <div class="seg" role="group" aria-label="${name}有没有用"></div>
-      <input type="text" id="note-${k}" maxlength="300" placeholder="怎么改会更好？（可不填）">
+      <div class="seg" role="group" aria-label="Usefulness of ${name}"></div>
+      <input type="text" id="note-${k}" maxlength="300" placeholder="How could this improve? (optional)">
     </div>`;
   row.querySelector(".feat-name").textContent = name;
   row.querySelector(".feat-desc").textContent = desc;
@@ -250,21 +250,21 @@ function collect() {
 }
 const useLabel = Object.fromEntries(USE);
 function asText(d) {
-  const lines = [`【街坊行宣传片意见】${d.name || "（未填名字）"}`, `产品 ${d.productScore || "-"} 分 · 视频 ${d.videoScore || "-"} 分`];
+  const lines = [`[StreetWalk video feedback] ${d.name || "(name missing)"}`, `Product ${d.productScore || "-"} points · Video ${d.videoScore || "-"} points`];
   FEATURES.forEach(([k, name]) => {
     const f = d.features?.[k] || {};
-    if (f.use || f.note) lines.push(`${name}：${useLabel[f.use] || "未选"}${f.note ? "；" + f.note : ""}`);
+    if (f.use || f.note) lines.push(`${name}: ${useLabel[f.use] || "Not selected"}${f.note ? "; " + f.note : ""}`);
   });
-  if (d.add) lines.push(`最想加/改：${d.add}`);
-  if (d.videoNote) lines.push(`视频：${d.videoNote}`);
-  if (d.other) lines.push(`其他：${d.other}`);
+  if (d.add) lines.push(`Most wanted addition/change: ${d.add}`);
+  if (d.videoNote) lines.push(`Video: ${d.videoNote}`);
+  if (d.other) lines.push(`Other: ${d.other}`);
   return lines.join("\n");
 }
 function setStatus(msg, kind = "") { const s = $("status"); s.textContent = msg; s.className = "status " + kind; }
 
 $("copy").addEventListener("click", async () => {
   const text = asText(collect());
-  try { await navigator.clipboard.writeText(text); setStatus("已复制，可以直接贴到微信群。", "ok"); }
+  try { await navigator.clipboard.writeText(text); setStatus("Copied. You can paste the text into the team chat.", "ok"); }
   catch {
     const ta = document.createElement("textarea"); ta.value = text; ta.style.minHeight = "180px";
     $("status").replaceChildren(ta); ta.focus(); ta.select();
@@ -278,17 +278,17 @@ $("form").addEventListener("submit", async (e) => {
   const d = collect();
   if (!d.name) { $("name-err").hidden = false; $("name").focus(); return; }
   if (!db || !myRef || readOnly) {
-    setStatus("这个链接只能看，不能直接保存。请按「复制文字版」，贴到微信群。", "warn");
+    setStatus("This link is read-only. Use Copy as text and paste the result into the team chat.", "warn");
     return;
   }
   $("submit").disabled = true;
-  setStatus("正在保存…");
+  setStatus("Saving...");
   try {
     await myRef.set({ ...d, updatedAt: new Date().toISOString() });
-    setStatus("已提交。之后想改，改完再按一次「提交意见」就会覆盖。", "ok");
+    setStatus("Submitted. Edit your answers and submit again to replace your previous feedback.", "ok");
   } catch (err) {
     if (err && err.code === "invalid_argument") readOnly = true;
-    setStatus("没能保存（你的账号在这页只有查看权限）。请按「复制文字版」，贴到微信群。", "warn");
+    setStatus("Could not save because your account has view-only access. Use Copy as text and paste into the team chat.", "warn");
   } finally { $("submit").disabled = false; }
 });
 
@@ -310,7 +310,7 @@ function fill(d) {
 function renderResponses(docs) {
   const box = $("responses");
   if (!docs.length) {
-    box.innerHTML = '<div class="empty">还没有人提交。提交后，你和队友的意见会出现在这里，可以互相看。</div>';
+    box.innerHTML = '<div class="empty">No feedback yet. Submitted feedback from you and your teammates will appear here for the team to read.</div>';
     return;
   }
   docs.sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
@@ -318,17 +318,17 @@ function renderResponses(docs) {
     const card = document.createElement("article");
     card.className = "resp";
     const head = document.createElement("div"); head.className = "resp-head";
-    const n = document.createElement("span"); n.className = "resp-name"; n.textContent = d.name || "未署名";
+    const n = document.createElement("span"); n.className = "resp-name"; n.textContent = d.name || "Anonymous";
     const m = document.createElement("span"); m.className = "resp-meta";
-    m.textContent = `产品 ${d.productScore || "-"} · 视频 ${d.videoScore || "-"}` + (d.updatedAt ? ` · ${new Date(d.updatedAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : "");
+    m.textContent = `Product ${d.productScore || "-"} · Video ${d.videoScore || "-"}` + (d.updatedAt ? ` · ${new Date(d.updatedAt).toLocaleString("en-GB", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : "");
     head.append(n, m);
     const dl = document.createElement("dl");
     const add = (k, v) => { if (!v) return; const dt = document.createElement("dt"); dt.textContent = k; const dd = document.createElement("dd"); dd.textContent = v; dl.append(dt, dd); };
     FEATURES.forEach(([k, name]) => {
       const f = d.features?.[k] || {};
-      if (f.use || f.note) add(name, `${useLabel[f.use] || "未选"}${f.note ? "：" + f.note : ""}`);
+      if (f.use || f.note) add(name, `${useLabel[f.use] || "Not selected"}${f.note ? ": " + f.note : ""}`);
     });
-    add("最想加/改", d.add); add("视频", d.videoNote); add("其他", d.other);
+    add("Most wanted addition/change", d.add); add("Video", d.videoNote); add("Other", d.other);
     card.append(head, dl);
     return card;
   }));
@@ -348,6 +348,6 @@ function renderResponses(docs) {
   const id = user ? await user.id() : null;
   if (!id) { readOnly = true; return; }
   myRef = db.doc("feedback/" + id);
-  try { const mine = await myRef.get(); if (mine.exists) { fill(mine.data()); setStatus("这是你上次提交的内容，可以修改后再提交。"); } } catch {}
+  try { const mine = await myRef.get(); if (mine.exists) { fill(mine.data()); setStatus("These are your previous answers. Edit and submit again to update them."); } } catch {}
 })();
 </script>

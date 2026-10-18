@@ -1,0 +1,913 @@
+{
+  "reviewed_on": "2026-10-19",
+  "scope": "Reviewed necessary Chinese only. Never refresh fingerprints without inspecting the change. Private configuration and original binary/audit evidence are excluded before reading.",
+  "text_exceptions": {
+    "ios/Shared/IslandStatus.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 204,
+        "sha256": "dd12db2843352b17c33c9083e8ba0d1a1ab04e76fe300b62df6c868241f4a4d0"
+      }
+    },
+    "ios/Shared/Lang.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 13,
+        "sha256": "f3230b5e3df62a9efbabd2cf41a70496706ed875dc0f10f24d59aa13ae3fc67a"
+      }
+    },
+    "ios/StreetWalk-Info.plist": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 188,
+        "sha256": "200aa6fefae48166bbebf1cc8c9133242c1ee06291ea540806792f7a16162105"
+      }
+    },
+    "ios/StreetWalk.xcodeproj/project.pbxproj": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 274,
+        "sha256": "9e979f2afd401c01d36d28b3d04853601b0ad9764eb8dac6a3e018e39245b2fd"
+      }
+    },
+    "ios/StreetWalk/AI/TemplateAI.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 1182,
+        "sha256": "6a1546e9fc539f56921ad99fac105ea8a6b3fa3fe3a7a8ab7d96112355652794"
+      }
+    },
+    "ios/StreetWalk/Assistant/AssistantClient.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 68,
+        "sha256": "cc8e0ac1b699db2a7e1babc1afab5ff0016d3da349defea389dd8ae3a028b13f"
+      }
+    },
+    "ios/StreetWalk/Assistant/AssistantFlow.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 839,
+        "sha256": "cecdcbba1ca554feb7ef25607e7c3e6c0db75008b39971516898b7b347623419"
+      }
+    },
+    "ios/StreetWalk/Assistant/AssistantModels.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 7,
+        "sha256": "81c6b30edac5ea01169689496772a8348fd0edb610c9da985b4cc3f75f9d1e04"
+      }
+    },
+    "ios/StreetWalk/Assistant/AssistantSession.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 63,
+        "sha256": "c70452ac4e4197ad8e041bbf2200288bf1026983136d0333cd5448a5c7929c85"
+      }
+    },
+    "ios/StreetWalk/Backend/SupabaseCommunityService.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 11,
+        "sha256": "e3c60f32e69d64da598646d85f2e5bc25943c3d1353885038df0f5e2a05eb9b4"
+      }
+    },
+    "ios/StreetWalk/Bump/LinkPolling.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 14,
+        "sha256": "f9f8d66bf7b99afac0dc89ac0da4869898f8da8bf98e78fea843912c9d8f1dcb"
+      }
+    },
+    "ios/StreetWalk/Bump/ProximityGate.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 36,
+        "sha256": "12c2978b2ab26a34877f6535544a338be5e24652fc1f01b6853065e9b704605d"
+      }
+    },
+    "ios/StreetWalk/Bump/QRScanner.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 93,
+        "sha256": "a861fdd6ab9d8abf28255b1f39eb0c5738287734278d636e132622b47ddffd34"
+      }
+    },
+    "ios/StreetWalk/Design/Design.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 30,
+        "sha256": "eee844879d4b874bbe886800bc91f23f2ee47ead9e5a927a12c4c31f08f83724"
+      }
+    },
+    "ios/StreetWalk/Design/TextSize.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 13,
+        "sha256": "d9c2f10ebf38e74d09906209e3fb5083520e7e31594360c3f73acbbe53b20abc"
+      }
+    },
+    "ios/StreetWalk/Domain/BumpEvents.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 501,
+        "sha256": "c71e79f3c9a855a41ac72d8e94684f99316492c1a0c9175c14c4e3f0d746d7ca"
+      }
+    },
+    "ios/StreetWalk/Domain/Models.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 98,
+        "sha256": "d7cf166c6c808060c80679be5ff1211688ee9a2e7576420ea017bef69bdeef27"
+      }
+    },
+    "ios/StreetWalk/Map/LandmarkDeriver.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 46,
+        "sha256": "3825e719ab821d123feacbb6dc51c4f503add4a863d93eeac0be7071e6b848fe"
+      }
+    },
+    "ios/StreetWalk/Map/MapModel.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 13,
+        "sha256": "18bd145bc896123f19fe5e467933118084861a1f886fe58014967baf9dc429e6"
+      }
+    },
+    "ios/StreetWalk/Map/MapService.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 18,
+        "sha256": "5be1f4b559ac5db312f106e4193b8c4136529696a8d67d06c4c70341eb076802"
+      }
+    },
+    "ios/StreetWalk/Resources/fallback_queenshill.json": {
+      "reason": "Original OpenStreetMap place and building names, preserved as source data.",
+      "fingerprint": {
+        "characters": 1856,
+        "sha256": "e017e2537047605db1d608f0921b7067de83a0a6709a6734736171c7fb75b14a"
+      }
+    },
+    "ios/StreetWalk/Scene/Figures.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 18,
+        "sha256": "7cd8c21207c8cf23614d398afc0613dff5b33873c8c1934caaea952657a1e272"
+      }
+    },
+    "ios/StreetWalk/Services/HKOWeather.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 291,
+        "sha256": "135ffb3d04c91fccfe193a4098fd67c9057bf3f7ee6a6a0b32ed2a1060ccc823"
+      }
+    },
+    "ios/StreetWalk/Services/LocationMonitor.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 438,
+        "sha256": "5669730aa685851445307c9ce9bf5bd7b0aca429cf0426b642b293fec96e0f59"
+      }
+    },
+    "ios/StreetWalk/Services/LocationRules.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 109,
+        "sha256": "23ce887e3e8b24970a07c5a160d98944e146b1878a28dd26d6151edbf7ec35c3"
+      }
+    },
+    "ios/StreetWalk/Services/Notifier.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 43,
+        "sha256": "d63b4cc386e4d41fd151452edca450d50896fdb1c5bd23f6eb5d20156995422f"
+      }
+    },
+    "ios/StreetWalk/Services/OpenMeteo.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 7,
+        "sha256": "0d138677d195703e873d32f6dacd4beb6dc8d7a36663fc7aaa4f98838e0d5a21"
+      }
+    },
+    "ios/StreetWalk/Services/WalkRules.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 144,
+        "sha256": "e084cf46c6310454b86945514380c5d912c47fb5f852c35f1999eda7613bf6c5"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+Assistant.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 342,
+        "sha256": "88d5d183c174e3818049b9deecd8797ecb943293c6a2b5391db0241b333892f7"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+Backend.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 529,
+        "sha256": "558d47913a2a2d1981af66f7c04c4d614d06e5a0c5be88dd3c1bc86aa90a6b8c"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+Board.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 16,
+        "sha256": "f2d90658e80efa03a859075f7a1aab62b8e73d79344c756193456a415574ae60"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+Bump.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 424,
+        "sha256": "2d3f134306eef72cfa356a0331ab042192475343a043db6cf36aa2a0d585e184"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+Conversation.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 130,
+        "sha256": "91d23cd10bb493f395a6d0a979caf94f30b66af6012d06c296fd5e560b7ed5a5"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+Find.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 486,
+        "sha256": "0daf7cc254b474c56205e15a2b7c60976d597eaf5062e2aa1a87ed1def049e33"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+FirstDay.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 113,
+        "sha256": "3da637f3c2a38a08eff06c44b0e25913ea1b4859aa7b462959d6c1bb2f93276e"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+Island.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 29,
+        "sha256": "9fbfe4a5719fb2ee59f91979dc38b868867a272242ba7edbc7a75a285ede33f0"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+LiveFind.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 117,
+        "sha256": "3371b9361c974f1e5123dc83298f4a5150d6cf2488f2bf1598d95d35a3f41f6d"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+Location.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 433,
+        "sha256": "0487d51fd6feceb508d0acdea421b911f5f87da7f9a2d0bb5d467bc5bca8daf8"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+Map.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 391,
+        "sha256": "c8701f64313a4d57a971fa03391f229861efffb15c30302408014d0082549e55"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+Meetup.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 738,
+        "sha256": "28701541907fc18ea08d2d9755d2c6b700287d7fa1314158f74dc7dc9c8300fd"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+Neighbors.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 374,
+        "sha256": "55aa59b610839353c7889c0d8d8bdabd4991af78fb3047757f71ec57b4b52afc"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+Persist.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 22,
+        "sha256": "6ce1381d641dfdd4b1ebeebf3cc464babd96cd07c9f421d5c050c77f1b06a9e4"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+Places.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 407,
+        "sha256": "2091ab8b880a0a662bc4e0ed5be79b4a58e0e9e3baad2f35c5b71e153206092b"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+Services.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 107,
+        "sha256": "9b8d12847f043fcfab2f870fcac2da51994977ca2e6a106f60fdcec5eba02f96"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+Voice.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 1268,
+        "sha256": "211ce2301e079415d8aced3ad234ff181abfe05a238ba807ebd902857db6f3a9"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore+Walk.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 663,
+        "sha256": "15b21ea0cf469e4e98945b3235228ad1123f713df36523c7479cdb1021e86352"
+      }
+    },
+    "ios/StreetWalk/Store/AppStore.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 1,
+        "sha256": "a0c7716669b5ded0d8051abfc232b828d489f7d889b2928eefcf43f0b8f495d6"
+      }
+    },
+    "ios/StreetWalk/Store/Community.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 117,
+        "sha256": "5754cfdb58b0e2c2f7673b32cd3e3c9ee84ed4ab166bb7f34d93102213cbd199"
+      }
+    },
+    "ios/StreetWalk/Store/DemoScript+Island.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 158,
+        "sha256": "7db84a58561d07855018f77036ec7b5a9c88a77405547152d434026076dec34c"
+      }
+    },
+    "ios/StreetWalk/Store/DemoScript.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 551,
+        "sha256": "288bb32263749a8e893224c4090189d234b513d8fd8ab525eae097cc5049a92f"
+      }
+    },
+    "ios/StreetWalk/UI/BackendUI.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 234,
+        "sha256": "85667efb0a2614f53a142183f8d68ef9e89468d685bbd0379f6c2bb922e7355f"
+      }
+    },
+    "ios/StreetWalk/UI/BumpQRViews.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 239,
+        "sha256": "d1ca936744e7d43bf5652d6a6e5e681adb995a8dc446b237d52001ce5a0745d5"
+      }
+    },
+    "ios/StreetWalk/UI/Cards.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 562,
+        "sha256": "d75e0a075bfca0865a78415a8f27d5c6bfa860d084cc4ad95554d641acc44c65"
+      }
+    },
+    "ios/StreetWalk/UI/Demo.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 491,
+        "sha256": "f78e242c1653431e4d40049c9b80d4e6d465ddace2c8179b7c7b6a80722ee7b0"
+      }
+    },
+    "ios/StreetWalk/UI/FirstDayCard.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 120,
+        "sha256": "c42f3aa417a530a9bc4817a7ba03080f18f517f0c4dbe8b261401c2702fb998d"
+      }
+    },
+    "ios/StreetWalk/UI/FullScreen.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 728,
+        "sha256": "777441a33b78463503fc7444eddde439291feb9e6436329a340ff31c859d5bc2"
+      }
+    },
+    "ios/StreetWalk/UI/HelpViews.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 1460,
+        "sha256": "d452bbe66c7f0b0fea274ff93495f67aa47b5378e0aefbf0918c03207a1317e5"
+      }
+    },
+    "ios/StreetWalk/UI/Island.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 16,
+        "sha256": "b085e2b587136f662ad44db62c028ef38f01f84bf92c17a2fc8b77fe4a6f1b21"
+      }
+    },
+    "ios/StreetWalk/UI/LiveFindViews.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 276,
+        "sha256": "6e29874fd9706a523ecede2565da43be805cd626feb7bd66d8f129ba098ea6d8"
+      }
+    },
+    "ios/StreetWalk/UI/LocationViews.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 2162,
+        "sha256": "b457a93498a8b0a80276a486ae0c02ce65feb05a4708ee81dd28aa6f10a1062e"
+      }
+    },
+    "ios/StreetWalk/UI/MainView.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 255,
+        "sha256": "b179eb2b4f9ab183fc787fa1cb9cbc60cc676f287121b32bdfcea459949f0b55"
+      }
+    },
+    "ios/StreetWalk/UI/Onboarding.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 2175,
+        "sha256": "8b3d9cb7819c6bcba4a213b05ce01e8b2e9c1425e104fdc60699257273ffbc9e"
+      }
+    },
+    "ios/StreetWalk/UI/Overlays.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 397,
+        "sha256": "bc39baafae85d85eb21321b772287116d3464e16bcfc9c5d7aa5a2d1dad72b90"
+      }
+    },
+    "ios/StreetWalk/UI/Settings.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 1208,
+        "sha256": "e26d4e8cdba470f4677f6c8799828ff9db5766d7befafea6998d8dac1a8f6250"
+      }
+    },
+    "ios/StreetWalk/UI/Tabs.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 1631,
+        "sha256": "185234194fc49aea6995d19fe5c85f1dd278e76a988b1803e8b26c92101dfa1c"
+      }
+    },
+    "ios/StreetWalk/Voice/ServerSpeech.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 174,
+        "sha256": "04688384a2df06a134f34c91b2d8fdd7e48373874c6de6e31ba399ebce1611f8"
+      }
+    },
+    "ios/StreetWalk/Voice/VoiceCatalog.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 134,
+        "sha256": "9681c010a0baee9dc4328ccf77ee0cd9b4533bffb946c5a3a07bf1f85ca241d1"
+      }
+    },
+    "ios/StreetWalk/Voice/VoiceEar.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 32,
+        "sha256": "dfa7ace9c1098cf1598f1cd5332e81af1be11f47a1856f5c2b1e2713c38e68ae"
+      }
+    },
+    "ios/StreetWalk/Voice/VoiceServer.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 30,
+        "sha256": "d0fbc8f928268a16eb3a664ed89c9e9fe6872de681afbd28430dd6891cf5c78b"
+      }
+    },
+    "ios/StreetWalk/Voice/VoiceSettingsSection.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 1250,
+        "sha256": "1cc6056ab7ec54a56293f46e989612c1feb06eb3c94b5be7b50e2bbdcf0fe723"
+      }
+    },
+    "ios/StreetWalkTests/BackendTests.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 464,
+        "sha256": "6c924456b51507fbc72f3cf7928a1557f11ec2568dc2000017f3846d729f6eca"
+      }
+    },
+    "ios/StreetWalkTests/BumpTests.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 450,
+        "sha256": "31bc5a5ab8613294f3b3c2a8fcf2641b6df5b0b2cca3fc6cca096941bf7d07c4"
+      }
+    },
+    "ios/StreetWalkTests/CoreTests.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 515,
+        "sha256": "feb15d7370715947b54996b1948ca8800153a37cab5fda95bf3a6f3f90c3b46f"
+      }
+    },
+    "ios/StreetWalkTests/IslandTests.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 337,
+        "sha256": "2d3c343720324675b75a12e1668c1aa1ceadf08db1c8f6803315a7c806e38df6"
+      }
+    },
+    "ios/StreetWalkTests/LanguageTests.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 521,
+        "sha256": "43f9606490749e82024a2b25fb1f5fefc9f3d32e806554119bc1cb9477868228"
+      }
+    },
+    "ios/StreetWalkTests/LiveFindTests.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 43,
+        "sha256": "d9ae3d3e612c674d76faff5366d0222d8dd5d2c07068d11335ee417781d20b45"
+      }
+    },
+    "ios/StreetWalkTests/LocationTests.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 375,
+        "sha256": "1f82aef570bceb09907158c48c716dcef4aee40985b07180bedc34c041011dc8"
+      }
+    },
+    "ios/StreetWalkTests/TextSizeTests.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 140,
+        "sha256": "b7ead6c7e19381f6f14ea33b4ac1d2cd74386282ee522ab64214a77cb091b135"
+      }
+    },
+    "ios/StreetWalkTests/WalkTests.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 409,
+        "sha256": "6531ef2c8251208b1ff5777f353f064ad237011ccdfc3e16694c9652c7daa47a"
+      }
+    },
+    "ios/StreetWalkTests/assistantTests.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 445,
+        "sha256": "9828bb2c56c085dce47743d60884cdf58504ce47b1ca202e2e43743b37fc9199"
+      }
+    },
+    "ios/StreetWalkTests/conversationTests.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 281,
+        "sha256": "5fe25b1ac2d9a93845d8bcd4450441e635c58dac62d29c55fcad80cf43215e84"
+      }
+    },
+    "ios/StreetWalkTests/mapTests.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 380,
+        "sha256": "737f6bb2d472532e593657c48bf8affa4b8a266a2fe27e1eb4e597f1ae02a02d"
+      }
+    },
+    "ios/StreetWalkTests/uiTests.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 235,
+        "sha256": "665fb1cff28ed4a68e8b37be0d7e78ffd52489731fa719d53c10b2f6e6ca05cb"
+      }
+    },
+    "ios/StreetWalkTests/voicePickerTests.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 336,
+        "sha256": "d55601e85779d12d115b904e429d013a4655e84bff1a9cfe2c39d1d738694744"
+      }
+    },
+    "ios/StreetWalkTests/voiceTests.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 1082,
+        "sha256": "808fcf86755e6a4526cf80320c5899dd51de6d264390347cf86b3d33d98ecf5d"
+      }
+    },
+    "ios/StreetWalkWidgets/StreetWalkLiveActivity.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 47,
+        "sha256": "30ecd6c3275db1c46437967326163d95a70cd2d399a0442b3760a83c46400a20"
+      }
+    },
+    "ios/UWBMeetDemo/App/ContentView.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 402,
+        "sha256": "a437bff6c4ec0727bda0d93c047b5a44732171af24c4ffb336824a5e71500e0f"
+      }
+    },
+    "ios/UWBMeetDemo/App/FriendStore.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 34,
+        "sha256": "50f32ff1c2eb2150cfc4158c5d33edc9b44d5213f8cad7cb44c9be3f61964225"
+      }
+    },
+    "ios/UWBMeetDemo/App/MeetCoordinator.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 651,
+        "sha256": "c1c16286803c38632ac8105b722e97f3a07691f4783c00fe9a0f49728578a8c8"
+      }
+    },
+    "ios/UWBMeetDemo/App/PeerTransport.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 87,
+        "sha256": "48a40eb1fc000eb5aec5b1fa45e8860794b64cd4187f42ec4711c39562b57790"
+      }
+    },
+    "ios/UWBMeetDemo/Core/Models.swift": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 16,
+        "sha256": "554cdbea366bf5f98eb3d5c6bd1b762849b7e35bc01688b090e3e6e94efdae5d"
+      }
+    },
+    "ios/UWBMeetDemo/Info.plist": {
+      "reason": "Cantonese/Mandarin app UI, speech, permissions, proper names and language-recognition vocabulary; preserves existing app language support.",
+      "fingerprint": {
+        "characters": 65,
+        "sha256": "ad7982e6eb260d824d4859d4e9f92c7d51ab780165527d1531f97fe873e52655"
+      }
+    },
+    "ios/tools/backendtest/main.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 43,
+        "sha256": "e613a6e106c65c9db15574d82871e266a4d0ee196752dc990dc9ced86aa659e3"
+      }
+    },
+    "ios/tools/selftest/main.swift": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 174,
+        "sha256": "9565eb143d820a7fb704bb02d54bbe80f8be08077f10211c5288e5a0d80032f5"
+      }
+    },
+    "server/README.md": {
+      "reason": "Original Cantonese/Mandarin voice-input examples with English explanation.",
+      "fingerprint": {
+        "characters": 4,
+        "sha256": "cb495d4de5dda8299aa7303eee71bf35eacaca92281fde7030bd7759672f7451"
+      }
+    },
+    "server/assistant/app.py": {
+      "reason": "Localized app responses/errors, voice prompts, language-recognition vocabulary, and Chinese-language provider/source fields.",
+      "fingerprint": {
+        "characters": 202,
+        "sha256": "d3aaa9e542afdc206642e2c6b849f5b423d98e3334b57eb5456d08056f3b134b"
+      }
+    },
+    "server/assistant/app_ear.py": {
+      "reason": "Localized app responses/errors, voice prompts, language-recognition vocabulary, and Chinese-language provider/source fields.",
+      "fingerprint": {
+        "characters": 98,
+        "sha256": "aea2c6450a18df63e675a04b17a6f54392668b826fb6af2c47fa485362f237a5"
+      }
+    },
+    "server/assistant/app_policy.py": {
+      "reason": "Localized app responses/errors, voice prompts, language-recognition vocabulary, and Chinese-language provider/source fields.",
+      "fingerprint": {
+        "characters": 57,
+        "sha256": "ef60d617bbd05f9fe46d2d2ebb720a6d355521c315ec6ad91a69709c7f0c8a41"
+      }
+    },
+    "server/assistant/business.py": {
+      "reason": "Localized app responses/errors, voice prompts, language-recognition vocabulary, and Chinese-language provider/source fields.",
+      "fingerprint": {
+        "characters": 163,
+        "sha256": "7faea6f8c7464dba70d8540442594d4226e3dbc4f765be8e27b2890984d56438"
+      }
+    },
+    "server/assistant/doubao.py": {
+      "reason": "Localized app responses/errors, voice prompts, language-recognition vocabulary, and Chinese-language provider/source fields.",
+      "fingerprint": {
+        "characters": 227,
+        "sha256": "26f5ba1ba707ecd98ff68196a0b04140230c8331cc33d8f967b02aff01431d18"
+      }
+    },
+    "server/assistant/providers.py": {
+      "reason": "Localized app responses/errors, voice prompts, language-recognition vocabulary, and Chinese-language provider/source fields.",
+      "fingerprint": {
+        "characters": 830,
+        "sha256": "fe21de78d62c8f71df00cdcb65c225d6f5b0aead5b55f3b8e4acb5d6ae5079fe"
+      }
+    },
+    "server/assistant/realtime.py": {
+      "reason": "Localized app responses/errors, voice prompts, language-recognition vocabulary, and Chinese-language provider/source fields.",
+      "fingerprint": {
+        "characters": 429,
+        "sha256": "77e1aeae673b02f39bb990bd13be3367b0bf97b8a5afcf014a7bb14e33ab3fa7"
+      }
+    },
+    "server/assistant/service.py": {
+      "reason": "Localized app responses/errors, voice prompts, language-recognition vocabulary, and Chinese-language provider/source fields.",
+      "fingerprint": {
+        "characters": 858,
+        "sha256": "acc4fb047bec903f88214fe43a279e4f689f221b99fb89ccdf9c7d461397942a"
+      }
+    },
+    "server/assistant/sovits.py": {
+      "reason": "Localized app responses/errors, voice prompts, language-recognition vocabulary, and Chinese-language provider/source fields.",
+      "fingerprint": {
+        "characters": 22,
+        "sha256": "e200e1c2d97f0169fd79b3ee18c3f86ab27d004f43b4c595eed28daff242a0f3"
+      }
+    },
+    "server/assistant/store.py": {
+      "reason": "Localized app responses/errors, voice prompts, language-recognition vocabulary, and Chinese-language provider/source fields.",
+      "fingerprint": {
+        "characters": 148,
+        "sha256": "1271afce98f1aa7f13c8698959157848b0e9292b7ed22b206b73829a088eed8a"
+      }
+    },
+    "server/assistant/supabase_business.py": {
+      "reason": "Localized app responses/errors, voice prompts, language-recognition vocabulary, and Chinese-language provider/source fields.",
+      "fingerprint": {
+        "characters": 282,
+        "sha256": "d15a85bafd4a5d7b2da86c916ae16f4f774fdaad2ebdfb3e2c92a1ee5f9c766e"
+      }
+    },
+    "server/assistant/voice_policy.py": {
+      "reason": "Localized app responses/errors, voice prompts, language-recognition vocabulary, and Chinese-language provider/source fields.",
+      "fingerprint": {
+        "characters": 1148,
+        "sha256": "72d433add59481fc7ab040860f3a85ef7935530200a6357c7c93540f9dede5f4"
+      }
+    },
+    "server/assistant/weather.py": {
+      "reason": "Localized app responses/errors, voice prompts, language-recognition vocabulary, and Chinese-language provider/source fields.",
+      "fingerprint": {
+        "characters": 386,
+        "sha256": "5b7e8aa15e6922a9952a69063f2d95556619fb0ebf6f842a9228347efc2dc372"
+      }
+    },
+    "server/assistant/windows.py": {
+      "reason": "Localized app responses/errors, voice prompts, language-recognition vocabulary, and Chinese-language provider/source fields.",
+      "fingerprint": {
+        "characters": 141,
+        "sha256": "ff02ce3816baa6249be3a70a6bbde2c8c3f0ce3ad86b688898c010ca741c4f2e"
+      }
+    },
+    "server/tests/test_assistant.py": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 221,
+        "sha256": "ecefd8249e0a4be1f2b5c2f0cccf059bb4d5621a1922de7e8d3385ecab050bd2"
+      }
+    },
+    "server/tests/test_b_stack.py": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 135,
+        "sha256": "847e909bd7493b5fc7c9b3872af8f122bf9bfd994d0b066a61fdba8eaed4954e"
+      }
+    },
+    "server/tests/test_doubao.py": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 139,
+        "sha256": "72a54941e21661bd2f24f8d3b032c46f3901f32f9a4cdfa8ee09a9a975731639"
+      }
+    },
+    "server/tests/test_sovits.py": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 127,
+        "sha256": "6da48a94a5833f00a8580d8e6757769a748955ccf5aaf5d95d97826f7606a251"
+      }
+    },
+    "server/tests/test_supabase_adapter.py": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 67,
+        "sha256": "827a4ee31cb0473a9f1dcfdde2990985d866eb8bd4085a4001f4143aad1d79fd"
+      }
+    },
+    "server/tests/test_weather.py": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 134,
+        "sha256": "0f41ad54330151f38ad7e03776e67a75b7ec768eed642c48385af44a95484b2b"
+      }
+    },
+    "server/tests/test_windows.py": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 10,
+        "sha256": "23aef48e111f43ab5204cfb7e3720987821039dc8ae5bf8f5d61d9afd44cca89"
+      }
+    },
+    "server/tools/smoke.py": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 21,
+        "sha256": "b229a2a5eb8a6ce0dd729e8fd73969228bddf10a9182bea6ec2790cb2ddd16a8"
+      }
+    },
+    "server/tools/tts_probe.py": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 25,
+        "sha256": "edb1b435ab1cf93320214f87fca267429975402bd98e273ab130a2b0257756de"
+      }
+    },
+    "server/upstream_b/README_B.md": {
+      "reason": "Original Cantonese/Mandarin voice-input examples with English explanation.",
+      "fingerprint": {
+        "characters": 70,
+        "sha256": "8569d101726112c0faed6c28020a740a544cfc1970a849f18d358f0d4dbb468f"
+      }
+    },
+    "server/upstream_b/tools/check_voice_roundtrip.py": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 21,
+        "sha256": "3fb8511d3b7071e6e2e4d6325d55c5ade39485cf25ba8de7bd708e0e245bef30"
+      }
+    },
+    "server/upstream_b/tools/test_voice_ui.cjs": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 9,
+        "sha256": "2d2ce06493015c37996f0d02e67b23163a5c63dc734b3f8e06584128fd937685"
+      }
+    },
+    "server/windows/web/app.js": {
+      "reason": "Cantonese safety-rule test inputs and full-width punctuation normalization for imported text; operator messages are English.",
+      "fingerprint": {
+        "characters": 36,
+        "sha256": "079642ae610fb1f2dbee0e666230f66a8876fd8ed65917f90bcbf8b222e1ddbb"
+      }
+    },
+    "server/windows/web/index.html": {
+      "reason": "Original Cantonese/Mandarin voice-input examples with English explanation.",
+      "fingerprint": {
+        "characters": 30,
+        "sha256": "c9571460a61660e0fc8dca46f1954f240ab72bfff411b55bfbf8c8e19e2c5c0a"
+      }
+    },
+    "supabase/tests/rls_test.py": {
+      "reason": "Original multilingual test inputs, expected localized output, and fixture names; human-readable check labels are English.",
+      "fingerprint": {
+        "characters": 354,
+        "sha256": "659348c5675fd9324dbaa7e1f7b161289b8eaa992b5734a59a4043b7d5fe8ee3"
+      }
+    },
+    "video/src/clips.json": {
+      "reason": "Original video captions, on-screen app text, proper names, and recording alignment metadata retained with the historical media.",
+      "fingerprint": {
+        "characters": 205,
+        "sha256": "4a1b406403793c0941ea170f4d85888fea3d1f44bae719f0008827279ae5d68d"
+      }
+    },
+    "video/src/scenes/Bump.tsx": {
+      "reason": "Original video captions, on-screen app text, proper names, and recording alignment metadata retained with the historical media.",
+      "fingerprint": {
+        "characters": 10,
+        "sha256": "de7d3c0685d86ac1d19a2c404b2fa62be69647002f13ace040e41dd71e0300e2"
+      }
+    },
+    "video/src/scenes/Ending.tsx": {
+      "reason": "Original video captions, on-screen app text, proper names, and recording alignment metadata retained with the historical media.",
+      "fingerprint": {
+        "characters": 8,
+        "sha256": "b00f4ec115a2d06ff810554c9c3dc41dc2aa910cdf333b96fa495c8998dbad19"
+      }
+    },
+    "video/src/scenes/Features.tsx": {
+      "reason": "Original video captions, on-screen app text, proper names, and recording alignment metadata retained with the historical media.",
+      "fingerprint": {
+        "characters": 174,
+        "sha256": "eec6c38a1e58160ffc862997f7bf91948f40e2cb24ce6e433e038af730c275d5"
+      }
+    },
+    "video/src/scenes/Opening.tsx": {
+      "reason": "Original video captions, on-screen app text, proper names, and recording alignment metadata retained with the historical media.",
+      "fingerprint": {
+        "characters": 3,
+        "sha256": "039cbbd32d415238b5a4b3b8f05658e504be677f3bd9131c5a208b42f4593d62"
+      }
+    }
+  },
+  "legacy_paths": [
+    "docs/\u4ea7\u54c1\u5b9a\u7a3f_\u5eb7\u4e50\u793e\u4ea4App_v1.0.md",
+    "ios/\u771f\u673a\u5b89\u88c5\u8bf4\u660e.md"
+  ]
+}

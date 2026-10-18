@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from urllib.parse import urlparse
 
-# 成员 A 加（2026-10-12）：豆包方舟兼容 OpenAI 嘅 chat/completions，B 嘅豆包配置有 Key 就用嚟做理解（代替千问）。
+# A, 2026-10-12: use Doubao Ark's OpenAI-compatible chat/completions for understanding when B's config supplies a key.
 ARK_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
 
 
@@ -20,18 +20,18 @@ class Settings:
     qwen_base_url: str = ""
     qwen_model: str = ""
     business_base_url: str = ""
-    # 成员 A 加（2026-10-11）：街坊行嘅 Supabase 业务适配（mode="supabase"）同本地粤语播报（GPT-SoVITS）。
+    # A, 2026-10-11: Supabase business mode and local GPT-SoVITS Cantonese synthesis.
     supabase_url: str = ""
     supabase_key: str = ""
-    tts_provider: str = "auto"          # auto | doubao | sovits | azure | none；auto = 有 SOVITS_ROOT 用 sovits，再到豆包，再到 Azure
-    # 成员 A 加（2026-10-12）：B 嘅豆包配置（voice-runtime/doubao.json：语音 Key、方舟 Key、模型、音色…），唔入 git。
+    tts_provider: str = "auto"          # auto | doubao | sovits | azure | none; auto prefers SOVITS_ROOT, then Doubao, then Azure.
+    # A, 2026-10-12: runtime Doubao config contains speech/Ark keys, model and voice; keep runtime credentials outside Git.
     doubao_config: str = ""
     sovits_root: str = ""
     sovits_ref_wav: str = ""
     sovits_ref_text: str = ""
     sovits_device: str = "cpu"
     speech_cache_dir: str = "data/tts-cache"
-    speech_lan_open: bool = True        # 局域网（无代理头）嘅来源唔使登录都可以用播报；经隧道 / 代理嚟嘅要登录
+    speech_lan_open: bool = True        # Direct LAN requests without proxy headers may synthesize anonymously; tunnel/proxy requests require login.
     log_speech_text: bool = False
     max_body_bytes: int = 2_000_000
     requests_per_minute: int = 60
@@ -40,7 +40,7 @@ class Settings:
     @classmethod
     def from_env(cls):
         values = cls._env_values()
-        # 成员 A：有豆包配置、又冇另外设千问 → 理解用豆包方舟模型（B 新版同一个模型）。
+        # Use Doubao Ark when configured unless Qwen is explicitly configured separately.
         if values.get("doubao_config") and "qwen_key" not in values:
             doubao = load_doubao(values["doubao_config"])
             values.update(qwen_key=doubao.ark_key.get_secret_value(), qwen_base_url=ARK_BASE_URL, qwen_model=doubao.model)
@@ -72,12 +72,12 @@ class Settings:
 
     @cached_property
     def doubao(self):
-        """B 嘅豆包配置（DoubaoConfig）；冇设 DOUBAO_CONFIG 就 None。"""
+        """DoubaoConfig, or None without DOUBAO_CONFIG."""
         return load_doubao(self.doubao_config) if self.doubao_config else None
 
     @property
     def tts(self):
-        """实际用边个播报：doubao（B 嘅豆包粤语声）/ sovits（本机粤语）/ azure / none。"""
+        """Resolved synthesis provider: doubao, sovits, azure or none."""
         if self.tts_provider == "auto":
             return ("sovits" if self.sovits_root else "doubao" if self.doubao_config
                     else "azure" if self.speech_ready else "none")
@@ -110,7 +110,7 @@ class Settings:
 
 
 def load_doubao(path):
-    """读 B 嘅豆包配置（同 B 嘅 macOS/server.py 一样：细过 12 KB、按 DoubaoConfig 校验）。"""
+    """Read and validate B's config below 12 KB, as in its macOS/server.py."""
     from .doubao import DoubaoConfig
     file = Path(path).expanduser()
     if file.stat().st_size > 12000:

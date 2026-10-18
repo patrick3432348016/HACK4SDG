@@ -1,7 +1,7 @@
-"""测语音服务器：每句量「第一段声音几耐到」同「全句几耐」，并存低 WAV 俾人听。
+"""Measure first-audio and full-utterance latency and save WAV samples for listening review.
 
-用法：python3 server/tools/tts_probe.py [--url http://127.0.0.1:8765] [--out 目录] 句子1 句子2 …
-（只用标准库；喺局域网 / 本机跑唔使登录。）
+Usage: python3 server/tools/tts_probe.py [--url http://127.0.0.1:8765] [--out directory] sentence1 sentence2 ...
+Standard library only; direct LAN/localhost use needs no login.
 """
 import argparse
 import json
@@ -33,7 +33,7 @@ for i, text in enumerate(args.sentences, 1):
     data = first + rest
     audio = (len(data) - 44) / 2 / 32000
     path = out / f"probe_{i}.wav"
-    # 流式响应个头长度系 0xFFFFFFFF：存档前改返正确长度
+    # Replace unknown streaming lengths with correct values before saving WAV.
     import struct
     pcm = len(data) - 44
     path.write_bytes(data[:4] + struct.pack("<I", 36 + pcm) + data[8:40] + struct.pack("<I", pcm) + data[44:])

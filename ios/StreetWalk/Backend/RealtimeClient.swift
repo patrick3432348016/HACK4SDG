@@ -1,13 +1,13 @@
 import Foundation
 
-// Supabase Realtime（Phoenix 协议 vsn 1.0.0，JSON 物件）。只用 Foundation（URLSessionWebSocketTask）。
-// 2026-10-10 对住正式后端实测（scratchpad probe + tools/backendtest）：
-//   连线：wss://<project>/realtime/v1/websocket?apikey=<publishable key>&vsn=1.0.0
-//   加入：{"topic":"realtime:<名>","event":"phx_join","payload":{"config":{broadcast,presence,postgres_changes,private},"access_token":<JWT>},"ref","join_ref"}
-//   心跳：{"topic":"phoenix","event":"heartbeat","payload":{},"ref"} 每 25 秒；换 token：event "access_token"。
-//   表变动：event "postgres_changes"，payload.data = {type, table, record, old_record}。INSERT / UPDATE 按 RLS 过滤；
-//   DELETE 唔过滤（所有订阅者都收到，只有主键）——所以出门状态回家时改成 null，唔删行（见 SupabaseCommunityService）。
-//   私有频道（private: true）：pair:<小uuid>:<大uuid> 只放行两个互为街坊嘅人，第三者加入会收到 Unauthorized。
+// Supabase Realtime uses Phoenix JSON protocol vsn 1.0.0 and Foundation URLSessionWebSocketTask.
+// Observed against the live backend on 2026-10-10 using a scratchpad probe and tools/backendtest:
+//   Connect: wss://<project>/realtime/v1/websocket?apikey=<publishable key>&vsn=1.0.0
+//   Join: topic realtime:<name>, event phx_join, config {broadcast,presence,postgres_changes,private}, access_token, ref, and join_ref.
+//   Heartbeat: phoenix topic, heartbeat event, empty payload, ref, every 25 seconds. Token updates use access_token events.
+//   postgres_changes payload.data contains type, table, record, and old_record. INSERT/UPDATE are filtered by RLS.
+//   DELETE exposes primary keys to every subscriber; clear the outing landmark instead of deleting its row (SupabaseCommunityService).
+//   Private pair:<lower UUID>:<higher UUID> channels admit only mutual neighbors; a third party receives Unauthorized.
 
 struct PostgresChangeSpec: Sendable {
     var event = "*"
@@ -31,20 +31,20 @@ struct PostgresChange: Sendable {
 
 @MainActor
 final class RealtimeChannel {
-    /// 频道名（唔带 "realtime:" 前缀），例如 "pair:<a>:<b>"。私有频道嘅 RLS 用呢个名（realtime.topic()）。
+    /// Channel name without realtime: prefix, such as pair:<a>:<b>; private-channel RLS checks realtime.topic().
     let name: String
     var topic: String { "realtime:" + name }
     let isPrivate: Bool
     fileprivate let config: JSONValue
     fileprivate(set) var joined = false
     fileprivate var joinRef: String?
-    /// 加入被拒（例如私有频道无权限）：唔再自动重试，等下次重新连线。
+    /// After a rejected join, stop automatic retries until reconnection.
     fileprivate(set) var refusedReason: String?
     fileprivate weak var client: RealtimeClient?
 
     var onPostgresChange: ((PostgresChange) -> Void)?
     var onBroadcast: ((_ event: String, _ payload: JSONValue) -> Void)?
-    /// 加入结果：成功 / 被拒（附原因）。重新连线后会再叫一次。
+    /// Join result: success or rejection with reason. Called again after reconnection.
     var onJoin: ((_ ok: Bool, _ reason: String?) -> Void)?
 
     fileprivate init(name: String, config: JSONValue, isPrivate: Bool) {
@@ -53,7 +53,7 @@ final class RealtimeChannel {
         self.isPrivate = isPrivate
     }
 
-    /// 发一个 broadcast（未加入时丢弃；位置之类即时数据唔使补发）。
+    /// Send a broadcast; drop it if not joined. Transient location data need not be replayed.
     func broadcast(_ event: String, _ payload: JSONValue) {
         guard joined, let client else { return }
         client.push(topic: topic, event: "broadcast",
@@ -90,7 +90,7 @@ final class RealtimeClient {
         self.tokenProvider = tokenProvider
     }
 
-    // MARK: - 连线
+    // MARK: - Connection
 
     func connect() {
         wantConnected = true
@@ -134,7 +134,7 @@ final class RealtimeClient {
 
     private func beat() {
         guard socket != nil else { return }
-        // 上一次心跳冇回覆：条线已经断咗（例如退后台再返嚟），重新连。
+        // An unanswered heartbeat means the connection is stale, for example after backgrounding; reconnect.
         if pendingHeartbeat != nil { dropped("heartbeat timeout"); return }
         let r = nextRef()
         pendingHeartbeat = r
@@ -172,9 +172,9 @@ final class RealtimeClient {
         }
     }
 
-    // MARK: - 频道
+    // MARK: - Channels
 
-    /// 开一个频道（已连线就即刻加入；断线重连会自动再加入）。同名频道会取代旧嘅。
+    /// Create a channel, joining immediately if connected and rejoining after reconnect. Replace an existing channel of the same name.
     func channel(_ name: String, postgresChanges: [PostgresChangeSpec] = [], isPrivate: Bool = false,
                  receiveOwnBroadcasts: Bool = false) -> RealtimeChannel {
         if let old = channels[name] { remove(old) }
@@ -215,7 +215,7 @@ final class RealtimeClient {
         }
     }
 
-    /// 换咗 access token（续期）：通知所有已加入嘅频道，唔使断线。
+    /// On access-token refresh, notify joined channels without disconnecting.
     func updateToken(_ token: String?) {
         guard let token else { return }
         for ch in channels.values where ch.joined {
@@ -233,7 +233,7 @@ final class RealtimeClient {
 
     private func send(_ m: [String: JSONValue]) {
         guard let s = socket, let data = try? BackendCoding.encoder.encode(JSONValue.object(m)) else { return }
-        // 用 completion 版本：按调用次序送出。
+        // Use the completion-based API to preserve send order.
         s.send(.string(String(decoding: data, as: UTF8.self))) { [weak self] error in
             guard let error else { return }
             Task { @MainActor in
@@ -243,7 +243,7 @@ final class RealtimeClient {
         }
     }
 
-    // MARK: - 收消息
+    // MARK: - Receiving messages
 
     private func handle(_ data: Data) {
         guard let m = try? BackendCoding.decoder.decode(JSONValue.self, from: data),
@@ -279,7 +279,7 @@ final class RealtimeClient {
         case "system":
             if payload["status"]?.string == "error", log { print("[realtime] system error \(ch.name): \(payload)") }
         case "phx_error", "phx_close":
-            // 频道喺服务器嗰边断咗（例如 token 过期）：2 秒后再加入。
+            // If the server closes a channel, for example after token expiry, rejoin after two seconds.
             ch.joined = false
             if log { print("[realtime] \(event) \(ch.name)") }
             let name = ch.name

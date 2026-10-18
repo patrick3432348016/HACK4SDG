@@ -1,26 +1,26 @@
 import SwiftUI
 
-// MARK: - 灵动岛（App 入面）
+// MARK: - In-App Dynamic Island
 //
-// 用户 10-09 / 10-11 定：横幅从灵动岛真实位置「长」出嚟、收起时缩返入岛；横幅收起后，散步、找人、约会快到时
-// 喺岛两侧显示状态。刘海 / 冇刘海机型由顶部滑落；开咗「減少動態效果」只淡入淡出。
-// - 横幅、两侧状态都係常驻视图，只按 store 状态改展开程度（插入 / 移除转场会卡住，见 5f785d4）。
-// - store 里直接改值，唔好包 withAnimation（会丢更新，见 c7858de）；动画全部喺呢度按值做。
-// - 岛嘅位置由 IslandGeometry 按屏幕尺寸 + 安全区推算。
+// User decisions on 10-09 / 10-11: expand banners from the physical island, collapse back into it, and show active states beside it.
+// Notched / plain devices slide from the top; Reduce Motion uses fading only.
+// Keep banners and side states mounted, changing expansion only; insertion/removal transitions could stall (5f785d4).
+// Assign store values without withAnimation to avoid lost updates (c7858de); animate values locally here.
+// IslandGeometry estimates island position from screen dimensions and safe area.
 
-/// 主界面最上层：两侧状态、自己画嘅时间、横幅；有岛时按需要收埋系统状态栏（横幅 / 两侧状态盖住佢嗰阵）。
+/// Topmost layer contains side status, replacement clock and banners; hide the system status bar only when covered.
 struct IslandLayer: View {
     @Environment(AppStore.self) private var store
     let geo: IslandGeometry
-    /// 每 30 秒重算一次（约会倒数：「而家」唔係 Observation 追踪得到嘅值）。
+    /// Recompute every 30 seconds because current time for countdowns is not Observation-tracked.
     @State private var tick = 0
 
     var body: some View {
         let _ = tick
         let bannerOn = store.banner != nil
-        // 有半屏 / 全屏画面盖住主界面：唔显示两侧状态，状态栏照出
+        // When a sheet or full-screen view covers the main screen, hide side status and retain the system status bar.
         let covered = store.showSettings || store.showReport || store.showTimeSlider || store.bumpStage == .searching
-        // 找人全屏有自己嘅顶卡（距离、箭咀），岛唔再重复
+        // Full-screen finding already has distance and arrow controls; avoid duplicate island status.
         let status = store.findFullScreen ? nil : store.islandStatuses.first
         let compactOn = geo.hasIsland && status != nil && !bannerOn && !covered
         ZStack(alignment: .topLeading) {
@@ -41,31 +41,31 @@ struct IslandLayer: View {
     }
 }
 
-// MARK: - 动画
+// MARK: - Animation
 
-/// 灵动岛嘅弹簧：长出嚟少少回弹（同系统灵动岛一样）、缩返入去唔弹。-slowIsland：慢 6 倍，录屏逐帧检查用。
+/// Expansion springs slightly past its target; collapse does not bounce. -slowIsland runs 6x slower for recording inspection.
 enum IslandMotion {
     static let slow: Double = LaunchArgs.has("-slowIsland") ? 6 : 1
     static let expand = Animation.spring(response: 0.5 * slow, dampingFraction: 0.72)
     static let collapse = Animation.spring(response: 0.4 * slow, dampingFraction: 0.9)
     static let resize = Animation.spring(response: 0.4 * slow, dampingFraction: 0.84)
-    /// 減少動態效果：只淡入淡出。
+    /// Reduce Motion uses fading only.
     static let fade = Animation.easeInOut(duration: 0.25 * slow)
 }
 
-// MARK: - 形变
+// MARK: - Morphing
 
-/// 黑色圆角框由 from 变到 to（p = 0…1，弹簧会略为超过 1）；内容固定喺 to 嘅位置，用形变中嘅框裁住，
-/// 所以横幅似由岛度「长」出嚟。Animatable：p 同 to 一齐做动画（横幅换句、两侧数字变长都会顺滑咁变）。
+/// Morph the black rounded rectangle from from to to with p in 0…1, allowing spring overshoot; clip fixed destination content inside it.
+/// Animate p and to together for smooth banner-text and side-number size changes.
 private struct IslandMorph<Content: View>: View, Animatable {
     var p: CGFloat
     var from: CGRect
     var to: CGRect
     var fromRadius: CGFloat
     var toRadius: CGFloat
-    /// 内容几时开始出（p 由 fadeStart 到 1 渐现）；滑落（冇岛）时 0 = 一直清楚。
+    /// Fade content from fadeStart to 1; zero keeps content visible during the no-island slide.
     var fadeStart: CGFloat
-    /// 内容由边一点放大（岛中心）。
+    /// Content scaling anchor at the island center.
     var anchor: UnitPoint
     var stroke: Bool
     @ViewBuilder var content: Content
@@ -100,17 +100,17 @@ private struct IslandMorph<Content: View>: View, Animatable {
     }
 }
 
-// MARK: - 横幅
+// MARK: - Banners
 
-/// 出门提醒、约会应承、天气提示……：由岛「长」出嚟（冇岛就由顶滑落），收起时缩返入岛。
-/// 点横幅或者向上扫 = 收埋；有按钮时按钮执行动作。由 store.banner 直接驱动（审核 A10）。
+/// Outings, acceptance and weather banners expand from the island, or slide from the top, and reverse on dismissal.
+/// A10: tap or swipe up to dismiss; buttons perform actions. Drive directly from store.banner.
 struct IslandBanner: View {
     @Environment(AppStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let geo: IslandGeometry
-    /// 收起动画期间仍然画上一个横幅（内容唔好一下变空）。
+    /// Retain the previous banner content during collapse.
     @State private var last: BannerItem?
-    /// 内容量出嚟嘅高度（字号大时横幅变高，唔截断：审核 A41）。
+    /// A41: measure content height so larger text expands the banner instead of truncating.
     @State private var height: CGFloat = 150
     @State private var drag: CGFloat = 0
     @State private var bounce = 0
@@ -149,7 +149,7 @@ struct IslandBanner: View {
         }
     }
 
-    /// 收起时嘅框：有岛 = 岛本身（黑色叠黑色，睇落似缩返入去）；冇岛 = 同一个框移到屏幕上面。
+    /// Collapsed frame matches the black island, or moves above the screen when no island exists.
     private func collapsedFrame(_ to: CGRect) -> CGRect {
         if let i = geo.island { return i }
         return to.offsetBy(dx: 0, dy: -(to.maxY + 12))
@@ -164,7 +164,7 @@ struct IslandBanner: View {
         DragGesture(minimumDistance: 6, coordinateSpace: .global)
             .onChanged { v in
                 let dy = v.translation.height
-                drag = dy < 0 ? dy : dy * 0.15   // 向下拉有阻尼
+                drag = dy < 0 ? dy : dy * 0.15   // Apply resistance to downward dragging.
             }
             .onEnded { v in
                 if v.translation.height < -24 || v.predictedEndTranslation.height < -80 {
@@ -175,7 +175,7 @@ struct IslandBanner: View {
             }
     }
 
-    // MARK: 内容
+    // MARK: Content
 
     @ViewBuilder
     private func content(_ item: BannerItem) -> some View {
@@ -190,16 +190,16 @@ struct IslandBanner: View {
         .fixedSize(horizontal: false, vertical: true)
         .frame(width: geo.bannerFrame(height: 0).width, alignment: .leading)
         .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { h in if h > 0 { height = h } }
-        // 黑底：里面嘅次按钮、示範标签都按深色画（白字白边）。
+        // On black backgrounds, render secondary buttons and Demo labels in dark appearance with white text / borders.
         .environment(\.colorScheme, .dark)
     }
 
-    /// 有岛：图标同「示範」标签同岛并排（好似系统展开嘅灵动岛），正文由岛下面开始、全阔。
+    /// With an island, align the icon and Demo label beside it and place full-width body text below.
     private func islandContent(_ item: BannerItem, demo: Bool, island i: CGRect) -> some View {
         let frame = geo.bannerFrame(height: height)
         let rowTop = i.minY - frame.minY
         return VStack(alignment: .leading, spacing: 14) {
-            // 不限行数、不缩字：大字号时横幅变高，不截断（审核 A41）。
+            // A41: allow unlimited lines without shrinking text; increase height instead.
             Text(item.text)
                 .ds(.body)
                 .foregroundStyle(.white)
@@ -224,7 +224,7 @@ struct IslandBanner: View {
         }
     }
 
-    /// 冇岛：图标喺左、字喺右（由顶部滑落）。
+    /// Without an island, use icon-left / text-right layout sliding from the top.
     private func plainContent(_ item: BannerItem, demo: Bool) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
@@ -254,7 +254,7 @@ struct IslandBanner: View {
     @ViewBuilder
     private func actionButton(_ item: BannerItem) -> some View {
         if let title = item.actionTitle, item.action != .none {
-            // 次按钮：今日页的卡已经有同一个主按钮（一屏只一个橙色主按钮）。
+            // Use a secondary action because Today's card already provides the one orange primary action.
             Button { store.bannerAction() } label: {
                 Text(title).frame(maxWidth: .infinity)
             }
@@ -262,7 +262,7 @@ struct IslandBanner: View {
         }
     }
 
-    /// 示範数据的横幅都标「示範」：有对象就看对象；没有对象的（示範街坊答应了、屋邨管理示範回覆、手选天气）看句子。
+    /// Label simulated banners from the target's demo state or, without a target, from simulated response / weather text.
     private func isDemo(_ b: BannerItem) -> Bool {
         switch b.action {
         case .invite(let id), .goFind(let id): return store.resident(id)?.isDemo ?? false
@@ -271,25 +271,25 @@ struct IslandBanner: View {
         default: break
         }
         if store.residents.contains(where: { $0.isDemo && !$0.isMe && b.text.hasPrefix($0.name) }) { return true }
-        if store.hko.demoOverride && b.text == store.weatherTip { return true }   // 演示菜单手选的天气
+        if store.hko.demoOverride && b.text == store.weatherTip { return true }   // Weather manually selected from the demo menu.
         return store.reports.contains { r in r.followUpDemo == true && (r.followUp.map { !$0.isEmpty && b.text.hasSuffix($0) } ?? false) }
     }
 }
 
-// MARK: - 两侧状态
+// MARK: - Side status
 
-/// 横幅收埋后，进行紧嘅事喺岛两侧显示：左边图标（散步小人 / 找人箭咀 / 约会时钟），右边数字（「12 分」「35 米」「15 分鐘後」）。
-/// 同真·灵动岛嘅实时活动一样（App 喺前台时系统唔会喺岛度显示自己嘅实时活动，所以 App 自己画）。撳一下 = 展开睇详情。
+/// After banner collapse, show the activity icon on the left and walking minutes, finding distance or meeting countdown on the right.
+/// Draw the App's foreground equivalent of Live Activity status; tap for details because iOS does not display its own activity there in foreground.
 private struct IslandCompact: View {
     @Environment(AppStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let geo: IslandGeometry
     let status: IslandStatus?
     let shown: Bool
-    /// 收起途中继续画上一个状态。
+    /// Retain the previous status during collapse.
     @State private var last: IslandStatus?
     @State private var valueWidth: CGFloat = 52
-    /// 左边胶囊阔度（只放图标）。
+    /// Width of the icon-only left capsule.
     static let leading: CGFloat = 40
 
     var body: some View {
@@ -347,11 +347,11 @@ private struct IslandCompact: View {
     }
 }
 
-/// 两侧状态出现时系统状态栏收埋咗（佢会同黑色胶囊撞埋），喺左边补返时间：同系统一样嘅位置、字款。
+/// When capsules hide the system status bar, redraw the clock at the matching position and font.
 private struct IslandClock: View {
     let geo: IslandGeometry
     let shown: Bool
-    /// 用户揀咗 24 小时制：同系统状态栏一样补零（「03:25」）；12 小时制唔补零、唔出上午下午（「3:25」）。
+    /// Respect 24-hour leading zero, or 12-hour time without leading zero or AM/PM, matching the status bar.
     static let hour24 = !(DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: .current) ?? "").contains("a")
 
     var body: some View {

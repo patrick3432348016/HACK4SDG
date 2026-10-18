@@ -1,32 +1,32 @@
 import SwiftUI
 
-/// 设计规范（按 iPhone 17 402×874 pt，第一版草图）：侧边距 16，间距 8 的倍数，卡片圆角 18；
-/// 字号三档 标题 34 / 正文 24 / 辅助 20（「標準」），设定页「字體大小」可以调细一档或者调大（TextSize）；单一强调色橙。
+/// Initial iPhone 17 design at 402×874 pt: 16-pt margins, spacing in multiples of eight, and 18-pt card corners.
+/// Standard title/body/secondary sizes: 34/24/20 pt. TextSize settings allow smaller/larger text; orange is the single accent.
 enum DS {
     static let accent = Color(red: 0.847, green: 0.353, blue: 0.188)      // #D85A30
     static let accentSoft = Color(red: 0.847, green: 0.353, blue: 0.188).opacity(0.12)
     static let side: CGFloat = 16
     static let gap: CGFloat = 8
     static let radius: CGFloat = 18
-    /// 「今日」页上面 3D 场景占屏幕高度：「標準」25%，字大时缩（TextSize.sceneFraction）。喺 body 入面读会跟住字号重画。
+    /// Read TextSize.sceneFraction from the SwiftUI body so the Today scene shrinks as text size grows.
     static var sceneFraction: CGFloat { TextSizeSetting.shared.current.sceneFraction }
     static let micSize: CGFloat = 68
     static let tabBarHeight: CGFloat = 83
 
-    /// 统一弹簧：界面切换、卡片出入、按钮反馈。
+    /// Shared spring animation for transitions, cards, and button feedback.
     static let spring = Animation.spring(response: 0.42, dampingFraction: 0.82)
     static let snappy = Animation.spring(response: 0.3, dampingFraction: 0.86)
     static let bouncy = Animation.spring(response: 0.5, dampingFraction: 0.68)
 
-    /// 小字用的深一档橙（浅底 / 深底对比度都 ≥ 4.5:1）：AI 标签等文字。
+    /// Darker orange for small text, including AI labels, with contrast >= 4.5:1 on light/dark backgrounds.
     static let accentInk = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 1.0, green: 0.604, blue: 0.431, alpha: 1)      // #FF9A6E
         : UIColor(red: 0.663, green: 0.267, blue: 0.122, alpha: 1) })  // #A9441F
 
     static var reduceMotion: Bool { UIAccessibility.isReduceMotionEnabled }
-    /// 减少动态效果时改成淡入淡出。
+    /// Use a fade when Reduce Motion is enabled.
     static func motion(_ a: Animation) -> Animation { reduceMotion ? .easeInOut(duration: 0.2) : a }
-    /// 从某边滑入 + 淡入；减少动态效果时只淡入淡出。
+    /// Slide and fade from the chosen edge; fade only under Reduce Motion.
     static func slide(_ edge: Edge) -> AnyTransition { reduceMotion ? .opacity : .move(edge: edge).combined(with: .opacity) }
 }
 
@@ -69,7 +69,7 @@ private struct ScaledFont: ViewModifier {
 extension View {
     func ds(_ f: DSFont) -> some View { modifier(ScaledFont(f)) }
 
-    /// 白底卡片（深色模式自动变色），圆角 18。
+    /// Adaptive light/dark card background with 18-pt corners.
     func dsCard(padding: CGFloat = 16) -> some View {
         self.padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -78,7 +78,7 @@ extension View {
     }
 }
 
-/// 主按钮：橙底白字，最小高 56，按下微缩回弹。一个视图里最多一个。
+/// Primary button: orange with white text, minimum height 56, subtle press/rebound. At most one per view.
 struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -92,7 +92,7 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 }
 
-/// 次按钮：描边。
+/// Secondary button: outlined.
 struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -110,8 +110,8 @@ struct SecondaryButtonStyle: ButtonStyle {
 extension ButtonStyle where Self == PrimaryButtonStyle { static var dsPrimary: PrimaryButtonStyle { .init() } }
 extension ButtonStyle where Self == SecondaryButtonStyle { static var dsSecondary: SecondaryButtonStyle { .init() } }
 
-/// 小人头像：同场景里的小人一样——胶囊身（衫色）+ 圆头（肤色）+ 头发（長者白），加行动方式（拐杖、轮椅、BB 车）。
-/// medal：上个月圈对圈赢了（F4 卡通标记）。
+/// Avatar matches the scene: capsule clothing, round face/skin tone, age-dependent hair, and walking stick/wheelchair/stroller options.
+/// medal: previous month's winning-circle badge (F4).
 struct AvatarBadge: View {
     var color: Color
     var mobility: Mobility
@@ -139,7 +139,7 @@ struct AvatarBadge: View {
     }
 
     private func draw(_ ctx: inout GraphicsContext, u: CGFloat) {
-        let k: CGFloat = age == .young ? 0.88 : 1           // 後生身形小一点
+        let k: CGFloat = age == .young ? 0.88 : 1           // Younger avatars have a slightly smaller body.
         let seated = mobility == .wheelchair
         let cx = u * (mobility == .stroller ? 0.40 : 0.5)
         let bottom = u * (seated ? 0.74 : 0.84)
@@ -149,7 +149,7 @@ struct AvatarBadge: View {
         let headC = CGPoint(x: cx, y: torso.minY - r * 0.95)
         let grey = Color(red: 0.56, green: 0.56, blue: 0.60)
 
-        // 行动方式：在身后的先画
+        // Draw mobility aids behind the body first.
         if mobility == .stroller {
             let cart = CGRect(x: u * 0.56, y: u * 0.55, width: u * 0.24, height: u * 0.18)
             var handle = Path(); handle.move(to: CGPoint(x: torso.maxX - w * 0.1, y: torso.minY + h * 0.35)); handle.addLine(to: CGPoint(x: cart.minX + u * 0.02, y: cart.minY))
@@ -160,7 +160,7 @@ struct AvatarBadge: View {
             }
         }
         ctx.fill(Path(roundedRect: torso, cornerRadius: w / 2), with: .color(color))
-        // 头发先画（大少少、偏上），再画面，露出一块发盖。
+        // Draw larger, slightly raised hair before the face, leaving a visible cap.
         ctx.fill(Path(ellipseIn: CGRect(x: headC.x - r * 1.08, y: headC.y - r * 1.2, width: r * 2.16, height: r * 1.9)),
                  with: .color(Color(Palette.hairUI(age))))
         if age == .elder {
@@ -192,7 +192,7 @@ struct AvatarBadge: View {
     }
 }
 
-/// 场景上的小胶囊（左上「回到我屋企」、右上「演示」等）。
+/// Small scene capsules, such as return-home and demo controls.
 struct SceneChip<Label: View>: View {
     var action: () -> Void
     @ViewBuilder var label: Label
@@ -210,7 +210,7 @@ struct SceneChip<Label: View>: View {
     }
 }
 
-/// 「示範」小标签：标明这块数据是单机演示模拟的（圈里其他人、全邨汇总、示範纪录）。辅助字号 20、正文色，老人看得清。
+/// Demo badge identifies simulated people, estate totals, and records. Use readable 20-pt secondary text in the body color.
 struct DemoBadge: View {
     var text = L.t("示範", "示范")
     var body: some View {
@@ -220,14 +220,14 @@ struct DemoBadge: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 2)
             .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            // 只固定高度：大字号时长句可以换行，不会把整张卡撑出屏幕
+            // Fix height only; allow long text to wrap at large sizes without widening the card beyond the screen.
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(text == L.t("示範", "示范") ? L.t("示範數據，係模擬嘅", "示范数据，是模拟的") : text)
     }
 }
 
-/// 「AI」小标签：表示这句是 AI 写 / 理解的。辅助字号 20，深一档橙保证对比度。
+/// AI badge marks model-written/interpreted content, using 20-pt secondary text and darker orange for contrast.
 struct AIBadge: View {
     var spoken = L.t("AI 寫嘅", "AI 写的")
     var body: some View {
@@ -242,7 +242,7 @@ struct AIBadge: View {
     }
 }
 
-/// 设置页用的选项：系统 Picker 在表单里的值只有 17pt，不合设计规范；这里用 Menu，标题和值都用规范字号，一层选完。
+/// Settings Menu uses design-system title/value sizes instead of the system Form Picker's 17 pt; one-level selection.
 struct DSMenuPicker<Value: Hashable>: View {
     let title: String
     @Binding var selection: Value
@@ -264,16 +264,16 @@ struct DSMenuPicker<Value: Hashable>: View {
                     .foregroundStyle(.tertiary)
             }
             .ds(.body)
-            .frame(minHeight: 56)   // 长者手指：成行 56pt 高
+            .frame(minHeight: 56)   // Use a full 56-pt row as the touch target for older users.
             .contentShape(Rectangle())
         }
-        .tint(.primary)   // 表单里 Menu 的 label 会被染成强调色，标题要用正文色
+        .tint(.primary)   // Form tints Menu labels; explicitly keep the title in the body-text color.
         .accessibilityLabel(title)
         .accessibilityValue(label(selection))
     }
 }
 
-/// 一行说明：这一页的人 / 数字是示範（单机演示，未接后端）。
+/// One-line explanation that people/counts are local demo data rather than backend results.
 struct DemoNote: View {
     var text: String
     var body: some View {
@@ -289,7 +289,7 @@ struct DemoNote: View {
 }
 
 extension AvatarBadge {
-    /// 按居民资料画（色、行动方式、肤色、年龄、奖牌）。
+    /// Render from resident appearance: clothing, mobility, skin tone, age, and medal.
     init(_ r: Resident, size: CGFloat = 52, medal: Bool = false) {
         self.init(color: r.color, mobility: r.mobility, size: size, skin: r.skinTone, age: r.ageGroup, medal: medal)
     }

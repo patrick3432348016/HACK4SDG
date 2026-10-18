@@ -1,9 +1,9 @@
 import Foundation
 
-// 组员 B 服务器嘅回覆（状态 + 结构化指令）→ 我哋原有嘅「我聽到」复述卡（粤语、大字、每步都有掣）。纯逻辑，有单元测试。
-// B 嘅 message 系普通话简体（俾佢自己嘅联调界面用）；呢度按 status / command / data 出粤语，冇对应先用 B 嘅字（转繁体）。
+// Convert B's structured reply/status into the existing large-text Cantonese read-back card with buttons at every step. Pure logic covered by tests.
+// B's message serves its Simplified-Chinese integration UI. Generate Cantonese from status/command/data here, falling back to converted Traditional Chinese when unmapped.
 
-/// 一张助手卡要显示 / 讲嘅嘢。
+/// Content displayed and spoken by one assistant card.
 struct AssistantCard: Equatable {
     enum Kind: Equatable { case thinking, ask, chooseContact, choosePlace, confirm, done, failed, info, uncertain, cancelled, notUnderstood }
     struct Option: Equatable, Identifiable {
@@ -15,13 +15,13 @@ struct AssistantCard: Equatable {
     var title: String
     var detail: String?
     var spoken: String
-    /// 揀联系人 / 地点（大掣）。
+    /// Large-button contact/place choices.
     var options: [Option] = []
-    /// 补充资料嘅建议说法（撳 = 讲咗嗰句）。
+    /// Suggested clarification phrases; tapping submits the phrase as an utterance.
     var chips: [String] = []
     var conversationID: String
     var draftID: String?
-    /// 确认后嘅动作（约人：联系人、地点、时间），完成之后 App 用嚟加约会。
+    /// Confirmed action details: contact, place, and time, used to add the completed meetup locally.
     var action: Action?
 
     struct Action: Equatable {
@@ -33,15 +33,15 @@ struct AssistantCard: Equatable {
         var newName: String?
     }
 
-    /// 要用户揀 / 补嘢 / 撳「好」：唔好自动收起。
+    /// Do not auto-dismiss while waiting for a choice, clarification, or confirmation.
     var waitsForUser: Bool { [.thinking, .ask, .chooseContact, .choosePlace, .confirm, .uncertain].contains(kind) }
-    /// 对话完咗（之后讲嘢开新对话）。
+    /// Conversation is finished; the next utterance begins a new one.
     var endsConversation: Bool { [.done, .failed, .cancelled, .info, .notUnderstood].contains(kind) }
 }
 
 enum AssistantFlow {
-    /// 手机模板听到嘅意图 → 要唔要问 Mac 服务器（B 嘅助手）。
-    /// 约人、听唔明嘅句子交俾服务器；改名（地标）、反映、找人、改约、取消约、请假仍然喺手机做（B 冇呢啲功能 / 请假喺手机即时做，可撤回）。
+    /// Decide whether a locally recognized intent should be sent to B's Mac assistant.
+    /// Send invitations/unknown utterances to the server. Keep landmark renaming, reports, finding, rescheduling, cancellation, and reversible leave actions local.
     static func shouldAsk(_ local: VoiceIntent) -> Bool {
         switch local {
         case .invite, .unknown: return true
@@ -49,8 +49,8 @@ enum AssistantFlow {
         }
     }
 
-    /// 服务器听唔明（help）而手机模板听得明：用返手机流程。
-    /// B 嘅范围规则答咗（天气、拒答、紧急求助、交通…，data.policy）就一定用服务器嘅答案（B：夹杂 App 词语都成句拒绝）。
+    /// If the server returns help but the local template understands the request, use the local flow.
+    /// Always honor a server policy response (weather, refusal, emergency, traffic, etc.); mixed app keywords must not bypass B's scope policy.
     static func shouldFallBack(_ reply: AssistantReply, local: VoiceIntent) -> Bool {
         guard reply.status == .info, (reply.command?.intent ?? "help") == "help" else { return false }
         if let p = policy(reply), p != "help" { return false }
@@ -61,10 +61,10 @@ enum AssistantFlow {
     struct Lookup {
         var contactName: (String) -> String?
         var placeName: (String) -> String?
-        /// 地点说明（粤语）：步行分钟、嗰陣有冇遮。
+        /// Cantonese place description: walking minutes and shade at the requested time.
         var placeDetail: (String, Date?) -> String?
         var timeLabel: (Date) -> String
-        /// 只讲日子（请假）：「聽日」「10月20日（星期二）」。
+        /// Date-only labels for leave, such as tomorrow or 20 October (Tuesday).
         var dayLabel: (Date) -> String
     }
 
@@ -151,8 +151,8 @@ enum AssistantFlow {
         case .info:
             let op = r.data["operation_status"]?.string ?? r.data["operationStatus"]?.string
             if let p = policy(r), p != "app" {
-                // B 嘅范围规则（2026-10-12）：天文台天气、固定拒答 / 求助提示、交通、排行榜、纪录、打招呼。
-                // 讲 B 嘅原句（官方天气资料或固定句，唔系模型自由作答），标题用短句。
+                // B's scope policy (2026-10-12): Observatory weather, fixed refusals/emergency guidance, traffic, rankings, history, and greetings.
+                // Speak B's original official-weather/fixed response, not free-form model text; keep the title short.
                 c.kind = .info
                 c.detail = hant(r.message)
                 c.spoken = hant(r.speechText)
@@ -173,7 +173,7 @@ enum AssistantFlow {
         return c
     }
 
-    /// 完成卡：按确认卡嘅动作讲清楚做咗乜。
+    /// Completion card: describe what happened using the confirmed action.
     static func doneTitle(_ a: AssistantCard.Action?, contactName: String?, timeLabel: String?, place: String?) -> String {
         switch a?.kind {
         case "invite": return L.t("約咗\(contactName ?? "對方")\(timeLabel ?? "")\(place.map { "喺\($0)" } ?? "")，等緊佢確認。", "约了\(contactName ?? "对方")\(timeLabel ?? "")\(place.map { "在\($0)" } ?? "")，等对方确认。")
@@ -183,9 +183,9 @@ enum AssistantFlow {
         }
     }
 
-    // MARK: - 小工具
+    // MARK: - Helpers
 
-    /// 服务器用 B 嘅范围规则答（data.policy）：weather / deny / emergency / traffic / board / history / help / app。
+    /// Server scope-policy response (data.policy): weather/deny/emergency/traffic/board/history/help/app.
     static func policy(_ r: AssistantReply) -> String? { r.data["policy"]?.string }
 
     static func policyTitle(_ p: String) -> String {
@@ -231,7 +231,7 @@ enum AssistantFlow {
         return f.date(from: s).map { $0.addingTimeInterval(12 * 3600) }
     }
 
-    /// B 嘅简体字 → 繁体（意思唔变；冇对应粤语讲法时先用）。
+    /// Convert B's Simplified Chinese to Traditional without changing meaning, only when no Cantonese equivalent is available.
     static func hant(_ s: String) -> String {
         L.isCmn ? s : (s.applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? s)
     }

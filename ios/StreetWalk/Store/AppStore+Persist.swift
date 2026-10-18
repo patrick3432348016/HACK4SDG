@@ -1,12 +1,12 @@
 import SwiftUI
 
-// 持久化（LocalStore）、每日记录与连续天数、CommunityService 事件
+// LocalStore persistence, daily records, streaks and CommunityService events.
 extension AppStore {
-    // MARK: - 读取与保存
+    // MARK: - Loading and saving
 
-    /// 启动时读回上次的数据。自动演示（-script / -script2）和 -resetData 从干净状态开始。
+    /// Restore prior data on launch; -script, -script2 and -resetData start clean.
     func restoreSaved() {
-        // 演示模式默认：模拟器开、真机关（A05）；-demo 参数或者设置里改过就照用。
+        // A05: demo defaults on for simulator, off for devices; respect -demo and saved Settings overrides.
         UserDefaults.standard.register(defaults: ["demoMode": WalkDetector.demoByDefault])
         demoMode = LaunchArgs.has("-demo") || UserDefaults.standard.bool(forKey: "demoMode")
         localCommunity?.demoEnabled = demoMode
@@ -27,7 +27,7 @@ extension AppStore {
         restoring = false
     }
 
-    /// 改动后 0.5 秒写盘（连续改动只写一次）。
+    /// Debounce consecutive changes into one disk write after 0.5 seconds.
     func scheduleSave() {
         guard !restoring else { return }
         saveTask?.cancel()
@@ -36,7 +36,7 @@ extension AppStore {
             guard !Task.isCancelled else { return }
             self.saveNow()
             self.syncNotifications()
-            self.firstDayCheck()     // 街坊、约会有变：「今日三件事」打勾（AppStore+FirstDay）
+            self.firstDayCheck()     // Neighbor / meeting changes update the first-day task checklist.
         }
     }
 
@@ -47,15 +47,15 @@ extension AppStore {
 
     var currentMapKey: String? { map.map { "\($0.tile)|\(scene.homeBuildingID.map(String.init) ?? "-")" } }
 
-    /// 第一次装好底座时记下是哪一格、哪座楼。之后只在真正改咗住嘅楼时（homeChanged）先清跟地图有关的数据，
-    /// 喺外面打开、冇定位、离线兜底都唔会清。
+    /// Record the initial tile and building; clear map-dependent data only on an actual homeChanged event.
+    /// Opening elsewhere, missing location and offline fallback must not clear it.
     func adoptMapKey() {
         guard savedMapKey == nil, let key = currentMapKey else { return }
         savedMapKey = key
         scheduleSave()
     }
 
-    /// 首次使用 / 改楼完成：换咗楼就作废约会地点、反映位置、改过的地标名（街坊关系和散步记录保留），未完成的约会会通知对方取消。
+    /// Changing home invalidates meeting places, reports and renamed landmarks; retain relationships / walk history and notify peers of unfinished-meeting cancellation.
     func homeChanged() {
         changingHome = false
         guard let key = currentMapKey else { return }
@@ -80,7 +80,7 @@ extension AppStore {
         }
     }
 
-    /// 街坊关系变了：同步到保存的关系表。
+    /// Synchronize relationship changes to the persisted relationship table.
     func storeLink(_ r: Resident) {
         if r.isNeighbor {
             savedNeighbors[r.id] = NeighborLink(since: r.neighborSince ?? Date(), send: r.sendRemind, receive: r.receiveRemind)
@@ -90,7 +90,7 @@ extension AppStore {
         scheduleSave()
     }
 
-    /// 清除本机全部记录（设置页）。地标改回原名。
+    /// Clear local records from Settings and restore canonical landmark names.
     func clearAllData() {
         LocalStore.clear()
         restoring = true
@@ -99,7 +99,7 @@ extension AppStore {
         restoring = false
         restoreOriginalNames()
         saveNow()
-        if isMainStore { LocationMonitor.shared.clearRecords() }   // 夜晚位置、定位纪录一齐清
+        if isMainStore { LocationMonitor.shared.clearRecords() }   // Clear overnight locations and location records too.
         clearServerData()
     }
 
@@ -111,20 +111,20 @@ extension AppStore {
         }
     }
 
-    /// 演示菜单「重置演示」：只清同示範街坊有关的东西（关系、约会、示範回覆、示範纪录），你自己的真实记录唔郁。
+    /// Reset Demo clears demo relationships, meetings, replies and records while preserving real personal records.
     func resetDemoData() {
         let demoIDs = Set(residents.filter(\.isDemo).map(\.id))
         for id in demoIDs { savedNeighbors[id] = nil }
         appointments.removeAll { demoIDs.contains($0.partnerID) }
         for i in reports.indices where reports[i].followUpDemo == true { reports[i].followUp = nil; reports[i].followUpDemo = nil }
         walkLog = walkLog.filter { !$0.value.demo }
-        // 只补冇纪录嘅日子（真实纪录嗰几日照旧）
+        // Fill only dates without records; preserve dates with real activity.
         seedDemoHistory()
         scheduleSave()
     }
 
-    /// 关咗演示模式 / 对方已经唔喺圈入面：未完成的约会收埋（对方都唔存在，唔使通知）。
-    /// 只收示範街坊嘅约（真后端嘅约以服务器为准：圈成员未拉到唔等于对方唔存在）。
+    /// Hide unfinished demo meetings when demo mode ends or the peer disappears; no notification is needed for absent demo peers.
+    /// Only prune demo meetings; real backend meetings remain authoritative while circle members are loading.
     func closeOrphanAppointments() {
         for i in appointments.indices where appointments[i].isOpen && resident(appointments[i].partnerID) == nil
             && UUID(uuidString: appointments[i].partnerID) == nil {
@@ -132,7 +132,7 @@ extension AppStore {
         }
     }
 
-    // MARK: - 每日记录与连续天数
+    // MARK: - Daily records and streaks
 
     func log(for d: Date) -> DayLog {
         guard let l = walkLog[LocalStore.dayKey(d)], demoMode || !l.demo else { return DayLog() }
@@ -141,18 +141,18 @@ extension AppStore {
 
     func myStreak() -> Int { LocalStore.streak(walkLog, leaves: leaveDays, today: now, includeDemo: demoMode) }
 
-    /// 连续天数里有没有示範纪录（界面要标明）。
+    /// Whether the streak includes demo records, requiring a visible label.
     var streakHasDemo: Bool {
         guard demoMode else { return false }
         return LocalStore.streakKeys(walkLog, leaves: leaveDays, today: now, includeDemo: true).contains { walkLog[$0]?.demo == true }
     }
 
-    /// 本月我行咗几多步：真机用计步器量到嘅；冇量到嘅日子（模拟器、演示、背景补记冇步数）按每分钟约 100 步估算。
+    /// Monthly steps use device measurements; unmeasured simulator, demo or backfilled days estimate about 100 steps per minute.
     var myMonthSteps: Int {
         monthLogs.reduce(0) { $0 + $1.stepEstimate }
     }
 
-    /// 本月步数有冇用估算（界面要写「約」）。
+    /// Whether monthly steps include estimates and require an approximation label.
     var myMonthStepsEstimated: Bool { monthLogs.contains(where: \.stepsEstimated) }
 
     private var monthLogs: [DayLog] {
@@ -165,24 +165,24 @@ extension AppStore {
         return walkLog.filter { $0.key.hasPrefix(prefix) && (demoMode || !$0.value.demo) }.reduce(0) { $0 + $1.value.walks }
     }
 
-    /// 记一次散步。演示散步（模拟路线）算示範纪录，唔会改当日嘅真实纪录；真机散步是真实纪录，唔会同示範纪录混埋。
-    /// day：背景补记时係嗰段行路嘅日子。
+    /// Record simulated walks separately from real device walks; never overwrite or mix real daily records with demo data.
+    /// day identifies the original walking date when backfilling.
     func recordWalk(minutes: Int, landmarks passed: [String], simulated: Bool, day: Date? = nil, steps: Int? = nil, stops: [String] = []) {
         LocalStore.record(&walkLog, key: LocalStore.dayKey(day ?? now), minutes: minutes, landmarks: passed, stops: stops,
                           steps: steps, simulated: simulated)
         refreshMe()
         uploadDay(day ?? now)
-        firstDayWalked(minutes)     // 「今日三件事」：出去行 10 分鐘（AppStore+FirstDay）
-        noteWalkRecorded(minutes: minutes, simulated: simulated, backfilled: day != nil, steps: steps)   // 定位纪录（AppStore+Location）
+        firstDayWalked(minutes)     // First-day task: walk outside for 10 minutes (AppStore+FirstDay).
+        noteWalkRecorded(minutes: minutes, simulated: simulated, backfilled: day != nil, steps: steps)   // Location records (AppStore+Location).
     }
 
-    /// 个人资料上传（profiles 表）：完成首次使用、设置页改网名 / 楼层 / 小人、返前台时调（一样就唔再传）。
+    /// Upload profiles after onboarding, nickname / floor / avatar changes and foreground return; skip unchanged data.
     func uploadProfile() {
         if let p = communityProfile() { community.updateProfile(p) }
     }
 
-    /// 当日汇总上传（walks 表，一人一日一行）：散步记完、改名令今日一句变咗时调。
-    /// 示範纪录唔上传；经过嘅地标只留喺手机（F1 对外只用落脚点，A12），所以只传落脚点。
+    /// Upload one walks summary per user per day after recording or a rename that changes the daily greeting.
+    /// Do not upload demo records or pass-through landmarks; F1 / A12 shares only the stopping landmark.
     func uploadDay(_ day: Date) {
         let key = LocalStore.dayKey(day)
         guard let l = walkLog[key], !l.demo, l.walks > 0 else { return }
@@ -190,7 +190,7 @@ extension AppStore {
         community.uploadDay(day: key, minutes: l.minutes, steps: l.stepEstimate, landmarkIDs: [], stopLandmarkIDs: l.stops, line: line)
     }
 
-    /// 我在排行榜上的连续天数、请假状态、今日一句跟着记录更新。
+    /// Update my leaderboard streak, leave status and daily greeting from records.
     func refreshMe() {
         guard let i = residents.firstIndex(where: \.isMe) else { return }
         residents[i].streakDays = myStreak()
@@ -198,25 +198,25 @@ extension AppStore {
         residents[i].todayLine = myTodayLine(residents[i])
     }
 
-    /// 今日一句（全圈见到）：只用落脚点地标，唔讲经过边度（F1 对外只有落脚点）。
+    /// Circle-visible daily greetings include only the stopping landmark, never the route passed through.
     func myTodayLine(_ r: Resident) -> String {
-        guard !landmarks.isEmpty else { return "" }   // 地图未装好：先唔讲
+        guard !landmarks.isEmpty else { return "" }   // Wait until the map loads before speaking.
         let today = log(for: now)
         guard !r.onLeave, today.walks > 0 else { return ai.dailyLine(for: r, passed: []) }
         let stops = today.stops.compactMap(landmark)
         if let s = stops.last { return s.hasSeat ? L.t("\(r.floorLabel)喺\(s.name)坐咗陣", "\(r.floorLabel)在\(s.name)坐了一会") : ai.dailyLine(for: r, passed: stops) }
-        // 示範纪录只有分钟数：当佢行过自己常去嗰度，免得"行咗 24 分鐘"同"仲未出門"矛盾。
+        // For minute-only demo records, use the demo person's usual destination to avoid contradictory no-outing text.
         if today.demo, let home = landmark(r.homeLandmarkID) { return ai.dailyLine(for: r, passed: [home]) }
-        // 真实散步冇落脚点（或者喺背景补记）：照实讲分钟数，唔好编地标。
+        // For real walks without a stopping landmark, including backfills, report minutes without inventing a place.
         return L.t("\(r.floorLabel)今日行咗 \(today.minutes) 分鐘", "\(r.floorLabel)今天走了 \(today.minutes) 分钟")
     }
 
-    /// 演示模式：放过去 8 日 + 今日早上的示範纪录，连续 9 日。都标 demo，关掉演示模式就不算；已有纪录嘅日子唔郁。
+    /// Seed nine demo days, including this morning; label all demo, exclude when disabled and preserve existing records.
     func seedDemoHistory() {
         LocalStore.seedDemo(&walkLog, today: now)
     }
 
-    /// 地图未装好前，「我」都用真实纪录算（唔好显示后备值）。
+    /// Before the map loads, calculate my values from actual records rather than fallback numbers.
     func ensureMeBeforeMap() {
         guard residents.isEmpty, phase == .main else { return }
         residents = [Resident(id: "me", name: "你", floor: floorChoice, colorIndex: colorChoice, mobility: mobilityChoice,
@@ -224,7 +224,7 @@ extension AppStore {
         refreshMe()
     }
 
-    // MARK: - 别人那边的事（CommunityService 事件）
+    // MARK: - CommunityService peer events
 
     func receive(_ e: CommunityEvent) {
         switch e {

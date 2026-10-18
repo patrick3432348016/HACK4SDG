@@ -1,38 +1,38 @@
 import UIKit
 
-// 真实服务的接线：天文台天气、真机散步检测、本地通知、打电话
+// Wire real weather, device walk detection, local notifications and telephone calls.
 extension AppStore {
-    /// 回到前台 / 退到后台（StreetWalkApp 按 scenePhase 调用，启动时也会来一次；.inactive 不调）。
+    /// StreetWalkApp calls on scenePhase foreground/background transitions and startup, excluding inactive.
     func appActive(_ active: Bool) {
-        backendAppActive(active)   // 真后端：前台开 Realtime、补拉；后台断线、排后台刷新（AppStore+Backend）
-        liveFind?.setForeground(active)   // 找人分享位置：只喺前台传（AppStore+LiveFind）
+        backendAppActive(active)   // Real backend: reconnect Realtime and refresh in foreground; disconnect and schedule refresh in background.
+        liveFind?.setForeground(active)   // Send live finding coordinates only in foreground (AppStore+LiveFind).
         if active {
             ensureMeBeforeMap()
             refreshLiveWeather()
             hko.keepFresh(true) { [weak self] in self?.refreshLiveWeather() }
             startWalkDetection()
-            // 隔咗一阵返嚟：太阳、今日状态、约会提醒跟返而家（A34）
+            // A34: refresh sun, daily status and meeting reminders after returning from an absence.
             updateSun(animated: false)
             refreshMe()
-            if map != nil { checkAppointments() }   // 启动时地图未装好，等 populate 再查（唔好出冇名嘅提醒）
+            if map != nil { checkAppointments() }   // Wait for populate if the map has not loaded, avoiding nameless reminders.
             startDayClock()
-            locationAppActive()     // 权限、屋企范围、夜晚位置、「始终允许」解释页（AppStore+Location）
+            locationAppActive()     // Permissions, home region, overnight location and Always-permission explanation (AppStore+Location).
         } else {
-            endConversation()   // 连续对话：退后台即刻收咪（B：切后台停止本地收音）
-            hush()              // 退后台唔好继续讲（散步中嘅提醒交俾系统通知）
-            // 退后台即刻写盘（唔等 0.5 秒），之后被系统收咗都唔会冇咗最后一次改动（A76）
+            endConversation()   // Continuous conversation stops local microphone capture immediately on backgrounding.
+            hush()              // Stop speech in background; walking alerts use system notifications.
+            // A76: save immediately on backgrounding instead of waiting 0.5 seconds, preserving the last change before termination.
             saveTask?.cancel()
             saveNow()
             syncNotifications()
             dayClock?.cancel()
             hko.keepFresh(false) {}
             markBackground()
-            // 记录紧散步 / 等紧开始行路：锁机放袋都继续（背景定位）；否则停，等系统喺离开屋企时叫醒（AppStore+Location）
+            // Continue background location while recording or awaiting a walk; otherwise stop until a home-departure wake event.
             if !walkDetector.staysAwakeInBackground { walkDetector.stop() }
         }
     }
 
-    /// 前台时每分钟：用真实时间时每 5 分钟郁一次太阳；过咗午夜刷新连续天数、请假、今日一句。
+    /// Foreground minute tick: update actual sunlight every 5 minutes; refresh streaks, leave and daily greetings after midnight.
     func startDayClock() {
         dayClock?.cancel()
         dayClock = Task { [weak self] in
@@ -55,22 +55,22 @@ extension AppStore {
         }
     }
 
-    // MARK: - 本地通知（A58）
+    // MARK: - Local notifications (A58)
 
-    /// 自动演示、录视频、开发用嘅 -skipOnboarding 唔弹通知权限框（免得挡住画面）。
+    /// Suppress permission prompts for automatic demos, recordings and developer -skipOnboarding flows.
     var skipsPermissionPrompt: Bool {
         ["-script", "-script2", "-script3", "-scriptOnboarding", "-captions", "-skipOnboarding"].contains(where: LaunchArgs.has)
     }
 
-    /// 通知权限等到真係要用先问（UX 报告问题 24）：有街坊开咗出门提醒（碰一碰之后答「開」），或者有约会。
-    /// 只问一次，之后由系统设定管。
+    /// UX issue 24: ask for notification permission only when a neighbor enables outing alerts or a meeting exists.
+    /// Ask once; later changes use system Settings.
     func requestNotificationsIfReady() {
         guard phase == .main, UserDefaults.standard.bool(forKey: "onboarded"), !skipsPermissionPrompt else { return }
         guard neighbors.contains(where: \.receiveRemind) || appointments.contains(where: \.isOpen) else { return }
         notifier.requestIfNeeded()
     }
 
-    /// 约会有改动（存盘时）同退后台时重排。演示拉咗时间滑杆（假钟点）就唔排。
+    /// Reschedule after meeting changes and backgrounding; suppress scheduling under the demo time slider.
     func syncNotifications() {
         guard demoHour == nil else { notifier.sync([]); return }
         notifier.sync(NotificationPlan.items(appointments, now: Date(),
@@ -78,7 +78,7 @@ extension AppStore {
                                              place: { landmark($0)?.name ?? L.t("約好嘅地方", "约好的地方") }))
     }
 
-    // MARK: - 打电话（找人超时卡片）
+    // MARK: - Telephone calls from finding-timeout cards
 
     func call(_ id: String) {
         guard let p = resident(id) else { return }
@@ -86,7 +86,7 @@ extension AppStore {
             toast(demoMode ? L.t("示範街坊冇電話號碼，真機會直接打俾佢。", "示范邻居没有电话号码，真机会直接打给他。") : L.t("未有\(p.name)嘅電話號碼。", "还没有\(p.name)的电话号码。"))
             return
         }
-        // 不用 canOpenURL（要在 Info.plist 声明 tel），直接 open，打不到（模拟器、iPad）再讲。
+        // Open tel directly without canOpenURL's Info.plist requirement; explain failure on simulator or unsupported devices.
         UIApplication.shared.open(url) { [weak self] ok in
             if !ok { self?.toast(L.t("呢部機打唔到電話，用手機會直接打俾\(p.name)。", "这台设备打不了电话，用手机会直接打给\(p.name)。")) }
         }

@@ -1,18 +1,22 @@
-# 街坊行宣传片（英文讲解，约 3 分钟）
+# StreetWalk promotional video (English narration, about three minutes)
 
-Remotion 工程。画面 = App 真录屏（iPhone Air 模拟器）放进手机外框 + 纸雕风动态排版；旁白由本机 Kokoro 开源声音生成；配乐和转场音效由脚本合成（无版权问题）。
+Historical Remotion project, retained only on this older branch; video production was removed from main in `f8d63c9`. It combines app recordings from the iPhone Air simulator with a phone frame and paper-style motion graphics. Local Kokoro speech generates narration, and scripts synthesize music and transition effects. Those implementation choices alone do not establish copyright clearance for every asset or voice. Original recordings, bilingual captions, and narration data remain unchanged by the English documentation review.
 
-## 重做一遍
-1. 录素材（关掉其他模拟器）：`video/footage/record_all.sh [段名…]` → `footage/raw/`
-2. 转码 + 对时间：`python3 footage/prep.py [段名…]` → `public/clips/*.mp4`、`src/clips.json`、`footage/sheets/*.jpg`（每秒一格的缩略图，用来定标注位置）
-3. 旁白：讲稿在 `narration/script.json`。
+## Reproduce the historical build
+
+1. Close other simulators and record footage: `video/footage/record_all.sh [segment ...]` → `footage/raw/`.
+2. From `video/`, transcode and align timing: `python3 footage/prep.py [segment ...]` → `public/clips/*.mp4`, `src/clips.json`, and one-thumbnail-per-second contact sheets in `footage/sheets/*.jpg` for positioning labels.
+3. Narration uses `narration/script.json`:
    `VIRTUAL_ENV=~/Desktop/HACK/voice-runtime/kokoro-venv PATH=$VIRTUAL_ENV/bin:$PATH python narration/tts.py all`
-   → `public/vo/*.wav`、`src/vo.json`（每句时长，决定每段长度）。换声音：`--voice bf_emma` 等；只重做一句：`tts.py one f_bump`
-4. 配乐：`python narration/music.py <秒数>` → `public/music.wav`、`public/swish.wav`
-5. 检查：`TL=$(npx tsx tools/tl.ts) node tools/stills.mjs` → `out/stills/`（每段 35% / 80% 各一张）
-6. 渲染：`npx remotion render src/index.ts Pitch out/streetwalk_pitch_en.mp4 --crf=18`
+   → `public/vo/*.wav` and `src/vo.json`; utterance durations determine scene lengths. Select another voice with `--voice bf_emma`, or regenerate one utterance with `tts.py one f_bump`.
+4. Music: `python narration/music.py <seconds>` → `public/music.wav` and `public/swish.wav`.
+5. Preview: `TL=$(npx tsx tools/tl.ts) node tools/stills.mjs` → `out/stills/`, at 35% and 80% of each scene.
+6. Render: `npx remotion render src/index.ts Pitch out/streetwalk_pitch_en.mp4 --crf=18`.
 
-## 结构
-- `src/tokens.ts` 颜色字体（取自 App）；`src/timeline.ts` 由旁白时长排时间轴
-- `src/scenes/Opening.tsx` 开场 / 问题 / 洞察；`Features.tsx` 十个功能（录屏片段秒数 + 标注）；`Bump.tsx` 碰一碰；`Ending.tsx` 隐私 / 真功能 / 收尾
-- `review/index.html` 给组员的意见收集页（发布为 Artifact）
+## Structure
+
+- `src/tokens.ts`: app-derived colors and fonts. `src/timeline.ts`: a timeline based on narration durations.
+- `src/scenes/Opening.tsx`: opening, problem, and insight. `Features.tsx`: ten features, clip timing, and annotations. `Bump.tsx`: pairing. `Ending.tsx`: historical privacy statements, implementation, and closing.
+- `review/index.html`: the historical team-feedback page intended for an Artifact. This translation does not publish or submit feedback.
+
+The video contains earlier claims and UI. Current product scope, consent boundaries, and evidence limits are documented on main; translating this guide does not update the original video.

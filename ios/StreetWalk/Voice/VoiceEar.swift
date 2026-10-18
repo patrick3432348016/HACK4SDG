@@ -1,11 +1,11 @@
 import Foundation
 
-// 组员 B 嘅豆包流式识别（2026-10-12）：手机收音 → Mac 语音服务器 /v1/voice/ear（WebSocket）→ 豆包，
-// 讲完一句（豆包判定）就返嚟一句字。密钥只喺 Mac；局域网直连唔使登录，经 https 隧道要 Supabase 登录 token。
-// 协议沿用 B（server/upstream_b/docs/DOUBAO-WINDOWS.md）：第一条 {token?, locale}，之后 16 kHz 单声道 PCM16（每段 200 ms），
-// 服务器回 ready / transcript {text, final} / error。见 server/assistant/app_ear.py。
+// B's Doubao streaming recognition (2026-10-12): phone capture to Mac /v1/voice/ear WebSocket to Doubao.
+// Return completed transcripts; keys remain on the server. Direct LAN access is unauthenticated; HTTPS tunnels require a Supabase token.
+// Follow B's DOUBAO-WINDOWS protocol: initial token/locale JSON, then 200 ms chunks of 16 kHz mono PCM16.
+// Server emits ready, transcript with text/final, or error; see assistant/app_ear.py.
 
-/// 一条识别通道。open() 等到 ready 先返回；之后嘅字经 onEvent 交返（主线程）。
+/// open waits for ready; subsequent events arrive through onEvent on the main thread.
 @MainActor
 final class VoiceEar {
     enum Event: Equatable {
@@ -14,7 +14,7 @@ final class VoiceEar {
         case failed(String)
     }
 
-    /// 音频线程直接送 PCM（攒够 200 ms 一段）。
+    /// Send PCM directly from the audio thread, buffering 200 ms per chunk.
     nonisolated let sender = EarSender()
     private let session = URLSession(configuration: .ephemeral)
     private var task: URLSessionWebSocketTask?
@@ -24,7 +24,7 @@ final class VoiceEar {
 
     var isOpen: Bool { task != nil }
 
-    /// 连上并等豆包确认（最多 timeout 秒）。false = 连唔到（之后用返手机识别）。
+    /// Connect and await Doubao readiness up to timeout seconds; false triggers device-recognition fallback.
     func open(_ url: URL, token: String?, locale: String, timeout: Double = 6, onEvent: @escaping (Event) -> Void) async -> Bool {
         close()
         generation += 1
@@ -103,7 +103,7 @@ final class VoiceEar {
 
     enum Parsed: Equatable { case ready, event(Event) }
 
-    /// 服务器一条讯息 → ready / 一句字 / 出错。其他（interrupted 等）唔理。纯逻辑，有单元测试。
+    /// Pure, tested message parser for ready/transcript/error; ignore other messages such as interrupted.
     nonisolated static func parse(_ raw: String) -> Parsed? {
         guard let obj = (try? JSONSerialization.jsonObject(with: Data(raw.utf8))) as? [String: Any],
               let type = obj["type"] as? String else { return nil }
@@ -121,7 +121,7 @@ final class VoiceEar {
     }
 }
 
-/// 音频线程用：攒够 6400 字节（16 kHz × 2 字节 × 0.2 秒）就经 WebSocket 送出。
+/// Audio-thread buffer sends 6400-byte chunks: 16 kHz * 2 bytes * 0.2 seconds.
 final class EarSender: @unchecked Sendable {
     static let frameBytes = 6400
     private let lock = NSLock()

@@ -1,23 +1,23 @@
 import Foundation
 
 #if DEBUG
-// 开发用（只喺 Debug 版、启动参数 -debugCommands）：两部模拟器做端到端测试时，唔使撳屏幕都可以驱动 App。
-// 将指令写入 App 容器嘅 Documents/debug-commands.txt（一行一个），App 每秒读一次、执行完删走；
-// 状态写去 Documents/debug-state.txt（文字），方便对照截图。
-//   xcrun simctl get_app_container <UDID> hk.hack4sdg.streetwalk data  → 容器路径
-// 指令：tab today|board|neighbors · walk · home · find <网名> · go · endfind · answer yes|no
-//      invite <网名> [日 0/1/2] [钟点] · accept · decline · depart · remind on|off · unlink <网名>
-//      say <一句> · banner off · refresh · settings on|off · link <一次性码>（两部机用同一个码 = 碰咗一碰）
-//      bgrefresh（App 喺后台时叫 backgroundRefresh，睇 debug-events.txt 有冇「notify」）
-//      语音助手（Mac 语音服务器）：voice <一句>（等于讲咗）· vpick <第几个>（揀人 / 地点）· vchip <第几个> · vok（撳「好」）
-//      · vno（撳「唔係」）· vcheck（即刻重新搵语音服务器）· speak <一句>（播报，测真人声）· mic（撳咪：连续对话开始 / 收咪）
-//      演示（示範街坊）：pinvite（陳太約你）· pout / phome（陳太出門 / 返屋企）· hour <钟点>（演示时钟）
-//      · reschedule（第一个邀请撳「改時間」）· edit（改第一个未完成约会）· pick <第几个时间> · ok（撳约人卡主按钮）
-//      · lm <第几个地标>（打开地标卡）· step（找人底栏主按钮）
+// Debug-only -debugCommands drives two-simulator end-to-end tests without screen interaction.
+// Write one command per line to Documents/debug-commands.txt; poll once per second and remove executed commands.
+// Write readable state to Documents/debug-state.txt for screenshot comparison.
+//   xcrun simctl get_app_container <UDID> hk.hack4sdg.streetwalk data returns the container path.
+// Commands: tab today|board|neighbors; walk; home; find <nickname>; go; endfind; answer yes|no.
+//      invite <nickname> [day 0/1/2] [hour]; accept; decline; depart; remind on|off; unlink <nickname>.
+//      say <utterance>; banner off; refresh; settings on|off; link <one-time-code> (same code on both phones simulates pairing).
+//      bgrefresh invokes backgroundRefresh while backgrounded; inspect notify entries in debug-events.txt.
+//      Assistant: voice <utterance>; vpick <index> for person/place; vchip <index>; vok to confirm.
+//      vno rejects; vcheck rediscovers the server; speak <utterance> tests speech; mic starts/stops continuous conversation.
+//      Demo: pinvite for Mrs Chan's invitation; pout/phome for departure/return; hour <hour> sets demo time.
+//      reschedule edits the first invitation; edit changes the first active meetup; pick <time-index>; ok confirms the proposal.
+//      lm <landmark-index> opens a card; step invokes the finding primary action.
 extension AppStore {
     private static var debugCommandsStarted = false
 
-    /// 记一行去 Documents/debug-events.txt（-debugCommands 先记）：例如后台出咗边啲本地通知。
+    /// Append an event to Documents/debug-events.txt only under -debugCommands, including background local notifications.
     nonisolated static func debugEvent(_ s: String) {
         guard LaunchArgs.has("-debugCommands") else { return }
         let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("debug-events.txt")
@@ -43,7 +43,7 @@ extension AppStore {
             while true {
                 try? await Task.sleep(for: .milliseconds(500))
                 tick += 1
-                // 横幅、提示、找人卡出现过就记低（横幅 8 秒、提示 3.5 秒就收）
+                // Log banners, toasts, and finding cards when shown because their transient UI can disappear before inspection.
                 if let b = self.banner, b.id != seenBanner { seenBanner = b.id; note("banner \(b.text)") }
                 if let t = self.toast, t != seenToast { seenToast = t; note("toast \(t)") }
                 if self.toast == nil { seenToast = nil }
@@ -94,7 +94,7 @@ extension AppStore {
         case "refresh": supabase?.scheduleRefresh(Set(SupabaseCommunityService.Part.allCases), delay: 0)
         case "link": if !arg.isEmpty { debugLink(code: arg) }
         case "settings": showSettings = arg != "off"
-        case "bgrefresh": Task { await self.backgroundRefresh() }   // 模拟器排唔到 BGAppRefreshTask：App 喺后台时用呢个试
+        case "bgrefresh": Task { await self.backgroundRefresh() }   // Use this background command when the simulator cannot schedule BGAppRefreshTask.
         case "voice": if !arg.isEmpty { handle(arg) }
         case "vpick":
             if let a = voiceCard?.assistant, let i = Int(arg), a.options.indices.contains(i - 1) { assistantChoose(a.options[i - 1]) }
@@ -104,7 +104,7 @@ extension AppStore {
         case "vno": rejectVoice()
         case "vcheck": VoiceServer.shared.recheckSoon()
         case "speak": if !arg.isEmpty { say(arg, force: true) }
-        case "mic": micTapped()   // 等于撳咪（连续对话：开始 / 收咪）
+        case "mic": micTapped()   // Equivalent to tapping the microphone to start/stop continuous conversation.
         case "pinvite": partnerInvites()
         case "pout": neighborGoesOut()
         case "phome": neighborGoesHome()

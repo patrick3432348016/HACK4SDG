@@ -1,11 +1,11 @@
 import Foundation
 
-/// 碰一碰 / 二维码配对的约定（碰一碰模块 ↔ 后端模块）。
-/// 两部手机经近距离连接（或者扫二维码）拿到同一个一次性码，各自交给 `NeighborLinker.link(code:)`；
-/// 服务器（supabase/migrations/001_init.sql 的 link_neighbor）两边都提交咗就写入互为街坊，并返回对方资料。
-/// 未配上返回 nil，可以每 1–2 秒再问一次；同一个码两边都查到对方，第三部手机永远配唔上。
+/// Contract between proximity/QR pairing and the backend.
+/// Both phones obtain the same one-time code through proximity exchange or QR, then call NeighborLinker.link(code:).
+/// After both submit, link_neighbor in 001_init.sql establishes mutual neighbor rows and returns the peer profile.
+/// Pending pairing returns nil; poll every 1–2 seconds. Both participants can retrieve each other, but a third phone cannot join.
 
-/// 配上之后服务器返回嘅对方资料（profiles 表；avatar 是 {"mobility","color","skin","age"}）。
+/// Paired peer profile; avatar contains mobility, color, skin, and age.
 struct LinkedPeer: Equatable {
     let id: String
     let nickname: String
@@ -19,6 +19,6 @@ struct LinkedPeer: Equatable {
 
 @MainActor
 protocol NeighborLinker: AnyObject {
-    /// 提交一次性配对码（建议 128 bit 随机，十六进制）。对方都提交咗就返回对方；未配上返回 nil。
+    /// Submit a one-time code, preferably 128 random bits in hex. Return the peer when both have submitted, otherwise nil.
     func link(code: String) async throws -> LinkedPeer?
 }

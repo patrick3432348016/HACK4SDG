@@ -1,11 +1,11 @@
 import SwiftUI
 
-// 子代理 B：三个标签页的内容。外层 ScrollView、标题行、16pt 侧边距由 MainView 负责，这里只出内容。
+// Three-tab content only; MainView supplies ScrollView, title and 16 pt side margins.
 
-// MARK: - 今日
+// MARK: - Today
 
-/// 今日：最上面一张「主角卡」（一次只一张，按紧急程度揀，有一个主按钮），其余缩成一行一行嘅次要信息（UX 评审 9）。
-/// 次序：别人约你 / 想过来找你 > 今日约会（出發）> 同街坊一齐行紧 / 街坊在外面（約佢）> 散步中 > 天气建议出门 > 未有街坊（碰一碰）。
+/// UX 9: one urgency-selected hero card with one primary action; reduce other information to secondary rows.
+/// Priority: incoming requests, today's departure, walking companion/outside neighbor, active walk, weather invitation, first pairing.
 struct TodayTab: View {
     @Environment(AppStore.self) private var store
     @State private var reported: ReportKind?
@@ -13,7 +13,7 @@ struct TodayTab: View {
     @State private var taps = 0
     @State private var cancelling: Appointment?
 
-    /// 主角卡嘅种类。
+    /// Hero-card types.
     enum Hero: Equatable {
         case incomingFind
         case invitation(Appointment)
@@ -25,7 +25,7 @@ struct TodayTab: View {
         case noNeighbors
     }
 
-    /// 按紧急程度揀主角卡。
+    /// Select the most urgent hero card.
     static func hero(_ store: AppStore) -> Hero {
         if let ask = store.incomingFind, store.resident(ask.fromID) != nil { return .incomingFind }
         if let a = store.invitations.sorted(by: { $0.date < $1.date }).first { return .invitation(a) }
@@ -40,11 +40,11 @@ struct TodayTab: View {
     var body: some View {
         let hero = Self.hero(store)
         VStack(alignment: .leading, spacing: 16) {
-            FirstDayCard()      // 第一日「今日三件事」（自己判断显唔显示；做完三件由用户撳「收起」）
+            FirstDayCard()      // FirstDayCard controls its own visibility and remains until manually dismissed after completion.
             heroCard(hero)
                 .id(heroKey(hero))
                 .transition(.tabsInsert)
-            LocationCards()     // 係咪搬咗屋、自动记录未开齐（LocationViews）
+            LocationCards()     // Check for a moved home or incomplete automatic-recording permissions (LocationViews).
             minorRows(hero)
             if store.walk != nil {
                 reportCard.transition(.tabsInsert)
@@ -76,7 +76,7 @@ struct TodayTab: View {
         }
     }
 
-    // MARK: 主角卡
+    // MARK: Hero card
 
     @ViewBuilder private func heroCard(_ h: Hero) -> some View {
         switch h {
@@ -91,7 +91,7 @@ struct TodayTab: View {
         }
     }
 
-    /// 主角卡外框：大少少（内距 20）、橙色描边，顶上一行小标签讲呢张卡系乜。
+    /// Hero container uses 20 pt padding, orange outline and a small category label above.
     private func heroFrame<Content: View>(_ tag: String, symbol: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             Label(tag, systemImage: symbol)
@@ -103,7 +103,7 @@ struct TodayTab: View {
         .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous).strokeBorder(DS.accent.opacity(0.45), lineWidth: 2))
     }
 
-    /// 人 + 两行字（第一行粗体）。
+    /// Person plus two text lines, with a bold first line.
     private func personLine(_ p: Resident?, _ title: String, _ detail: String? = nil, demo: Bool = false) -> some View {
         HStack(spacing: 12) {
             if let p { AvatarBadge(p, size: 60) }
@@ -119,7 +119,7 @@ struct TodayTab: View {
         .accessibilityElement(children: .combine)
     }
 
-    // 街坊想过来找你（底部卡都有；呢度保证喺今日页最上面都见到）
+    // Incoming finding request also appears atop Today, in addition to the bottom card.
 
     @ViewBuilder private var incomingFindHero: some View {
         if let ask = store.incomingFind, let p = store.resident(ask.fromID) {
@@ -137,7 +137,7 @@ struct TodayTab: View {
         }
     }
 
-    // 别人约你：卡上直接回覆（好 / 改時間 / 唔去）
+    // Incoming invitations allow direct accept, reschedule or decline.
 
     private func invitationHero(_ a: Appointment) -> some View {
         let p = store.resident(a.partnerID)
@@ -153,7 +153,7 @@ struct TodayTab: View {
         }
     }
 
-    // 今日约会：约会前 30 分钟内「出發」系橙色主按钮；改 / 取消收埋喺一个掣（UX 评审 13）
+    // UX 13: within 30 minutes of a meeting, Departure is primary; combine edit/cancel behind one control.
 
     private func appointmentHero(_ a: Appointment) -> some View {
         let p = store.resident(a.partnerID)
@@ -163,7 +163,7 @@ struct TodayTab: View {
         let soon = left <= 30 * 60 && left > -3600
         return heroFrame(L.t("今日約會", "今天的约会"), symbol: "calendar.badge.checkmark") {
             personLine(p, L.t("約咗\(name)", "约了\(name)"), "\(store.dayTimeLabel(a.date)) · \(place)", demo: p?.isDemo == true)
-            // 两部手机都见到呢张卡（应承嗰个都系）：唔讲边个应承，只讲约好咗
+            // Both phones use neutral confirmed wording without attributing who accepted.
             Label(L.t("約好咗", "约好了"), systemImage: "checkmark.circle.fill")
                 .ds(.captionBold)
                 .foregroundStyle(DS.accentInk)
@@ -184,7 +184,7 @@ struct TodayTab: View {
         .tabButtonStyle(primary: primary)
     }
 
-    /// 「改 / 取消」：一个掣，入面先揀改时间地点定取消（取消会再问一次）。
+    /// One edit/cancel menu offers rescheduling or cancellation, with a further cancellation confirmation.
     private func changeMenu(_ a: Appointment, stacked: Bool) -> some View {
         Menu {
             Button { store.startEditing(a.id) } label: { Label(L.t("改時間地點", "改时间地点"), systemImage: "calendar") }
@@ -197,7 +197,7 @@ struct TodayTab: View {
         .accessibilityHint(L.t("改時間地點，或者取消約會", "改时间地点，或者取消约会"))
     }
 
-    // 找完人：同XX一齐行紧（唔再叫你過去搵佢，UX 评审 23）
+    // UX 23: after meeting, show walking together rather than prompting finding again.
 
     @ViewBuilder private func togetherHero(_ id: String) -> some View {
         if let p = store.resident(id) {
@@ -214,7 +214,7 @@ struct TodayTab: View {
         }
     }
 
-    // 街坊而家喺外面：約佢（散步中：過去搵佢）
+    // For an outside neighbor, offer invitation or, during a walk, finding.
 
     @ViewBuilder private func outHero(_ id: String) -> some View {
         if let n = store.resident(id) {
@@ -235,7 +235,7 @@ struct TodayTab: View {
         }
     }
 
-    // 散步中、冇街坊喺外面：行紧几耐、经过边度、要唔要唞
+    // With no outside neighbor during a walk, show minutes, passed places and rest guidance.
 
     private var walkingHero: some View {
         heroFrame(L.t("行緊", "散步中"), symbol: "figure.walk") {
@@ -260,7 +260,7 @@ struct TodayTab: View {
         .animation(DS.motion(DS.spring), value: store.paceTip)
     }
 
-    // 有街坊、冇人喺外面：天气 / 遮荫建议 + 約街坊一齐行
+    // With neighbors but none outside, show weather/shade guidance and a shared-walk invitation.
 
     private var walkTipHero: some View {
         let rain = store.weather == .rain
@@ -272,7 +272,7 @@ struct TodayTab: View {
         }
     }
 
-    /// 「約XX一齊行」：一个街坊就直接约；几个就先揀边个。
+    /// Invite the sole neighbor directly, otherwise ask which neighbor.
     @ViewBuilder private func inviteNeighborButton(primary: Bool) -> some View {
         let ns = store.neighbors
         if ns.count == 1, let n = ns.first {
@@ -291,7 +291,7 @@ struct TodayTab: View {
         }
     }
 
-    // 未有街坊：出去行，见到面碰一碰
+    // Without neighbors, suggest going out and pairing in person.
 
     private var noNeighborsHero: some View {
         heroFrame(L.t("第一步", "第一步"), symbol: "person.2.wave.2") {
@@ -310,7 +310,7 @@ struct TodayTab: View {
         }
     }
 
-    // MARK: 次要信息：一行一行
+    // MARK: Secondary information rows
 
     private func minorRows(_ hero: Hero) -> some View {
         let heroAppt: UUID? = { if case .appointment(let a) = hero { return a.id }; return nil }()
@@ -337,7 +337,7 @@ struct TodayTab: View {
                 Divider()
                 minorRow { appointmentRow(a) }
             }
-            // 测试反馈：约咗聽日之后「今日」页乜都冇 → 之后几日约好 / 等紧确认嘅都列出（最多 3 个）
+            // Feedback: list up to three future confirmed or pending meetings so tomorrow's invitation remains visible on Today.
             ForEach(store.upcomingAppointments.prefix(3)) { a in
                 Divider()
                 minorRow { appointmentRow(a) }
@@ -364,7 +364,7 @@ struct TodayTab: View {
             .padding(.vertical, 4)
     }
 
-    /// 今日行咗几耐 · 连续几日；今日一句；「今日唔行」。
+    /// Daily minutes/streak, greeting and staying-home controls.
     private var statusRow: some View {
         let me = store.me
         return VStack(alignment: .leading, spacing: 8) {
@@ -392,7 +392,7 @@ struct TodayTab: View {
         .animation(DS.motion(DS.snappy), value: store.todayMinutes)
     }
 
-    /// 「今日唔行（日數照計）」：以前叫「請假」，似返工（UX 评审 16）。
+    /// UX 16: staying-home wording explains streak preservation without work-like leave terminology.
     private func leaveRow(_ me: Resident) -> some View {
         HStack(spacing: 12) {
             if let leave = store.leaveSummary {
@@ -456,7 +456,7 @@ struct TodayTab: View {
         .accessibilityHint(L.t("去「街坊」頁回覆", "去「邻居」页回复"))
     }
 
-    /// 今日其他约会（等对方确认、或者第二个约会）：撳一下改 / 取消。
+    /// Other meetings today, including pending/second meetings, open edit/cancel on tap.
     private func appointmentRow(_ a: Appointment) -> some View {
         let name = store.resident(a.partnerID)?.name ?? L.t("街坊", "邻居")
         let place = store.placeName(a.landmarkID) ?? ""
@@ -479,7 +479,7 @@ struct TodayTab: View {
         .accessibilityHint(L.t("改時間、地點或者取消", "改时间、地点或取消"))
     }
 
-    /// 其他喺外面嘅街坊：一行，一个细掣。
+    /// Other outside neighbors use one compact row and action each.
     private func outRow(_ n: Resident) -> some View {
         let place = store.placeName(n.atLandmarkID)
         let walking = store.walk != nil
@@ -513,7 +513,7 @@ struct TodayTab: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// 冇街坊喺外面：只讲匿名人数（全邨汇总；人数少于 10 唔出）。中午前讲「今朝」，之后讲「今日」。
+    /// With no outside neighbors, show only an estate aggregate of at least 10; use morning wording before noon, today afterward.
     private var quietLine: AnyView? {
         guard let lm = store.landmarks.first,
               let passers = store.community.passersToday(at: lm), passers.count >= 10 else { return nil }
@@ -528,7 +528,7 @@ struct TodayTab: View {
         )
     }
 
-    // MARK: 散步中：快捷反映
+    // MARK: Quick reports during walks
 
     private var reportCard: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -569,7 +569,7 @@ struct TodayTab: View {
         }
     }
 
-    // MARK: 附近地標：场景里的地标很小、读屏摸不到，这里逐个列出；点一下打开资料卡（约街坊喺度、有冇櫈、有冇陰）。
+    // MARK: Nearby landmarks listed accessibly; tap for invitations, seating and shade details
 
     private var landmarksCard: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -585,7 +585,7 @@ struct TodayTab: View {
     }
 
     private func landmarkRow(_ lm: Landmark) -> some View {
-        // 日落后不讲遮荫（会算成 100%）：同地标信息卡一样用 shadeValue（太阳落山返回 nil）
+        // Use shadeValue after sunset, returning nil instead of the misleading computed 100% shade.
         let v = store.shade == nil ? 0 : store.shadeValue(lm.id, at: store.now)
         let sun = v.map(AppStore.shadeWords) ?? L.t("太陽落咗山", "太阳下山了")
         return Button { store.select(.landmark(lm.id)) } label: {
@@ -624,7 +624,7 @@ struct TodayTab: View {
         }
     }
 
-    /// 回覆掣：主按钮占满，其余跟喺右边；放唔落（大字号）就上下排。
+    /// Primary reply fills available width; secondary actions follow at right or stack when text grows.
     private func replyButtons<P: View, R: View>(@ViewBuilder primary: () -> P, @ViewBuilder rest: () -> R) -> some View {
         let p = primary(), r = rest()
         return ViewThatFits(in: .horizontal) {
@@ -634,8 +634,8 @@ struct TodayTab: View {
     }
 }
 
-/// 回覆别人嘅邀请：好（主按钮）/ 改時間 / 唔去。今日页主角卡同街坊页共用。
-/// 「改時間」以前叫「換個時間」，会折成两行（UX 评审 27）；按咗即刻出一个唔同嘅时间（评审 12）。
+/// Shared Today/Neighbors incoming-invitation controls: accept primary, change time, decline.
+/// UX 27 / 12: shorter reschedule wording avoids wrapping and immediately suggests a different time.
 struct InvitationButtons: View {
     @Environment(AppStore.self) private var store
     let a: Appointment
@@ -685,11 +685,11 @@ struct InvitationButtons: View {
 }
 
 
-// MARK: - 排行榜
+// MARK: - Leaderboard
 
-/// 排行榜：本圈总步数 + 本圈名次（按连续天数，不显示步数）；人人显示网名 + 小人 + 连续日数，街坊另加座数楼层同今日一句
-/// （非街坊永远唔出座数楼层，2026-10-10 定）；
-/// 「我那行」由 MainView 固定在可见区底部（BoardMyRow），任何字号都看得到。
+/// Show circle total steps and rankings by streak, with nickname/avatar for everyone and extra details for neighbors only.
+/// Never show non-neighbors' building or floor (2026-10-10).
+/// MainView pins BoardMyRow above the tab bar at every text size.
 struct BoardTab: View {
     @Environment(AppStore.self) private var store
     @State private var barProgress: CGFloat = 0
@@ -721,7 +721,7 @@ struct BoardTab: View {
                     }
                 }
             }
-            // 说明放在名次下面，不再把名次推出首屏。
+            // Put explanations below rankings so ranks remain on the first screen.
             if store.community.isSimulated {
                 DemoNote(text: L.t("單機演示：排行榜上其他人係示範街坊，連續日數同獎牌係模擬嘅。", "单机演示：排行榜上其他人是示范邻居，连续天数和奖牌是模拟的。"))
             }
@@ -729,14 +729,14 @@ struct BoardTab: View {
         .animation(DS.motion(DS.spring), value: rows.map(\.id))
     }
 
-    /// 圈对圈：本月圈内总步数（我的由散步分钟估算，其他人和对面圈是示範数据）+ 上个月结果。
+    /// Circle comparison combines local/estimated own steps and labeled demo opponents, plus prior-month results.
     private var circleCard: some View {
         let race = store.community.circleRace(placeName: store.map?.placeName ?? L.t("我哋", "我们"), myMonthSteps: store.myMonthSteps)
         let total = max(1, race.ourSteps + race.rivalSteps)
         let share = CGFloat(race.ourSteps) / CGFloat(total)
         let diff = race.ourSteps - race.rivalSteps
         let last = store.lastMonthResult
-        // 未有对面圈嘅真数据：只讲本圈行咗几多，唔画对比条（唔造假）
+        // Without actual opposing-circle data, show only my circle's total and omit the comparison bar.
         let versus = race.rivalSteps > 0 || race.isDemo
         return VStack(alignment: .leading, spacing: 12) {
             Text(race.rivalSteps == 0 ? L.t("本月\(race.ourName)一齊行咗 \(store.myMonthStepsEstimated ? "約 " : "")\(Self.steps(race.ourSteps))", "本月\(race.ourName)一起走了 \(store.myMonthStepsEstimated ? "约 " : "")\(Self.steps(race.ourSteps))")
@@ -755,7 +755,7 @@ struct BoardTab: View {
                 .frame(height: 14)
                 .accessibilityHidden(true)
             }
-            // 上个月结果（F4 月末公布）：赢了的圈全员头像有奖牌。示範标签放同一行，卡片矮一点，第 1 名在首屏完整可见。
+            // F4: winning-circle avatars receive demo medals; keep the Demo label inline and the card short enough to show first place.
             if last != nil || race.isDemo {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 8) { resultLine(last); Spacer(minLength: 0); if race.isDemo { DemoBadge() } }
@@ -784,7 +784,7 @@ struct BoardTab: View {
         }
     }
 
-    /// 例如「3.2 萬步」「8,400 步」。
+    /// Localized compact step counts.
     static func steps(_ n: Int) -> String {
         n >= 10_000 ? String(format: L.t("%.1f 萬步", "%.1f 万步"), Double(n) / 10_000).replacingOccurrences(of: ".0 ", with: " ") : "\(n) 步"
     }
@@ -799,7 +799,7 @@ struct BoardTab: View {
             AvatarBadge(r, size: 48, medal: r.hasMedal)
             VStack(alignment: .leading, spacing: 2) {
                 Text(r.listName).ds(.body).fixedSize(horizontal: false, vertical: true)
-                // 今日一句只俾街坊睇（佢可能讲到地标同楼层）
+                // Daily greetings are visible only to neighbors because they may reveal landmarks or floors.
                 if r.isNeighbor && !r.todayLine.isEmpty {
                     Text(r.todayLine)
                         .ds(.caption)
@@ -835,7 +835,7 @@ struct BoardTab: View {
     }
 }
 
-/// 排行榜「我那行」：固定在排行榜可见区底部、标签栏之上（MainView 放入安全区）。
+/// MainView pins my leaderboard row in the safe area above the tab bar.
 struct BoardMyRow: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -855,7 +855,7 @@ struct BoardMyRow: View {
             AvatarBadge(me, size: 48, medal: me.hasMedal)
             VStack(alignment: .leading, spacing: 2) {
                 Text(me.listName).ds(.bodyBold).fixedSize(horizontal: false, vertical: true)
-                // 大字号时只留名次和名，固定行不要占掉半个列表（今日一句读屏照读）
+                // At large text sizes, keep only rank and name in the pinned row; accessibility still reads the daily summary.
                 if !me.todayLine.isEmpty && !typeSize.isAccessibilitySize {
                     Text(me.todayLine)
                         .ds(.caption)
@@ -883,7 +883,7 @@ struct BoardMyRow: View {
     }
 }
 
-/// 排行榜每行右边：连续日数（排名就系按呢个）。
+/// Right-side streak count determines rank.
 private struct BoardStreak: View {
     let days: Int
     var body: some View {
@@ -900,10 +900,10 @@ private struct BoardStreak: View {
     }
 }
 
-// MARK: - 街坊
+// MARK: - Neighbors
 
-/// 街坊：约你嘅（最上面，卡上直接回覆）→ 我嘅约会 → 我嘅街坊（约佢行 + 出门提醒）→ 碰一碰。
-/// 未有街坊时碰一碰用橙色主按钮、放最上面；有街坊就放最底、用次按钮（UX 评审 5 / 第四节）。
+/// Neighbors order: received invitations with inline replies, my meetups, my neighbors with invitation/outing controls, then pairing.
+/// With no neighbors, put pairing first as the primary orange action; otherwise place it last as a secondary action (UX finding 5 / section 4).
 struct NeighborsTab: View {
     @Environment(AppStore.self) private var store
     @State private var taps = 0
@@ -991,7 +991,7 @@ struct NeighborsTab: View {
         }
     }
 
-    /// 解除街坊的说明：有未完成的约会就讲清楚对方会收到「約會取消」（审核 A70）。
+    /// A70: explain that unlinking with unfinished meetings sends meeting-cancellation notices.
     private func unlinkMessage(_ r: Resident?) -> String {
         let open = r.map { r in store.appointments.filter { $0.partnerID == r.id && $0.isOpen }.count } ?? 0
         let base = L.t("佢唔會收到解除通知。之後佢出門你唔會知，佢亦見唔到你。", "对方不会收到解除通知。之后对方出门你不会知道，对方也看不到你。")
@@ -1062,12 +1062,12 @@ struct NeighborsTab: View {
     }
 
     private func neighborCard(_ n: Resident) -> some View {
-        // 没有出门消息不等于在家（对方可能关了发送，或回家后隐身），不要说死。
+        // No outing update does not prove the person is home; sending may be disabled or the person hidden.
         let status: String = {
             if n.isOut, let place = store.placeName(n.atLandmarkID) { return L.t("出咗門 · \(place)附近", "出门了 · \(place)附近") }
             return L.t("冇出門消息", "没有出门消息")
         }()
-        // F6：接收、发送分开开关。
+        // F6: separate receive and send switches.
         let receive = store.resident(n.id)?.receiveRemind ?? false
         let send = store.resident(n.id)?.sendRemind ?? false
         return VStack(alignment: .leading, spacing: 12) {
@@ -1136,21 +1136,21 @@ struct NeighborsTab: View {
     }
 }
 
-// MARK: - 本文件用的小部件
+// MARK: - Local components
 
 private extension AnyTransition {
-    /// 新卡由上面滑入；减少动态效果时只淡入。
+    /// New cards slide from above, or fade only with Reduce Motion.
     static var tabsInsert: AnyTransition { DS.slide(.top) }
 }
 
 private extension View {
-    /// 一屏只一个主按钮：primary 为 false 时用次按钮。
+    /// Use a secondary action when primary=false, maintaining one primary per screen.
     @ViewBuilder func tabButtonStyle(primary: Bool) -> some View {
         if primary { buttonStyle(.dsPrimary) } else { buttonStyle(.dsSecondary) }
     }
 }
 
-/// 内容 + 一个按钮：放得下就按钮在右边，放不下（大字号、长名字）就叠成两行、按钮占满宽度。
+/// Content/action rows place the button at right when possible, otherwise stack it full-width.
 private struct TabActionRow<Content: View, Action: View>: View {
     @ViewBuilder var content: Content
     @ViewBuilder var action: (_ stacked: Bool) -> Action
@@ -1170,7 +1170,7 @@ private struct TabActionRow<Content: View, Action: View>: View {
     }
 }
 
-/// 栏目标题：黑色粗体 24（以前灰色小字，分唔出呢段讲乜，UX 评审 26）。
+/// UX 26: section titles use bold black 24 pt text instead of unclear small gray headings.
 private struct TabSectionHeader: View {
     let text: String
     var body: some View {
@@ -1182,7 +1182,7 @@ private struct TabSectionHeader: View {
     }
 }
 
-/// 出门提醒一行：成行都撳得（最少 56 高），右边大掣写「開 / 閂」（以前系 51×31 嘅系统开关，UX 评审 28）。
+/// UX 28: whole-row alert switches are at least 56 pt high with large explicit on/off controls.
 private struct RemindRow: View {
     let text: String
     let symbol: String
@@ -1197,7 +1197,7 @@ private struct RemindRow: View {
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
-                // 唔用实心橙（一屏只一个橙色主按钮）：开 = 淡橙底 + 橙框，閂 = 灰底
+                // Avoid solid orange secondary switches: on uses pale fill/outline, off uses gray.
                 Label(on ? L.t("開", "开") : L.t("閂", "关"), systemImage: on ? "checkmark" : "xmark")
                     .labelStyle(.titleAndIcon)
                     .ds(.button)
@@ -1220,7 +1220,7 @@ private struct RemindRow: View {
     }
 }
 
-/// 今日一句：逐字淡入；句子一变就重新播一次。减少动态效果时直接显示。
+/// Reveal daily greetings character by character on changes, or immediately under Reduce Motion.
 private struct TypeInText: View {
     let text: String
     var body: some View { TypeInLine(text: text).id(text) }
@@ -1264,7 +1264,7 @@ private struct TypeInRenderer: TextRenderer {
     }
 }
 
-/// 取消约会前确认一次（会通知对方）。
+/// Confirm before cancelling a meeting because it notifies the peer.
 private struct CancelMeetupDialog: ViewModifier {
     @Environment(AppStore.self) private var store
     @Binding var target: Appointment?

@@ -1,16 +1,16 @@
 import SwiftUI
 
-// MARK: - 底部卡片槽（一次只显示一张，按优先级）
+// MARK: - Prioritized bottom-card slot, one card at a time
 
-/// 底部卡片槽里显示哪一类卡。卡片内容由各自的视图提供，MainView 只提供容器。
+/// Card content belongs to its own view; MainView supplies only the container.
 enum MainBottomCard: Hashable {
     case voice, incomingFind, remind, proposal, findAsk, info
 
-    /// 语音、街坊问「方唔方便」、出门提醒是"要先答"的卡，整个屏幕变暗；
-    /// 约人、找人、地标/街坊信息要配合场景看，只把场景以下变暗。
+    /// Voice, incoming finding consent and outing-alert questions dim the whole screen because they need a response first.
+    /// Invitation, finding and information cards dim only below the scene so context remains visible.
     var coversScene: Bool { self == .voice || self == .remind || self == .incomingFind }
 
-    /// 读屏：新卡出现时先读卡名。
+    /// VoiceOver announces the new card's name first.
     var spokenName: String {
         switch self {
         case .voice: return L.t("語音卡", "语音卡")
@@ -24,8 +24,8 @@ enum MainBottomCard: Hashable {
 }
 
 extension AppStore {
-    /// 优先级：语音 > 街坊问「方唔方便」> 出门提醒 > 约人提议 > 找人询问 > 信息卡。找人全屏时只保留语音卡。
-    /// 卡的数据有效才出卡（否则会出一张只有拉手的空白卡和暗层）。
+    /// Priority: voice, incoming finding request, outing alert, invitation, outgoing finding request, information. Full-screen finding keeps only voice cards.
+    /// Show cards only with valid data, avoiding empty handles and dimmed overlays.
     var uiActiveCard: MainBottomCard? {
         if listening || phrasePicker || voiceCard != nil { return .voice }
         if findFullScreen { return nil }
@@ -41,7 +41,7 @@ extension AppStore {
         return nil
     }
 
-    /// 点场景选东西：只在没有更重要的卡时才响应，免得打断约人/找人的高亮。
+    /// Respond to scene selection only without a higher-priority card, preserving invitation / finding highlights.
     var uiSceneTapsEnabled: Bool {
         guard !findFullScreen else { return false }
         let c = uiActiveCard
@@ -58,7 +58,7 @@ extension AppStore {
 
     func uiDismiss(_ c: MainBottomCard) {
         guard uiCanDismiss(c) else { return }
-        hush()   // 用户拉走 / 关咗张卡：卡上嗰句唔好再讲落去
+        hush()   // Stop the card's speech when it is dismissed.
         switch c {
         case .voice:
             if voiceCard != nil {
@@ -92,15 +92,15 @@ fileprivate extension AppStore.Tab {
     }
 }
 
-// MARK: - 主界面
+// MARK: - Main screen
 
-/// 上：3D 场景（伸到状态栏下）；咪骑在场景与内容交界右侧；下：当前标签内容；最底：三个大标签。
+/// Top scene extends under the status area; microphone straddles scene/content at right; current tab fills below, with three large bottom tabs.
 ///
-/// 界面跟状态（审核 A10）：
-/// - GeometryReader 闭包里只算尺寸、不读 store；每一块（内容区、场景、胶囊、底部卡）都是独立 View，在自己 body 读状态，
-///   Observation 一定追踪得到。
-/// - 切标签即时换页（和系统标签栏一样），不做插入 / 移除转场，内容不会停在旧页。
-/// - 根因是演示脚本的 step 在后台线程改 store（见 DemoScript），已改为 @MainActor。
+/// A10: derive interface directly from state.
+/// GeometryReader computes dimensions only; independent content, scene, capsule and card views read store state in their bodies,
+/// ensuring Observation tracks each dependency.
+/// Switch tabs immediately without insertion/removal transitions that can retain old content.
+/// The root cause was DemoScript.step mutating state off-main; it now uses @MainActor.
 struct MainView: View {
     @Environment(AppStore.self) private var store
 
@@ -128,7 +128,7 @@ struct MainView: View {
         .sheet(isPresented: $store.showSettings) {
             SettingsView().environment(store)
         }
-        // 真后端要网名先上得排行榜：旧用户关咗演示模式、未有网名就补填一次
+        // Prompt legacy users for a nickname when leaving demo mode, before joining the real leaderboard.
         .sheet(isPresented: Binding(get: { store.needsNickname && !store.showSettings && store.bumpStage == .idle }, set: { _ in })) {
             NicknameSheet().environment(store)
         }
@@ -137,32 +137,32 @@ struct MainView: View {
                 .environment(store)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-                // 实色底：iOS 26 半屏默认是玻璃，会透出下面的橙色按钮，「完成」看不清。
+                // Use an opaque sheet background; iOS 26 glass exposed underlying orange buttons and reduced Done readability.
                 .presentationBackground(Color(.systemBackground))
-                // 拉时间时仍然看得到上面场景的阴影移动。
+                // Keep scene shadows visible while dragging the time slider.
                 .presentationBackgroundInteraction(.enabled(upThrough: .medium))
         }
     }
 }
 
-/// 主界面各层。尺寸由 MainView 量好传入；状态在这里和各子视图自己读。
+/// MainView passes measured sizes; each layer and child reads its own state.
 private struct MainLayout: View {
     @Environment(AppStore.self) private var store
     let size: CGSize
     let safe: EdgeInsets
     @State private var scroll = MainScrolls()
-    /// 测试反馈：向下拉地图以为会放大 → 向下拉 / 撳「睇大啲」放大到约 2/3 屏，向上拉 / 撳「收細」返原位。
-    @State private var sceneExpanded = UIPreview.is("sceneExpanded")   // 截图自检：-uiPreview sceneExpanded
+    /// Feedback: drag down / expand enlarges the map to roughly two-thirds height; drag up / collapse restores it.
+    @State private var sceneExpanded = UIPreview.is("sceneExpanded")   // Screenshot check: -uiPreview sceneExpanded.
 
     var body: some View {
         let full = store.findFullScreen
-        // 场景只喺「今日」页；排行榜、街坊只留顶部一条放设定掣，成页俾内容（UX 报告 6）
+        // UX 6: show the scene only on Today; Leaderboard and Neighbors use full-height content with a narrow Settings strip.
         let band = safe.top + DS.gap + 44 + 8
         let todayH = sceneExpanded ? (size.height * 0.66).rounded() : max(band + 60, (size.height * DS.sceneFraction).rounded())
         let sceneH = full ? size.height : store.tab == .today ? todayH : band
-        // 模型由灵动岛下面开始画（测试反馈：灵动岛遮住）。模型大细同场景高度无关（高度变只裁上下）；
-        // 模型画面高度 ≈ 屏幕高 × k（k 越大模型越大）。以前 k = 0.42；测试反馈话太细 → 平时 0.45（成个模型刚好放得落），
-        // 放大时 0.62（再大约 1.4 倍，左右裁少少，以屋企为中心）。
+        // Start below the island; scene height clips vertically without independently resizing the model.
+        // Model height is screen height times k; feedback increased normal k from 0.42 to 0.45 to fit the full model.
+        // Expanded k=0.62 is roughly 1.4x larger, slightly cropping the sides around home.
         let sceneArea = full ? sceneH : sceneH - safe.top
         let viewportScale = full ? Float(1) : Float(sceneArea / (size.height * (sceneExpanded ? 0.62 : 0.45)))
         let showScene = full || store.tab == .today
@@ -173,7 +173,7 @@ private struct MainLayout: View {
         ZStack(alignment: .topLeading) {
             Color(.systemGroupedBackground)
 
-            // 内容区（在场景之下；找人全屏时被场景盖住，保留状态不销毁）
+            // Keep content mounted beneath full-screen finding to preserve state.
             MainContent(scroll: $scroll, tabH: tabH)
                 .frame(width: size.width, height: max(0, size.height - sceneH), alignment: .top)
                 .offset(y: sceneH)
@@ -181,21 +181,21 @@ private struct MainLayout: View {
                 .allowsHitTesting(!full)
                 .accessibilityHidden(full)
 
-            // 场景 + 标签（唔喺「今日」页时收起，但保留 SceneKit 状态唔销毁）
+            // Hide scene and labels outside Today without destroying SceneKit state.
             MainScene(width: size.width, height: sceneH, safe: safe, micCenter: micCenter, full: full, expanded: $sceneExpanded)
                 .onChange(of: viewportScale, initial: true) { _, v in store.scene.viewportScale = v }
                 .opacity(showScene ? 1 : 0)
                 .allowsHitTesting(showScene)
                 .accessibilityHidden(!showScene)
 
-            // 左上 / 右上胶囊
+            // Top-left / top-right capsules.
             MainTopChips(safeTop: safe.top, hasIsland: island.hasIsland)
                 .frame(width: size.width, alignment: .topLeading)
                 .opacity(full ? 0 : 1)
                 .allowsHitTesting(!full)
                 .accessibilityHidden(full)
 
-            // 底部三个大标签
+            // Three large bottom tabs.
             MainTabBar(onReselect: { scroll.toTop($0) })
                 .frame(width: size.width, height: tabH)
                 .offset(y: size.height - tabH + (full ? tabH : 0))
@@ -203,9 +203,9 @@ private struct MainLayout: View {
                 .allowsHitTesting(!full)
                 .accessibilityHidden(full)
 
-            // 找人全屏（提示框由 FindOverlay 自己放在顶卡下面）
+            // Full-screen finding positions its own toast below the top card.
             if full {
-                // 这一层忽略了安全区，FindOverlay 按安全区排版，所以把安全区补回去。
+                // Restore safe-area insets for FindOverlay because this layer ignores them.
                 FindOverlay()
                     .padding(.top, safe.top)
                     .padding(.bottom, safe.bottom)
@@ -213,10 +213,10 @@ private struct MainLayout: View {
                     .transition(.opacity)
             }
 
-            // 底部卡片：暗层 → 咪 → 卡片（咪在暗层之上、卡片之下）。三者由同一个视图按同一个状态画。
+            // Bottom layer order: dimming, microphone, card; draw all three from one state read.
             BottomLayer(size: size, sceneHeight: sceneH, micCenter: micCenter, bottomInset: safe.bottom, full: full)
 
-            // 提示：在标签栏之上（找人全屏时由 FindOverlay 显示）
+            // Toast above the tab bar, or inside FindOverlay during full-screen finding.
             if !full {
                 ToastView()
                     .padding(.bottom, tabH + 12)
@@ -224,13 +224,13 @@ private struct MainLayout: View {
                     .allowsHitTesting(false)
             }
 
-            // 录视频字幕（-captions）：顶部胶囊行之下（找人全屏时在顶卡之下）；横幅出现时让开
+            // -captions subtitles sit below top capsules or the finding card and avoid visible banners.
             CaptionView()
-                .padding(.top, safe.top + (full ? 140 : 56))   // 找人顶卡加咗「示範」一行，字幕要再低啲
+                .padding(.top, safe.top + (full ? 140 : 56))   // Move captions lower to accommodate the finding card's Demo row.
                 .frame(width: size.width, height: size.height, alignment: .top)
                 .allowsHitTesting(false)
 
-            // 灵动岛（最上层）：横幅由岛长出嚟、收埋后两侧显示进行紧嘅事（Island.swift）
+            // Topmost Island layer expands banners and shows active side status afterward.
             IslandLayer(geo: island)
         }
         .frame(width: size.width, height: size.height)
@@ -242,7 +242,7 @@ private struct MainLayout: View {
     }
 }
 
-/// 三页各自的滚动位置（再点当前标签 = 回到顶部）。
+/// Separate scroll position for each tab; tapping the active tab scrolls to top.
 private struct MainScrolls {
     var today = ScrollPosition(edge: .top)
     var board = ScrollPosition(edge: .top)
@@ -259,7 +259,7 @@ private struct MainScrolls {
     }
 }
 
-// MARK: - 场景
+// MARK: - Scene
 
 private struct MainScene: View {
     @Environment(AppStore.self) private var store
@@ -272,30 +272,30 @@ private struct MainScene: View {
     @ScaledMetric(relativeTo: .caption2) private var creditSize: CGFloat = 13
 
     var body: some View {
-        // 标签不放进状态栏和左右上胶囊那一条，也不压咪。
+        // Keep labels out of the status bar, top capsules and microphone areas.
         var reserved = [CGRect(x: 0, y: 0, width: width, height: safe.top + DS.gap + 44)]
         if !full {
             reserved.append(CGRect(x: micCenter.x - DS.micSize / 2 - 4, y: micCenter.y - DS.micSize / 2 - 4,
                                    width: DS.micSize + 8, height: DS.micSize / 2 + 4))
-            reserved.append(CGRect(x: width / 2 - 90, y: height - 48, width: 180, height: 48))   // 「睇大啲」掣
+            reserved.append(CGRect(x: width / 2 - 90, y: height - 48, width: 180, height: 48))   // Map expansion button.
         }
         return ZStack(alignment: .topLeading) {
             DioramaView(controller: store.scene, onTap: handleSceneTap)
                 .accessibilityLabel(L.t("你附近嘅立體地圖", "你附近的立体地图"))
                 .accessibilityHint(L.t("地標喺「今日」頁嘅「附近地標」都揀得到", "地标在「今天」页的「附近地标」也能选"))
-                // 由灵动岛 / 状态栏下面开始画，唔俾灵动岛遮住模型（找人全屏照旧铺满）
+                // Render below the island / status bar to avoid occlusion; full-screen finding still fills the screen.
                 .padding(.top, full ? 0 : safe.top)
-            // 状态栏可读：顶部一层很淡的渐变（浅色白、深色黑）。
+            // A subtle white / black top gradient preserves status-bar readability.
             LinearGradient(colors: [Color(.systemBackground).opacity(0.55), Color(.systemBackground).opacity(0)],
                            startPoint: .top, endPoint: .bottom)
                 .frame(height: safe.top + 28)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
             SceneLabelsLayer(reserved: reserved)
-            // 地图署名（OpenStreetMap 协议要求可见）：左下角一行小字，跟动态字体放大。
+            // Visible OpenStreetMap attribution at bottom-left, scaling with Dynamic Type.
             Text("© OpenStreetMap")
                 .font(.system(size: creditSize))
-                .dynamicTypeSize(...DynamicTypeSize.large)   // 字大时唔好压到模型底座
+                .dynamicTypeSize(...DynamicTypeSize.large)   // Keep large text from covering the model base.
                 .foregroundStyle(.secondary)
                 .padding(.leading, DS.side)
                 .padding(.bottom, 6)
@@ -306,7 +306,7 @@ private struct MainScene: View {
         .frame(width: width, height: height)
         .background(Color(uiColor: SceneStyle.background))
         .clipped()
-        // 向下拉放大、向上拉收细（同其他 App 一样）；同撳地标唔撞（要拉过 30pt 先算）
+        // Drag down to expand and up to collapse; require 30 pt of movement to avoid conflicting with landmark taps.
         .simultaneousGesture(
             DragGesture(minimumDistance: 30)
                 .onEnded { v in
@@ -317,7 +317,7 @@ private struct MainScene: View {
         )
     }
 
-    /// 底部中间一粒细掣：「向下拉睇大啲」/「收細」，话俾人知幅地图拉得大。
+    /// Small bottom-center expand / collapse control makes the map's resizing discoverable.
     private var expandHandle: some View {
         Button {
             expanded.toggle()
@@ -358,7 +358,7 @@ private struct MainTopChips: View {
     var body: some View {
         HStack(alignment: .top, spacing: DS.gap) {
             HomeChip(hasIsland: hasIsland)
-            // 「演示」放左边：右上角留俾咪（排行榜、街坊冇场景，咪就喺顶部右边）
+            // Place Demo at left to reserve top-right for the microphone on tabs without a scene.
             if store.demoMode { DemoMenu() }
             if store.backendOffline { OfflineChip().transition(.opacity) }
             Spacer(minLength: DS.gap)
@@ -369,9 +369,9 @@ private struct MainTopChips: View {
     }
 }
 
-// MARK: - 内容
+// MARK: - Content
 
-/// 标题行 + 当前页。在自己 body 读 store.tab；换页即时（不做转场）。
+/// Read store.tab in this view body and replace the title/page immediately without transitions.
 private struct MainContent: View {
     @Environment(AppStore.self) private var store
     @Binding var scroll: MainScrolls
@@ -380,7 +380,7 @@ private struct MainContent: View {
     var body: some View {
         let tab = store.tab
         VStack(alignment: .leading, spacing: 0) {
-            // 标题行：左对齐，右边让出咪的位置。
+            // Left-align the title and reserve microphone space at right.
             HStack(spacing: 0) {
                 Text(tab.title)
                     .ds(.title)
@@ -402,17 +402,17 @@ private struct MainContent: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        // 切标签不要动画（即使外面是 withAnimation）：新页直接出，不会叠住旧页。
+        // Disable tab animation even under an external withAnimation, preventing overlap with the old page.
         .animation(nil, value: tab)
         .task {
-            // 截图自检：今日页滚到底
+            // Screenshot check: Today scrolled to the bottom.
             guard UIPreview.is("todayBottom") else { return }
             try? await Task.sleep(for: .seconds(4))
             scroll.today.scrollTo(edge: .bottom)
         }
     }
 
-    /// bottom：固定在可见区底部、标签栏之上的一行（排行榜"我那行"），任何字号都看得到。
+    /// bottom is fixed above the tab bar, such as my leaderboard row, and remains visible at every text size.
     private func scrollPage<Content: View, Bottom: View>(_ content: Content, position: Binding<ScrollPosition>,
                                                           @ViewBuilder bottom: () -> Bottom = { EmptyView() }) -> some View {
         ScrollView {
@@ -423,7 +423,7 @@ private struct MainContent: View {
                 .padding(.bottom, DS.gap * 3)
         }
         .scrollPosition(position)
-        // 用安全区留出标签栏的位置；内容仍可滚到标签栏的材质背景下面。
+        // Reserve tab space through the safe area while allowing content to scroll beneath its material background.
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
                 bottom()
@@ -433,10 +433,10 @@ private struct MainContent: View {
     }
 }
 
-// MARK: - 左上胶囊
+// MARK: - Top-left capsule
 
-/// 场景不可操作，所以只在散步中显示状态：「行緊 N 分鐘」（数字滚动）；在家时不显示。
-/// 有灵动岛嘅机：散步分钟数喺岛两侧显示（IslandLayer），呢度一直係设置齿轮（散步中都改得设定）。
+/// Show elapsed walking status only during walks, with animated numbers; otherwise omit the status.
+/// On island devices, IslandLayer owns walking minutes; retain the Settings gear even during walks.
 private struct HomeChip: View {
     @Environment(AppStore.self) private var store
     let hasIsland: Bool
@@ -446,7 +446,7 @@ private struct HomeChip: View {
             HStack(spacing: 6) {
                 Image(systemName: "figure.walk")
                     .foregroundStyle(DS.accent)
-                // 大字号放不下就只出分钟数（不截断成「行緊 3…」）。
+                // At large sizes, show minutes alone instead of truncating the phrase.
                 ViewThatFits(in: .horizontal) {
                     Text(L.t("行緊 \(m) 分鐘", "已走 \(m) 分钟"))
                     Text(L.t("\(m) 分鐘", "\(m) 分钟"))
@@ -465,7 +465,7 @@ private struct HomeChip: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(L.t("行緊 \(m) 分鐘", "已走 \(m) 分钟"))
         } else {
-            // 在家时：设置（改楼、楼层、小人、提醒时段、演示模式）。
+            // At home, show Settings for building, floor, avatar, alert hours and demo mode.
             Button { store.showSettings = true } label: {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 20, weight: .semibold))
@@ -482,9 +482,9 @@ private struct HomeChip: View {
     }
 }
 
-// MARK: - 咪
+// MARK: - Microphone
 
-/// 橙色大圆咪：圆心落在场景与内容交界、距右边 16。聆听时显示声波 + 外圈脉冲。
+/// Large orange microphone centered on the scene/content boundary, inset 16 pt from right; waveform and pulsing ring while listening.
 private struct MicButton: View {
     @Environment(AppStore.self) private var store
 
@@ -510,7 +510,7 @@ private struct MicButton: View {
             .contentShape(Circle())
         }
         .buttonStyle(MicPressStyle())
-        // 咪要带字（UX 报告 8）：长者唔知个橙色圆系乜；只系标签，唔阻点按
+        // UX 8: add a non-intercepting text label so older residents understand the orange circle.
         .overlay(alignment: .bottom) {
             Text(on ? (store.conversing ? L.t("傾緊", "对话中") : L.t("聽緊", "在听")) : L.t("講嘢", "说话"))
                 .ds(.captionBold)
@@ -530,7 +530,7 @@ private struct MicButton: View {
     }
 }
 
-/// 聆听时向外扩散的圆环（弹簧、无回弹）。
+/// Listening ring expands with a non-bouncing spring.
 private struct MicPulse: View {
     var body: some View {
         PhaseAnimator([false, true]) { out in
@@ -554,7 +554,7 @@ private struct MicPressStyle: ButtonStyle {
     }
 }
 
-// MARK: - 底部标签栏
+// MARK: - Bottom tabs
 
 private struct MainTabBar: View {
     @Environment(AppStore.self) private var store
@@ -575,7 +575,7 @@ private struct MainTabBar: View {
                 .frame(height: 1 / max(displayScale, 1))
         }
         .dynamicTypeSize(...DynamicTypeSize.xxLarge)
-        // 读屏：当一组标签（「第 1 個，共 3 個」）。
+        // Expose a VoiceOver tab group with ordinal position.
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isTabBar)
         .sensoryFeedback(.selection, trigger: store.tab)
@@ -594,7 +594,7 @@ private struct MainTabBar: View {
                     .font(.system(size: 24, weight: .medium))
                     .symbolEffect(.bounce, options: .nonRepeating, value: taps[t, default: 0])
                     .frame(height: 28)
-                    // 等你回覆（有人约你、街坊想过嚟）：「街坊」标签出红点同数字（UX 报告 5）
+                    // UX 5: show a red badge and count on Neighbors for unanswered invitations or finding requests.
                     .overlay(alignment: .topTrailing) {
                         if t == .neighbors, store.pendingReplies > 0 {
                             Text("\(store.pendingReplies)")
@@ -625,9 +625,9 @@ private struct MainTabBar: View {
     }
 }
 
-// MARK: - 底部卡片容器
+// MARK: - Bottom-card container
 
-/// 底部一层：暗层、咪、卡片。只读一次 uiActiveCard，三者一定一致。
+/// Read uiActiveCard once to keep dimming, microphone and card consistent.
 private struct BottomLayer: View {
     @Environment(AppStore.self) private var store
     let size: CGSize
@@ -652,7 +652,7 @@ private struct BottomLayer: View {
     }
 }
 
-/// 卡片后面的暗层。点暗层 = 关掉（可以关的卡才关）。透明度直接跟 card，没有其他状态。
+/// Backdrop opacity follows card directly; tapping dismisses only dismissible cards.
 private struct BottomCardDim: View {
     @Environment(AppStore.self) private var store
     let card: MainBottomCard?
@@ -673,21 +673,21 @@ private struct BottomCardDim: View {
     }
 }
 
-/// 卡片本身：顶部圆角 24、系统底色、拉手；从底部弹上来，一次一张。
-/// 出唔出卡直接跟 card（store.uiActiveCard，已校验数据）。卡槽常驻、只做位移 / 透明度动画：
-/// 插入 / 移除转场偶尔会卡住（合并时横幅实测三次有两次冇出；以前亦试过暗层 + 空白卡留喺度），
-/// 所以内容换卡时用 .identity（即刻换、冇转场状态），滑上滑落靠整个卡槽嘅位移。
+/// One card with 24 pt top corners, system background and handle slides from below.
+/// Drive visibility from validated uiActiveCard; keep the slot mounted and animate offset / opacity only.
+/// Insertion/removal transitions previously stalled, producing missing banners or blank cards with dimming.
+/// Use identity content replacement and animate the whole slot's movement instead.
 private struct BottomCardSlot: View {
     @Environment(AppStore.self) private var store
     let card: MainBottomCard?
     let size: CGSize
     let bottomInset: CGFloat
     @State private var drag: CGFloat = 0
-    /// 每种卡各自量高度（换卡时新旧两张同时在，共用一个值会互相覆盖）。
+    /// Measure each card's height separately because old/new cards can coexist during replacement.
     @State private var heights: [MainBottomCard: CGFloat] = [:]
-    /// 新卡出现时读屏焦点跳到卡顶（审核 A43）。
+    /// A43: move VoiceOver focus to the new card's top.
     @AccessibilityFocusState private var focus: MainBottomCard?
-    /// 滑走途中仍然画住上一张卡（滑出屏幕后先清走）。
+    /// Retain the prior card until it has slid offscreen.
     @State private var shown: MainBottomCard?
 
     var body: some View {
@@ -715,7 +715,7 @@ private struct BottomCardSlot: View {
         .task(id: card) {
             drag = 0
             guard let card else { return }
-            // 等卡滑上来再移焦点，否则读屏会读到半路的位置。
+            // Wait until the card arrives before moving focus, avoiding intermediate-position announcements.
             try? await Task.sleep(for: .milliseconds(450))
             if !Task.isCancelled { focus = card }
         }
@@ -728,7 +728,7 @@ private struct BottomCardSlot: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, DS.side)
             .padding(.bottom, max(bottomInset, DS.side) + DS.gap)
-        // 大字号时卡片可能高过屏幕：量出内容高度，超过上限才限高、可以上下滚。
+        // Measure natural height; constrain and enable scrolling only when large text exceeds available space.
         let limit = size.height * 0.86 - 24
         let h = heights[card] ?? 0
         return VStack(spacing: 0) {
@@ -750,7 +750,7 @@ private struct BottomCardSlot: View {
         .accessibilityAction(.escape) { store.uiDismiss(card) }
     }
 
-    /// 拉手（可以关的卡才有）+ 读屏用的卡名（焦点落在这里）。
+    /// Dismissible-card handle plus the accessible card name serving as the focus target.
     private func grabber(_ card: MainBottomCard, visible: Bool) -> some View {
         ZStack {
             if visible {
@@ -763,7 +763,7 @@ private struct BottomCardSlot: View {
                         DragGesture(minimumDistance: 4, coordinateSpace: .global)
                             .onChanged { v in
                                 let dy = v.translation.height
-                                drag = dy > 0 ? dy : dy / 8   // 向上拉有阻尼
+                                drag = dy > 0 ? dy : dy / 8   // Apply resistance to upward dragging.
                             }
                             .onEnded { v in
                                 if v.translation.height > 90 || v.predictedEndTranslation.height > 240 {
@@ -797,9 +797,9 @@ private struct BottomCardSlot: View {
     }
 }
 
-// MARK: - 演示字幕
+// MARK: - Demo captions
 
-/// 录演示视频时的字幕（中文一句 + 英文一句）。只在启动参数 -captions 时出现。
+/// Chinese and English recording subtitles shown only with -captions.
 private struct CaptionView: View {
     @Environment(AppStore.self) private var store
 

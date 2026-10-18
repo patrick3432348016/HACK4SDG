@@ -14,10 +14,10 @@ enum Mobility: String, Codable, CaseIterable {
     }
 }
 
-/// 场景里的小人、地标标记、树。尺寸以地图米计（会被放大，保证远看也认得出）。
+/// Scene people, landmarks, and trees use exaggerated metre-based dimensions for distant readability.
 enum Figures {
-    /// 小人高约 14 m（真人的 8 倍左右），远景也看得见。
-    /// 外形极简：胶囊身 + 圆头（肤色四档）+ 一块发片（長者白发）；後生身形小一号。
+    /// Figures are about 14 m high, roughly eight times human scale, to remain visible in overview.
+    /// Minimal avatar: capsule body, round head with four skin tones, and one hair piece; older residents have white hair and younger figures are smaller.
     static func person(color: UIColor, mobility: Mobility, skin: Int = 1, age: AgeGroup = .adult) -> SCNNode {
         let root = SCNNode()
         let body = SCNNode()
@@ -39,7 +39,7 @@ enum Figures {
         headNode.position = SCNVector3(0, Float(seated ? 11.4 : 11.9) * SceneStyle.scale, 0)
         body.addChildNode(headNode)
 
-        // 头发：压扁的半球盖住头顶（只做一块，宁少勿杂）。
+        // Hair is a flattened hemisphere over the head; prefer one simple piece.
         let hair = SCNSphere(radius: 2.75 * s)
         hair.segmentCount = 16
         hair.firstMaterial = MeshBuilder.material(Palette.hairUI(age))
@@ -85,7 +85,7 @@ enum Figures {
         return root
     }
 
-    /// 地标：参考图 ③ 的小凉亭——白色顶、橙色描边、细灰柱，下面一圈橙色光晕（20%）。
+    /// Landmark pavilion follows reference 3: white roof, orange outline, thin gray columns, and 20%-opacity orange halo.
     static func landmark(hasSeat: Bool) -> SCNNode {
         let root = SCNNode()
         let s = CGFloat(SceneStyle.scale)
@@ -119,7 +119,7 @@ enum Figures {
         rn.position = SCNVector3(0, 7.4 * k, 0)
         root.addChildNode(rn)
 
-        // 橙色描边：屋顶一圈。
+        // Orange outline around the roof.
         let hw = Float(w) / 2, top: Float = 7.95
         let corners = [(-hw, -hw), (hw, -hw), (hw, hw), (-hw, hw)].map { SCNVector3($0.0 * k, top * k, $0.1 * k) }
         let idx: [UInt32] = [0, 1, 1, 2, 2, 3, 3, 0]
@@ -137,7 +137,7 @@ enum Figures {
         return root
     }
 
-    /// 一棵低多边形树（会被合并成一个节点）。
+    /// Low-poly tree, merged into one node.
     static func tree(variant: Int, size: Double) -> SCNNode {
         let s = CGFloat(SceneStyle.scale) * CGFloat(size)
         let root = SCNNode()

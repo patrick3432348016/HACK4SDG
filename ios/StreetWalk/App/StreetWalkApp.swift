@@ -2,31 +2,31 @@ import SwiftUI
 
 @main
 struct StreetWalkApp: App {
-    /// 系统喺背景开 App（离开屋企、到访、大范围移动）时冇画面：靠 AppDelegate 一启动就接好定位事件。
+    /// A background location launch has no UI; AppDelegate must connect location events immediately.
     @UIApplicationDelegateAdaptor(StreetWalkAppDelegate.self) private var appDelegate
     @State private var store = AppStore.launch()
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
-        VoiceSettings.shared.followAppLanguage()   // 播报语言跟界面语言（-lang cmn / 设定页揀过）
+        VoiceSettings.shared.followAppLanguage()   // Speech follows the UI language, including launch arguments and saved settings.
     }
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(store)
-                // 启动和回到前台：拉天文台天气、开真机散步检测；后台才停（控制中心、来电等 .inactive 不理）
+                // On launch/foreground, fetch Observatory weather and enable real walk detection. Stop only on background, not transient inactive states such as calls or Control Center.
                 .onChange(of: scenePhase, initial: true) { _, p in if p != .inactive { store.appActive(p == .active) } }
         }
-        // 后台刷新（真后端）：系统叫醒时拉一次街坊出门、约会、找人询问，有新嘢出本地通知（AppStore+Backend）
+        // Background refresh fetches outings, meetups, and finding requests from the real backend and posts local notifications for new events.
         .backgroundTask(.appRefresh(BackgroundRefresh.taskID)) { [store] in await store.backgroundRefresh() }
     }
 }
 
-/// 一启动（包括 iOS 喺背景为定位事件开 App）就建好 AppStore 同 LocationMonitor，事件先唔会冇人接。
+/// Create AppStore and LocationMonitor immediately, including background location launches, so events have a receiver.
 final class StreetWalkAppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-        // 系统喺背景开（定位事件）：SwiftUI App 未必带 .location，所以都睇埋而家係唔係喺背景
+        // SwiftUI background location launches may omit the .location option; also inspect the current background state.
         let background = launchOptions?[.location] != nil || application.applicationState == .background
         _ = AppStore.launch()
         if background { LocationMonitor.shared.noteLocationLaunch() }

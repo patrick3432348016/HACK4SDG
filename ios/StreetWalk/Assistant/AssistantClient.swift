@@ -1,9 +1,9 @@
 import Foundation
 
-// 组员 B 嘅 AssistantClient（MobilityAssistant/AssistantClient.swift）抄入嚟。保留：唔跟转址、HTTPS 规则（HTTP 只准 Debug）、
-// 错误信封、ID 校验、每次请求先攞 token。成员 A 改动：去掉 public；加 uploadContext（POST /v1/assistant/context）；
-// 请求超时由 40 秒改 12 秒（App 等唔到就退返手机模板，唔好令长者干等）；冇用到嘅录音转写 / 云端播报接口删咗
-//（录音用手机自己嘅粤语识别，播报用 Speaker）。
+// Adapted from member B's MobilityAssistant/AssistantClient.swift. Retains redirect rejection and HTTPS rules (HTTP only in Debug),
+// error envelopes, ID validation, and token retrieval per request. Member A removes public and adds uploadContext (POST /v1/assistant/context).
+// Request timeout is reduced from 40 to 12 seconds before local fallback, avoiding long waits. Unused transcription/cloud-speech endpoints are removed.
+//Recognition uses the phone's Cantonese recognizer; output uses Speaker.
 
 private final class RejectAssistantRedirects: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
@@ -100,7 +100,7 @@ actor AssistantClient {
     func reconcile(draftID: String) async throws -> AssistantReply {
         try await reply(request("v1/drafts/\(validID(draftID))/reconcile"))
     }
-    /// 成员 A 加：上传而家嘅地标、步行分钟、遮荫（冇坐标）。返回服务器记低嘅版本。
+    /// Member A: upload current landmarks, walking minutes, and shade without coordinates. Return the stored server version.
     func uploadContext(_ body: AssistantContextUpload) async throws -> String {
         struct R: Decodable { let version: String }
         let data = try await request("v1/assistant/context", body: JSONEncoder().encode(body))

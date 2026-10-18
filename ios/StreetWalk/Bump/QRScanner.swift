@@ -4,7 +4,7 @@ import AVFoundation
 import VisionKit
 import CoreImage.CIFilterBuiltins
 
-/// 二维码图（CoreImage CIQRCodeGenerator）。内容係 `jiefong:<一次性码>`（PairCode.qrPayload）。
+/// Generate a QR image with CoreImage CIQRCodeGenerator; content is jiefong:<one-time code> from PairCode.qrPayload.
 enum QRImage {
     private static let context = CIContext()
 
@@ -18,8 +18,8 @@ enum QRImage {
     }
 }
 
-/// 扫二维码：有 VisionKit（DataScannerViewController）就用佢，冇就用 AVFoundation。
-/// 先问镜头权限；冇镜头（模拟器）、唔俾权限都会讲清楚（onUnavailable）。
+/// Prefer VisionKit DataScannerViewController; fall back to AVFoundation.
+/// Request camera permission first; report unavailable camera/simulator or denied permission through onUnavailable.
 struct QRScannerView: View {
     enum Status: Equatable { case checking, dataScanner, avCapture, denied, noCamera }
     var onCode: (String) -> Void
@@ -80,7 +80,7 @@ func openSettings() {
     if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
 }
 
-/// VisionKit 扫码（iOS 16+，A12 之后）。
+/// VisionKit scanner for supported iOS 16+/A12-or-newer hardware.
 private struct DataScannerRepresentable: UIViewControllerRepresentable {
     var onCode: (String) -> Void
 
@@ -116,7 +116,7 @@ private struct DataScannerRepresentable: UIViewControllerRepresentable {
     }
 }
 
-/// 后备：AVFoundation 扫码（冇 VisionKit 嘅机型）。
+/// AVFoundation fallback for devices without VisionKit scanning.
 private struct AVScannerRepresentable: UIViewControllerRepresentable {
     var onCode: (String) -> Void
 
@@ -160,7 +160,7 @@ final class AVScannerController: UIViewController, AVCaptureMetadataOutputObject
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         let s = session
-        queue.async { if !s.isRunning { s.startRunning() } }   // startRunning 会阻塞，唔好喺主线程
+        queue.async { if !s.isRunning { s.startRunning() } }   // startRunning blocks; do not call it on the main thread.
     }
 
     override func viewWillDisappear(_ animated: Bool) {

@@ -1,15 +1,15 @@
 import SwiftUI
 
-// F7 约人：提议 → 对方确认 → 改时间 / 改地点 / 取消 → 出发前提醒 → 过期
+// F7 invitations: propose, peer confirmation, reschedule / relocate / cancel, departure reminder, expiry.
 extension AppStore {
-    // MARK: - 提议
+    // MARK: - Suggestions
 
-    /// announce：撳掣约人时讲出 AI 揀嘅时间、地点、理由（§4 语音 + 图像）；语音约人由复述卡自己讲。
-    /// landmarkID：喺地标卡撳「約街坊喺度」——地点定咗，只揀时间。
+    /// announce speaks the chosen time, place and reason for button invitations; voice invitations use their recap card.
+    /// landmarkID fixes the place when inviting from a landmark card; choose only the time.
     func proposeMeetup(with partnerID: String, day: Int? = nil, hour: Int? = nil, landmarkID: String? = nil, announce: Bool = true) {
         guard let p = resident(partnerID), let shade else { return }
-        renaming = nil   // 约人卡盖住改名卡：之后讲嘢唔再当新名
-        // 唔讲楼层：免得名同楼层对得上（A03）。
+        renaming = nil   // Opening an invitation card supersedes rename input.
+        // Omit floor numbers to prevent linking a person's name to their floor (A03).
         guard p.isNeighbor else { toast(L.t("佢仲未係你街坊。見到面碰一碰，先可以約。", "他还不是你的邻居。见面碰一碰，才可以约。")); return }
         var options: [MeetProposal] = []
         for (d, h) in candidateTimes(day: day, hour: hour) {
@@ -30,11 +30,11 @@ extension AppStore {
         }
     }
 
-    /// 候选时间：讲咗就用讲嘅；冇讲就由而家之后嘅朝早 / 下晝 / 傍晚揀。
-    /// 我哋自己提嘅时间避开日落后（长者夜晚行唔安全，UX 评审 34）；用户自己讲咗钟点就照用佢讲嗰个。
+    /// Use the requested time if present; otherwise choose upcoming morning, afternoon, or evening slots.
+    /// Prefer suggestions before sunset (UX finding 34); retain an explicit user-requested time. This rule is not a safety guarantee.
     func candidateTimes(day: Int?, hour: Int?) -> [(Int, Int)] {
         let nowH = Self.hk.component(.hour, from: now)
-        // 今日已经过咗嘅钟点唔提：讲咗"今日三點"而家已经四点，就改去聽日同一个钟。
+        // Move a specified time already passed today to the same time tomorrow.
         if var day, let hour {
             if day == 0 && hour <= nowH { day = 1 }
             return [(day, hour)] + daylight([(day, min(hour + 1, 21)), (day + 1, 8)], fallback: [(day + 1, 8)])
@@ -49,7 +49,7 @@ extension AppStore {
         return daylight(c, fallback: [(1, 8), (1, 16)])
     }
 
-    /// 只留太阳仲喺天上嘅钟点（未有遮荫资料就照留）；全部都日落咗就用 fallback。
+    /// Keep daylight times, or all times if shade data is unavailable; use fallback when all are after sunset.
     private func daylight(_ c: [(Int, Int)], fallback: [(Int, Int)]) -> [(Int, Int)] {
         guard let shade else { return c }
         let lit = c.filter { shade.isSunUp(at: Self.today(at: Double($0.1), dayOffset: $0.0)) }
@@ -67,7 +67,7 @@ extension AppStore {
     func nextProposalPlace() {
         guard var p = proposal, let shade else { return }
         let cur = p.options[p.index]
-        // 下一个：遮荫多、有櫈的优先；轮流换，不会停在同一个。
+        // Cycle through alternatives, preferring shade and benches without repeating the same place.
         let ranked = landmarks.sorted {
             let a = ($0.hasSeat ? 1 : 0, shade.shade(landmarkID: $0.id, at: cur.date)), b = ($1.hasSeat ? 1 : 0, shade.shade(landmarkID: $1.id, at: cur.date))
             return a != b ? a > b : $0.id < $1.id
@@ -76,7 +76,7 @@ extension AppStore {
         guard let i = ranked.firstIndex(where: { $0.id == cur.landmarkID }) ?? ranked.indices.first else { return }
         let next = ranked[(i + 1) % ranked.count]
         if p.editing != nil {
-            // 改约：时间同地点分开揀，换地点就全部时间一齐换（再揀第二个时间都系新地点）。
+            // Rescheduling selects time and place separately; a new place applies to every candidate time.
             p.options = p.options.map { MeetProposal(date: $0.date, landmarkID: next.id, reason: reason(for: next, at: $0.date)) }
         } else {
             p.options[p.index] = MeetProposal(date: cur.date, landmarkID: next.id, reason: reason(for: next, at: cur.date))
@@ -87,9 +87,9 @@ extension AppStore {
         Haptics.select()
     }
 
-    /// 地点理由：遮荫按画面上的楼大约计（唔计树荫）。
-    /// 测试反馈：时间地点要可以自己揀、行几耐都可以自己定。用自己揀嘅替换而家显示嗰个选项（「換個時間 / 地方」照旧轮住换）。
-    /// 行几耐写入理由（理由会同步俾对方，佢都见到）。
+    /// Estimate place shade from displayed buildings, excluding tree shade.
+    /// Feedback: allow manual time, place and walk-duration choices; replace the current option while retaining cycling controls.
+    /// Include walk duration in the reason shared with the peer.
     func setCustomProposal(date: Date, landmarkID: String, minutes: Int) {
         guard var p = proposal, p.options.indices.contains(p.index), let lm = landmark(landmarkID) else { return }
         guard date > now else { toast(L.t("嗰個時間已經過咗，揀過第二個。", "那个时间已经过了，换一个吧。")); return }
@@ -121,7 +121,7 @@ extension AppStore {
         let name = resident(p.partnerID)?.name ?? ""
         let place = landmark(opt.landmarkID)?.name ?? ""
         if let id = p.editing, let i = appointments.firstIndex(where: { $0.id == id }) {
-            // 改约：时间 / 地点换咗，要对方再确认一次。
+            // Changing meeting time or place requires renewed peer confirmation.
             appointments[i].date = opt.date
             appointments[i].landmarkID = opt.landmarkID
             appointments[i].reason = opt.reason
@@ -144,17 +144,17 @@ extension AppStore {
     }
 
     func cancelProposal() {
-        hush()   // 取消：「撳好就約」唔好再讲落去
+        hush()   // Cancel the pending confirmation announcement.
         proposal = nil
         scene.highlightLandmark(nil)
         scene.fadeOccluders(toward: nil)
     }
 
-    // MARK: - 改约、取消
+    // MARK: - Rescheduling and cancellation
 
-    /// 打开一个已有约会来改：一打开就揀好第一个唔同嘅时间（UX 评审 12），地点照旧（可以再「換個地方」）。
-    /// 选项：今日下晝 / 聽日朝早 / 聽日下晝（过咗嘅、日落后嘅、同原来差唔到半个钟嘅唔要）。
-    /// keepCurrent：最尾加返「原本時間」，方便只改地点（回覆别人嘅邀请「換個時間」就唔加）。
+    /// Opening an existing meeting preselects a different time (UX review 12), preserving the place until explicitly changed.
+    /// Offer this afternoon, tomorrow morning / afternoon; exclude past, after-dark and less-than-half-hour changes.
+    /// keepCurrent appends the original time for place-only edits, but not when countering an incoming invitation.
     func startEditing(_ id: UUID, keepCurrent: Bool = true) {
         guard let a = appointments.first(where: { $0.id == id }), resident(a.partnerID) != nil else { return }
         renaming = nil
@@ -173,10 +173,10 @@ extension AppStore {
         focus(onLandmark: a.landmarkID)
     }
 
-    /// 改时间嘅候选（日差, 钟点）：今日下晝、聽日朝早、聽日下晝，唔够就後日。
+    /// Reschedule candidates as (day offset, hour): this afternoon, tomorrow morning / afternoon, then the day after if needed.
     static let rescheduleSlots: [(Int, Int)] = [(0, 16), (1, 8), (1, 16), (2, 8), (2, 16)]
 
-    /// 改约卡揀咗边个时间（时间小按钮）。
+    /// Selected time button in the rescheduling card.
     func pickProposalOption(_ i: Int) {
         guard var p = proposal, p.options.indices.contains(i), p.index != i else { return }
         p.index = i
@@ -185,12 +185,12 @@ extension AppStore {
         Haptics.select()
     }
 
-    /// 直接改（语音"改做下晝 4 點""改去涼亭"复述确认后）。
+    /// Apply a direct voice edit after recap confirmation.
     func changeMeetup(_ id: UUID, day: Int?, hour: Int?, landmarkID: String?) {
         guard let i = appointments.firstIndex(where: { $0.id == id }), appointments[i].isOpen else { toast(L.t("呢個約會已經冇咗。", "这个约会已经没有了。")); return }
         var a = changed(appointments[i], day: day, hour: hour, landmarkID: landmarkID)
         guard a.date > now else { toast(L.t("嗰個時間已經過咗，揀過第二個。", "那个时间已经过了，换一个吧。")); return }
-        // 冇变就唔好将已约好嘅打返做「等緊確認」、或者将对方嘅邀请变成我嘅反提议（A84）。
+        // A84: unchanged proposals must not reset confirmed meetings to pending or turn incoming invitations into counteroffers.
         guard a.date != appointments[i].date || a.landmarkID != appointments[i].landmarkID else { toast(L.t("時間地點都冇變，照舊。", "时间地点都没变，照旧。")); return }
         a.status = .waiting
         a.fromPartner = false
@@ -203,16 +203,16 @@ extension AppStore {
         Haptics.success()
     }
 
-    /// 改咗之后嘅样子（未保存）：冇讲嘅部分保留原来的。
+    /// Unsaved rescheduled proposal: preserve original values for fields the user did not specify.
     func changed(_ a: Appointment, day: Int?, hour: Int?, landmarkID: String?) -> Appointment {
         var a = a
         let cal = Self.hk
         if hour != nil || day != nil {
             let base = day.map { cal.startOfDay(for: now).addingTimeInterval(Double($0) * 86400) } ?? cal.startOfDay(for: a.date)
-            // 只改日子：钟点连分钟都保留（自己揀咗 16:45，「改到聽日」都系 16:45）
+            // Date-only changes preserve hours and minutes, including custom times such as 16:45.
             let minute = hour == nil ? Double(cal.component(.minute, from: a.date)) * 60 : 0
             a.date = base.addingTimeInterval(Double(hour ?? cal.component(.hour, from: a.date)) * 3600 + minute)
-            // 冇讲日子、只讲钟点，而嗰个钟今日已经过咗：当係聽日。
+            // A time without a date that has passed today means tomorrow.
             if day == nil, a.date <= now { a.date = a.date.addingTimeInterval(86400) }
         }
         if let landmarkID { a.landmarkID = landmarkID }
@@ -230,16 +230,16 @@ extension AppStore {
         Haptics.light()
     }
 
-    /// 语音改约、取消时要改边一个：指名就揀佢，否则揀最近嘅未完成约会。
+    /// For voice reschedule / cancel, use the named person or otherwise the nearest unfinished meeting.
     func targetAppointment(partnerID: String?) -> Appointment? {
         appointments.filter { $0.isOpen && (partnerID == nil || $0.partnerID == partnerID) && $0.date > now.addingTimeInterval(-3600) }
             .min { $0.date < $1.date }
     }
 
-    // MARK: - 对方的回覆、对方约我
+    // MARK: - Peer responses and incoming invitations
 
     func partnerAnswered(_ id: UUID, accepted: Bool) {
-        // 对方已经唔喺圈入面（或者圈仲未装好）：唔好出空名（A36）。
+        // A36: avoid blank names when the peer is absent or circle members have not loaded.
         guard let i = appointments.firstIndex(where: { $0.id == id }), appointments[i].status == .waiting,
               let name = resident(appointments[i].partnerID)?.name else { return }
         let a = appointments[i]
@@ -257,7 +257,7 @@ extension AppStore {
         }
     }
 
-    /// 演示：陈太约你（经 CommunityService 送回来）。
+    /// Demo: Mrs Chan invites you through CommunityService.
     func partnerInvites(_ id: String = "chan") {
         guard let p = resident(id), p.isNeighbor, let shade else {
             toast(L.t("示範：要先碰一碰做咗街坊，先可以約你。", "演示：要先碰一碰成为邻居，才可以约你。"))
@@ -277,7 +277,7 @@ extension AppStore {
         say(text)
     }
 
-    /// 对方只需一次确认（规格 F7）：我按「好」。
+    /// F7: the recipient confirms once.
     func acceptInvitation(_ id: UUID) {
         guard let i = appointments.firstIndex(where: { $0.id == id }) else { return }
         appointments[i].status = .accepted
@@ -295,12 +295,12 @@ extension AppStore {
         Haptics.light()
     }
 
-    /// 别人约我、我想换时间：打开改约卡（已经揀好一个唔同嘅时间），撳「發俾XX」就变成我反提议，等对方确认。
+    /// Countering an invitation opens a different time; sending makes it my proposal awaiting the peer's confirmation.
     func rescheduleInvitation(_ id: UUID) { startEditing(id, keepCurrent: false) }
 
-    // MARK: - 出发前提醒、过期
+    // MARK: - Departure reminders and expiry
 
-    /// 每 30 秒、拉时间滑杆、装好地图时检查一次。
+    /// Check every 30 seconds, after moving the time slider and after loading the map.
     func checkAppointments() {
         for i in appointments.indices where appointments[i].isOpen {
             let a = appointments[i]
@@ -312,8 +312,8 @@ extension AppStore {
                 showBanner(BannerItem(symbol: "bell.fill", text: text, action: .depart(a.id), actionTitle: L.t("出發", "出发")))
                 say(text)
             } else if a.status == .accepted, a.lateAsked != true, left < -600, left >= -3600, findAppointment != a.id {
-                // F8：过咗约定时间 10 分钟（冇喺找人画面）：提一次（A20）。有对方电话先问要唔要打；
-                // 冇号码（PhoneBook 而家全空）就唔出「打電話」（撳咗只会话未有号码），叫佢喺附近搵吓。
+                // F8 / A20: remind once when 10 minutes late outside finding; offer a call only when the peer has a phone number.
+                // PhoneBook currently has no numbers; omit a nonfunctional call button and suggest looking nearby.
                 appointments[i].lateAsked = true
                 let name = resident(a.partnerID)?.name ?? L.t("街坊", "邻居")
                 let canCall = PhoneBook.number(for: a.partnerID) != nil
@@ -323,7 +323,7 @@ extension AppStore {
                                    : BannerItem(symbol: "clock.fill", text: text))
                 say(text, prompt: true)
             } else if left < -3600, findAppointment != a.id {
-                // 过咗约定时间一个钟都冇碰头：收埋，唔再提。
+                // Hide meetings still unmet after one hour and stop reminders.
                 appointments[i].status = .expired
                 toast(L.t("同\(resident(a.partnerID)?.name ?? "街坊")\(dayTimeLabel(a.date))嘅約過咗時間，收埋咗。", "和\(resident(a.partnerID)?.name ?? "邻居")\(dayTimeLabel(a.date))的约已过时，已收起。"))
             }
@@ -340,7 +340,7 @@ extension AppStore {
         }
     }
 
-    // MARK: - 列表
+    // MARK: - Lists
 
     var todaysAppointments: [Appointment] {
         let cal = Self.hk
@@ -348,7 +348,7 @@ extension AppStore {
             .sorted { $0.date < $1.date }
     }
     var invitations: [Appointment] { appointments.filter { $0.fromPartner && $0.status == .waiting } }
-    /// 等你回覆嘅事有几多件：别人约你（未答）+ 街坊问「想過嚟搵你，方唔方便？」（未答）。标签栏红点用。
+    /// Tab badge count: unanswered invitations plus unanswered requests to come and find me.
     var pendingReplies: Int {
         invitations.count + (incomingFind.map { resident($0.fromID) != nil } == true ? 1 : 0)
     }
@@ -357,17 +357,17 @@ extension AppStore {
         return appointments.filter { !cal.isDate($0.date, inSameDayAs: now) && $0.date > now && $0.isOpen && !($0.fromPartner && $0.status == .waiting) }
             .sorted { $0.date < $1.date }
     }
-    /// 「街坊」页「我嘅約會」：今日嘅（未完成）+ 之后几日，按时间排（以前只列之后几日，今日约好嘅睇唔到）。
+    /// My Meetings includes unfinished meetings today and future days, sorted by time.
     var myAppointments: [Appointment] {
         (todaysAppointments + upcomingAppointments).sorted { $0.date < $1.date }
     }
 
-    /// 按日差讲：琴日 / 今日 / 聽日 / 後日，再远就讲几月几号星期几（A62）；钟点有分钟就讲埋（「今日下晝 4 點 45 分」）。
+    /// Use relative labels through two days away, then month/day/weekday (A62); include nonzero minutes.
     func dayTimeLabel(_ d: Date) -> String {
         dayLabel(d) + Self.clockLabel(d)
     }
 
-    /// 只讲日子：琴日 / 今日 / 聽日 / 後日 / 几月几号（星期几）。
+    /// Date only: relative day labels or month/day/weekday.
     func dayLabel(_ d: Date) -> String {
         let cal = Self.hk
         let diff = cal.dateComponents([.day], from: cal.startOfDay(for: now), to: cal.startOfDay(for: d)).day ?? 0
@@ -382,7 +382,7 @@ extension AppStore {
         }
     }
 
-    /// 约会钟点（香港时间）：「下晝 4 點」；自己揀咗 16:45 就係「下晝 4 點 45 分」。
+    /// Meeting time in Hong Kong time, including custom minutes.
     nonisolated static func clockLabel(_ d: Date) -> String {
         TemplateAI.timeLabel(hour: hk.component(.hour, from: d), minute: hk.component(.minute, from: d))
     }

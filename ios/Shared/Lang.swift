@@ -1,18 +1,18 @@
 import Foundation
 import Observation
 
-/// 界面语言：粤语（繁体，默认）/ 普通话（简体）。App 同实时活动（StreetWalkWidgets）两个目标都编译。
+/// Interface languages in this historical branch: Cantonese (Traditional Chinese, default) and Mandarin (Simplified Chinese). Compiled by both the app and StreetWalkWidgets.
 ///
-/// 用法：所有用户睇到、听到嘅文字写成 `L.t("粵語原文", "普通话")`。
-/// SwiftUI 喺 body 入面调用 L.t 会读到 `AppLanguage.shared.current`（@Observable），切换语言即时重画。
-/// 设定页切换：`AppLanguage.shared.set(.cmn)`（存 UserDefaults）；启动参数 `-lang cmn` 只影响今次（唔存）。
-/// 地标名、人名属于数据，唔翻译。
+/// Wrap user-visible and spoken text in L.t with Cantonese and Mandarin versions.
+/// Calling L.t in a SwiftUI body reads AppLanguage.shared.current (@Observable), so language changes immediately redraw the UI.
+/// Settings use AppLanguage.shared.set(.cmn) and persist to UserDefaults. The -lang cmn launch argument applies only to this run.
+/// Landmark and person names are data; do not translate them here.
 enum AppLang: String, CaseIterable, Codable, Sendable {
     case yue, cmn
 
-    /// 设定页显示（永远用该语言自己嘅写法）。
+    /// Settings label, always written in the language it represents.
     var label: String { self == .yue ? "粵語（繁體）" : "普通话（简体）" }
-    /// 语音识别 / 助手服务器用嘅地区代码。
+    /// Locale code for recognition and the assistant server.
     var locale: String { self == .yue ? "zh-HK" : "zh-CN" }
 }
 
@@ -28,13 +28,13 @@ final class AppLanguage: @unchecked Sendable {
     init(defaults: UserDefaults = .standard, arguments: [String] = ProcessInfo.processInfo.arguments) {
         self.defaults = defaults
         if let i = arguments.firstIndex(of: "-lang"), i + 1 < arguments.count, let l = AppLang(rawValue: arguments[i + 1]) {
-            current = l   // 演示 / 截图：-lang cmn（唔存）
+            current = l   // Demo/screenshots: -lang cmn is not persisted.
         } else {
             current = AppLang(rawValue: defaults.string(forKey: Self.key) ?? "") ?? .yue
         }
     }
 
-    /// 用户喺设定页揀：即时生效兼存低。
+    /// A Settings selection takes effect immediately and is saved.
     func set(_ l: AppLang) {
         current = l
         defaults.set(l.rawValue, forKey: Self.key)
@@ -44,6 +44,6 @@ final class AppLanguage: @unchecked Sendable {
 enum L {
     static var lang: AppLang { AppLanguage.shared.current }
     static var isCmn: Bool { lang == .cmn }
-    /// 粤语原文 / 普通话。
+    /// Cantonese original / Mandarin translation.
     static func t(_ yue: String, _ cmn: String) -> String { isCmn ? cmn : yue }
 }

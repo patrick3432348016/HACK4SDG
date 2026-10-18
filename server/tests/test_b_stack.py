@@ -1,4 +1,4 @@
-"""成员 A（2026-10-12）：换成 B 新版嗰套之后嘅接驳测试——豆包播报、话题判断（B 嘅 VoicePolicy）、识别通道。只用假供应商。"""
+"""A, 2026-10-12: fake-provider integration tests for Doubao synthesis, VoicePolicy routing and recognition channels."""
 import asyncio
 import base64
 import json
@@ -38,7 +38,7 @@ class DoubaoSpeechTests(unittest.TestCase):
         self.assertEqual(b"".join(chunks), b"\x01\x02\x03\x04\x05\x06\x07\x08")
         params = seen[0]["req_params"]
         self.assertEqual(json.loads(params["additions"])["explicit_dialect"], "yue")
-        self.assertEqual(params["audio_params"]["speech_rate"], -5)   # B 嘅基准 -15，快一档 +10
+        self.assertEqual(params["audio_params"]["speech_rate"], -5)   # B's baseline -15 becomes +10 for Fast.
 
     def test_mandarin_has_no_dialect_and_vendor_error_fails(self):
         seen = []
