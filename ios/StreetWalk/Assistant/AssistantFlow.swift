@@ -121,8 +121,11 @@ enum AssistantFlow {
                 let when = (a?.startsAt ?? at).map(lookup.timeLabel) ?? ""
                 let place = a?.placeID.flatMap(lookup.placeName) ?? ""
                 c.title = L.t("約\(who)\(when)一齊行", "约\(who)\(when)一起走", "Walk with \(who) \(when)")
-                c.detail = L.t("地點：\(place)\n確認後會問\(who)，佢應承先算約好。", "地点：\(place)\n确认后会问\(who)，对方答应才算约好。", "Place: \(place)\nWe'll ask \(who). It's set once they say yes.")
-                c.spoken = L.t("約\(who)\(when)，喺\(place)", "约\(who)\(when)，在\(place)", "Walk with \(who) \(when), at \(place)")
+                // F7 验收：确认卡用一句话讲点解揀呢个地点（本机按遮荫、櫈、行几耐算）
+                let why = a?.placeID.flatMap { lookup.placeDetail($0, a?.startsAt ?? at) }.map(TemplateAI.whyHere) ?? ""
+                let whyLine = why.isEmpty ? "" : why + "\n"
+                c.detail = L.t("地點：\(place)\n\(whyLine)確認後會問\(who)，佢應承先算約好。", "地点：\(place)\n\(whyLine)确认后会问\(who)，对方答应才算约好。", "Place: \(place)\n\(whyLine)We'll ask \(who). It's set once they say yes.")
+                c.spoken = L.t("約\(who)\(when)，喺\(place)", "约\(who)\(when)，在\(place)", "Walk with \(who) \(when), at \(place)") + (why.isEmpty ? "" : L.t("。", "。", ". ") + why)
             case "leave":
                 let day = a?.date.flatMap(parseDay).map(lookup.dayLabel) ?? a?.date ?? ""
                 c.title = L.t("\(day)請假？", "\(day)请假？", "Day off \(day)?")

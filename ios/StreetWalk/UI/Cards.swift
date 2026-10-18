@@ -53,7 +53,7 @@ struct ProposalCard: View {
                     Image(systemName: "calendar").foregroundStyle(DS.accent)
                 }
                 .ds(.bodyBold)
-                Text(current.reason)
+                Text(TemplateAI.whyHere(current.reason))
                     .ds(.caption)
                     .foregroundStyle(.secondary)
                     .contentTransition(.opacity)
@@ -134,7 +134,7 @@ struct ProposalCard: View {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(place).ds(.body).contentTransition(.opacity)
-                        Text(current.reason).ds(.caption).foregroundStyle(.secondary).contentTransition(.opacity)
+                        Text(TemplateAI.whyHere(current.reason)).ds(.caption).foregroundStyle(.secondary).contentTransition(.opacity)
                     }
                     .fixedSize(horizontal: false, vertical: true)
                 } icon: {

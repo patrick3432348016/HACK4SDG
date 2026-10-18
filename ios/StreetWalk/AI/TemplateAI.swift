@@ -319,6 +319,18 @@ struct TemplateAI: AIService {
         return nil
     }
 
+    /// 产品定稿 F7 验收：AI 用一句话讲点解揀呢个地点。理由碎片（遮荫、櫈、各行几耐）→ 完整一句。
+    /// 只喺显示 / 播报时包，存入服务器嘅理由唔变（对方会按自己语言重算）。
+    static func whyHere(_ reason: String) -> String {
+        var r = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        while let last = r.last, "。.，,、；;".contains(last) { r.removeLast() }
+        guard !r.isEmpty else { return "" }
+        let prefix = L.t("揀呢度係因為：", "选这里的原因：", "Why here: ")
+        if r.hasPrefix(prefix) { return r + L.t("。", "。", ".") }
+        if L.isEn { r = r.prefix(1).lowercased() + r.dropFirst() }
+        return prefix + r + L.t("。", "。", ".")
+    }
+
     /// 「一齊行 40 分鐘」「一齊行一個鐘」（普通话「一起走半个小时」）。
     static func walkPhrase(_ m: Int) -> String {
         let d = durationLabel(m)

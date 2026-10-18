@@ -85,7 +85,7 @@ extension AppStore {
     func assistantPlaceDetail(_ id: String, at: Date?) -> String? {
         guard let l = landmark(id) else { return nil }
         let mins = Self.walkMinutes(l.pos.distance(to: scene.homeTarget))
-        return L.t("你行 \(Int(mins.rounded())) 分鐘；", "你走 \(Int(mins.rounded())) 分钟；", "\(Int(mins.rounded())) min walk for you; ") + reason(for: l, at: at ?? now)
+        return L.t("你行 \(Int(mins.rounded())) 分鐘，", "你走 \(Int(mins.rounded())) 分钟，", "\(Int(mins.rounded())) min walk for you, ") + reason(for: l, at: at ?? now)
     }
 
     /// 显示服务器嘅一步（问、揀、复述、结果）。

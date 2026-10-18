@@ -26,7 +26,7 @@ extension AppStore {
         focus(onLandmark: options[0].landmarkID)
         if announce {
             let o = options[0]
-            say(L.t("約\(p.name)\(dayTimeLabel(o.date))，喺\(landmark(o.landmarkID)?.name ?? "")，\(o.reason)。撳「好」就約。", "约\(p.name)\(dayTimeLabel(o.date))，在\(landmark(o.landmarkID)?.name ?? "")，\(o.reason)。按「好」就约。", "Invite \(p.name) for a walk \(dayTimeLabel(o.date)) at \(landmark(o.landmarkID)?.name ?? ""): \(o.reason). Tap “OK” to invite."), prompt: true)
+            say(L.t("約\(p.name)\(dayTimeLabel(o.date))，喺\(landmark(o.landmarkID)?.name ?? "")。\(TemplateAI.whyHere(o.reason))撳「好」就約。", "约\(p.name)\(dayTimeLabel(o.date))，在\(landmark(o.landmarkID)?.name ?? "")。\(TemplateAI.whyHere(o.reason))按「好」就约。", "Invite \(p.name) for a walk \(dayTimeLabel(o.date)) at \(landmark(o.landmarkID)?.name ?? ""). \(TemplateAI.whyHere(o.reason)) Tap “OK” to invite."), prompt: true)
         }
     }
 

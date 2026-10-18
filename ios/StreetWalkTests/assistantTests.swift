@@ -162,10 +162,17 @@ struct AssistantFlowTests {
         #expect(c.title == "約阿芳聽日下晝 4 點一齊行")
         #expect(c.detail?.contains("涼亭") == true)
         #expect(c.detail?.contains("佢應承先算約好") == true)
+        #expect(c.detail?.contains("揀呢度係因為：你行 4 分鐘；嗰陣有樓遮住、有櫈。") == true, "F7：一句话讲点解揀呢度")
+        #expect(c.spoken.contains("揀呢度係因為"))
         #expect(c.draftID == did)
         #expect(c.action?.placeID == "lm-1")
         #expect(c.action?.contactID == "fang-id")
         #expect(c.action?.startsAt == AssistantFlow.parseDate("2026-10-11T08:00:00Z"))
+    }
+
+    @Test func 理由包成一句() {
+        #expect(TemplateAI.whyHere("嗰陣有樓遮住、有櫈、") == "揀呢度係因為：嗰陣有樓遮住、有櫈。")
+        #expect(TemplateAI.whyHere("  ") == "")
     }
 
     @Test func 结果未知唔准再做() throws {
